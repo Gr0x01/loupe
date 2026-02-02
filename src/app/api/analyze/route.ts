@@ -2,12 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 
+const RATE_LIMIT_WINDOW_MINUTES = 60;
+const RATE_LIMIT_MAX_REQUESTS = 5;
+const MAX_URL_LENGTH = 2048;
+const MAX_EMAIL_LENGTH = 320;
+
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get("x-real-ip") ||
+      req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
+      req.ip ||
+      null;
+
+    if (!ip) {
+      return NextResponse.json(
+        { error: "Unable to process request" },
+        { status: 400 }
+      );
+    }
+
     const { url, email } = await req.json();
 
-    if (!url || typeof url !== "string") {
+    if (!url || typeof url !== "string" || url.length > MAX_URL_LENGTH) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    }
+
+    if (email && (typeof email !== "string" || email.length > MAX_EMAIL_LENGTH)) {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
 
     // URL validation
@@ -39,22 +61,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Create analysis record
-    const { data, error } = await supabase
-      .from("analyses")
-      .insert({
-        url: parsedUrl.toString(),
-        email: email || null,
-        status: "pending",
-      })
-      .select("id")
-      .single();
+    // Atomic rate-limited insert via RPC
+    const { data, error } = await supabase.rpc("create_analysis_if_allowed", {
+      p_ip: ip,
+      p_url: parsedUrl.toString(),
+      p_email: email || null,
+      p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
+      p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+    });
 
     if (error) {
-      console.error("Supabase insert error:", error);
+      console.error("Supabase RPC error:", error);
       return NextResponse.json(
         { error: "Failed to create analysis" },
         { status: 500 }
+      );
+    }
+
+    if (data.error === "rate_limit_exceeded") {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(RATE_LIMIT_WINDOW_MINUTES * 60) },
+        }
       );
     }
 
