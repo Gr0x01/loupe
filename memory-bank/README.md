@@ -6,34 +6,34 @@
 
 **Your site's changing. We're watching.**
 
-Driftwatch monitors your web pages for visual and content drift — changes from deploys, coding agents, dependency updates, or copy edits. It screenshots your pages on a schedule, detects meaningful changes, audits pages for CRO best practices, and emails you when something shifts. Connect your analytics to see what those changes did to your numbers.
+Driftwatch monitors your web pages for marketing and design drift — the subtle changes that slip through when you're shipping fast. Copy that got reworded, hero images that shifted, CTAs that disappeared, trust signals that broke. We screenshot your pages on a schedule, detect meaningful changes, and tell you what shifted and what to do about it. Not error monitoring — that's what Sentry is for. This is the stuff founders miss.
 
 ### Target Audience
-Solo founders and small teams (1-5 devs) shipping web products who don't have a dedicated growth/analytics person. They deploy frequently, use coding agents, and rarely notice when something on their site drifts off.
+Solo founders and small teams (1-5 devs) shipping web products who don't have a dedicated marketing or design person watching their site. They deploy frequently, use coding agents, and rarely notice when something customer-facing drifts off.
 
 ### The Problem
-Sites change constantly — deploys, AI-assisted code changes, dependency updates, third-party scripts. Founders ship fast but don't track what changed, when, or whether it helped or hurt. When conversion drops 20%, they panic and guess instead of looking at what shifted.
+Sites drift constantly — deploys, AI-assisted code changes, dependency updates, third-party scripts. Nobody's watching the marketing and design layer. Your headline changes, your social proof disappears, your CTA gets buried. You don't notice until conversions tank and you're guessing what went wrong.
 
 ### The Solution (Layered)
 
 **Core (zero setup):** Enter URLs + email. We watch your pages.
 1. **Monitor** — Screenshot pages on a schedule, detect visual/content changes
-2. **Audit** — LLM-powered CRO analysis (headline, CTA, trust signals, visual hierarchy)
-3. **Alert** — Email when something meaningful changes: "Your homepage hero text changed"
+2. **Analyze** — LLM-powered review of what changed and whether it matters (copy, layout, trust signals, calls to action)
+3. **Alert** — Email when something meaningful shifts: "Your homepage hero text changed"
+4. **Suggest** — Plain-language recommendations: what drifted, why it matters, what to do
 
 **Power-up (connect your stuff):**
-4. **Track deploys** — Connect GitHub, tie changes to specific commits
-5. **Correlate** — Connect PostHog/GA4, see metric movements after changes
-6. **Suggest** — LLM narration: "You changed the CTA. Signups increased 15%. Try the same pattern on your pricing page."
+5. **Track deploys** — Connect GitHub, tie changes to specific commits
+6. **Correlate** — Connect PostHog/GA4, see metric movements after changes
 
 ### Product Evolution
-- **v1 (MVP)**: Page monitoring + audits + email alerts (URL + email, that's it)
+- **v1 (MVP)**: Page monitoring + analysis + suggestions + email alerts (URL + email, that's it)
 - **v2**: Deploy tracking (GitHub integration) + analytics correlation
-- **v3**: Proactive suggestions, historical trends, deeper CRO intelligence
-- **Future**: Boost integration (closed-loop CRO system)
+- **v3**: Historical trends, deeper pattern recognition across pages
+- **Future**: Boost integration (closed-loop marketing optimization)
 
 ### Adjacent Product: Boost (aboo.st)
-Same founder, same LLM analysis muscle. Boost tells you "what to do," Driftwatch tells you "if what you did worked." Together they create a closed-loop CRO system for indie founders.
+Same founder, same LLM analysis muscle. Boost tells you "what to do," Driftwatch tells you "if what you did worked." Together they create a closed-loop marketing system for indie founders.
 
 **Domain**: TBD (driftwatch.io / driftwatch.dev)
 
@@ -54,7 +54,7 @@ Same founder, same LLM analysis muscle. Boost tells you "what to do," Driftwatch
 Tiered by task complexity, swappable via Vercel AI SDK:
 - **Detection** (did something change?): Haiku / Gemini Flash — cheap, fast
 - **Description** (what changed?): Sonnet — good vision + clear language
-- **Suggestions** (what to do about it): Opus / Sonnet — deep marketing knowledge
+- **Suggestions** (what to do about it): Opus / Sonnet — marketing + design awareness
 
 ## Commands
 ```bash
