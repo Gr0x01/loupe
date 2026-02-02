@@ -1,18 +1,65 @@
 @import "tailwindcss";
 
 :root {
-  --background: #FAFAFA;
-  --foreground: #111827;
+  /* Backgrounds — Cool Dark */
+  --bg-primary: #0F1117;
+  --bg-secondary: #161922;
+  --surface: #1C1F2E;
+  --surface-hover: #252838;
+
+  /* Text */
+  --text-primary: #F0F0F3;
+  --text-secondary: #9BA1B0;
+  --text-muted: #5C6170;
+
+  /* Accent — Electric Cyan */
+  --accent: #00D4FF;
+  --accent-hover: #00B8E0;
+  --accent-muted: rgba(0, 212, 255, 0.12);
+
+  /* Borders */
+  --border: #252838;
+  --border-strong: #363A4A;
+
+  /* Semantic — Scores */
+  --score-high: #34D399;
+  --score-mid: #FBBF24;
+  --score-low: #F87171;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument-serif);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Score ring */
+.score-ring {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--score-color) calc(var(--score) * 3.6deg),
+    var(--bg-secondary) calc(var(--score) * 3.6deg)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.score-ring-inner {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }

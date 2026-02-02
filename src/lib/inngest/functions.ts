@@ -23,8 +23,8 @@ export const analyzeUrl = inngest.createFunction(
       .eq("id", analysisId);
 
     try {
-      // 1. Screenshot
-      const { base64 } = await captureScreenshot(url);
+      // 1. Screenshot + metadata extraction
+      const { base64, metadata } = await captureScreenshot(url);
 
       // 2. Upload screenshot to storage
       const screenshotUrl = await uploadScreenshot(
@@ -33,8 +33,12 @@ export const analyzeUrl = inngest.createFunction(
         base64
       );
 
-      // 3. Run LLM analysis
-      const { output, structured } = await runAnalysisPipeline(base64, url);
+      // 3. Run LLM analysis with screenshot + metadata
+      const { output, structured } = await runAnalysisPipeline(
+        base64,
+        url,
+        metadata
+      );
 
       // 4. Save results
       await supabase

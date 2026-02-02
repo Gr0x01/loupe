@@ -3,14 +3,23 @@
 ## Phase 1A — Free Analysis Tool (lead magnet)
 Get something live and shareable.
 
-- [ ] Next.js app scaffolding (Supabase, Vercel AI SDK, Tailwind)
-- [ ] Connect screenshot service (Vultr Puppeteer instance)
-- [ ] Build LLM analysis pipeline (marketing agent + design agent + orchestrator)
-- [ ] Landing page with URL input → screenshot → analysis results
-- [ ] Shareable results card
+- [x] Next.js app scaffolding (Supabase, Vercel AI SDK, Tailwind)
+- [x] Supabase schema (`analyses` table + `screenshots` storage bucket)
+- [x] Connect screenshot service (Vultr Puppeteer instance)
+- [x] Upgrade screenshot service with stealth plugin + Decodo residential proxy
+- [x] Build LLM analysis pipeline (single Sonnet call, structured JSON output)
+- [x] Inngest background job (`analysis/created` event handler)
+- [x] API routes (`POST /api/analyze`, `GET /api/analysis/[id]`)
+- [x] Landing page with URL input → analysis results
+- [x] Results page (`/analysis/[id]`) with score, categories, findings
+- [ ] LLM pipeline evaluation (test configs A-D against ~10 URLs)
+- [ ] Shareable results card (OG image generation)
 - [ ] Email gate on second use
+- [ ] Rate limiting / bot protection (before launch)
 
 **Done when:** Someone can enter a URL and get a useful analysis back.
+
+**Status:** Core pipeline works end-to-end. Screenshot → Upload → LLM analysis → Results display. UI has been styled with Instrument Serif + DM Sans, dark tech aesthetic with electric cyan accent (D9).
 
 ## Phase 1B — Monitoring + Alerts
 The actual product loop.

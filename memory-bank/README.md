@@ -1,4 +1,4 @@
-# Driftwatch
+# Loupe
 
 **Founder**: Rashaad
 
@@ -6,13 +6,13 @@
 
 **Your site's changing. We're watching.**
 
-Driftwatch monitors your web pages for marketing and design drift — the subtle changes that slip through when you're shipping fast. Copy that got reworded, hero images that shifted, CTAs that disappeared, trust signals that broke. We screenshot your pages on a schedule, detect meaningful changes, and tell you what shifted and what to do about it. Not error monitoring — that's what Sentry is for. This is the stuff founders miss.
+Loupe monitors your web pages for meaningful changes — the subtle shifts that slip through when you're shipping fast. Copy that got reworded, hero images that shifted, CTAs that disappeared, trust signals that broke. We screenshot your pages on a schedule, detect meaningful changes, and tell you what shifted and what to do about it. Not error monitoring — that's what Sentry is for. This is the stuff founders miss.
 
 ### Target Audience
 Solo founders and small teams (1-5 devs) shipping web products who don't have a dedicated marketing or design person watching their site. They deploy frequently, use coding agents, and rarely notice when something customer-facing drifts off.
 
 ### The Problem
-Sites drift constantly — deploys, AI-assisted code changes, dependency updates, third-party scripts. Nobody's watching the marketing and design layer. Your headline changes, your social proof disappears, your CTA gets buried. You don't notice until conversions tank and you're guessing what went wrong.
+Sites change constantly — deploys, AI-assisted code changes, dependency updates, third-party scripts. Nobody's watching the marketing and design layer. Your headline changes, your social proof disappears, your CTA gets buried. You don't notice until conversions tank and you're guessing what went wrong.
 
 ### The Solution (Layered)
 
@@ -20,7 +20,7 @@ Sites drift constantly — deploys, AI-assisted code changes, dependency updates
 1. **Monitor** — Screenshot pages on a schedule, detect visual/content changes
 2. **Analyze** — LLM-powered review of what changed and whether it matters (copy, layout, trust signals, calls to action)
 3. **Alert** — Email when something meaningful shifts: "Your homepage hero text changed"
-4. **Suggest** — Plain-language recommendations: what drifted, why it matters, what to do
+4. **Suggest** — Plain-language recommendations: what changed, why it matters, what to do
 
 **Power-up (connect your stuff):**
 5. **Track deploys** — Connect GitHub, tie changes to specific commits
@@ -33,9 +33,9 @@ Sites drift constantly — deploys, AI-assisted code changes, dependency updates
 - **Future**: Boost integration (closed-loop marketing optimization)
 
 ### Adjacent Product: Boost (aboo.st)
-Same founder, same LLM analysis muscle. Boost tells you "what to do," Driftwatch tells you "if what you did worked." Together they create a closed-loop marketing system for indie founders.
+Same founder, same LLM analysis muscle. Boost tells you "what to do," Loupe tells you "if what you did worked." Together they create a closed-loop marketing system for indie founders.
 
-**Domain**: TBD (driftwatch.io / driftwatch.dev)
+**Domain**: getloupe.io
 
 ## Tech Stack (Planned)
 

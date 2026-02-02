@@ -1,35 +1,71 @@
 const SCREENSHOT_URL = process.env.SCREENSHOT_SERVICE_URL!;
 const SCREENSHOT_API_KEY = process.env.SCREENSHOT_API_KEY!;
 
+export interface PageMetadata {
+  meta: {
+    title: string | null;
+    description: string | null;
+    ogTitle: string | null;
+    ogDescription: string | null;
+    ogImage: string | null;
+    viewport: string | null;
+    canonical: string | null;
+  };
+  headings: {
+    h1: string[];
+    h2: string[];
+    h3: string[];
+  };
+  buttons: { text: string; tag: string; href: string | null }[];
+  links: { total: number; external: number };
+  images: { total: number; withoutAlt: number };
+  forms: number;
+  scripts: number;
+  stylesheets: number;
+  socialProof: {
+    hasTestimonials: boolean;
+    hasNumbers: boolean;
+    hasLogos: boolean;
+    hasStarRating: boolean;
+  };
+  navigation: { text: string; href: string }[];
+  hasFooter: boolean;
+}
+
 export interface ScreenshotResult {
   base64: string;
   mimeType: "image/jpeg";
+  metadata: PageMetadata;
 }
 
 /**
- * Capture a screenshot of a URL via the Vultr Puppeteer service.
- * Returns base64 JPEG for LLM vision input.
+ * Capture a screenshot and extract page metadata via the Vultr Puppeteer service.
+ * Returns base64 JPEG + structured metadata from the rendered DOM.
  */
 export async function captureScreenshot(
   url: string
 ): Promise<ScreenshotResult> {
   const params = new URLSearchParams({ url });
-  const response = await fetch(`${SCREENSHOT_URL}/screenshot?${params}`, {
-    headers: {
-      "x-api-key": SCREENSHOT_API_KEY,
-    },
-  });
+  const response = await fetch(
+    `${SCREENSHOT_URL}/screenshot-and-extract?${params}`,
+    {
+      headers: {
+        "x-api-key": SCREENSHOT_API_KEY,
+      },
+      signal: AbortSignal.timeout(45000),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Screenshot failed (${response.status}): ${text}`);
   }
 
-  const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const data = await response.json();
   return {
-    base64,
+    base64: data.screenshot,
     mimeType: "image/jpeg",
+    metadata: data.metadata,
   };
 }
 

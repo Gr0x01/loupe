@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans, Instrument_Serif } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+});
+
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -13,13 +20,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Driftwatch — Your site's changing. We're watching.",
+  title: "Loupe — Your site changed. Did you notice?",
   description:
-    "Enter a URL and get a detailed analysis of your page's marketing effectiveness and design quality. Free, instant, no signup required.",
+    "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds. Free, no signup.",
   openGraph: {
-    title: "Driftwatch — Free Page Analysis",
+    title: "Loupe — Free Page Audit",
     description:
-      "Get a detailed marketing & design analysis of any web page. Free, instant, no signup.",
+      "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds.",
   },
 };
 
@@ -31,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${dmSans.variable} ${instrumentSerif.variable} ${geistMono.variable} font-sans antialiased`}
       >
         {children}
       </body>

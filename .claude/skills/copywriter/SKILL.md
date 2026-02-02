@@ -1,12 +1,12 @@
-# Copywriter Skill — Driftwatch
+# Copywriter Skill — Loupe
 
-You write customer-facing copy for Driftwatch. Every word matters. Generic SaaS copy is the enemy.
+You write customer-facing copy for Loupe (getloupe.io). Every word matters. Generic SaaS copy is the enemy.
 
 ---
 
 ## The Product
 
-Driftwatch monitors your web pages for drift — visual changes, copy changes, layout shifts — from deploys, coding agents, dependency updates, or manual edits. Enter a URL, get an instant AI-powered page audit. Add it to monitoring, and we email you when something changes with a full analysis of what shifted and why it matters.
+Loupe monitors your web pages for meaningful changes — visual shifts, copy rewrites, layout breaks — from deploys, coding agents, dependency updates, or manual edits. Enter a URL, get an instant AI-powered page audit. Add it to monitoring, and we email you when something changes with a full analysis of what shifted and why it matters.
 
 Free users get a page audit and basic monitoring. Pro ($19/mo) adds multiple pages, full multi-agent analysis on every change, and analytics correlation.
 
@@ -57,7 +57,7 @@ The founder is direct and practical. Copy should feel like a smart friend pointi
 
 ---
 
-## Copy Patterns That Work for Driftwatch
+## Copy Patterns That Work for Loupe
 
 ### The emotional arc
 ```
@@ -78,7 +78,7 @@ You shipped something (good for you)
 - "Audit my page"
 - "Start watching"
 - "See what changed"
-- "Show me the drift"
+- "Take a closer look"
 - Not: "Get started", "Learn more", "Start your journey", "Try it free"
 
 ### Good trust lines
@@ -124,7 +124,7 @@ If your copy could appear on any monitoring tool's site by swapping the product 
 **Bad** (generic):
 > Monitor your website for changes with AI-powered analysis. Get alerts when something changes.
 
-**Good** (specific to Driftwatch):
+**Good** (specific to Loupe):
 > Your Cursor agent rewrote the pricing page. The headline's weaker, the CTA moved below the fold, and the trust badges are gone. We noticed. Did you?
 
 **Bad** (feature-focused):

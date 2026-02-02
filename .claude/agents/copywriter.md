@@ -561,17 +561,17 @@ Before shipping any copy, verify:
 
 ---
 
-## Driftwatch Brand Voice Reference
+## Loupe Brand Voice Reference
 
 For this project specifically:
 
 **The Transformation**
 - **Before**: Founder shipping fast, not sure what changed on their site, can't connect deploys to results, things slip through the cracks
-- **After**: Founder who ships confidently knowing someone's watching, catches drift before it costs conversions, understands what changes did to their numbers
+- **After**: Founder who ships confidently knowing someone's looking closely, catches changes before they cost conversions, understands what shifts did to their numbers
 
 **Voice**: Watchful, calm, specific. A sharp colleague who notices things. Direct without being cold. Confident without being alarmist.
 
-**Archetype**: Guardian/Observer (Linear precision, calm confidence)
+**Archetype**: Observer/Inspector (Linear precision, calm confidence)
 
 **We say:**
 - "Your hero text changed. Here's what that means."

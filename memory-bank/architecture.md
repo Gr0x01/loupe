@@ -1,90 +1,192 @@
-# Driftwatch — Architecture
+# Loupe — Architecture
 
 ## Overview
 
-Monolith Next.js app. Scheduled jobs via Inngest. LLM calls via Vercel AI SDK (model-agnostic). Screenshots via existing Vultr Puppeteer instance or managed service.
+Monolith Next.js 16 app (App Router). Background jobs via Inngest. LLM calls via Vercel AI SDK v6 (model-agnostic). Screenshots via Vultr Puppeteer instance with Decodo residential proxy.
 
-## Core Architecture
+## Tech Stack (Active)
+
+| Service | Version | Purpose |
+|---------|---------|---------|
+| Next.js | 16.1.6 | App framework (App Router, Tailwind v4) |
+| React | 19.2.3 | UI |
+| Supabase | JS 2.93.3, SSR 0.8.0 | DB + Auth + Storage |
+| Vercel AI SDK | 6.0.67 | Model-agnostic LLM calls |
+| @ai-sdk/anthropic | 3.0.35 | Anthropic provider |
+| @ai-sdk/google | 3.0.20 | Google provider (for evaluation) |
+| @ai-sdk/openai | 3.0.25 | OpenAI provider (for evaluation) |
+| Inngest | 3.50.0 | Background job processing |
+| Tailwind CSS | 4.x | Styling (config in CSS, no tailwind.config) |
+
+## Core Architecture (Phase 1A)
 
 ```
-User enters URL → Supabase stores page config
-                → Inngest schedules monitoring jobs
-                → Screenshot service captures page
-                → LLM analyzes screenshot (detect changes, audit CRO)
-                → Email notification if meaningful change detected
-                → Results stored in Supabase, shown in dashboard
+User enters URL → POST /api/analyze
+                → Creates `analyses` record (status: pending)
+                → Sends Inngest event `analysis/created`
+                → Inngest function runs:
+                    1. Screenshot via Vultr service (with Decodo proxy)
+                    2. Upload screenshot to Supabase Storage
+                    3. Send screenshot to Sonnet via Vercel AI SDK (vision)
+                    4. Parse structured JSON response
+                    5. Update `analyses` record (status: complete)
+                → Frontend polls GET /api/analysis/[id]
+                → Displays results when complete
 ```
+
+## Screenshot Service (Vultr)
+
+**Server:** 45.63.3.155:3333 (Vultr VPS, New Jersey)
+**Stack:** Express + puppeteer-extra + puppeteer-extra-plugin-stealth
+**Process manager:** PM2
+
+### Key features
+- **Persistent browser pool** — 2 warm Chromium instances (proxy + direct), no cold start per request
+- **Decodo residential proxy** — `gate.decodo.com:7000` with username/password auth. Bypasses Vercel Security Checkpoint, Cloudflare, and similar bot protection
+- **Stealth plugin** — `puppeteer-extra-plugin-stealth` evades basic headless detection
+- **SSRF protection** — blocks private/internal IPs and non-HTTP protocols
+- **Concurrency limit** — max 3 concurrent screenshots
+- **Page render strategy** — `domcontentloaded` + 2.5s settle delay (faster than `networkidle2`)
+- **Request interception** — blocks non-visual resources to save proxy bandwidth: analytics (GA, GTM, Segment, Mixpanel, Amplitude, Heap, Clarity, FullStory, Hotjar), tracking pixels (Facebook), error monitoring (Sentry, Bugsnag), chat widgets (Intercom, Crisp), ads, embedded video, media/websocket/eventsource resource types. Fonts, CSS, images, and documents pass through.
+
+### Endpoints
+- `GET /screenshot?url=<url>&proxy=<true|false>` — capture screenshot, returns JPEG binary
+- `GET /health` — health check
+- `GET /reddit-proxy?sub=<subreddit>` — Reddit JSON proxy (shared with Boost)
+
+### Performance
+- Simple sites: ~5s
+- JS-heavy / bot-protected sites: ~10-12s
+- Browser warm-up eliminates ~5s cold start per request
+
+### Credentials (in .env.local)
+- `SCREENSHOT_SERVICE_URL=http://45.63.3.155:3333`
+- `SCREENSHOT_API_KEY` — x-api-key header for auth
+- Decodo proxy creds hardcoded in service (username: `spnouemsou`)
+- Vultr SSH: root / `5xP[83JSF}FsPsiZ`
+
+## Supabase
+
+**Project:** `drift` (ID: `hquufdmuyzetlfhhljcr`, region: us-west-2)
+*Note: Supabase project name remains `drift` — this is an external resource ID, not user-facing.*
+
+### Schema (Phase 1A)
+```sql
+analyses (
+  id uuid PK default gen_random_uuid(),
+  url text NOT NULL,
+  email text,
+  screenshot_url text,
+  output text,                    -- formatted markdown report
+  structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
+  status text NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
+  error_message text,
+  created_at timestamptz DEFAULT now()
+)
+```
+
+### Storage
+- `screenshots` bucket (public) — stores `analyses/{id}.jpg`
+
+### RLS
+- Public read on `analyses` (no auth in Phase 1A)
+- Service role for insert/update
+- Public read on screenshots bucket
 
 ## LLM Layer
 
-**Vercel AI SDK** for model-agnostic LLM calls. Swap providers with config changes.
+**Current (Phase 1A):** Single Sonnet call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output.
 
-### Analysis Agents (Multi-Lens)
+**Pipeline interface** (`lib/ai/pipeline.ts`): `runAnalysisPipeline(screenshotBase64, url)` returns `{ output, structured }`. Implementation behind this interface is swappable — the API route doesn't care if it's 1 call or 3.
 
-Every change is analyzed by 2 specialized agents, each with a different lens. Results are aggregated by an orchestrator.
+### Structured output schema
+```typescript
+{
+  overallScore: number,        // 1-100
+  categories: [{
+    name: string,              // e.g. "Messaging & Copy"
+    score: number,             // 1-100
+    findings: [{
+      type: "strength" | "issue" | "suggestion",
+      title: string,
+      detail: string           // specific to this page
+    }]
+  }],
+  summary: string,             // 2-3 sentence executive summary
+  topActions: string[]         // top 3 most impactful changes
+}
+```
 
-| Agent | Input | What it catches | Example |
-|-------|-------|----------------|---------|
-| **Marketing** | Before/after screenshots | Copy quality, messaging, positioning, CTA text, social proof, funnel friction | "Your headline lost the outcome-focused hook. Old: '2x your conversions.' New: 'AI-powered platform.'" |
-| **Design** | Before/after screenshots + DOM context | Visual hierarchy, spacing, contrast, layout, typography, structural changes | "CTA contrast ratio dropped. Hero heading changed from `text-5xl` to `text-3xl`. Section spacing collapsed." |
+### Categories evaluated
+1. Messaging & Copy
+2. Call to Action
+3. Trust & Social Proof
+4. Visual Hierarchy
+5. Design Quality
+6. Mobile Readiness
 
-Both agents work from screenshots (vision). The design agent also gets DOM context so it can give specific, actionable feedback referencing actual markup/classes rather than just "the heading looks smaller."
+### Planned evaluation (Step 4b)
+Test against ~10 URLs, compare quality + cost:
+- **A**: 1 Sonnet call (current)
+- **B**: 2 specialized agents → orchestrator
+- **C**: 1 Sonnet + Haiku formatter
+- **D**: Non-Anthropic (Gemini 2.5 Pro, GPT-4o)
 
-### Model Routing
+## Inngest
 
-| Task | Model | Reason |
-|------|-------|--------|
-| Change detection (did anything change?) | Haiku / Gemini Flash | Cheap, fast, binary decision |
-| Design agent | Sonnet | Vision + DOM context + structural reasoning |
-| Marketing agent | Sonnet | Vision + copy/positioning knowledge |
-| **Orchestrator** | **Opus / Sonnet** | Synthesizes 2 agents into one cohesive report |
+**Client ID:** `loupe`
+**Dev server:** Uses existing Inngest dev server on port 8288 (shared with Boost)
+**Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
-The 2 analysis agents run in parallel on cheaper models (vision work). The orchestrator runs once on text-only input (agents' findings), so the expensive model only fires once per change on cheap input.
+### Functions
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts)
 
-Evaluate Gemini models for cost savings on detection/agent layers.
+## File Structure
+```
+src/
+├── app/
+│   ├── page.tsx                    # Landing page
+│   ├── analysis/[id]/page.tsx      # Results page
+│   ├── api/
+│   │   ├── analyze/route.ts        # POST: create analysis
+│   │   ├── analysis/[id]/route.ts  # GET: poll results
+│   │   └── inngest/route.ts        # Inngest serve
+│   ├── globals.css
+│   └── layout.tsx
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts               # Browser client (anon key)
+│   │   └── server.ts               # Service role client
+│   ├── screenshot.ts               # Vultr service client + Supabase upload
+│   ├── ai/
+│   │   └── pipeline.ts             # LLM analysis (Sonnet vision)
+│   └── inngest/
+│       ├── client.ts               # Inngest client
+│       └── functions.ts            # analysis/created handler
+```
 
-### Orchestrator Layer
+## Dev Setup
 
-The orchestrator takes all 3 agents' raw findings and produces one cohesive report:
-- **Deduplicates** — design + DOM agent might both flag the same heading change
-- **Prioritizes** — ranks by severity (CTA gone > font weight change)
-- **Connects dots** — "heading shrunk AND copy got weaker AND 3 new form fields — this page got significantly worse for conversion"
-- **Writes the narrative** — one human-voice report, not three bullet lists
-- **Sets the product voice** — the agents are analysts, the orchestrator is the senior consultant
-
-## Shared Infrastructure with Boost
-
-Reusable from Boost (actionboost):
-- **Screenshot service**: Vultr Puppeteer instance (45.63.3.155:3333) — already running, API key auth, SSRF protection
-- **Supabase**: Could share instance or create separate project
-- **Inngest**: Background job processing for async screenshot capture + analysis
-- **Stripe**: Billing infrastructure
-- **Page audit logic**: Already built in Boost, port to Driftwatch
+```bash
+npm run dev                    # Next.js on port 3002
+# Inngest: sync http://localhost:3002/api/inngest in existing dev server at :8288
+```
 
 ## Key Technical Challenges
 
-1. **Screenshot consistency** — Dynamic content (timestamps, ads, chat widgets) causes false diffs. Need element masking, diff thresholds, and wait-for-idle strategies.
-2. **Change detection quality** — Use pixelmatch for visual diff overlay + LLM vision for semantic "what actually changed" description. Pixel diff is the proof, LLM is the explanation.
-3. **Deploy detection (v2)** — GitHub `push` to main + Vercel `deployment.ready` webhook. Need debouncing for rapid deploys. Deploy != live — need delay or polling.
-4. **Analytics API (v2)** — PostHog first (simple bearer token auth). GA4 second (OAuth is painful, Google review process). GA4 data can be delayed 24-48hr.
-5. **Statistical honesty** — Low-traffic sites can't show statistically significant metric changes. Always show confidence levels, raw data alongside LLM narratives. Frame as investigation tool, not causal inference engine.
-6. **Cost management** — Free tier costs ~$0.15-0.30/mo per user (weekly checks, 1 page). Must keep free tier lean. LLM suggestions are the paid upgrade trigger.
+1. **Bot protection on screenshots** — SOLVED with Decodo residential proxy ($4/mo for 2GB). Stealth plugin + residential IP bypasses Vercel/Cloudflare.
+2. **Screenshot speed** — MITIGATED with persistent browser pool + domcontentloaded strategy. 5-12s range.
+3. **LLM JSON parsing** — Sonnet sometimes wraps JSON in markdown code blocks. Pipeline extracts with regex fallback.
+4. **Total pipeline latency** — Screenshot (5-12s) + LLM (15-30s) = 20-40s total. Acceptable for async background job with polling UI.
 
-## Monitoring Job Flow (Inngest)
+## Cost Estimates Per Analysis
 
-```
-Weekly cron → For each monitored page:
-  1. Screenshot the page (desktop + mobile) + capture DOM snapshot
-  2. Compare to previous snapshot (pixelmatch for quick diff)
-  3. If meaningful change detected:
-     a. Store new snapshot + DOM
-     b. Run 2 analysis agents in parallel:
-        - Marketing agent (before/after screenshots)
-        - Design agent (before/after screenshots + DOM context)
-     c. Orchestrator synthesizes into single report
-     d. Send email alert with aggregated issues
-  4. If no change: store snapshot, no alert
-```
+| Component | Cost |
+|-----------|------|
+| Screenshot (proxy bandwidth) | ~$0.0002 (100KB × $2/GB) |
+| Supabase storage | negligible |
+| Sonnet vision call | ~$0.03-0.08 |
+| **Total per analysis** | **~$0.03-0.08** |
 
 ## Cost Estimates Per User
 

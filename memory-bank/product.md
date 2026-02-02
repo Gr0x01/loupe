@@ -1,4 +1,4 @@
-# Driftwatch — Product
+# Loupe — Product
 
 ## Core User Flow (MVP)
 
@@ -59,17 +59,17 @@ The audit is a point-in-time snapshot. The paid product is ongoing monitoring.
 
 - First audit: no email required (zero friction for viral sharing)
 - Second audit: email gate ("enter email for 3 free audits")
-- Natural upsell: "Track this page automatically with Driftwatch"
+- Natural upsell: "Track this page automatically with Loupe"
 - Shareable audit card for Twitter/IndieHackers distribution
 - Cost: ~$0.10-0.20 per audit (3 agents + orchestrator)
 
-## The "Drift" Concept
+## What Loupe Catches
 
-Driftwatch catches multiple types of drift:
-- **Visual drift** — layout/design changed (deploys, coding agents, dependency updates)
-- **Copy drift** — messaging went off-brand (AI rewrites, team edits)
+Loupe detects multiple types of page changes:
+- **Visual changes** — layout/design shifted (deploys, coding agents, dependency updates)
+- **Copy changes** — messaging went off-brand (AI rewrites, team edits)
 - **Marketing fit drift** — page no longer matches conversion best practices
-- **Performance drift** — changes that affect load times, mobile experience
+- **Performance changes** — things that affect load times, mobile experience
 
 ## Multi-Agent Analysis
 
