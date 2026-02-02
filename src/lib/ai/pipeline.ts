@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
 import type { PageMetadata } from "@/lib/screenshot";
 
 export interface AnalysisResult {
@@ -13,10 +13,19 @@ export interface AnalysisResult {
         type: "strength" | "issue" | "suggestion";
         title: string;
         detail: string;
+        impact?: "high" | "medium" | "low";
+        fix?: string;
       }[];
     }[];
     summary: string;
-    topActions: string[];
+    topActions: ({ action: string; impact: string } | string)[];
+    whatsWorking?: string[];
+    whatsNot?: string[];
+    headlineRewrite?: {
+      current: string;
+      suggested: string;
+      reasoning: string;
+    } | null;
   };
 }
 
@@ -33,11 +42,22 @@ You evaluate pages across these categories:
 Use the screenshot for visual assessment (layout, colors, spacing, hierarchy).
 Use the metadata for structural assessment (heading hierarchy, meta tags, link counts, alt text, CTA text, social proof signals).
 
-For each finding, be SPECIFIC to this page. Reference actual text, actual elements, actual colors you see. Never give generic advice.
+CRITICAL RULES FOR SPECIFICITY:
+- Reference ACTUAL text from the page. Quote their headline, their CTA button text, their meta description.
+- Give ACTUAL rewrites. Don't say "make the headline clearer" — write the new headline.
+- Reference ACTUAL elements. Don't say "improve the CTA" — say "the blue 'Get Started' button in the hero".
+- For each finding's "fix" field, give ONE specific, concrete action: an actual copy rewrite, an actual element change, an actual CSS property to adjust.
 
 Respond with a JSON object matching this exact schema:
 {
   "overallScore": <1-100>,
+  "whatsWorking": ["<strength 1, one line>", "<strength 2, one line>", "<strength 3, one line>"],
+  "whatsNot": ["<weakness 1, one line>", "<weakness 2, one line>", "<weakness 3, one line>"],
+  "headlineRewrite": {
+    "current": "<the actual current headline text from the page>",
+    "suggested": "<your rewritten version>",
+    "reasoning": "<1-2 sentences on why this is better>"
+  } OR null if the headline is already strong,
   "categories": [
     {
       "name": "<category name>",
@@ -46,16 +66,22 @@ Respond with a JSON object matching this exact schema:
         {
           "type": "strength" | "issue" | "suggestion",
           "title": "<short title>",
-          "detail": "<specific, actionable detail referencing actual page content>"
+          "detail": "<specific, actionable detail referencing actual page content>",
+          "impact": "high" | "medium" | "low",
+          "fix": "<one specific, concrete fix — actual copy rewrites, actual element changes>"
         }
       ]
     }
   ],
   "summary": "<2-3 sentence executive summary of the page's marketing effectiveness>",
-  "topActions": ["<top 3 most impactful changes to make, ordered by impact>"]
+  "topActions": [
+    { "action": "<specific action referencing actual page elements>", "impact": "<estimated impact, e.g. '15-25% more signups'>" },
+    { "action": "<specific action>", "impact": "<estimated impact>" },
+    { "action": "<specific action>", "impact": "<estimated impact>" }
+  ]
 }
 
-Be direct. Be specific. Reference what you actually see on the page and in the metadata.`;
+Be direct. Be specific. Reference what you actually see on the page and in the metadata. Every finding must include a concrete fix.`;
 
 function formatMetadataForPrompt(metadata: PageMetadata): string {
   const lines: string[] = ["## Extracted Page Metadata"];
@@ -139,7 +165,7 @@ export async function runAnalysisPipeline(
     : "";
 
   const { text } = await generateText({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: google("gemini-3-pro-preview"),
     messages: [
       {
         role: "user",
@@ -203,7 +229,10 @@ function formatOutput(
 
   if (structured.topActions.length > 0) {
     lines.push("## Top Actions");
-    structured.topActions.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
+    structured.topActions.forEach((a, i) => {
+      const actionText = typeof a === "string" ? a : a.action;
+      lines.push(`${i + 1}. ${actionText}`);
+    });
   }
 
   return lines.join("\n");
