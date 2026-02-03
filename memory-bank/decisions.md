@@ -20,16 +20,18 @@
 
 **Decision**: Same stack (Next.js, Supabase, Inngest, Stripe) and same dev patterns (agents, skills, memory bank). Reduces context-switching between projects.
 
-## D4: Core product is monitoring + audits, not deploy tracking (Feb 2, 2026)
+## D4: Core product is the GitHub + PostHog + Loupe loop (Feb 3, 2026, updated)
 
-**Decision**: The MVP is page monitoring + CRO audits + email alerts. Zero setup required — just a URL and email. Deploy tracking and analytics correlation are v2 power-ups.
+**Decision**: Loupe connects three data sources: GitHub (what changed), PostHog (what happened to metrics), and Loupe screenshots/audits (what the page looks like). The product tells you which change caused which metric movement. Free audit is the lead magnet; the paid product is the full loop.
+
+**Previous (Feb 2)**: "MVP is monitoring + audits, deploy tracking is v2." Revised because weekly monitoring is too slow for activation. Re-scan with structured tracking delivers value in minutes, and the GitHub + PostHog integration is the actual product, not a power-up.
 
 **Why**:
-- Deploy tracking requires GitHub connection + analytics connection = high friction for a "nice to have"
-- Monitoring + audits deliver value in 10 seconds with zero integrations
-- The audit feature is already proven in Boost
-- Catches changes from ALL sources (coding agents, deploys, dependency updates) not just GitHub deploys
-- Lower barrier to entry = larger free tier funnel
+- Solo devs make dozens of changes and never know what moved the needle
+- Weekly monitoring emails are a bad activation mechanic — users forget in a week
+- Re-scan after making a change gives immediate value (minutes, not days)
+- GitHub webhook + PostHog API are both free — no cost barrier for the target audience
+- "Like Facebook Ad suggestions for your landing page" is a stronger pitch than "we'll email you when something changes"
 
 ## D5: Vercel AI SDK for model-agnostic LLM calls (Feb 2, 2026)
 
@@ -110,7 +112,29 @@
 - The pipeline interface (`runAnalysisPipeline`) abstracts the implementation — can swap to multi-agent later without changing API routes
 - Step 4b will evaluate multi-agent vs single-call quality + cost tradeoffs
 
-## D12: Rename from Driftwatch to Loupe (Feb 2, 2026)
+## D12: Gemini Flash for comparison pipeline (Feb 3, 2026)
+
+**Decision**: Use Gemini 2.0 Flash (text-only) for the Pass 2 comparison between scans. Main audit stays on Gemini 3 Pro (vision).
+
+**Why**:
+- Comparison is text-only (structured JSON in, structured JSON out) — no vision needed
+- ~$0.002 per comparison vs ~$0.03 for the main audit
+- Total re-scan cost: ~$0.035 (main audit + comparison)
+- Fast enough that comparison adds negligible latency
+
+## D13: Methodology grounding in audit prompt (Feb 3, 2026)
+
+**Decision**: Ground each audit category in specific marketing/design frameworks (PAS, Fogg Behavior Model, Cialdini, Gestalt, Gutenberg/F-pattern, search intent matching). Add `methodology` and `element` fields to each finding.
+
+**Why**:
+- Makes re-scan comparison more precise: "Does this element now satisfy the PAS framework?"
+- `element` field enables matching findings across scans: "the hero headline" can be tracked
+- Methodology references make findings more credible and educational for the user
+- Backward compatible — existing analyses without these fields still render fine
+
+## D14: Rename from Driftwatch to Loupe (Feb 2, 2026)
+
+> Note: Originally numbered D12 before D12-D13 were added above.
 
 **Decision**: Rename product from "Driftwatch" to "Loupe" (domain: getloupe.io).
 
@@ -120,3 +144,62 @@
 - Shorter, more memorable, works as both noun and verb ("loupe your pages")
 - Supabase project name (`drift`) left as-is — it's an internal resource ID, not user-facing
 - Inngest client ID updated to `loupe`
+
+## D15: Launch strategy — Founding 50, skip billing (Feb 3, 2026)
+
+**Decision**: Skip Stripe/billing for launch. Ship free for first 50 users ("Founding 50"), then waitlist. Use constraints to force conversations and learn pricing.
+
+**Founding 50 get**:
+- 1 page to monitor
+- Daily scans (the good stuff)
+- Share to unlock +1 page (instant credit, honor system)
+
+**After 50**:
+- Waitlist
+- Or weekly scans if we open it up later
+
+**Free audit stays open** — no signup required, acquisition engine keeps running even when Founding 50 is full.
+
+**Why**:
+- Ship faster — billing has edge cases that delay launch
+- Remove friction — no credit card = more signups = more learning
+- Customer development — ask 50 real users "what would you pay?" beats guessing
+- Funnel reality: 50 signups → 25 try it → 10 come back → 5 rely on it. Those 5 are the signal.
+- Daily scans for Founding 50 makes them feel special without manual upgrades
+- 1 page forces the core habit; asking for more = upgrade signal
+
+**Cost analysis**:
+- Gemini Pro: ~$0.01/scan
+- Daily scans for 50 users × 1 page: ~$15/mo
+- LLM cost is a rounding error — Vultr box is more expensive than AI
+
+**When to add billing**: When we have users begging for more and evidence of what they'd pay.
+
+## D16: Supersede D6 pricing for now (Feb 3, 2026)
+
+**Decision**: D6 ($19/mo Pro tier) is deferred. D15 launch strategy takes precedence. Pricing will be determined after talking to early users.
+
+**Candidates**: $9, $15, $19, or $30/mo — will learn from first 50 users which segment we're actually serving.
+
+## D17: PostHog integration — Pull & Store (Feb 3, 2026)
+
+**Decision**: Option A — Pull metrics at scan time, store in `analyses.metrics_snapshot`. Display alongside audit results.
+
+**What we built**:
+- User connects PostHog via API key + Project ID in `/settings/integrations`
+- Credentials validated via HogQL test query before storing
+- Each scan fetches pageviews, unique visitors, bounce rate (last 7 days)
+- Metrics displayed in analysis results header
+- No LLM correlation for MVP — just display the data
+
+**Why Option A over B/C**:
+- Simpler to ship — no LLM tool calling complexity
+- Rate limit safe — one query per scan, not multiple per LLM turn
+- Users see value immediately ("here are your metrics") without waiting for AI interpretation
+- LLM correlation can be added later as a post-analysis pass if users want it
+
+**Security considerations**:
+- API keys stored in `integrations.access_token` (same as GitHub)
+- HogQL queries sanitized to prevent injection (domain escaped)
+- Host whitelist prevents SSRF (only us.i.posthog.com, eu.i.posthog.com, app.posthog.com)
+- 15s request timeout prevents hanging

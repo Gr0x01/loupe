@@ -84,6 +84,7 @@ analyses (
   output text,                    -- formatted markdown report
   structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
   changes_summary jsonb,          -- comparison with parent (findings_status, score_delta, progress)
+  metrics_snapshot jsonb,         -- PostHog metrics { pageviews, unique_visitors, bounce_rate, period_days, captured_at }
   status text NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
   error_message text,
   created_at timestamptz DEFAULT now()
@@ -105,20 +106,30 @@ pages (
 profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
   email text,
+  bonus_pages integer NOT NULL DEFAULT 0,  -- extra pages from sharing
+  is_founding_50 boolean NOT NULL DEFAULT false,  -- founding member flag
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 )
 -- Auto-created via trigger on auth.users insert
 -- RLS: user can read/update own profile
 
+waitlist (
+  id uuid PK default gen_random_uuid(),
+  email text NOT NULL UNIQUE,
+  referrer text,
+  created_at timestamptz DEFAULT now()
+)
+-- RLS: anyone can insert (anon, authenticated)
+
 integrations (
   id uuid PK default gen_random_uuid(),
   user_id uuid NOT NULL FK auth.users ON DELETE CASCADE,
-  provider text NOT NULL,           -- 'github'
-  provider_account_id text NOT NULL,
-  access_token text NOT NULL,
+  provider text NOT NULL,           -- 'github' | 'posthog'
+  provider_account_id text NOT NULL, -- GitHub user ID or PostHog project ID
+  access_token text NOT NULL,        -- GitHub token or PostHog API key
   scope text,
-  metadata jsonb,                   -- { username, avatar_url }
+  metadata jsonb,                   -- GitHub: { username, avatar_url }, PostHog: { host }
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   UNIQUE(user_id, provider)
@@ -234,6 +245,51 @@ Tested configs A-E against inkdex.io:
 - **E**: Opus 4 — 72/100, ~$0.15, 45s
 Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 
+## PostHog Analytics (Site Tracking)
+
+**Purpose:** Track user behavior on getloupe.io itself.
+
+**Setup:**
+- `PostHogProvider` wraps the app in `layout.tsx`
+- `PostHogPageView` tracks SPA navigation (since `capture_pageview: false`)
+- Config: `person_profiles: "identified_only"` (privacy-friendly)
+
+**Env vars:**
+- `NEXT_PUBLIC_POSTHOG_KEY` — Public key (phc_...)
+- `NEXT_PUBLIC_POSTHOG_HOST` — https://us.i.posthog.com
+
+---
+
+## PostHog Integration (User Data)
+
+**Purpose:** Pull page metrics (pageviews, unique visitors, bounce rate) to display alongside audits.
+
+### How it works
+1. User connects PostHog in `/settings/integrations` with Personal API key + Project ID
+2. Credentials validated via test HogQL query, stored in `integrations` table
+3. During each scan, if user has PostHog connected:
+   - Fetch metrics for the page URL (last 7 days)
+   - Store in `analyses.metrics_snapshot`
+4. Metrics displayed in analysis results header
+
+### API Routes
+- `POST /api/integrations/posthog/connect` — Validate + store credentials
+- `DELETE /api/integrations/posthog` — Disconnect
+
+### Security
+- Host whitelist: `us.i.posthog.com`, `eu.i.posthog.com`, `app.posthog.com` (prevents SSRF)
+- HogQL injection prevention: domain sanitized before query interpolation
+- 15s request timeout
+- Project ID validated as numeric
+
+### Rate Limits
+PostHog: 120 queries/hour. One query per scan is well within limits.
+
+### Key Files
+- `src/lib/posthog-api.ts` — HogQL query client, validation, metrics fetcher
+- `src/app/api/integrations/posthog/connect/route.ts` — Connect endpoint
+- `src/app/api/integrations/posthog/route.ts` — Disconnect endpoint
+
 ## Inngest
 
 **Client ID:** `loupe`
@@ -250,12 +306,13 @@ Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 ```
 src/
 ├── app/
-│   ├── page.tsx                    # Landing page
-│   ├── login/page.tsx              # Sign in (magic link + Google)
-│   ├── dashboard/page.tsx          # List of monitored pages
+│   ├── page.tsx                    # Landing page (with Founding 50 progress)
+│   ├── login/page.tsx              # Sign in (magic link + Google, waitlist when full)
+│   ├── dashboard/page.tsx          # List of monitored pages (with page limits)
+│   ├── waitlist/page.tsx           # Waitlist signup page
 │   ├── pages/[id]/page.tsx         # Page timeline (scan history, trend)
 │   ├── auth/
-│   │   ├── callback/route.ts       # OAuth + magic link callback
+│   │   ├── callback/route.ts       # OAuth + magic link callback (cap check)
 │   │   ├── signout/route.ts        # Sign out
 │   │   └── error/page.tsx          # Auth error page
 │   ├── analysis/[id]/page.tsx      # Results page (with page context + nav)
@@ -265,20 +322,32 @@ src/
 │   │   ├── analyze/route.ts        # POST: create analysis
 │   │   ├── analysis/[id]/route.ts  # GET: poll results (includes page_context)
 │   │   ├── rescan/route.ts         # POST: re-scan (auto-registers page)
-│   │   ├── pages/route.ts          # GET: list pages, POST: register page
+│   │   ├── pages/route.ts          # GET: list pages, POST: register page (with limits)
 │   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page
 │   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
-│   │   ├── integrations/           # GitHub OAuth + repo management
+│   │   ├── founding-status/route.ts # GET: founding 50 progress
+│   │   ├── share-credit/route.ts   # POST: claim bonus page from sharing
+│   │   ├── waitlist/route.ts       # POST: join waitlist
+│   │   ├── integrations/           # GitHub + PostHog integration
+│   │   │   ├── route.ts            # GET: list integrations status
+│   │   │   ├── github/             # GitHub OAuth + repo management
+│   │   │   └── posthog/            # PostHog connect/disconnect
 │   │   ├── webhooks/github/route.ts # GitHub push webhook receiver
 │   │   └── inngest/route.ts        # Inngest serve
 │   ├── globals.css
 │   └── layout.tsx
+├── components/
+│   ├── ShareModal.tsx              # Share-to-unlock modal
+│   ├── PostHogProvider.tsx         # PostHog analytics provider (client-side init)
+│   └── PostHogPageView.tsx         # PostHog pageview tracking for SPA
 ├── lib/
+│   ├── constants.ts                # Shared constants (FOUNDING_50_CAP, etc.)
 │   ├── supabase/
 │   │   ├── client.ts               # Browser client (anon key)
 │   │   ├── server.ts               # Cookie-based client + service role client
 │   │   └── proxy.ts                # updateSession() for proxy
 │   ├── screenshot.ts               # Vultr service client + Supabase upload
+│   ├── posthog-api.ts              # PostHog HogQL client + metrics fetcher
 │   ├── ai/
 │   │   └── pipeline.ts             # LLM analysis (Gemini 3 Pro vision)
 │   └── inngest/
