@@ -1480,16 +1480,16 @@ export default function AnalysisPage() {
               {/* Right: Action */}
               <div className="lg:col-span-2">
                 {rescanEmailSent ? (
-                  <div className="flex flex-col items-center lg:items-start gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[rgba(26,140,91,0.1)] flex items-center justify-center">
-                      <svg className="w-6 h-6 text-score-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="5 12 10 17 19 7" />
-                      </svg>
-                    </div>
-                    <div className="text-center lg:text-left">
-                      <p className="text-base font-semibold text-text-primary">Check your email</p>
-                      <p className="text-sm text-text-muted mt-0.5">Click the link to start your&nbsp;re-scan.</p>
-                    </div>
+                  <div className="text-center lg:text-left">
+                    <p
+                      className="text-2xl font-bold text-text-primary"
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    >
+                      Check your&nbsp;email
+                    </p>
+                    <p className="text-sm text-text-muted mt-2">
+                      Click the link to start your&nbsp;re-scan.
+                    </p>
                   </div>
                 ) : (
                   <form onSubmit={handleRescanEmail} className="space-y-3">
