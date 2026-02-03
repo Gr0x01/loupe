@@ -450,26 +450,20 @@ function IntegrationsContent() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
+      <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center">
           <div className="glass-spinner mx-auto" />
           <p className="text-text-secondary mt-4">Loading integrations...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen text-text-primary">
+    <>
       <div className="max-w-2xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-8">
-          <Link
-            href="/dashboard"
-            className="text-sm text-text-muted hover:text-accent transition-colors mb-4 inline-block"
-          >
-            ← Back to dashboard
-          </Link>
           <h1
             className="text-4xl font-bold text-text-primary"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
@@ -680,16 +674,6 @@ function IntegrationsContent() {
             )}
           </div>
         </section>
-
-        {/* Footer */}
-        <div className="text-center pt-8">
-          <Link
-            href="/dashboard"
-            className="text-sm text-text-muted hover:text-accent transition-colors"
-          >
-            Back to dashboard
-          </Link>
-        </div>
       </div>
 
       <AddRepoModal
@@ -704,7 +688,7 @@ function IntegrationsContent() {
         onClose={() => setShowPostHogConnect(false)}
         onSuccess={() => fetchIntegrations()}
       />
-    </main>
+    </>
   );
 }
 
@@ -712,12 +696,12 @@ export default function IntegrationsPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen flex items-center justify-center px-4">
+        <div className="flex-1 flex items-center justify-center px-4">
           <div className="text-center">
             <div className="glass-spinner mx-auto" />
             <p className="text-text-secondary mt-4">Loading integrations...</p>
           </div>
-        </main>
+        </div>
       }
     >
       <IntegrationsContent />

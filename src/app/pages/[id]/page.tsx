@@ -560,25 +560,25 @@ export default function PageTimelinePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
+      <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center">
           <div className="glass-spinner mx-auto" />
           <p className="text-text-secondary mt-4">Loading page history...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error || !data) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
+      <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-text-secondary text-lg">{error || "Page not found"}</p>
           <Link href="/dashboard" className="btn-primary mt-4 inline-block">
             Back to dashboard
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -589,26 +589,7 @@ export default function PageTimelinePage() {
   );
 
   return (
-    <main className="min-h-screen text-text-primary">
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Back link */}
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-accent transition-colors mb-6"
-        >
-          <svg
-            className="w-4 h-4"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
-            <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Dashboard
-        </Link>
-
-        {/* Header */}
+    <div className="max-w-3xl mx-auto px-6 py-12">
         <div className="mb-8">
           <h1
             className="text-4xl font-bold text-text-primary mb-2"
@@ -708,18 +689,6 @@ export default function PageTimelinePage() {
             ))
           )}
         </div>
-
-        {/* Footer */}
-        <div className="mt-12 flex items-center justify-center gap-4 text-sm text-text-muted">
-          <Link href="/dashboard" className="hover:text-accent transition-colors">
-            Back to dashboard
-          </Link>
-          <span className="text-[rgba(0,0,0,0.1)]">|</span>
-          <Link href="/" className="hover:text-accent transition-colors">
-            Audit a new page
-          </Link>
-        </div>
-      </div>
-    </main>
+    </div>
   );
 }

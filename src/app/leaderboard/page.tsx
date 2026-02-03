@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import SiteNav from "@/components/SiteNav";
-import SiteFooter from "@/components/SiteFooter";
 
 interface LeaderboardEntry {
   rank: number;
@@ -32,10 +30,10 @@ function scoreBgColor(score: number): string {
   return "bg-[rgba(194,59,59,0.08)]";
 }
 
-function scoreGlow(score: number): string {
-  if (score >= 80) return "shadow-[0_0_20px_rgba(26,140,91,0.15)]";
-  if (score >= 60) return "shadow-[0_0_20px_rgba(212,148,10,0.12)]";
-  return "shadow-[0_0_20px_rgba(194,59,59,0.12)]";
+function scoreGlowStyle(score: number): React.CSSProperties {
+  if (score >= 80) return { boxShadow: "0 0 24px rgba(26,140,91,0.25), 0 2px 8px rgba(0,0,0,0.08)" };
+  if (score >= 60) return { boxShadow: "0 0 24px rgba(212,148,10,0.2), 0 2px 8px rgba(0,0,0,0.08)" };
+  return { boxShadow: "0 0 24px rgba(194,59,59,0.2), 0 2px 8px rgba(0,0,0,0.08)" };
 }
 
 function ScreenshotThumbnail({ url, domain }: { url: string | null; domain: string }) {
@@ -62,55 +60,37 @@ function ScreenshotThumbnail({ url, domain }: { url: string | null; domain: stri
   );
 }
 
-function RankDisplay({ rank, isTopThree }: { rank: number; isTopThree: boolean }) {
-  if (isTopThree) {
-    return (
-      <div
-        className="w-10 h-10 flex items-center justify-center rounded-xl bg-accent text-white font-bold text-lg"
-        style={{
-          boxShadow: "0 4px 12px rgba(91, 46, 145, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
-        }}
-      >
-        {rank}
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.04)]">
-      <span className="text-sm font-semibold text-text-muted">{rank}</span>
-    </div>
-  );
-}
-
 function TopThreeCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImprovement: boolean }) {
+  // Medal gradients for rank accent
+  const rankStyles: Record<number, { gradient: string; label: string }> = {
+    1: { gradient: "linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FFD700 100%)", label: "1st" },
+    2: { gradient: "linear-gradient(135deg, #E8E8E8 0%, #A8A8A8 50%, #E8E8E8 100%)", label: "2nd" },
+    3: { gradient: "linear-gradient(135deg, #CD7F32 0%, #A0522D 50%, #CD7F32 100%)", label: "3rd" },
+  };
+  const rank = rankStyles[entry.rank] || { gradient: "transparent", label: `${entry.rank}` };
+
   return (
     <Link
       href={`/analysis/${entry.analysis_id}`}
       className="block rounded-2xl overflow-hidden bg-white shadow-sm ring-1 ring-[rgba(0,0,0,0.04)] group transition-all duration-200 hover:shadow-lg hover:ring-[rgba(91,46,145,0.1)]"
     >
-      {/* Screenshot with overlays */}
+      {/* Metallic rank stripe */}
+      <div className="h-1" style={{ background: rank.gradient }} />
+
+      {/* Screenshot with score overlay */}
       <div className="relative aspect-[4/3]">
         <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
 
-        {/* Rank badge - top left */}
+        {/* Score - bottom right, semantic color */}
         <div
-          className="absolute top-3 left-3 w-9 h-9 flex items-center justify-center rounded-xl bg-accent text-white font-bold text-base"
-          style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
-        >
-          {entry.rank}
-        </div>
-
-        {/* Score - bottom right */}
-        <div
-          className="absolute bottom-3 right-3 px-3 py-1 rounded-lg bg-white/90 backdrop-blur-sm"
-          style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
+          className={`absolute bottom-3 right-3 px-3 py-1.5 rounded-xl ${scoreBgColor(entry.score)} backdrop-blur-sm`}
+          style={scoreGlowStyle(entry.score)}
         >
           {showImprovement && entry.improvement !== undefined && (
-            <span className="text-xs font-bold text-score-high mr-1.5">+{entry.improvement}</span>
+            <span className="text-xs font-bold text-score-high mr-2">+{entry.improvement}</span>
           )}
           <span
-            className={`text-xl font-bold ${scoreColor(entry.score)}`}
+            className={`text-2xl font-bold ${scoreColor(entry.score)}`}
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             {entry.score}
@@ -118,110 +98,122 @@ function TopThreeCard({ entry, showImprovement }: { entry: LeaderboardEntry; sho
         </div>
       </div>
 
-      {/* Domain - tight below image */}
-      <div className="px-3 py-2.5">
-        <p className="font-semibold text-text-primary text-sm truncate group-hover:text-accent transition-colors">
+      {/* Domain + rank label */}
+      <div className="px-3 py-2.5 flex items-center justify-between">
+        <p className="font-semibold text-text-primary text-sm truncate group-hover:text-accent transition-colors flex-1">
           {entry.domain}
         </p>
+        <span className="text-xs font-medium text-text-muted ml-2 shrink-0">{rank.label}</span>
       </div>
     </Link>
   );
 }
 
-function GridCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImprovement: boolean }) {
+function ListCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImprovement: boolean }) {
   return (
     <Link
       href={`/analysis/${entry.analysis_id}`}
-      className="block rounded-xl overflow-hidden bg-white shadow-sm ring-1 ring-[rgba(0,0,0,0.04)] group transition-all duration-150 hover:shadow-md hover:ring-[rgba(91,46,145,0.08)]"
+      className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white ring-1 ring-[rgba(0,0,0,0.04)] group transition-all duration-150 hover:shadow-md hover:ring-[rgba(91,46,145,0.08)]"
     >
-      {/* Screenshot with overlays */}
-      <div className="relative aspect-[4/3]">
+      {/* Rank number */}
+      <span className="text-sm font-semibold text-text-muted w-6 text-center shrink-0">
+        {entry.rank}
+      </span>
+
+      {/* Small thumbnail */}
+      <div className="w-14 h-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-[rgba(0,0,0,0.04)]">
         <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
-
-        {/* Rank - top left */}
-        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-xs font-bold">
-          #{entry.rank}
-        </div>
-
-        {/* Score - bottom right */}
-        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-white/90 backdrop-blur-sm text-sm">
-          {showImprovement && entry.improvement !== undefined && (
-            <span className="text-xs font-bold text-score-high mr-1">+{entry.improvement}</span>
-          )}
-          <span
-            className={`font-bold ${scoreColor(entry.score)}`}
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
-            {entry.score}
-          </span>
-        </div>
       </div>
 
       {/* Domain */}
-      <div className="px-2.5 py-2">
-        <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent transition-colors">
-          {entry.domain}
-        </p>
-      </div>
+      <span className="flex-1 font-medium text-text-primary truncate group-hover:text-accent transition-colors">
+        {entry.domain}
+      </span>
+
+      {/* Improvement badge (if applicable) */}
+      {showImprovement && entry.improvement !== undefined && (
+        <span className="text-xs font-bold text-score-high px-2 py-0.5 rounded-full bg-[rgba(26,140,91,0.08)]">
+          +{entry.improvement}
+        </span>
+      )}
+
+      {/* Score */}
+      <span
+        className={`text-lg font-bold ${scoreColor(entry.score)} shrink-0`}
+        style={{ fontFamily: "var(--font-instrument-serif)" }}
+      >
+        {entry.score}
+      </span>
     </Link>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-  icon,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  icon: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all duration-150 active:scale-[0.98] ${
-        active
-          ? "bg-white text-accent shadow-sm border border-[rgba(91,46,145,0.12)] shadow-[0_2px_8px_rgba(91,46,145,0.08)]"
-          : "text-text-secondary hover:text-text-primary hover:bg-[rgba(255,255,255,0.5)]"
-      }`}
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
-
-function PeriodToggle({
-  period,
+function SegmentedToggle<T extends string>({
+  options,
+  value,
   onChange,
+  labels,
 }: {
-  period: Period;
-  onChange: (p: Period) => void;
+  options: T[];
+  value: T;
+  onChange: (v: T) => void;
+  labels: Record<T, string>;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<Map<T, HTMLButtonElement>>(new Map());
+  const [pillStyle, setPillStyle] = useState({ left: 0, width: 0 });
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  useEffect(() => {
+    const updatePill = () => {
+      const activeOption = optionRefs.current.get(value);
+      const container = containerRef.current;
+      if (activeOption && container) {
+        const containerRect = container.getBoundingClientRect();
+        const optionRect = activeOption.getBoundingClientRect();
+        setPillStyle({
+          left: optionRect.left - containerRect.left,
+          width: optionRect.width,
+        });
+        if (!hasInitialized) {
+          requestAnimationFrame(() => setHasInitialized(true));
+        }
+      }
+    };
+
+    const timer = setTimeout(updatePill, 10);
+    window.addEventListener("resize", updatePill);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updatePill);
+    };
+  }, [value, hasInitialized]);
+
   return (
-    <div className="flex items-center gap-1 bg-[rgba(255,255,255,0.4)] backdrop-blur-sm rounded-xl p-1 border border-[rgba(0,0,0,0.04)]">
-      <button
-        onClick={() => onChange("month")}
-        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-          period === "month"
-            ? "bg-white text-text-primary shadow-sm"
-            : "text-text-muted hover:text-text-secondary"
-        }`}
-      >
-        This Month
-      </button>
-      <button
-        onClick={() => onChange("all_time")}
-        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-          period === "all_time"
-            ? "bg-white text-text-primary shadow-sm"
-            : "text-text-muted hover:text-text-secondary"
-        }`}
-      >
-        All Time
-      </button>
+    <div
+      ref={containerRef}
+      className="relative flex items-center bg-[rgba(0,0,0,0.03)] rounded-md p-0.5"
+    >
+      {/* Sliding pill background */}
+      <span
+        className={`absolute top-0.5 bottom-0.5 bg-white rounded shadow-sm ${hasInitialized ? "transition-all duration-200" : ""}`}
+        style={{ left: pillStyle.left, width: pillStyle.width }}
+      />
+      {options.map((opt) => (
+        <button
+          key={opt}
+          ref={(el) => {
+            if (el) optionRefs.current.set(opt, el);
+            else optionRefs.current.delete(opt);
+          }}
+          onClick={() => onChange(opt)}
+          className={`relative z-10 px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors duration-150 whitespace-nowrap ${
+            value === opt ? "text-text-primary" : "text-text-muted hover:text-text-secondary"
+          }`}
+        >
+          {labels[opt]}
+        </button>
+      ))}
     </div>
   );
 }
@@ -298,10 +290,7 @@ export default function LeaderboardPage() {
   const showImprovement = category === "most_improved";
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <SiteNav />
-      <main className="flex-1 text-text-primary">
-        <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="max-w-4xl mx-auto px-6 py-12">
           {/* Header */}
           <div className="text-center mb-12">
             <p className="text-sm font-medium text-accent uppercase tracking-wide mb-3">
@@ -322,36 +311,20 @@ export default function LeaderboardPage() {
             </p>
           </div>
 
-          {/* Controls */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-10">
-            {/* Category tabs */}
-            <div className="flex items-center gap-2 bg-[rgba(0,0,0,0.02)] rounded-xl p-1">
-              <TabButton
-                active={category === "top_scores"}
-                onClick={() => setCategory("top_scores")}
-                icon={
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                  </svg>
-                }
-              >
-                Top Scores
-              </TabButton>
-              <TabButton
-                active={category === "most_improved"}
-                onClick={() => setCategory("most_improved")}
-                icon={
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                }
-              >
-                Most Improved
-              </TabButton>
-            </div>
-
-            {/* Period toggle */}
-            <PeriodToggle period={period} onChange={setPeriod} />
+          {/* Controls - always single row */}
+          <div className="flex items-center justify-between gap-2 mb-10">
+            <SegmentedToggle
+              options={["top_scores", "most_improved"] as Category[]}
+              value={category}
+              onChange={setCategory}
+              labels={{ top_scores: "Top Scores", most_improved: "Most Improved" }}
+            />
+            <SegmentedToggle
+              options={["month", "all_time"] as Period[]}
+              value={period}
+              onChange={setPeriod}
+              labels={{ month: "This Month", all_time: "All Time" }}
+            />
           </div>
 
           {/* Content */}
@@ -396,16 +369,21 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {/* Rest of the list - compact grid */}
+              {/* Rest of the list - horizontal rows */}
               {rest.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-8">
-                  {rest.map((entry) => (
-                    <GridCard
-                      key={entry.analysis_id}
-                      entry={entry}
-                      showImprovement={showImprovement}
-                    />
-                  ))}
+                <div className="mt-10">
+                  <h3 className="text-sm font-medium text-text-muted uppercase tracking-wide mb-4">
+                    Also on the board
+                  </h3>
+                  <div className="flex flex-col gap-2">
+                    {rest.map((entry) => (
+                      <ListCard
+                        key={entry.analysis_id}
+                        entry={entry}
+                        showImprovement={showImprovement}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -435,8 +413,5 @@ export default function LeaderboardPage() {
             </div>
           </section>
         </div>
-      </main>
-      <SiteFooter />
-    </div>
   );
 }

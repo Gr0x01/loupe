@@ -3,6 +3,8 @@ import { DM_Sans, Inter_Tight } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { PostHogPageView } from "@/components/PostHogPageView";
+import SiteNav from "@/components/SiteNav";
+import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -39,11 +41,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${dmSans.variable} ${interTight.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${dmSans.variable} ${interTight.variable} ${geistMono.variable} font-sans antialiased min-h-screen flex flex-col`}
       >
         <PostHogProvider>
           <PostHogPageView />
-          {children}
+          <SiteNav />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
         </PostHogProvider>
       </body>
     </html>

@@ -738,8 +738,8 @@ body > * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
-  padding: 0 16px;
+  height: 56px;
+  padding: 0 20px;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
@@ -780,7 +780,7 @@ body > * {
   animation: loupeBlink 0.3s ease-out;
 }
 
-/* Nav links with sliding underline */
+/* Nav links */
 .nav-link {
   position: relative;
   font-size: 0.9375rem;
@@ -788,20 +788,7 @@ body > * {
   color: var(--text-secondary);
   padding: 6px 12px;
   border-radius: 8px;
-  transition: all 150ms ease;
-}
-
-.nav-link::after {
-  content: "";
-  position: absolute;
-  bottom: 4px;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 1px;
-  transform: scaleX(0);
-  transition: transform 200ms ease;
+  transition: color 150ms ease;
 }
 
 .nav-link:hover {
@@ -813,8 +800,19 @@ body > * {
   font-weight: 600;
 }
 
-.nav-link-active::after {
-  transform: scaleX(1);
+/* Sliding underline - positioned at bottom of nav bar */
+.nav-underline {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* Only animate after initial position is set */
+.nav-underline-animated {
+  transition: left 250ms ease, width 250ms ease, opacity 150ms ease;
 }
 
 /* ===== SITE FOOTER ===== */
