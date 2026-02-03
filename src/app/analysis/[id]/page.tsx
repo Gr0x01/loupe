@@ -1468,7 +1468,7 @@ export default function AnalysisPage() {
                   className="text-3xl font-bold text-text-primary mb-2"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  {analysis.changes_summary ? "Keep going" : "Make a fix. Prove it\u00A0worked."}
+                  {analysis.changes_summary ? "Keep going" : <>Make a fix.<br />Prove it&nbsp;worked.</>}
                 </h2>
                 <p className="text-base text-text-secondary">
                   {analysis.changes_summary
