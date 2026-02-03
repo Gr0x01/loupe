@@ -742,19 +742,37 @@ function ScreenshotModal({
   pageUrl: string;
   onClose: () => void;
 }) {
+  const [isClosing, setIsClosing] = useState(false);
+
   // Hide site nav when modal is open
   useEffect(() => {
     document.body.classList.add("modal-open");
     return () => document.body.classList.remove("modal-open");
   }, []);
 
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+    }, 200); // Match animation duration
+  }, [onClose]);
+
+  // Close on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [handleClose]);
+
   return (
     <div
-      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
-      onClick={onClose}
+      className={`screenshot-modal-overlay ${isClosing ? "closing" : ""}`}
+      onClick={handleClose}
     >
       <div
-        className="max-w-5xl w-full max-h-[90vh] overflow-auto glass-card-elevated"
+        className={`screenshot-modal-content ${isClosing ? "closing" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="browser-chrome flex items-center justify-between sticky top-0 rounded-t-[20px]">
@@ -769,7 +787,7 @@ function ScreenshotModal({
             </span>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-text-muted hover:text-text-primary transition-colors text-sm font-medium"
           >
             Close
@@ -1917,7 +1935,7 @@ export default function AnalysisPage() {
                 <p className="text-base text-text-secondary mt-2 mb-6">
                   {analysis.changes_summary
                     ? "We\u2019re monitoring. You\u2019ll know when something shifts."
-                    : "We\u2019ll catch the changes you miss \u2014 before your visitors do."}
+                    : "We\u2019ll catch the changes you miss before your visitors do."}
                 </p>
 
                 {/* Email form — the hero */}

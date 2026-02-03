@@ -587,6 +587,96 @@ body > * {
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* ===== SCREENSHOT MODAL ===== */
+.screenshot-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  animation: modalOverlayIn 200ms ease-out forwards;
+}
+
+.screenshot-modal-overlay.closing {
+  animation: modalOverlayOut 200ms ease-in forwards;
+}
+
+.screenshot-modal-content {
+  max-width: 80rem;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  opacity: 0;
+  transform: scale(0.96) translateY(8px);
+  animation: modalContentIn 200ms ease-out 50ms forwards;
+}
+
+.screenshot-modal-content.closing {
+  animation: modalContentOut 150ms ease-in forwards;
+}
+
+@keyframes modalOverlayIn {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes modalOverlayOut {
+  from {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes modalContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modalContentOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+
 /* ===== IMPACT BADGES ===== */
 .impact-badge {
   display: inline-flex;
@@ -878,11 +968,16 @@ body > * {
   top: 0;
   z-index: 50;
   padding: 12px 0;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease, transform 200ms ease;
 }
 
 /* Hide nav when modal is open */
 body.modal-open .site-nav {
-  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
 }
 
 .site-nav-inner {
