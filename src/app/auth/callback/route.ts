@@ -1,9 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
+import { FOUNDING_50_CAP } from "@/lib/constants";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function checkFoundingCapAndRedirect(
+  redirectTo: URL,
+  userId: string
+): Promise<URL | null> {
+  const supabase = createServiceClient();
+
+  // Check if user is already a founding member
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("is_founding_50")
+    .eq("id", userId)
+    .single();
+
+  // Log unexpected errors (PGRST116 = no rows, which is expected for new users)
+  if (profileError && profileError.code !== "PGRST116") {
+    console.error("Failed to fetch profile in cap check:", profileError);
+  }
+
+  // If already a founding member, no need to check cap
+  if (profile?.is_founding_50) {
+    return null;
+  }
+
+  // Count founding members
+  const { count: founderCount } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("is_founding_50", true);
+
+  // If cap is reached and user is not a founder, redirect to waitlist
+  if ((founderCount ?? 0) >= FOUNDING_50_CAP) {
+    redirectTo.pathname = "/waitlist";
+    return redirectTo;
+  }
+
+  return null;
+}
 
 async function handleRescan(
   redirectTo: URL,
@@ -86,9 +125,15 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      if (rescanId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Check founding 50 cap — redirect to waitlist if full and not a founder
+        const waitlistRedirect = await checkFoundingCapAndRedirect(redirectTo, user.id);
+        if (waitlistRedirect) {
+          return NextResponse.redirect(waitlistRedirect);
+        }
+
+        if (rescanId) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
         }
@@ -102,9 +147,15 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
     if (!error) {
-      if (rescanId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Check founding 50 cap — redirect to waitlist if full and not a founder
+        const waitlistRedirect = await checkFoundingCapAndRedirect(redirectTo, user.id);
+        if (waitlistRedirect) {
+          return NextResponse.redirect(waitlistRedirect);
+        }
+
+        if (rescanId) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
         }

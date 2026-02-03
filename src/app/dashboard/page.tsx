@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ShareModal from "@/components/ShareModal";
 
 interface PageData {
   id: string;
@@ -17,6 +18,12 @@ interface PageData {
     previous_score: number | null;
     created_at: string;
   } | null;
+}
+
+interface UserLimits {
+  current: number;
+  max: number;
+  bonusPages: number;
 }
 
 function getDomain(url: string): string {
@@ -245,7 +252,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
+  const [userLimits, setUserLimits] = useState<UserLimits>({ current: 0, max: 1, bonusPages: 0 });
 
   const fetchPages = async () => {
     try {
@@ -259,7 +268,10 @@ export default function DashboardPage() {
         return;
       }
       const data = await res.json();
-      setPages(data.pages || []);
+      const pageList = data.pages || [];
+      setPages(pageList);
+      // Update limits based on page count (max is fetched when trying to add)
+      setUserLimits((prev) => ({ ...prev, current: pageList.length }));
     } catch {
       setError("Failed to load pages");
     } finally {
@@ -280,9 +292,18 @@ export default function DashboardPage() {
         body: JSON.stringify({ url, name: name || undefined }),
       });
 
+      const data = await res.json();
+
+      if (res.status === 403 && data.error === "page_limit_reached") {
+        // At page limit — show share modal
+        setUserLimits({ current: data.current, max: data.max, bonusPages: 0 });
+        setShowAddModal(false);
+        setShowShareModal(true);
+        return;
+      }
+
       if (res.status === 409) {
         // Page already exists
-        const data = await res.json();
         router.push(`/pages/${data.id}`);
         return;
       }
@@ -298,6 +319,20 @@ export default function DashboardPage() {
       setError("Failed to add page");
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  const handleShareSuccess = () => {
+    // Refresh limits after sharing
+    setUserLimits((prev) => ({ ...prev, max: prev.max + 1, bonusPages: prev.bonusPages + 1 }));
+  };
+
+  const handleAddClick = () => {
+    // Check if at limit before showing add modal
+    if (pages.length >= userLimits.max && userLimits.max > 0) {
+      setShowShareModal(true);
+    } else {
+      setShowAddModal(true);
     }
   };
 
@@ -344,9 +379,16 @@ export default function DashboardPage() {
             >
               Your pages
             </h1>
-            <p className="text-text-secondary mt-1">
-              {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-text-secondary">
+                {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
+              </p>
+              {userLimits.max > 0 && (
+                <span className="text-xs font-medium text-text-muted bg-[rgba(0,0,0,0.03)] px-2 py-0.5 rounded-full">
+                  {pages.length}/{userLimits.max} slots
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -356,10 +398,10 @@ export default function DashboardPage() {
               Integrations
             </Link>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={handleAddClick}
               className="btn-primary"
             >
-              Add page
+              {pages.length >= userLimits.max && userLimits.max > 0 ? "Unlock more" : "Add page"}
             </button>
           </div>
         </div>
@@ -391,6 +433,13 @@ export default function DashboardPage() {
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddPage}
         loading={addLoading}
+      />
+
+      <ShareModal
+        key={showShareModal ? "open" : "closed"}
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        onSuccess={handleShareSuccess}
       />
     </main>
   );

@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+interface FoundingStatus {
+  claimed: number;
+  total: number;
+  isFull: boolean;
+  remaining: number;
+}
 
 const LOADING_STEPS = [
   "Screenshotting your page...",
@@ -33,14 +41,14 @@ function HeroInput({
   return (
     <form onSubmit={handleSubmit}>
       <div
-        className="bg-[#1C1F2E] rounded-2xl border border-[#252838] p-4
-                    shadow-[0_4px_32px_rgba(0,0,0,0.4)]"
+        className="bg-surface-solid rounded-2xl border border-border-subtle p-4
+                    shadow-[0_2px_8px_rgba(17,17,24,0.06),0_1px_2px_rgba(17,17,24,0.04)]"
       >
         {loading ? (
           <div className="flex items-center justify-center py-3 px-3">
             <div className="flex items-center gap-3">
-              <div className="h-5 w-5 rounded-full border-2 border-[#00D4FF] border-t-transparent animate-spin" />
-              <span className="text-[#9BA1B0] text-lg">
+              <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+              <span className="text-text-secondary text-lg">
                 {LOADING_STEPS[loadingStep] || LOADING_STEPS[0]}
               </span>
             </div>
@@ -53,14 +61,14 @@ function HeroInput({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://yoursite.com"
-              className="flex-1 bg-transparent text-[#F0F0F3] placeholder-[#5C6170]
+              className="flex-1 bg-transparent text-text-primary placeholder-text-muted
                          text-lg px-3 py-3 outline-none"
             />
             <button
               type="submit"
               disabled={!url.trim()}
-              className="bg-[#00D4FF] text-[#0F1117] font-semibold px-8 py-3 rounded-xl
-                         hover:bg-[#00B8E0] active:scale-[0.98]
+              className="bg-accent text-white font-semibold px-8 py-3 rounded-xl
+                         hover:bg-accent-hover active:scale-[0.98]
                          transition-all duration-150
                          disabled:opacity-30 disabled:cursor-not-allowed
                          flex-shrink-0 whitespace-nowrap"
@@ -71,51 +79,99 @@ function HeroInput({
         )}
       </div>
       {error && (
-        <p className="text-sm text-[#F87171] mt-3 text-center">{error}</p>
+        <p className="text-sm text-score-low mt-3 text-center">{error}</p>
       )}
     </form>
+  );
+}
+
+function FoundingProgress({ status }: { status: FoundingStatus | null }) {
+  if (!status) return null;
+
+  const percentage = Math.round((status.claimed / status.total) * 100);
+
+  if (status.isFull) {
+    return (
+      <div className="text-center">
+        <p className="text-text-secondary">
+          Founding 50 is full.{" "}
+          <Link href="/waitlist" className="text-accent font-medium hover:underline">
+            Join the waitlist
+          </Link>
+        </p>
+        <p className="text-sm text-text-muted mt-1">
+          Free audits still work. No signup needed.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-center">
+      <div className="inline-flex items-center gap-3 bg-surface-solid rounded-full px-4 py-2 border border-border-subtle">
+        <div className="flex items-center gap-2">
+          <div className="w-24 h-1.5 bg-bg-inset rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent rounded-full transition-all duration-700"
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+          <span className="text-sm font-medium text-text-primary">
+            {status.claimed}/{status.total}
+          </span>
+        </div>
+        <span className="text-sm text-text-secondary">Founding spots claimed</span>
+      </div>
+      <p className="text-sm text-text-muted mt-3">
+        Free. No signup required for audits.{" "}
+        <Link href="/login" className="text-accent hover:underline">
+          Sign in
+        </Link>{" "}
+        to monitor pages.
+      </p>
+    </div>
   );
 }
 
 function ExampleResultPreview() {
   return (
     <div
-      className="bg-[#1C1F2E] rounded-2xl border border-[#252838] p-6 sm:p-8
-                  shadow-[0_2px_20px_rgba(0,0,0,0.3)] text-left max-w-xl mx-auto"
+      className="bg-surface-solid rounded-2xl border border-border-subtle p-6 sm:p-8
+                  shadow-[0_2px_8px_rgba(17,17,24,0.06),0_1px_2px_rgba(17,17,24,0.04)] text-left max-w-xl mx-auto"
     >
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs font-medium text-[#5C6170] uppercase tracking-wide">
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wide">
             Example audit
           </p>
-          <p className="text-sm text-[#9BA1B0] mt-1">acme-saas.com</p>
+          <p className="text-sm text-text-secondary mt-1">acme-saas.com</p>
         </div>
         <div className="text-right">
           <div
-            className="text-4xl text-[#F0F0F3] leading-none"
+            className="text-4xl text-text-primary leading-none"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             64
           </div>
-          <p className="text-xs text-[#5C6170] mt-0.5">/100</p>
+          <p className="text-xs text-text-muted mt-0.5">/100</p>
         </div>
       </div>
 
       {/* Category scores */}
       <div className="space-y-3 mb-6">
         {[
-          { name: "Messaging & Copy", score: 58, color: "#FBBF24" },
-          { name: "Call to Action", score: 42, color: "#F87171" },
-          { name: "Visual Hierarchy", score: 75, color: "#34D399" },
+          { name: "Messaging & Copy", score: 58, color: "var(--score-mid)" },
+          { name: "Call to Action", score: 42, color: "var(--score-low)" },
+          { name: "Visual Hierarchy", score: 75, color: "var(--score-high)" },
         ].map((cat) => (
           <div key={cat.name}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-[#9BA1B0]">{cat.name}</span>
-              <span className="text-sm font-medium text-[#F0F0F3]">
+              <span className="text-sm text-text-secondary">{cat.name}</span>
+              <span className="text-sm font-medium text-text-primary">
                 {cat.score}
               </span>
             </div>
-            <div className="h-1.5 bg-[#252838] rounded-full overflow-hidden">
+            <div className="h-1.5 bg-bg-inset rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -130,19 +186,19 @@ function ExampleResultPreview() {
 
       {/* Sample findings */}
       <div className="space-y-2">
-        <div className="flex gap-3 p-3 bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)] rounded-lg">
-          <span className="text-[#F87171] text-sm mt-0.5 font-bold">!</span>
-          <p className="text-sm text-[#9BA1B0]">
-            <span className="font-medium text-[#F0F0F3]">
+        <div className="flex gap-3 p-3 bg-[#FDECEC] border border-[#E8B8B8] rounded-lg">
+          <span className="text-score-low text-sm mt-0.5 font-bold">!</span>
+          <p className="text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">
               CTA below the fold.
             </span>{" "}
             Primary action isn't visible without scrolling.
           </p>
         </div>
-        <div className="flex gap-3 p-3 bg-[rgba(52,211,153,0.08)] border border-[rgba(52,211,153,0.2)] rounded-lg">
-          <span className="text-[#34D399] text-sm mt-0.5">&#10003;</span>
-          <p className="text-sm text-[#9BA1B0]">
-            <span className="font-medium text-[#F0F0F3]">
+        <div className="flex gap-3 p-3 bg-[#E8F5EE] border border-[#B8DFC9] rounded-lg">
+          <span className="text-score-high text-sm mt-0.5">&#10003;</span>
+          <p className="text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">
               Clear headline.
             </span>{" "}
             Communicates the core value in under 8 words.
@@ -152,19 +208,19 @@ function ExampleResultPreview() {
 
       {/* Fade out to imply more */}
       <div className="relative mt-2">
-        <div className="flex gap-3 p-3 bg-[rgba(251,191,36,0.06)] border border-[rgba(251,191,36,0.15)] rounded-lg opacity-40">
-          <span className="text-[#FBBF24] text-sm mt-0.5">&#9734;</span>
-          <p className="text-sm text-[#9BA1B0]">
-            <span className="font-medium text-[#F0F0F3]">
+        <div className="flex gap-3 p-3 bg-[#FFF5E0] border border-[#E0D5A0] rounded-lg opacity-40">
+          <span className="text-score-mid text-sm mt-0.5">&#9734;</span>
+          <p className="text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">
               Add social proof.
             </span>{" "}
             No testimonials or trust signals visible...
           </p>
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#1C1F2E] to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent" />
       </div>
 
-      <p className="text-xs text-[#5C6170] mt-3 text-center">
+      <p className="text-xs text-text-muted mt-3 text-center">
         and 9 more findings
       </p>
     </div>
@@ -175,8 +231,17 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [loadingStep, setLoadingStep] = useState(0);
+  const [foundingStatus, setFoundingStatus] = useState<FoundingStatus | null>(null);
   const router = useRouter();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Fetch founding 50 status
+    fetch("/api/founding-status")
+      .then((res) => res.json())
+      .then((data) => setFoundingStatus(data))
+      .catch(() => {}); // Silently fail — status is nice-to-have
+  }, []);
 
   useEffect(() => {
     if (loading) {
@@ -221,19 +286,19 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F1117]">
+    <div className="min-h-screen bg-bg-primary">
       {/* Hero */}
       <section className="flex flex-col items-center justify-center min-h-screen px-4 py-16">
         <div className="w-full max-w-2xl mx-auto text-center">
           <h1
-            className="text-[clamp(2.75rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-[#F0F0F3]"
+            className="text-[clamp(2.75rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-text-primary"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             Your site changed.
             <br />
-            <span className="text-[#00D4FF]">Did you notice?</span>
+            <span className="text-accent">Did you notice?</span>
           </h1>
-          <p className="text-lg text-[#9BA1B0] mt-5 max-w-lg mx-auto leading-relaxed">
+          <p className="text-lg text-text-secondary mt-5 max-w-lg mx-auto leading-relaxed">
             Paste a URL. We'll audit your headlines, CTAs, trust signals, and
             layout in 60 seconds, then tell you exactly what needs fixing.
           </p>
@@ -247,9 +312,9 @@ export default function Home() {
             />
           </div>
 
-          <p className="text-sm text-[#5C6170] mt-5">
-            Free. No signup. Takes 60 seconds.
-          </p>
+          <div className="mt-6">
+            <FoundingProgress status={foundingStatus} />
+          </div>
         </div>
       </section>
 
@@ -257,7 +322,7 @@ export default function Home() {
       <section className="px-4 pb-24">
         <div className="w-full max-w-2xl mx-auto">
           <h2
-            className="text-[clamp(1.75rem,3vw,2.5rem)] text-[#F0F0F3] text-center mb-8 leading-tight"
+            className="text-[clamp(1.75rem,3vw,2.5rem)] text-text-primary text-center mb-8 leading-tight"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             A full read of your page, not a generic score
@@ -267,10 +332,10 @@ export default function Home() {
       </section>
 
       {/* Closing CTA */}
-      <section className="bg-[#161922] px-4 py-20 border-t border-[#252838]">
+      <section className="bg-bg-inset px-4 py-20 border-t border-border-subtle">
         <div className="w-full max-w-2xl mx-auto text-center">
           <p
-            className="text-xl text-[#9BA1B0] mb-8 italic"
+            className="text-xl text-text-secondary mb-8 italic"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             Paste a URL above. See what your page looks like to a stranger.

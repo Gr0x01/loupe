@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { FOUNDING_50_CAP, BASE_PAGE_LIMIT } from "@/lib/constants";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -156,14 +157,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
-    // Validate scan_frequency
-    const validFrequencies = ["weekly", "daily", "manual"];
-    const frequency = validFrequencies.includes(scan_frequency)
-      ? scan_frequency
-      : "weekly";
-
     const supabase = createServiceClient();
     const normalizedUrl = parsedUrl.toString();
+
+    // Get user profile to check page limit and founding status
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("bonus_pages, is_founding_50")
+      .eq("id", user.id)
+      .single();
+
+    const bonusPages = profile?.bonus_pages ?? 0;
+    const isFounder = profile?.is_founding_50 ?? false;
+    const maxPages = BASE_PAGE_LIMIT + bonusPages;
+
+    // Count current pages
+    const { count: pageCount } = await supabase
+      .from("pages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    const currentPageCount = pageCount ?? 0;
+
+    // Check page limit
+    if (currentPageCount >= maxPages) {
+      return NextResponse.json(
+        {
+          error: "page_limit_reached",
+          current: currentPageCount,
+          max: maxPages,
+        },
+        { status: 403 }
+      );
+    }
 
     // Check if page already exists for this user
     const { data: existing } = await supabase
@@ -180,6 +206,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // If this is the user's first page and founding 50 cap not reached, mark as founding member
+    let wasJustMarkedFounder = false;
+    if (currentPageCount === 0 && !isFounder) {
+      const { count: founderCount } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("is_founding_50", true);
+
+      if ((founderCount ?? 0) < FOUNDING_50_CAP) {
+        await supabase
+          .from("profiles")
+          .update({ is_founding_50: true })
+          .eq("id", user.id);
+        wasJustMarkedFounder = true;
+      }
+    }
+
     // Check if user has an existing analysis for this URL to link
     const { data: existingAnalysis } = await supabase
       .from("analyses")
@@ -190,6 +233,17 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
+
+    // Determine scan frequency: Founding 50 get daily, others get weekly
+    const validFrequencies = ["weekly", "daily", "manual"];
+    let frequency: string;
+    if (scan_frequency && validFrequencies.includes(scan_frequency)) {
+      frequency = scan_frequency;
+    } else {
+      // Default: daily for founding members, weekly for others
+      const effectivelyFounder = isFounder || wasJustMarkedFounder;
+      frequency = effectivelyFounder ? "daily" : "weekly";
+    }
 
     // Create page record
     const { data: page, error } = await supabase
