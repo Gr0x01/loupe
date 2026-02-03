@@ -33,6 +33,7 @@ export async function GET(
         url,
         name,
         scan_frequency,
+        repo_id,
         last_scan_id,
         created_at,
         analyses:last_scan_id (
@@ -81,7 +82,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, scan_frequency } = await req.json();
+    const { name, scan_frequency, repo_id } = await req.json();
 
     const supabase = createServiceClient();
 
@@ -98,7 +99,7 @@ export async function PATCH(
     }
 
     // Build update object
-    const updates: { name?: string | null; scan_frequency?: string } = {};
+    const updates: { name?: string | null; scan_frequency?: string; repo_id?: string | null } = {};
     if (name !== undefined) {
       updates.name = name || null;
     }
@@ -107,6 +108,22 @@ export async function PATCH(
       if (validFrequencies.includes(scan_frequency)) {
         updates.scan_frequency = scan_frequency;
       }
+    }
+    if (repo_id !== undefined) {
+      // Verify user owns the repo if setting (not clearing)
+      if (repo_id) {
+        const { data: repo } = await supabase
+          .from("repos")
+          .select("id")
+          .eq("id", repo_id)
+          .eq("user_id", user.id)
+          .single();
+
+        if (!repo) {
+          return NextResponse.json({ error: "Repo not found" }, { status: 400 });
+        }
+      }
+      updates.repo_id = repo_id || null;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -117,7 +134,7 @@ export async function PATCH(
       .from("pages")
       .update(updates)
       .eq("id", id)
-      .select("id, url, name, scan_frequency, last_scan_id, created_at")
+      .select("id, url, name, scan_frequency, repo_id, last_scan_id, created_at")
       .single();
 
     if (error) {

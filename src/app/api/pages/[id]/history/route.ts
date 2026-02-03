@@ -29,7 +29,7 @@ export async function GET(
     // Get the page to verify ownership and get URL
     const { data: page, error: pageError } = await supabase
       .from("pages")
-      .select("id, url, name, scan_frequency, created_at")
+      .select("id, url, name, scan_frequency, repo_id, created_at")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();

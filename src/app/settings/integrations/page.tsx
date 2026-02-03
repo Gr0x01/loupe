@@ -1,0 +1,511 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+interface GitHubRepo {
+  id: number;
+  full_name: string;
+  default_branch: string;
+  private: boolean;
+  connected: boolean;
+}
+
+interface GitHubIntegration {
+  connected: boolean;
+  username: string;
+  avatar_url: string;
+  connected_at: string;
+  repos: { id: string; full_name: string; default_branch: string }[];
+}
+
+interface IntegrationsData {
+  github: GitHubIntegration | null;
+}
+
+function GitHubIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+    </svg>
+  );
+}
+
+function RepoCard({
+  repo,
+  onDisconnect,
+  disconnecting,
+}: {
+  repo: { id: string; full_name: string; default_branch: string };
+  onDisconnect: (id: string) => void;
+  disconnecting: boolean;
+}) {
+  return (
+    <div className="glass-card p-4 flex items-center justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-text-primary truncate">{repo.full_name}</p>
+        <p className="text-sm text-text-muted">Branch: {repo.default_branch}</p>
+      </div>
+      <button
+        onClick={() => onDisconnect(repo.id)}
+        disabled={disconnecting}
+        className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
+      >
+        {disconnecting ? "Removing..." : "Remove"}
+      </button>
+    </div>
+  );
+}
+
+function AddRepoModal({
+  isOpen,
+  onClose,
+  onConnect,
+  connectingId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConnect: (repo: GitHubRepo) => void;
+  connectingId: number | null;
+}) {
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchRepos = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/integrations/github/repos");
+        if (!res.ok) {
+          setError("Failed to load repos");
+          return;
+        }
+        const data = await res.json();
+        setRepos(data.repos || []);
+      } catch {
+        setError("Failed to load repos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRepos();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const availableRepos = repos.filter((r) => !r.connected);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-solid rounded-2xl shadow-xl p-6 w-full max-w-lg max-h-[80vh] flex flex-col border border-border-subtle"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-2xl font-bold text-text-primary mb-4"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          Connect a repository
+        </h2>
+
+        {loading && (
+          <div className="flex-1 flex items-center justify-center py-8">
+            <div className="glass-spinner" />
+          </div>
+        )}
+
+        {error && (
+          <div className="text-score-low text-center py-8">{error}</div>
+        )}
+
+        {!loading && !error && availableRepos.length === 0 && (
+          <div className="text-text-secondary text-center py-8">
+            All your repositories are already connected.
+          </div>
+        )}
+
+        {!loading && !error && availableRepos.length > 0 && (
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            {availableRepos.map((repo) => {
+              const isConnecting = connectingId === repo.id;
+              return (
+                <button
+                  key={repo.id}
+                  onClick={() => onConnect(repo)}
+                  disabled={connectingId !== null}
+                  className="w-full glass-card p-4 text-left hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 disabled:opacity-50"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-text-primary truncate">
+                        {repo.full_name}
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        {repo.private ? "Private" : "Public"} · {repo.default_branch}
+                      </p>
+                    </div>
+                    <span className="text-accent text-sm font-medium flex-shrink-0">
+                      {isConnecting ? "Connecting..." : "Connect"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-border-subtle">
+          <button onClick={onClose} className="btn-secondary w-full">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [integrations, setIntegrations] = useState<IntegrationsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showAddRepo, setShowAddRepo] = useState(false);
+  const [connectingId, setConnectingId] = useState<number | null>(null);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [disconnectingGitHub, setDisconnectingGitHub] = useState(false);
+
+  // Show success/error messages from OAuth callback
+  const successParam = searchParams.get("success");
+  const errorParam = searchParams.get("error");
+
+  const fetchIntegrations = async () => {
+    try {
+      const res = await fetch("/api/integrations");
+      if (res.status === 401) {
+        router.push("/login?redirect=/settings/integrations");
+        return;
+      }
+      if (!res.ok) {
+        setError("Failed to load integrations");
+        return;
+      }
+      const data = await res.json();
+      setIntegrations(data);
+    } catch {
+      setError("Failed to load integrations");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchIntegrations();
+  }, []);
+
+  const handleConnectGitHub = () => {
+    window.location.href = "/api/integrations/github/connect";
+  };
+
+  const handleDisconnectGitHub = async () => {
+    if (!confirm("Disconnect GitHub? All repo webhooks will be removed.")) return;
+
+    setDisconnectingGitHub(true);
+    try {
+      const res = await fetch("/api/integrations/github", { method: "DELETE" });
+      if (!res.ok) {
+        setError("Failed to disconnect GitHub");
+        return;
+      }
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to disconnect GitHub");
+    } finally {
+      setDisconnectingGitHub(false);
+    }
+  };
+
+  const handleConnectRepo = async (repo: GitHubRepo) => {
+    setConnectingId(repo.id);
+    try {
+      const res = await fetch("/api/integrations/github/repos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repoId: repo.id,
+          fullName: repo.full_name,
+          defaultBranch: repo.default_branch,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to connect repo");
+        return;
+      }
+
+      setShowAddRepo(false);
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to connect repo");
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const handleDisconnectRepo = async (repoId: string) => {
+    setDisconnecting(repoId);
+    try {
+      const res = await fetch(`/api/integrations/github/repos/${repoId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setError("Failed to remove repo");
+        return;
+      }
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to remove repo");
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="glass-spinner mx-auto" />
+          <p className="text-text-secondary mt-4">Loading integrations...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen text-text-primary">
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        {/* Header */}
+        <div className="mb-8">
+          <Link
+            href="/dashboard"
+            className="text-sm text-text-muted hover:text-accent transition-colors mb-4 inline-block"
+          >
+            ← Back to dashboard
+          </Link>
+          <h1
+            className="text-4xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            Integrations
+          </h1>
+          <p className="text-text-secondary mt-1">
+            Connect your tools to auto-scan after deploys
+          </p>
+        </div>
+
+        {/* Success/Error messages */}
+        {successParam === "github" && (
+          <div className="glass-card p-4 mb-6 border-l-4 border-score-high">
+            <p className="text-text-primary font-medium">GitHub connected successfully</p>
+            <p className="text-sm text-text-secondary mt-1">
+              Now connect a repository to start auto-scanning after deploys.
+            </p>
+          </div>
+        )}
+
+        {errorParam && (
+          <div className="glass-card p-4 mb-6 border-l-4 border-score-low">
+            <p className="text-text-primary font-medium">Connection failed</p>
+            <p className="text-sm text-text-secondary mt-1">
+              {errorParam === "github_denied"
+                ? "You declined the GitHub authorization."
+                : "Something went wrong. Please try again."}
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className="glass-card p-4 mb-6 border-l-4 border-score-low">
+            <p className="text-text-primary">{error}</p>
+            <button
+              onClick={() => setError("")}
+              className="text-sm text-text-muted hover:text-text-secondary mt-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* GitHub Integration */}
+        <section className="mb-8">
+          <div className="glass-card-elevated p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#24292e] flex items-center justify-center">
+                  <GitHubIcon className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-text-primary">GitHub</h2>
+                  <p className="text-sm text-text-secondary">
+                    Auto-scan pages when you push to main
+                  </p>
+                </div>
+              </div>
+
+              {!integrations?.github ? (
+                <button onClick={handleConnectGitHub} className="btn-primary">
+                  Connect
+                </button>
+              ) : (
+                <button
+                  onClick={handleDisconnectGitHub}
+                  disabled={disconnectingGitHub}
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
+                >
+                  {disconnectingGitHub ? "Disconnecting..." : "Disconnect"}
+                </button>
+              )}
+            </div>
+
+            {integrations?.github && (
+              <div className="mt-6 pt-6 border-t border-border-subtle">
+                {/* Connected account */}
+                <div className="flex items-center gap-3 mb-6">
+                  {integrations.github.avatar_url && (
+                    <img
+                      src={integrations.github.avatar_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      @{integrations.github.username}
+                    </p>
+                    <p className="text-xs text-text-muted">Connected</p>
+                  </div>
+                </div>
+
+                {/* Connected repos */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
+                      Watching {integrations.github.repos.length}/1 repo
+                    </h3>
+                    {integrations.github.repos.length < 1 && (
+                      <button
+                        onClick={() => setShowAddRepo(true)}
+                        className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
+                      >
+                        + Add repo
+                      </button>
+                    )}
+                  </div>
+
+                  {integrations.github.repos.length === 0 ? (
+                    <div className="glass-card p-6 text-center">
+                      <p className="text-text-secondary mb-4">
+                        No repos connected yet. Add one to start auto-scanning.
+                      </p>
+                      <button
+                        onClick={() => setShowAddRepo(true)}
+                        className="btn-secondary"
+                      >
+                        Add a repository
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {integrations.github.repos.map((repo) => (
+                        <RepoCard
+                          key={repo.id}
+                          repo={repo}
+                          onDisconnect={handleDisconnectRepo}
+                          disconnecting={disconnecting === repo.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* How it works */}
+                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <p className="text-sm text-text-secondary">
+                    <span className="font-medium text-text-primary">How it works:</span>{" "}
+                    When you push to the default branch, we wait 45 seconds for your deploy to finish, then scan all pages linked to the repo.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Future: PostHog */}
+        <section className="mb-8">
+          <div className="glass-card p-6 opacity-60">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#1d4aff] flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">P</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-text-primary">PostHog</h2>
+                  <p className="text-sm text-text-secondary">
+                    Correlate page changes with analytics
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm text-text-muted font-medium px-3 py-1 rounded-full bg-[rgba(0,0,0,0.03)]">
+                Coming soon
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <div className="text-center pt-8">
+          <Link
+            href="/dashboard"
+            className="text-sm text-text-muted hover:text-accent transition-colors"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+
+      <AddRepoModal
+        isOpen={showAddRepo}
+        onClose={() => setShowAddRepo(false)}
+        onConnect={handleConnectRepo}
+        connectingId={connectingId}
+      />
+    </main>
+  );
+}
+
+export default function IntegrationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center px-4">
+          <div className="text-center">
+            <div className="glass-spinner mx-auto" />
+            <p className="text-text-secondary mt-4">Loading integrations...</p>
+          </div>
+        </main>
+      }
+    >
+      <IntegrationsContent />
+    </Suspense>
+  );
+}

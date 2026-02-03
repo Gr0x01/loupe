@@ -96,6 +96,7 @@ pages (
   name text,                      -- optional friendly name
   scan_frequency text NOT NULL DEFAULT 'weekly',  -- weekly | daily | manual
   last_scan_id uuid FK analyses ON DELETE SET NULL,
+  repo_id uuid FK repos ON DELETE SET NULL,  -- link to GitHub repo for auto-scan
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, url)
 )
@@ -109,6 +110,47 @@ profiles (
 )
 -- Auto-created via trigger on auth.users insert
 -- RLS: user can read/update own profile
+
+integrations (
+  id uuid PK default gen_random_uuid(),
+  user_id uuid NOT NULL FK auth.users ON DELETE CASCADE,
+  provider text NOT NULL,           -- 'github'
+  provider_account_id text NOT NULL,
+  access_token text NOT NULL,
+  scope text,
+  metadata jsonb,                   -- { username, avatar_url }
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, provider)
+)
+-- RLS: user can only access own integrations
+
+repos (
+  id uuid PK default gen_random_uuid(),
+  user_id uuid NOT NULL FK auth.users ON DELETE CASCADE,
+  integration_id uuid NOT NULL FK integrations ON DELETE CASCADE,
+  github_repo_id bigint NOT NULL,
+  full_name text NOT NULL,          -- 'owner/repo'
+  default_branch text DEFAULT 'main',
+  webhook_id bigint,
+  webhook_secret text,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, github_repo_id)
+)
+-- RLS: user can only access own repos
+
+deploys (
+  id uuid PK default gen_random_uuid(),
+  repo_id uuid NOT NULL FK repos ON DELETE CASCADE,
+  commit_sha text NOT NULL,
+  commit_message text,
+  commit_author text,
+  commit_timestamp timestamptz,
+  changed_files jsonb,
+  status text DEFAULT 'pending',    -- pending | scanning | complete | failed
+  created_at timestamptz DEFAULT now()
+)
+-- No RLS - accessed via service role from webhooks
 ```
 
 ### Storage
@@ -202,6 +244,7 @@ Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
 - `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
+- `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans linked pages
 
 ## File Structure
 ```
@@ -216,6 +259,8 @@ src/
 │   │   ├── signout/route.ts        # Sign out
 │   │   └── error/page.tsx          # Auth error page
 │   ├── analysis/[id]/page.tsx      # Results page (with page context + nav)
+│   ├── settings/
+│   │   └── integrations/page.tsx   # GitHub + PostHog connection UI
 │   ├── api/
 │   │   ├── analyze/route.ts        # POST: create analysis
 │   │   ├── analysis/[id]/route.ts  # GET: poll results (includes page_context)
@@ -223,6 +268,8 @@ src/
 │   │   ├── pages/route.ts          # GET: list pages, POST: register page
 │   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page
 │   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
+│   │   ├── integrations/           # GitHub OAuth + repo management
+│   │   ├── webhooks/github/route.ts # GitHub push webhook receiver
 │   │   └── inngest/route.ts        # Inngest serve
 │   ├── globals.css
 │   └── layout.tsx

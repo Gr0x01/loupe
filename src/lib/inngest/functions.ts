@@ -272,3 +272,117 @@ export const scheduledScanDaily = inngest.createFunction(
     return { scanned: results.length };
   }
 );
+
+/**
+ * Deploy detected — triggered by GitHub webhook on push to main
+ * Waits for Vercel deploy, then scans all pages linked to the repo
+ */
+export const deployDetected = inngest.createFunction(
+  {
+    id: "deploy-detected",
+    retries: 2,
+  },
+  { event: "deploy/detected" },
+  async ({ event, step }) => {
+    const { deployId, repoId, userId } = event.data as {
+      deployId: string;
+      repoId: string;
+      userId: string;
+      commitSha: string;
+      fullName: string;
+    };
+
+    const supabase = createServiceClient();
+
+    // Wait for Vercel to deploy (simple fixed delay for MVP)
+    await step.sleep("wait-for-vercel", "45s");
+
+    // Update deploy status
+    await step.run("mark-scanning", async () => {
+      await supabase
+        .from("deploys")
+        .update({ status: "scanning" })
+        .eq("id", deployId);
+    });
+
+    // Find pages linked to this repo
+    const pages = await step.run("find-pages", async () => {
+      const { data } = await supabase
+        .from("pages")
+        .select("id, url, last_scan_id")
+        .eq("user_id", userId)
+        .eq("repo_id", repoId);
+
+      return data || [];
+    });
+
+    if (pages.length === 0) {
+      // No pages linked to this repo yet
+      await supabase
+        .from("deploys")
+        .update({ status: "complete" })
+        .eq("id", deployId);
+
+      return { scanned: 0, message: "No pages linked to repo" };
+    }
+
+    // Create analyses for each page
+    const results = await step.run("create-deploy-analyses", async () => {
+      const created: { pageId: string; analysisId: string }[] = [];
+
+      for (const page of pages) {
+        const { data: newAnalysis, error: insertError } = await supabase
+          .from("analyses")
+          .insert({
+            url: page.url,
+            user_id: userId,
+            parent_analysis_id: page.last_scan_id,
+            status: "pending",
+          })
+          .select("id")
+          .single();
+
+        if (insertError || !newAnalysis) {
+          console.error(`Failed to create analysis for page ${page.id}:`, insertError);
+          continue;
+        }
+
+        created.push({ pageId: page.id, analysisId: newAnalysis.id });
+      }
+
+      return created;
+    });
+
+    // Trigger scans
+    await step.run("trigger-deploy-scans", async () => {
+      for (const { analysisId } of results) {
+        const { data: analysis } = await supabase
+          .from("analyses")
+          .select("url, parent_analysis_id")
+          .eq("id", analysisId)
+          .single();
+
+        if (analysis) {
+          await inngest.send({
+            name: "analysis/created",
+            data: {
+              analysisId,
+              url: analysis.url,
+              parentAnalysisId: analysis.parent_analysis_id || undefined,
+            },
+          });
+        }
+      }
+    });
+
+    // Mark deploy complete
+    await step.run("mark-complete", async () => {
+      await supabase
+        .from("deploys")
+        .update({ status: "complete" })
+        .eq("id", deployId);
+    });
+
+    return { scanned: results.length, deployId };
+  }
+);

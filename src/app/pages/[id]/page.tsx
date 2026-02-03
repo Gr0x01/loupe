@@ -9,7 +9,13 @@ interface PageInfo {
   url: string;
   name: string | null;
   scan_frequency: string;
+  repo_id: string | null;
   created_at: string;
+}
+
+interface ConnectedRepo {
+  id: string;
+  full_name: string;
 }
 
 interface ScanHistory {
@@ -309,6 +315,57 @@ function FrequencySelector({
   );
 }
 
+function RepoSelector({
+  currentRepoId,
+  repos,
+  onChange,
+  loading,
+}: {
+  currentRepoId: string | null;
+  repos: ConnectedRepo[];
+  onChange: (repoId: string | null) => void;
+  loading: boolean;
+}) {
+  if (repos.length === 0) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-text-muted">Auto-scan:</span>
+        <Link
+          href="/settings/integrations"
+          className="text-sm text-accent hover:text-accent-hover transition-colors"
+        >
+          Connect GitHub
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-text-muted">Auto-scan:</span>
+      <select
+        value={currentRepoId || ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        disabled={loading}
+        className="input-glass text-sm py-1.5 px-3 pr-8 appearance-none cursor-pointer"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%238E8EA0' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
+          backgroundPosition: "right 8px center",
+          backgroundSize: "16px 16px",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <option value="">Not linked</option>
+        {repos.map((repo) => (
+          <option key={repo.id} value={repo.id}>
+            {repo.full_name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function PageTimelinePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -317,6 +374,26 @@ export default function PageTimelinePage() {
   const [error, setError] = useState("");
   const [rescanLoading, setRescanLoading] = useState(false);
   const [freqLoading, setFreqLoading] = useState(false);
+  const [repoLoading, setRepoLoading] = useState(false);
+  const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
+
+  // Fetch connected repos
+  useEffect(() => {
+    const fetchRepos = async () => {
+      try {
+        const res = await fetch("/api/integrations");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.github?.repos) {
+            setConnectedRepos(data.github.repos);
+          }
+        }
+      } catch {
+        // Ignore - repos just won't show
+      }
+    };
+    fetchRepos();
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -423,6 +500,34 @@ export default function PageTimelinePage() {
     }
   };
 
+  const handleRepoChange = async (repoId: string | null) => {
+    if (!data) return;
+
+    setRepoLoading(true);
+    try {
+      const res = await fetch(`/api/pages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_id: repoId }),
+      });
+
+      if (res.ok) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                page: { ...prev.page, repo_id: repoId },
+              }
+            : null
+        );
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setRepoLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4">
@@ -495,11 +600,19 @@ export default function PageTimelinePage() {
 
         {/* Actions bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <FrequencySelector
-            current={page.scan_frequency}
-            onChange={handleFrequencyChange}
-            loading={freqLoading}
-          />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <FrequencySelector
+              current={page.scan_frequency}
+              onChange={handleFrequencyChange}
+              loading={freqLoading}
+            />
+            <RepoSelector
+              currentRepoId={page.repo_id}
+              repos={connectedRepos}
+              onChange={handleRepoChange}
+              loading={repoLoading}
+            />
+          </div>
           <button
             onClick={handleRescan}
             disabled={rescanLoading || hasPendingScan}

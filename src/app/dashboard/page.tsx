@@ -348,12 +348,20 @@ export default function DashboardPage() {
               {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
             </p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="btn-primary"
-          >
-            Add page
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/settings/integrations"
+              className="text-sm text-text-muted hover:text-accent transition-colors"
+            >
+              Integrations
+            </Link>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="btn-primary"
+            >
+              Add page
+            </button>
+          </div>
         </div>
 
         {/* Pages list or empty state */}

@@ -57,13 +57,47 @@ Foundation for integrations. Users can track pages over time.
 
 **Status:** Complete. Users can monitor pages, see timeline, scheduled scans work.
 
-## Phase 1C-2 — GitHub + PostHog + Correlation (NOT STARTED)
+## Phase 1C-2 — Launch Prep (IN PROGRESS)
+Ship free for Founding 50, learn, then build billing with evidence.
+
+### Founding 50 constraints
+- [ ] User cap: 50 users max (check on signup, show waitlist after)
+- [ ] Page limit: 1 page per user (check in `POST /api/pages`)
+- [ ] Scan frequency: Daily scans for Founding 50
+
+### Share to unlock
+- [ ] Share mechanic: +1 page per share (instant credit, honor system)
+- [ ] UI: "Share to unlock more pages" with Twitter/LinkedIn/copy link
+- [ ] Track shares in user record (`bonus_pages` column)
+
+### Waitlist (after 50)
+- [ ] Waitlist table + form + API
+- [ ] Landing page shows waitlist state when cap is hit
+- [ ] Free audit stays accessible (acquisition engine)
+
+### Landing page updates
+- [ ] "Founding 50" messaging
+- [ ] Progress indicator ("X/50 spots claimed")
+
+**Done when:** Can sign up, hit limits, share to unlock, and waitlist after 50.
+
+---
+
+## Phase 1C-3 — GitHub + PostHog + Correlation (GITHUB DONE)
 The integrations and correlation magic.
 
-- [ ] GitHub OAuth App → store access token in `integrations` table
-- [ ] GitHub webhook listener (push to main → capture commit, diff, timestamp)
-- [ ] Auto-scan after deploy (wait for Vercel, then screenshot + audit)
-- [ ] `deploys` table stores commit SHA, message, changed files
+### GitHub Integration (DONE)
+- [x] GitHub OAuth App → store access token in `integrations` table
+- [x] GitHub webhook listener (push to main → capture commit, diff, timestamp)
+- [x] Auto-scan after deploy (wait 45s for Vercel, then screenshot + audit)
+- [x] `deploys` table stores commit SHA, message, changed files
+- [x] Settings page UI (`/settings/integrations`) for connecting GitHub
+- [x] Repo management (add/remove repos, webhook creation)
+- [x] `deploy-detected` Inngest function for auto-scan flow
+- [ ] Link pages to repos (page settings UI) — minor UI addition
+- [ ] Show deploy info on analysis results — minor UI addition
+
+### PostHog Integration (NOT STARTED)
 - [ ] PostHog API integration (Query API with HogQL)
 - [ ] Pull metrics: pageviews, unique visitors, bounce rate, custom events
 - [ ] Store metric snapshots on analysis records
@@ -72,11 +106,11 @@ The integrations and correlation magic.
 
 **Done when:** Push to main → Loupe auto-scans → shows "this deploy changed X, metrics moved Y."
 
-## Phase 1D — Billing
-Make it a real product.
+## Phase 1D — Billing (DEFERRED)
+Build after learning from first 50 users.
 
-- [ ] Stripe integration (Pro at $19/mo)
-- [ ] Free tier limits: 1 page, weekly scans only
+- [ ] Stripe integration (price TBD based on user feedback)
+- [ ] Grandfather early users
 - [ ] Settings page (integrations, email preferences)
 
 **Done when:** Someone can pay and use the pro tier.
