@@ -7,48 +7,56 @@ description: Guidelines for creating distinctive, high-quality frontend UI. Use 
 
 ---
 
-## Loupe Project: Dark Tech + Editorial Punch
+## Loupe Project: Luminous Glass + Editorial Punch
 
-**Aesthetic: Dark UI + Editorial hybrid.**
-Bold, tech-forward, confident. Like a sharp developer tool with editorial flair. Dark backgrounds, electric cyan accent, bold serif headlines, crisp hierarchy.
+**Aesthetic: Light glass UI + Editorial hybrid.**
+Bright, airy, confident. Frosted glass cards on a soft gray canvas with deep violet accents and editorial serif headlines.
 
 ### The Formula
 
 | Layer | Direction |
 |-------|-----------|
-| **Visuals** | Dark tech — dark cards on near-black canvas, subtle borders, generous whitespace |
+| **Visuals** | Luminous glass — frosted white cards on light gray canvas, subtle noise texture, generous whitespace |
 | **Typography** | Editorial punch — Instrument Serif for hero headlines, DM Sans for everything else |
 | **Copy** | Watchful, calm, specific — "Your hero text changed" not "ALERT: Change detected!" |
-| **Colors** | Cool, confident — light text on dark backgrounds, electric cyan (#00D4FF) accent |
+| **Colors** | Confident — dark text on light backgrounds, deep violet (#5B2E91) accent |
 
 ### Color Palette
 
 ```css
 :root {
-  /* Backgrounds — Cool Dark */
-  --bg-primary: #0F1117;         /* Near-black — page canvas */
-  --bg-secondary: #161922;       /* Slightly lighter — alternate sections */
-  --surface: #1C1F2E;            /* Dark card surface */
-  --surface-hover: #252838;      /* Card hover / elevated surface */
+  /* Backgrounds — Luminous depth */
+  --bg-primary: #F5F5F7;         /* Light gray — page canvas */
+  --bg-secondary: #EFEFEF;       /* Slightly darker — alternate sections */
+  --surface: rgba(255, 255, 255, 0.6);  /* Frosted glass card surface */
+  --surface-solid: #FFFFFF;      /* Solid white surface */
+  --surface-hover: rgba(255, 255, 255, 0.8);  /* Card hover */
 
   /* Text */
-  --text-primary: #F0F0F3;       /* Near-white */
-  --text-secondary: #9BA1B0;     /* Body copy, descriptions */
-  --text-muted: #5C6170;         /* Labels, timestamps, hints */
+  --text-primary: #111118;       /* Near-black */
+  --text-secondary: #55556D;     /* Body copy, descriptions */
+  --text-muted: #8E8EA0;         /* Labels, timestamps, hints */
 
-  /* Accent — Electric Cyan */
-  --accent: #00D4FF;             /* Primary CTA, links, key highlights */
-  --accent-hover: #00B8E0;       /* Darker on hover */
-  --accent-muted: rgba(0, 212, 255, 0.12); /* Cyan tint background */
+  /* Accent — Deep Violet */
+  --accent: #5B2E91;             /* Primary CTA, links, key highlights */
+  --accent-hover: #4A2577;       /* Darker on hover */
+  --accent-subtle: rgba(91, 46, 145, 0.08); /* Violet tint background */
+  --accent-border: rgba(91, 46, 145, 0.2);  /* Violet border */
+  --accent-glow: rgba(91, 46, 145, 0.15);   /* Violet glow */
 
-  /* Borders */
-  --border: #252838;             /* Standard border */
-  --border-strong: #363A4A;      /* Stronger border for emphasis */
+  /* Borders — glass style */
+  --border: rgba(255, 255, 255, 0.5);      /* Inner glass border */
+  --border-outer: rgba(0, 0, 0, 0.06);     /* Outer subtle border */
+  --border-strong: rgba(0, 0, 0, 0.1);     /* Stronger border for emphasis */
+  --border-subtle: #E4E4EB;                /* Subtle solid border */
+
+  /* Surfaces — specific */
+  --bg-inset: #F0F0F3;          /* Inset/recessed background */
 
   /* Semantic — Scores */
-  --score-high: #34D399;         /* Green — good scores (80+) */
-  --score-mid: #FBBF24;          /* Amber — okay scores (60-79) */
-  --score-low: #F87171;          /* Red — problem scores (<60) */
+  --score-high: #1A8C5B;         /* Green — good scores (80+) */
+  --score-mid: #D4940A;          /* Amber — okay scores (60-79) */
+  --score-low: #C23B3B;          /* Red — problem scores (<60) */
 }
 ```
 
@@ -72,140 +80,156 @@ Both Instrument Serif and DM Sans load via `next/font/google`.
 --text-label: 0.75rem;                          /* 12px */
 ```
 
+### Typography Weight & Balance
+
+Text needs visual weight to feel authoritative. Small gray body text next to a bold card looks weak and unfinished. Follow these principles:
+
+**Match weight to importance.** If content is the point of a section (an explanation, a key insight), it should be `text-lg` or `text-xl` with `text-text-primary` — not `text-sm text-text-secondary`. Reserve small muted text for labels, timestamps, and metadata.
+
+**Use Instrument Serif for pull-quote moments.** When a section has one key statement or insight worth highlighting, render it in Instrument Serif at `text-xl` or larger. This creates editorial weight — the eye is drawn to it.
+
+**Labels are small, content is not.** A pattern: tiny uppercase label (`text-xs font-semibold text-text-muted uppercase tracking-wide`) followed by substantial content (`text-lg` or `text-xl` in `text-text-primary`). The label introduces, the content delivers.
+
+**Balance across columns.** In a two-column layout, both sides need comparable visual weight. If the left column has a card with bold headlines, the right column can't be a small gray paragraph — it needs presence. Options:
+- Larger text size (`text-lg` or `text-xl`)
+- Primary color (`text-text-primary`) instead of secondary
+- Instrument Serif for the key line
+- A mix: Instrument Serif headline-sized pull quote + smaller supporting text below
+
+**Anti-patterns:**
+- `text-sm text-text-secondary` as the main content of a section — too weak
+- Body text that's the same size/weight as labels — no hierarchy
+- A bold left column paired with a whisper-quiet right column — unbalanced
+- Everything at `text-base` — flat, no drama
+
+### Spacing System
+
+Sections on the results page use consistent spacing via CSS classes:
+- `.result-section` — `64px` top/bottom padding for each content zone
+- `.section-header` — `48px` margin-bottom between header and content
+- Use these classes instead of arbitrary Tailwind padding on result page sections
+
 ### Key Patterns
 
-**Cards (standard)**
+**Cards (standard — glass)**
 ```jsx
-<div className="bg-[#1C1F2E] rounded-xl border border-[#252838] p-6
-                shadow-[0_2px_20px_rgba(0,0,0,0.3)]">
+<div className="glass-card p-6">
 ```
+CSS: `background: rgba(255, 255, 255, 0.55)`, `backdrop-filter: blur(20px) saturate(1.4)`, `border: 1px solid rgba(255, 255, 255, 0.6)`, `border-radius: 16px`
 
 **Cards (elevated — hero input, score display)**
 ```jsx
-<div className="bg-[#1C1F2E] rounded-2xl border border-[#252838] p-8
-                shadow-[0_4px_32px_rgba(0,0,0,0.4)]">
+<div className="glass-card-elevated p-8">
 ```
+CSS: `background: rgba(255, 255, 255, 0.65)`, `backdrop-filter: blur(24px) saturate(1.5)`, `border-radius: 20px`, deeper shadow
 
-**Primary Button (cyan)**
+**Cards (active/selected)**
 ```jsx
-<button className="bg-[#00D4FF] text-[#0F1117] font-semibold px-6 py-3 rounded-xl
-                   hover:bg-[#00B8E0] active:scale-[0.98]
-                   transition-all duration-150">
-  Audit this page
-</button>
+<div className="glass-card-active p-5">
 ```
+CSS: violet border `rgba(91, 46, 145, 0.25)`, violet glow shadow
 
-**Secondary Button (outline)**
+**Primary Button (violet)**
 ```jsx
-<button className="bg-transparent text-[#F0F0F3] font-medium px-6 py-3 rounded-xl
-                   border border-[#363A4A] hover:border-[#F0F0F3]
-                   hover:bg-[#252838] active:scale-[0.98]
-                   transition-all duration-150">
-  Share this audit
-</button>
+<button className="btn-primary">Audit this page</button>
 ```
+CSS: `background: #5B2E91`, white text, `border-radius: 12px`, violet shadow, `active: scale(0.98)`
+
+**Secondary Button (glass)**
+```jsx
+<button className="btn-secondary">Share this audit</button>
+```
+CSS: `background: rgba(255, 255, 255, 0.6)`, backdrop-blur, subtle border
 
 **Ghost Button**
 ```jsx
-<button className="text-[#00D4FF] font-medium px-4 py-2 rounded-lg
-                   hover:bg-[rgba(0,212,255,0.12)] transition-colors duration-150">
+<button className="text-accent font-medium px-4 py-2 rounded-lg
+                   hover:bg-[rgba(91,46,145,0.08)] transition-colors duration-150">
   Audit another page
 </button>
 ```
 
 **Hero Input Card**
 ```jsx
-<div className="bg-[#1C1F2E] rounded-2xl border border-[#252838] p-4
-                shadow-[0_4px_32px_rgba(0,0,0,0.4)]">
+<div className="glass-card-elevated p-4">
   <div className="flex flex-col sm:flex-row items-stretch gap-3">
     <input
       type="text"
       inputMode="url"
       placeholder="https://yoursite.com"
-      className="flex-1 bg-transparent text-[#F0F0F3] placeholder-[#5C6170]
-                 text-lg px-3 py-3 outline-none"
+      className="input-glass flex-1 text-lg"
     />
-    <button className="bg-[#00D4FF] text-[#0F1117] font-semibold px-8 py-3 rounded-xl
-                       hover:bg-[#00B8E0] active:scale-[0.98]
-                       transition-all duration-150 whitespace-nowrap">
+    <button className="btn-primary whitespace-nowrap">
       Audit this page
     </button>
   </div>
 </div>
 ```
 
-**Finding Cards (3 types — dark variants with colored left border)**
+**Finding Cards (3 types — glass variants with colored left border)**
 ```jsx
 {/* Issue — red left border */}
-<div className="bg-[#1C1F2E] border border-[#252838] border-l-4 border-l-[#F87171] rounded-xl p-5">
-  <p className="font-medium text-[#F0F0F3]">Issue title</p>
-  <p className="text-sm text-[#9BA1B0] mt-1">Explanation</p>
-  <p className="text-sm font-medium text-[#F87171] mt-2">Suggestion: ...</p>
+<div className="finding-issue p-5">
+  <p className="font-medium text-text-primary">Issue title</p>
+  <p className="text-sm text-text-secondary mt-1">Explanation</p>
+  <p className="text-sm font-medium text-accent mt-2">Fix: ...</p>
 </div>
 
-{/* Suggestion — cyan left border */}
-<div className="bg-[#1C1F2E] border border-[#252838] border-l-4 border-l-[#00D4FF] rounded-xl p-5">
-  <p className="font-medium text-[#F0F0F3]">Suggestion title</p>
-  <p className="text-sm text-[#9BA1B0] mt-1">Explanation</p>
+{/* Suggestion — violet left border */}
+<div className="finding-suggestion p-5">
+  <p className="font-medium text-text-primary">Suggestion title</p>
+  <p className="text-sm text-text-secondary mt-1">Explanation</p>
 </div>
 
 {/* Strength — green left border */}
-<div className="bg-[#1C1F2E] border border-[#252838] border-l-4 border-l-[#34D399] rounded-xl p-5">
-  <p className="font-medium text-[#F0F0F3]">Strength title</p>
-  <p className="text-sm text-[#9BA1B0] mt-1">Explanation</p>
+<div className="finding-strength p-5">
+  <p className="font-medium text-text-primary">Strength title</p>
+  <p className="text-sm text-text-secondary mt-1">Explanation</p>
 </div>
 ```
 
-**Score Ring (SVG-based, animated)**
-```jsx
-<svg viewBox="0 0 140 140" className="w-[140px] h-[140px]">
-  <circle cx="70" cy="70" r="60" fill="none" stroke="#252838" strokeWidth="10" />
-  <circle cx="70" cy="70" r="60" fill="none" stroke={scoreColor} strokeWidth="10"
-          strokeDasharray={`${(score / 100) * 377} 377`}
-          strokeLinecap="round" transform="rotate(-90 70 70)"
-          className="transition-all duration-1000" />
-</svg>
-```
+**Score Arc (SVG half-gauge, animated)**
+Uses a gradient arc from `#7B3FA0` → `#6366B8` → `#7BA4D4` on a `#E4E3EF` track with blurred shadow underneath. Letter grade + numeric score displayed inside.
 
 **Category Score Card (interactive)**
 ```jsx
-<div className="bg-[#1C1F2E] rounded-xl border border-[#252838] p-5 cursor-pointer
-                hover:border-[#363A4A] transition-colors">
-  <span className="text-xs font-medium text-[#5C6170] uppercase tracking-wide">
-    Marketing
-  </span>
-  <span className="text-3xl text-[#F0F0F3]" style={{ fontFamily: 'var(--font-instrument-serif)' }}>
+<button className={isActive ? "glass-card-active p-5" : "glass-card p-5"}>
+  <p className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">
+    Category Name
+  </p>
+  <p className="text-4xl font-black" style={{ fontFamily: 'var(--font-instrument-serif)' }}>
     68
-  </span>
-  <div className="h-1.5 bg-[#252838] rounded-full overflow-hidden mt-2">
-    <div className="h-full rounded-full transition-all duration-700"
-         style={{ width: '68%', backgroundColor: '#FBBF24' }} />
+  </p>
+  <div className="progress-track mb-3">
+    <div className="progress-fill" style={{ width: '68%', backgroundColor: 'var(--score-mid)' }} />
   </div>
-</div>
+</button>
 ```
 
 **Badge/Pill**
 ```jsx
 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full
-                 text-sm font-medium bg-[#252838] text-[#9BA1B0] border border-[#363A4A]">
-  Marketing <span className="font-bold text-[#F0F0F3]">68</span>
+                 text-sm font-medium bg-[rgba(255,255,255,0.5)] text-text-secondary
+                 border border-border-subtle">
+  Marketing <span className="font-bold text-text-primary">68</span>
 </span>
 ```
 
 ### Page Layouts
 
 **Homepage (landing / free audit tool)**
-1. Hero: Instrument Serif headline + subtext + elevated input card + trust line. Centered on #0F1117. Nothing else above fold.
+1. Hero: Instrument Serif headline + subtext + elevated glass input card + trust line. Centered on #F5F5F7. Nothing else above fold.
 2. Example result preview: static mock of a result card (score, categories, sample findings)
-3. Closing CTA: Instrument Serif italic + repeated input on #161922 bg.
+3. Closing CTA: Instrument Serif italic + repeated input on #EFEFEF bg.
 4. No nav links, no logo bars, no pricing, no feature grids for MVP.
 
-**Results page (the shareable moment) — 5 zones, full-width (max-w-[1400px])**
-1. Hero Score Band: Score ring (SVG animated 0->score) + summary + screenshot in browser chrome. 2 columns.
-2. Top 3 Actions: 3 cards with cyan left border + numbered badges. The quick wins.
-3. Category Grid: 3x2 interactive cards. Clicking filters findings. Active card gets cyan glow.
-4. Findings Panel: 2-col layout — sticky sidebar nav left + filtered findings right. Sorted: issues → suggestions → strengths.
-5. Bottom CTA: email capture ("Watch this page") + share links + audit another ghost button.
+**Results page (the shareable moment) — 6 zones, max-w-[1080px]**
+1. Hero Score Band: Score arc (SVG animated 0→score) + verdict + category breakdown in glass-card-elevated. 3-column layout.
+2. Quick Diagnosis: Working vs. Leaking two-column grid with check/x icons.
+3. Top 3 Actions: Numbered items (1 large + prominent, 2-3 smaller). Ranked by conversion impact.
+4. Headline Rewrite: Current (strikethrough) → Suggested (violet-tinted card) with reasoning.
+5. Category Grid + Findings Panel: 3×2 interactive glass cards → clicking filters findings. Sticky sidebar nav + filtered findings.
+6. Bottom CTA: Email capture ("Watch this page") in glass-card-elevated + share links.
 
 ### Copy Rules (In-Product)
 
@@ -218,7 +242,7 @@ Both Instrument Serif and DM Sans load via `next/font/google`.
 
 ### Motion Principles
 
-- **ONE hero animation per page**: Score ring fill on results page. That is it.
+- **ONE hero animation per page**: Score arc fill + stagger reveal on results page. That is it.
 - **Subtle transitions**: fade-ins on section reveal, smooth expand/collapse
 - **Tactile buttons**: `active:scale-[0.98]` on all buttons
 - **Loading states**: stepped progress ("Screenshotting your page... Reading headlines and CTAs... Writing your audit...")
@@ -228,38 +252,40 @@ Both Instrument Serif and DM Sans load via `next/font/google`.
 ### What to Avoid
 
 - Coral/orange/warm-red accents — too close to Boost (aboo.st)
-- Warm white backgrounds (#FDFCFA) — too close to Boost
-- Stone/paper aesthetic — too soft for a tech tool
-- Light mode by default — this is a dark UI product
-- Purple AI gradients — the cliche
+- Dark mode by default — this is a light glass UI product
+- Near-black backgrounds (#0F1117) — we moved away from dark tech
+- Electric cyan (#00D4FF) accents — replaced by deep violet
+- Purple AI gradients — the cliche (our violet is solid, not gradient)
 - Bento grids — oversaturated
 - Generic SaaS template look
 - Heavy animations — one hero moment, everything else is subtle
 - Dashboard overload — this is a focused tool, not Datadog
 - Inter, Poppins, Roboto, Geist for headlines (Geist Mono is fine for code)
 - `rounded-md` for cards — use `rounded-xl` or `rounded-2xl`
+- Hardcoded Tailwind padding on result sections — use `.result-section` and `.section-header` classes
 
 ### Implementation Checklist
 
 Before shipping, verify:
-- [ ] Aesthetic is Dark Tech + Editorial (not generic minimal, not light/papery)
+- [ ] Aesthetic is Luminous Glass + Editorial (not dark, not generic minimal)
 - [ ] Hero headlines use Instrument Serif, UI uses DM Sans
-- [ ] Accent color is electric cyan #00D4FF (not coral, not teal, not blue-500)
-- [ ] Cards use bg-[#1C1F2E] on #0F1117 dark background with rounded-xl
-- [ ] Background is #0F1117 (cool dark), NOT white, stone gray, or warm white
-- [ ] Audit results page has animated score ring (the memorable moment)
-- [ ] Dark mode is the default
+- [ ] Accent color is deep violet #5B2E91 (not cyan, not coral, not blue-500)
+- [ ] Cards use glass-card / glass-card-elevated classes (frosted white on #F5F5F7)
+- [ ] Background is #F5F5F7 (light gray), NOT near-black or warm white
+- [ ] Audit results page has animated score arc (the memorable moment)
+- [ ] Light mode is the default
 - [ ] Mobile-first responsive (test at 375px)
-- [ ] Score colors: green #34D399 (80+), amber #FBBF24 (60-79), red #F87171 (<60)
+- [ ] Score colors: green #1A8C5B (80+), amber #D4940A (60-79), red #C23B3B (<60)
 - [ ] Buttons have active:scale-[0.98] for tactile feel
 - [ ] Does not look like Boost (no coral, no warm white)
 - [ ] Does not look like a generic SaaS template
+- [ ] Result sections use `.result-section` class for consistent spacing
 
 ---
 
 ## Design Decision Protocol
 
-**Before writing any code, confirm the aesthetic direction is Dark Tech + Editorial (as defined above).** For any new page or component, ask: does this feel bold, tech-forward, and distinctive?
+**Before writing any code, confirm the aesthetic direction is Luminous Glass + Editorial (as defined above).** For any new page or component, ask: does this feel bright, airy, confident, and distinctive?
 
 ---
 

@@ -443,7 +443,7 @@ export default function LeaderboardPage() {
             href="/dashboard"
             className="text-accent font-medium hover:underline"
           >
-            Already monitoring? View dashboard
+            View dashboard
           </Link>
         </div>
       </section>
