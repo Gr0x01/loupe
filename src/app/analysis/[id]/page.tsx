@@ -124,10 +124,10 @@ interface Analysis {
 // --- Constants ---
 
 const LOADING_STEPS = [
-  "Screenshotting your page...",
+  "Checking your page...",
   "Reading headlines and CTAs...",
-  "Checking trust signals and social proof...",
-  "Reviewing visual hierarchy...",
+  "Reviewing trust signals and social proof...",
+  "Checking visual hierarchy...",
   "Writing your audit...",
 ];
 

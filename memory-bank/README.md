@@ -4,7 +4,7 @@
 
 ## The Product
 
-**Your site's changing. We're watching.**
+**Ship fast. Catch drift.**
 
 Loupe monitors your web pages for meaningful changes — the subtle shifts that slip through when you're shipping fast. Copy that got reworded, hero images that shifted, CTAs that disappeared, trust signals that broke. We screenshot your pages on a schedule, detect meaningful changes, and tell you what shifted and what to do about it. Not error monitoring — that's what Sentry is for. This is the stuff founders miss.
 
@@ -58,7 +58,7 @@ Tiered by task complexity, swappable via Vercel AI SDK:
 
 ## Commands
 ```bash
-npm run dev          # local dev
+npm run dev          # local dev at localhost:3002
 npm run build        # production build
 ```
 
@@ -70,3 +70,4 @@ npm run build        # production build
 | `product.md` | Building user-facing features |
 | `architecture.md` | Building backend/infra |
 | `decisions.md` | You need to understand "why" |
+| `icp.md` | Writing copy, designing UI, or marketing work |

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import LoupeLogo from "./LoupeLogo";
 
 export default function SiteFooter() {
@@ -15,12 +16,13 @@ export default function SiteFooter() {
           {/* Brand + tagline */}
           <div className="flex flex-col items-center sm:items-start gap-1">
             <div className="flex items-center gap-2">
-              <span
-                className="text-base font-medium text-text-primary"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                Loupe
-              </span>
+              <Image
+                src="/logo.svg"
+                alt="Loupe"
+                width={64}
+                height={21}
+                className="h-4 w-auto"
+              />
               <span className="text-text-muted">|</span>
               <span className="text-sm text-text-muted">
                 We watch. You ship.

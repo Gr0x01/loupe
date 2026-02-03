@@ -23,10 +23,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://getloupe.io"),
   title: "Loupe — Your site changed. Did you notice?",
   description:
     "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds. Free, no signup.",
   openGraph: {
+    title: "Loupe — Free Page Audit",
+    description:
+      "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds.",
+    siteName: "Loupe",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
     title: "Loupe — Free Page Audit",
     description:
       "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds.",

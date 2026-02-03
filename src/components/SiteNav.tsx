@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -96,12 +97,14 @@ export default function SiteNav() {
         <div className="site-nav-inner">
           {/* Logo */}
           <Link href="/" className="site-nav-logo group">
-            <span
-              className="text-xl font-semibold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              Loupe
-            </span>
+            <Image
+              src="/logo.svg"
+              alt="Loupe"
+              width={80}
+              height={26}
+              className="h-6 w-auto"
+              priority
+            />
           </Link>
 
           {/* Desktop nav with sliding underline */}
@@ -176,12 +179,13 @@ export default function SiteNav() {
           {/* Menu panel */}
           <div className="absolute right-4 top-4 w-64 bg-surface-solid rounded-2xl p-5 shadow-xl border border-border-subtle">
             <div className="flex items-center justify-between mb-6">
-              <span
-                className="text-lg font-semibold text-text-primary"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                Loupe
-              </span>
+              <Image
+                src="/logo.svg"
+                alt="Loupe"
+                width={72}
+                height={23}
+                className="h-5 w-auto"
+              />
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 text-text-muted hover:text-text-primary transition-colors rounded-lg hover:bg-[rgba(0,0,0,0.04)]"
