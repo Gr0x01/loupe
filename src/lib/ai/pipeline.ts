@@ -1,6 +1,10 @@
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PageMetadata } from "@/lib/screenshot";
+import type { AnalyticsCredentials } from "@/lib/analytics/types";
+import { createProvider } from "@/lib/analytics/provider";
+import { createAnalyticsTools } from "@/lib/analytics/tools";
 
 export interface AnalysisResult {
   output: string;
@@ -31,23 +35,36 @@ export interface AnalysisResult {
   };
 }
 
+export interface FindingEvaluation {
+  title: string;
+  element: string;
+  previous_status: "issue" | "suggestion";
+  evaluation: "resolved" | "improved" | "unchanged" | "regressed" | "new";
+  quality_assessment: string; // Nuanced evaluation of the change quality
+  detail: string;
+}
+
 export interface ChangesSummary {
-  findings_status: {
-    title: string;
-    element: string;
-    previous_status: string;
-    current_status: "resolved" | "persists" | "regressed" | "new";
-    detail: string;
-  }[];
+  findings_evaluations: FindingEvaluation[];
   score_delta: number;
   category_deltas: { name: string; previous: number; current: number; delta: number }[];
   running_summary: string;
   progress: {
     total_original: number;
     resolved: number;
-    persisting: number;
+    improved: number;
+    unchanged: number;
+    regressed: number;
     new_issues: number;
   };
+  // Analytics correlation (populated when analytics tools available)
+  analytics_insights?: string;
+  metrics_summary?: {
+    pageviews_7d: number;
+    unique_visitors_7d: number;
+    bounce_rate_7d: number;
+  } | null;
+  tool_calls_made?: string[];
 }
 
 const SYSTEM_PROMPT = `You are an expert web marketing and design consultant. You analyze web pages using both a screenshot AND extracted page metadata (headings, meta tags, CTAs, link counts, etc.).
@@ -72,6 +89,7 @@ CRITICAL RULES FOR SPECIFICITY:
 Respond with a JSON object matching this exact schema:
 {
   "overallScore": <1-100>,
+  "verdict": "<one-liner verdict specific to this page — what's the single most important takeaway? For strong pages, name what's working ('Your copy does the selling — the trust signals seal it'). For weak pages, name the biggest problem ('Visitors can't tell what you do in 5 seconds'). Never generic. Max 12 words.>",
   "whatsWorking": ["<strength 1, one line>", "<strength 2, one line>", "<strength 3, one line>"],
   "whatsNot": ["<weakness 1, one line>", "<weakness 2, one line>", "<weakness 3, one line>"],
   "headlineRewrite": {
@@ -261,53 +279,215 @@ function formatOutput(
   return lines.join("\n");
 }
 
-const COMPARISON_PROMPT = `You are evaluating whether issues from a previous page audit have been addressed in a new audit of the same page.
+const POST_ANALYSIS_PROMPT = `You are an expert marketing analyst evaluating changes between page audits and correlating them with analytics data when available.
 
-For each previous finding (issues and suggestions only), determine:
-- "resolved" — the issue is fixed based on the current findings
-- "persists" — the issue still exists
-- "regressed" — the issue got worse
+## Your Task
 
-Also identify any NEW findings in the current audit that weren't in the previous one (mark as "new").
+1. **Evaluate Changes** (when previous findings provided):
+   - Don't just detect if something changed — evaluate the QUALITY of the change
+   - A headline change from "We help businesses" to "We help businesses grow" is NOT a fix — it's still vague
+   - Judge whether fixes actually address the underlying issue or just shuffle words around
+   - Consider if execution was poor even when intent was good
 
-Return JSON matching this exact schema:
+2. **Correlate with Analytics** (when tools available):
+   - Query relevant metrics using the tools provided
+   - Look for patterns: did metrics move after changes?
+   - Connect specific changes to specific metric movements when plausible
+   - Be careful about causation vs correlation
+
+3. **Provide Actionable Intelligence**:
+   - What's actually improving vs what looks like change but isn't
+   - Where metrics suggest the changes are/aren't working
+   - What to focus on next based on both audit findings and real data
+
+## Evaluation Scale for Changes:
+- "resolved" — The issue is genuinely fixed, good execution
+- "improved" — Better than before but not fully resolved
+- "unchanged" — Changed superficially but core issue remains (or literally unchanged)
+- "regressed" — Made worse than before
+- "new" — New issue not in previous audit
+
+## When Analytics Tools Available:
+Call tools strategically (max 5 calls). Good patterns:
+1. Start with get_page_stats to understand baseline traffic
+2. Use compare_periods to see before/after for key metrics
+3. Query specific events if relevant to findings (e.g., CTA click events)
+
+## Output Format
+Return JSON matching this schema:
 {
-  "findings_status": [
+  "findings_evaluations": [
     {
-      "title": "<finding title>",
-      "element": "<page element referenced>",
+      "title": "<finding title from previous audit>",
+      "element": "<page element>",
       "previous_status": "issue" | "suggestion",
-      "current_status": "resolved" | "persists" | "regressed" | "new",
-      "detail": "<brief explanation of what changed or didn't>"
+      "evaluation": "resolved" | "improved" | "unchanged" | "regressed" | "new",
+      "quality_assessment": "<1-2 sentences on WHY this evaluation — what specifically is better/worse/same>",
+      "detail": "<what changed or didn't>"
     }
   ],
-  "score_delta": <current overall score minus previous overall score>,
+  "score_delta": <current score - previous score>,
   "category_deltas": [
-    { "name": "<category>", "previous": <old score>, "current": <new score>, "delta": <difference> }
+    { "name": "<category>", "previous": <old>, "current": <new>, "delta": <diff> }
   ],
-  "running_summary": "<2-3 sentence narrative of progress so far, incorporating previous running summary if provided>",
+  "running_summary": "<2-3 sentence narrative of progress, what's working, what isn't>",
   "progress": {
-    "total_original": <number of original issues/suggestions>,
-    "resolved": <how many are now resolved>,
-    "persisting": <how many still persist>,
-    "new_issues": <how many new issues found>
+    "total_original": <count>,
+    "resolved": <count>,
+    "improved": <count>,
+    "unchanged": <count>,
+    "regressed": <count>,
+    "new_issues": <count>
+  },
+  "analytics_insights": "<if analytics available: 2-4 sentences connecting changes to metrics. e.g., 'Bounce rate dropped 12% after the headline change, suggesting the new copy resonates better. However, CTA clicks are flat, indicating the button copy change didn't help.'>",
+  "metrics_summary": {
+    "pageviews_7d": <number>,
+    "unique_visitors_7d": <number>,
+    "bounce_rate_7d": <number>
   }
-}`;
+}
+
+If this is a first scan (no previous findings), focus on analytics context only and return minimal findings_evaluations.`;
+
+export interface PostAnalysisContext {
+  analysisId: string;
+  userId: string;
+  pageUrl: string;
+  currentFindings: AnalysisResult["structured"];
+  previousFindings?: AnalysisResult["structured"] | null;
+  previousRunningSummary?: string | null;
+}
+
+export interface PostAnalysisOptions {
+  supabase: SupabaseClient;
+  analyticsCredentials?: AnalyticsCredentials | null;
+}
 
 /**
- * Compare current findings against previous findings to produce a changes summary.
- * Uses a cheap text-only model (Gemini Flash).
+ * Unified post-analysis pipeline that handles both comparison and correlation.
+ * Uses Gemini 3 Pro for nuanced evaluation.
+ * Analytics tools are conditionally available based on credentials.
+ */
+export async function runPostAnalysisPipeline(
+  context: PostAnalysisContext,
+  options: PostAnalysisOptions
+): Promise<ChangesSummary> {
+  const { currentFindings, previousFindings, previousRunningSummary, pageUrl } = context;
+  const { supabase, analyticsCredentials } = options;
+
+  // Build the prompt
+  const promptParts: string[] = [];
+
+  if (previousFindings) {
+    promptParts.push(`## Previous Audit Findings\n${JSON.stringify(previousFindings, null, 2)}`);
+    promptParts.push(`\n## Current Audit Findings\n${JSON.stringify(currentFindings, null, 2)}`);
+    if (previousRunningSummary) {
+      promptParts.push(`\n## Previous Running Summary\n${previousRunningSummary}`);
+    }
+  } else {
+    promptParts.push(`## Current Audit Findings (First Scan)\n${JSON.stringify(currentFindings, null, 2)}`);
+    promptParts.push(`\nThis is the first scan of this page. Focus on providing analytics context if available.`);
+  }
+
+  promptParts.push(`\n## Page URL\n${pageUrl}`);
+
+  // Create analytics tools if credentials available
+  let tools = {};
+  const toolCallsMade: string[] = [];
+
+  if (analyticsCredentials) {
+    try {
+      const provider = await createProvider("posthog", analyticsCredentials);
+      tools = createAnalyticsTools({
+        provider,
+        supabase,
+        analysisId: context.analysisId,
+        userId: context.userId,
+        pageUrl,
+        providerType: "posthog",
+      });
+      promptParts.push(`\n## Analytics Available\nYou have access to analytics tools. Use them to correlate changes with metrics.`);
+    } catch (err) {
+      console.error("Failed to create analytics provider:", err);
+      promptParts.push(`\n## Analytics\nAnalytics tools unavailable.`);
+    }
+  } else {
+    promptParts.push(`\n## Analytics\nNo analytics connected. Focus on evaluating the changes only.`);
+  }
+
+  const hasTools = Object.keys(tools).length > 0;
+
+  const result = await generateText({
+    model: google("gemini-3-pro-preview"),
+    system: POST_ANALYSIS_PROMPT,
+    prompt: promptParts.join("\n"),
+    tools: hasTools ? tools : undefined,
+    stopWhen: stepCountIs(hasTools ? 6 : 1), // Allow tool calls if tools available
+    maxOutputTokens: 3000,
+    onStepFinish: ({ toolCalls }) => {
+      if (toolCalls) {
+        for (const call of toolCalls) {
+          toolCallsMade.push(call.toolName);
+        }
+      }
+    },
+  });
+
+  // Extract JSON from response
+  const jsonMatch = result.text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, result.text];
+  const jsonStr = jsonMatch[1]!.trim();
+
+  let parsed: ChangesSummary;
+  try {
+    parsed = JSON.parse(jsonStr) as ChangesSummary;
+  } catch {
+    throw new Error(`Failed to parse post-analysis response as JSON. Raw start: ${result.text.substring(0, 200)}`);
+  }
+
+  // Add tool calls metadata
+  parsed.tool_calls_made = toolCallsMade;
+
+  // Ensure backwards compatibility with old field name
+  if (!parsed.findings_evaluations && (parsed as unknown as { findings_status?: unknown }).findings_status) {
+    // Map old format to new if LLM used old field name
+    const oldFormat = parsed as unknown as { findings_status: Array<{
+      title: string;
+      element: string;
+      previous_status: string;
+      current_status: string;
+      detail: string;
+    }> };
+    parsed.findings_evaluations = oldFormat.findings_status.map(f => ({
+      title: f.title,
+      element: f.element,
+      previous_status: f.previous_status as "issue" | "suggestion",
+      evaluation: f.current_status as "resolved" | "improved" | "unchanged" | "regressed" | "new",
+      quality_assessment: f.detail,
+      detail: f.detail,
+    }));
+  }
+
+  return parsed;
+}
+
+/**
+ * @deprecated Use runPostAnalysisPipeline instead
+ * Kept for backwards compatibility during migration
  */
 export async function runComparisonPipeline(
   previousStructured: AnalysisResult["structured"],
   currentStructured: AnalysisResult["structured"],
   previousRunningSummary?: string | null
 ): Promise<ChangesSummary> {
+  // This is a compatibility shim - use the new pipeline without analytics
+  // We need a supabase client and context, so this creates a minimal version
+  console.warn("runComparisonPipeline is deprecated. Use runPostAnalysisPipeline instead.");
+
   const { text } = await generateText({
-    model: google("gemini-2.0-flash"),
-    system: COMPARISON_PROMPT,
-    prompt: `Previous findings:\n${JSON.stringify(previousStructured, null, 2)}\n\nCurrent findings:\n${JSON.stringify(currentStructured, null, 2)}\n\nPrevious running summary: ${previousRunningSummary || "(first re-scan, no previous summary)"}`,
-    maxOutputTokens: 2000,
+    model: google("gemini-3-pro-preview"),
+    system: POST_ANALYSIS_PROMPT,
+    prompt: `## Previous Audit Findings\n${JSON.stringify(previousStructured, null, 2)}\n\n## Current Audit Findings\n${JSON.stringify(currentStructured, null, 2)}\n\n## Previous Running Summary\n${previousRunningSummary || "(first re-scan)"}\n\n## Analytics\nNo analytics connected.`,
+    maxOutputTokens: 3000,
   });
 
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];
