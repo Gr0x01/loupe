@@ -880,6 +880,11 @@ body > * {
   padding: 12px 0;
 }
 
+/* Hide nav when modal is open */
+body.modal-open .site-nav {
+  visibility: hidden;
+}
+
 .site-nav-inner {
   display: flex;
   align-items: center;

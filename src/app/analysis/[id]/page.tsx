@@ -742,6 +742,12 @@ function ScreenshotModal({
   pageUrl: string;
   onClose: () => void;
 }) {
+  // Hide site nav when modal is open
+  useEffect(() => {
+    document.body.classList.add("modal-open");
+    return () => document.body.classList.remove("modal-open");
+  }, []);
+
   return (
     <div
       className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
@@ -1335,57 +1341,57 @@ export default function AnalysisPage() {
                   </ul>
                 </div>
               </div>
-              {/* Bridge text + inline claim teaser */}
+              {/* Inline monitoring teaser — the conversion bridge */}
               <div className="mt-12 text-center">
-                <p
-                  className="text-xl text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  This is your page today.
-                </p>
-                <p
-                  className="text-xl text-text-secondary italic"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  But pages don&apos;t stay still.
-                </p>
-
-                {/* Soft claim teaser */}
-                <div className="mt-6 py-5 px-6 rounded-xl bg-[rgba(91,46,145,0.06)] max-w-md mx-auto">
+                <div className="py-8 px-6 rounded-2xl bg-[rgba(91,46,145,0.06)] border border-[rgba(91,46,145,0.1)] max-w-xl mx-auto">
                   {claimEmailSent ? (
                     <div>
-                      <p className="text-base font-medium text-text-primary">Claim link sent</p>
-                      <p className="text-sm text-text-muted mt-1">Check your inbox.</p>
+                      <p className="text-xl font-medium text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+                        You&apos;re in
+                      </p>
+                      <p className="text-sm text-text-muted mt-2">Check your inbox to start watching {getDomain(analysis.url)}</p>
                     </div>
                   ) : (
                     <>
-                      <p className="text-base text-text-secondary mb-3">
-                        Claim {getDomain(analysis.url)} to get notified when it changes.
+                      {/* The bridge headline */}
+                      <p
+                        className="text-xl text-text-primary mb-2"
+                        style={{ fontFamily: "var(--font-instrument-serif)" }}
+                      >
+                        You&apos;ll fix these. How will you know when they break?
                       </p>
-                      <form onSubmit={handleClaimEmail} className="flex items-stretch gap-2">
+
+                      {/* Concrete "why" copy */}
+                      <p className="text-sm text-text-secondary mb-5">
+                        After your next deploy, something will shift. A headline gets reworded. A CTA moves below the fold. We&apos;ll catch it before your visitors do.
+                      </p>
+
+                      {/* Form */}
+                      <form onSubmit={handleClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-3 justify-center max-w-sm mx-auto">
                         <input
                           type="email"
                           placeholder="you@company.com"
                           value={claimEmail}
                           onChange={(e) => setClaimEmail(e.target.value)}
-                          className="input-glass flex-1 text-sm py-2"
+                          className="input-glass flex-1 text-sm"
                           aria-label="Email address"
                           required
                         />
                         <button
                           type="submit"
                           disabled={claimLoading}
-                          className="text-accent font-medium hover:bg-[rgba(91,46,145,0.12)] px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                          className="btn-primary whitespace-nowrap"
                         >
-                          {claimLoading ? "..." : "Claim →"}
+                          {claimLoading ? "Sending..." : "Watch this page"}
                         </button>
                       </form>
-                      {claimError && (
-                        <p className="text-xs text-score-low mt-2">{claimError}</p>
-                      )}
-                      {foundingStatus && foundingStatus.remaining <= 20 && !claimError && (
-                        <p className="text-xs text-text-muted mt-3">
-                          {foundingStatus.remaining} founding spots left
+
+                      {/* Error or Founding 50 */}
+                      {claimError ? (
+                        <p className="text-xs text-score-low mt-3">{claimError}</p>
+                      ) : foundingStatus && !foundingStatus.isFull && (
+                        <p className="text-xs text-text-muted mt-4">
+                          <span className="font-semibold text-accent">Founding 50:</span> {foundingStatus.remaining} spots left for free Pro access
                         </p>
                       )}
                     </>
@@ -1728,7 +1734,7 @@ export default function AnalysisPage() {
           </div>
 
           <p className="bridge-text mt-6">
-            You just fixed these. How will you know if they break next week?
+            This is your page today. After your next deploy, it won&apos;t be.
           </p>
         </section>
 
@@ -1890,10 +1896,10 @@ export default function AnalysisPage() {
                   className="text-2xl font-bold text-text-primary"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  Claim link sent
+                  You&apos;re in
                 </p>
                 <p className="text-base text-text-secondary mt-2">
-                  Check your inbox for the magic link.
+                  Check your inbox for the magic link to start watching.
                 </p>
               </div>
             ) : (
@@ -1905,13 +1911,13 @@ export default function AnalysisPage() {
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
                   {analysis.changes_summary
-                    ? "Keep tracking"
-                    : <>Claim {getDomain(analysis.url)}</>}
+                    ? "Keep watching"
+                    : <>Watch {getDomain(analysis.url)}</>}
                 </h2>
                 <p className="text-base text-text-secondary mt-2 mb-6">
                   {analysis.changes_summary
-                    ? "We\u2019re watching. You\u2019ll know when something shifts."
-                    : "We\u2019ll watch it and alert you when it changes."}
+                    ? "We\u2019re monitoring. You\u2019ll know when something shifts."
+                    : "We\u2019ll catch the changes you miss \u2014 before your visitors do."}
                 </p>
 
                 {/* Email form — the hero */}
@@ -1930,7 +1936,7 @@ export default function AnalysisPage() {
                     disabled={claimLoading}
                     className="btn-primary whitespace-nowrap"
                   >
-                    {claimLoading ? "Sending..." : "Claim it"}
+                    {claimLoading ? "Sending..." : "Start watching"}
                   </button>
                 </form>
 

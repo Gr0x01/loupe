@@ -105,12 +105,110 @@ async function handleRescan(
   return redirectTo;
 }
 
+async function handleClaim(
+  redirectTo: URL,
+  analysisId: string,
+  userId: string
+): Promise<URL> {
+  if (!UUID_RE.test(analysisId)) return redirectTo;
+
+  const supabase = createServiceClient();
+
+  // Get the analysis to find the URL
+  const { data: analysis } = await supabase
+    .from("analyses")
+    .select("id, url, status")
+    .eq("id", analysisId)
+    .eq("status", "complete")
+    .single();
+
+  if (!analysis) {
+    redirectTo.pathname = "/dashboard";
+    return redirectTo;
+  }
+
+  // Check if this URL is already registered by this user
+  const { data: existingPage } = await supabase
+    .from("pages")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("url", analysis.url)
+    .maybeSingle();
+
+  if (existingPage) {
+    // Already claimed — go to the page timeline
+    redirectTo.pathname = `/pages/${existingPage.id}`;
+    return redirectTo;
+  }
+
+  // Check page limit (Founding 50 = 1 page + bonus_pages)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("bonus_pages")
+    .eq("id", userId)
+    .single();
+
+  const { count: pageCount } = await supabase
+    .from("pages")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  const maxPages = 1 + (profile?.bonus_pages ?? 0);
+  if ((pageCount ?? 0) >= maxPages) {
+    // At page limit — go to dashboard where they can see share-to-unlock
+    redirectTo.pathname = "/dashboard";
+    return redirectTo;
+  }
+
+  // Register the page
+  const { data: newPage, error: insertError } = await supabase
+    .from("pages")
+    .insert({
+      user_id: userId,
+      url: analysis.url,
+      last_scan_id: analysisId,
+      scan_frequency: "daily",
+    })
+    .select("id")
+    .single();
+
+  // Handle race condition: if page was just created by another request
+  if (insertError?.code === "23505") {
+    const { data: justCreatedPage } = await supabase
+      .from("pages")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("url", analysis.url)
+      .single();
+
+    if (justCreatedPage) {
+      redirectTo.pathname = `/pages/${justCreatedPage.id}`;
+      return redirectTo;
+    }
+  }
+
+  // Link the analysis to the page
+  if (newPage) {
+    await supabase
+      .from("analyses")
+      .update({ page_id: newPage.id })
+      .eq("id", analysisId);
+
+    redirectTo.pathname = `/pages/${newPage.id}`;
+  } else {
+    redirectTo.pathname = "/dashboard";
+  }
+
+  return redirectTo;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
   const rescanId = searchParams.get("rescan");
+  const claimId = searchParams.get("claim");
 
   const redirectTo = request.nextUrl.clone();
   redirectTo.pathname = "/";
@@ -118,6 +216,7 @@ export async function GET(request: NextRequest) {
   redirectTo.searchParams.delete("token_hash");
   redirectTo.searchParams.delete("type");
   redirectTo.searchParams.delete("rescan");
+  redirectTo.searchParams.delete("claim");
 
   const supabase = await createClient();
 
@@ -133,6 +232,13 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(waitlistRedirect);
         }
 
+        // Handle claim flow (registers page)
+        if (claimId) {
+          const dest = await handleClaim(redirectTo, claimId, user.id);
+          return NextResponse.redirect(dest);
+        }
+
+        // Handle rescan flow (creates re-scan analysis)
         if (rescanId) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
@@ -155,6 +261,13 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(waitlistRedirect);
         }
 
+        // Handle claim flow (registers page)
+        if (claimId) {
+          const dest = await handleClaim(redirectTo, claimId, user.id);
+          return NextResponse.redirect(dest);
+        }
+
+        // Handle rescan flow (creates re-scan analysis)
         if (rescanId) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
