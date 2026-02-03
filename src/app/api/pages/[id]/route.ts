@@ -34,6 +34,7 @@ export async function GET(
         name,
         scan_frequency,
         repo_id,
+        hide_from_leaderboard,
         last_scan_id,
         created_at,
         analyses:last_scan_id (
@@ -82,7 +83,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, scan_frequency, repo_id } = await req.json();
+    const { name, scan_frequency, repo_id, hide_from_leaderboard } = await req.json();
 
     const supabase = createServiceClient();
 
@@ -99,7 +100,13 @@ export async function PATCH(
     }
 
     // Build update object
-    const updates: { name?: string | null; scan_frequency?: string; repo_id?: string | null } = {};
+    const updates: {
+      name?: string | null;
+      scan_frequency?: string;
+      repo_id?: string | null;
+      hide_from_leaderboard?: boolean;
+    } = {};
+
     if (name !== undefined) {
       updates.name = name || null;
     }
@@ -110,20 +117,10 @@ export async function PATCH(
       }
     }
     if (repo_id !== undefined) {
-      // Verify user owns the repo if setting (not clearing)
-      if (repo_id) {
-        const { data: repo } = await supabase
-          .from("repos")
-          .select("id")
-          .eq("id", repo_id)
-          .eq("user_id", user.id)
-          .single();
-
-        if (!repo) {
-          return NextResponse.json({ error: "Repo not found" }, { status: 400 });
-        }
-      }
       updates.repo_id = repo_id || null;
+    }
+    if (typeof hide_from_leaderboard === "boolean") {
+      updates.hide_from_leaderboard = hide_from_leaderboard;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -134,7 +131,7 @@ export async function PATCH(
       .from("pages")
       .update(updates)
       .eq("id", id)
-      .select("id, url, name, scan_frequency, repo_id, last_scan_id, created_at")
+      .select("id, url, name, scan_frequency, repo_id, hide_from_leaderboard, last_scan_id, created_at")
       .single();
 
     if (error) {
@@ -178,17 +175,34 @@ export async function DELETE(
 
     const supabase = createServiceClient();
 
-    // Delete only if owned by user, return the deleted row to confirm
-    const { data, error } = await supabase
+    // Get page first to capture URL for cleanup
+    const { data: page } = await supabase
+      .from("pages")
+      .select("id, url")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!page) {
+      return NextResponse.json({ error: "Page not found" }, { status: 404 });
+    }
+
+    // Delete all analyses for this page
+    await supabase
+      .from("analyses")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("url", page.url);
+
+    // Delete the page
+    const { error } = await supabase
       .from("pages")
       .delete()
       .eq("id", id)
-      .eq("user_id", user.id)
-      .select("id")
-      .single();
+      .eq("user_id", user.id);
 
-    if (error || !data) {
-      return NextResponse.json({ error: "Page not found" }, { status: 404 });
+    if (error) {
+      return NextResponse.json({ error: "Failed to delete page" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

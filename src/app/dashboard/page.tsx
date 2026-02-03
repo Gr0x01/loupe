@@ -78,15 +78,21 @@ function FrequencyBadge({ frequency }: { frequency: string }) {
   );
 }
 
-function PageCard({ page }: { page: PageData }) {
+function PageCard({ page, onDelete }: { page: PageData; onDelete: (id: string) => void }) {
   const displayName = page.name || getDomain(page.url);
   const score = page.last_scan?.score;
   const previousScore = page.last_scan?.previous_score;
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDelete(page.id);
+  };
+
   return (
     <Link
       href={`/pages/${page.id}`}
-      className="glass-card p-5 block hover:border-[rgba(91,46,145,0.15)] transition-all duration-150"
+      className="glass-card p-5 block hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 group"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -115,24 +121,35 @@ function PageCard({ page }: { page: PageData }) {
           )}
         </div>
 
-        {/* Score display */}
-        {typeof score === "number" && page.last_scan?.status === "complete" && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span
-              className={`text-3xl font-bold ${scoreColor(score)}`}
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              {score}
-            </span>
-            <ScoreDelta current={score} previous={previousScore ?? null} />
-          </div>
-        )}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Score display */}
+          {typeof score === "number" && page.last_scan?.status === "complete" && (
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-3xl font-bold ${scoreColor(score)}`}
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                {score}
+              </span>
+              <ScoreDelta current={score} previous={previousScore ?? null} />
+            </div>
+          )}
 
-        {page.last_scan?.status === "processing" && (
-          <div className="flex-shrink-0">
+          {page.last_scan?.status === "processing" && (
             <div className="glass-spinner w-6 h-6" />
-          </div>
-        )}
+          )}
+
+          {/* Delete button */}
+          <button
+            onClick={handleDeleteClick}
+            className="p-2 text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all duration-150"
+            title="Delete page"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
     </Link>
   );
@@ -246,6 +263,62 @@ function AddPageModal({
   );
 }
 
+function DeleteConfirmModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  loading,
+  pageName,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+  pageName: string;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="glass-card-elevated p-6 w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-2xl font-bold text-text-primary mb-2"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          Delete {pageName}?
+        </h2>
+        <p className="text-text-secondary mb-6">
+          This will permanently delete all scan history for this page. This cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary flex-1"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+            disabled={loading}
+          >
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [pages, setPages] = useState<PageData[]>([]);
@@ -255,6 +328,8 @@ export default function DashboardPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [userLimits, setUserLimits] = useState<UserLimits>({ current: 0, max: 1, bonusPages: 0 });
+  const [deleteTarget, setDeleteTarget] = useState<PageData | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchPages = async () => {
     try {
@@ -336,6 +411,35 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteClick = (id: string) => {
+    const page = pages.find((p) => p.id === id);
+    if (page) {
+      setDeleteTarget(page);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/pages/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setDeleteTarget(null); // Close modal so user sees error
+        setError("Failed to delete page");
+        return;
+      }
+      setDeleteTarget(null);
+      await fetchPages();
+    } catch {
+      setDeleteTarget(null); // Close modal so user sees error
+      setError("Failed to delete page");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4">
@@ -412,18 +516,19 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {pages.map((page) => (
-              <PageCard key={page.id} page={page} />
+              <PageCard key={page.id} page={page} onDelete={handleDeleteClick} />
             ))}
           </div>
         )}
 
         {/* Footer links */}
-        <div className="mt-12 text-center">
-          <Link
-            href="/"
-            className="text-sm text-text-muted hover:text-accent transition-colors"
-          >
+        <div className="mt-12 flex items-center justify-center gap-4 text-sm text-text-muted">
+          <Link href="/" className="hover:text-accent transition-colors">
             Audit a new page
+          </Link>
+          <span className="text-[rgba(0,0,0,0.1)]">|</span>
+          <Link href="/leaderboard" className="hover:text-accent transition-colors">
+            Leaderboard
           </Link>
         </div>
       </div>
@@ -440,6 +545,14 @@ export default function DashboardPage() {
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
         onSuccess={handleShareSuccess}
+      />
+
+      <DeleteConfirmModal
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        loading={deleteLoading}
+        pageName={deleteTarget?.name || getDomain(deleteTarget?.url || "")}
       />
     </main>
   );

@@ -1,9 +1,8 @@
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
-import { runAnalysisPipeline, runComparisonPipeline } from "@/lib/ai/pipeline";
+import { runAnalysisPipeline, runPostAnalysisPipeline } from "@/lib/ai/pipeline";
 import type { ChangesSummary } from "@/lib/ai/pipeline";
-import { fetchPageMetrics } from "@/lib/posthog-api";
 
 export const analyzeUrl = inngest.createFunction(
   {
@@ -54,36 +53,7 @@ export const analyzeUrl = inngest.createFunction(
         })
         .eq("id", analysisId);
 
-      // 5. If re-scan, run comparison pipeline
-      if (parentAnalysisId) {
-        try {
-          const { data: parent } = await supabase
-            .from("analyses")
-            .select("structured_output, changes_summary")
-            .eq("id", parentAnalysisId)
-            .single();
-
-          if (parent?.structured_output) {
-            const previousRunningSummary =
-              (parent.changes_summary as ChangesSummary | null)?.running_summary ?? null;
-
-            const changesSummary = await runComparisonPipeline(
-              parent.structured_output,
-              structured,
-              previousRunningSummary
-            );
-
-            await supabase
-              .from("analyses")
-              .update({ changes_summary: changesSummary })
-              .eq("id", analysisId);
-          }
-        } catch (compErr) {
-          console.error("Comparison pipeline failed (non-fatal):", compErr);
-        }
-      }
-
-      // 6. Fetch PostHog metrics if user has integration connected
+      // 5. Run unified post-analysis pipeline (comparison + analytics correlation)
       const { data: analysis } = await supabase
         .from("analyses")
         .select("user_id")
@@ -91,37 +61,83 @@ export const analyzeUrl = inngest.createFunction(
         .single();
 
       if (analysis?.user_id) {
-        try {
-          const { data: posthogIntegration } = await supabase
-            .from("integrations")
-            .select("access_token, provider_account_id, metadata")
-            .eq("user_id", analysis.user_id)
-            .eq("provider", "posthog")
-            .maybeSingle();
+        // Get parent analysis for comparison (if re-scan)
+        let previousFindings = null;
+        let previousRunningSummary = null;
 
-          if (posthogIntegration) {
-            const metrics = await fetchPageMetrics(
-              {
-                apiKey: posthogIntegration.access_token,
-                projectId: posthogIntegration.provider_account_id,
-                host: posthogIntegration.metadata?.host,
-              },
-              url,
-              7 // last 7 days
-            );
+        if (parentAnalysisId) {
+          const { data: parent } = await supabase
+            .from("analyses")
+            .select("structured_output, changes_summary")
+            .eq("id", parentAnalysisId)
+            .single();
 
-            if (metrics) {
-              await supabase
-                .from("analyses")
-                .update({ metrics_snapshot: metrics })
-                .eq("id", analysisId);
-            }
+          if (parent?.structured_output) {
+            previousFindings = parent.structured_output;
+            previousRunningSummary =
+              (parent.changes_summary as ChangesSummary | null)?.running_summary ?? null;
           }
-        } catch (metricsErr) {
-          console.error("Failed to fetch PostHog metrics (non-fatal):", metricsErr);
         }
 
-        // 7. Update pages.last_scan_id
+        // Check for PostHog integration
+        let analyticsCredentials = null;
+        const { data: posthogIntegration } = await supabase
+          .from("integrations")
+          .select("access_token, provider_account_id, metadata")
+          .eq("user_id", analysis.user_id)
+          .eq("provider", "posthog")
+          .maybeSingle();
+
+        if (posthogIntegration) {
+          analyticsCredentials = {
+            apiKey: posthogIntegration.access_token,
+            projectId: posthogIntegration.provider_account_id,
+            host: posthogIntegration.metadata?.host,
+          };
+        }
+
+        // Run post-analysis if we have previous findings OR analytics
+        if (previousFindings || analyticsCredentials) {
+          try {
+            const changesSummary = await runPostAnalysisPipeline(
+              {
+                analysisId,
+                userId: analysis.user_id,
+                pageUrl: url,
+                currentFindings: structured,
+                previousFindings,
+                previousRunningSummary,
+              },
+              {
+                supabase,
+                analyticsCredentials,
+              }
+            );
+
+            // Store results
+            const updateData: { changes_summary?: ChangesSummary; analytics_correlation?: ChangesSummary } = {};
+
+            if (previousFindings) {
+              updateData.changes_summary = changesSummary;
+            }
+
+            if (analyticsCredentials) {
+              // Also store in analytics_correlation for dedicated access
+              updateData.analytics_correlation = changesSummary;
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              await supabase
+                .from("analyses")
+                .update(updateData)
+                .eq("id", analysisId);
+            }
+          } catch (postAnalysisErr) {
+            console.error("Post-analysis pipeline failed (non-fatal):", postAnalysisErr);
+          }
+        }
+
+        // 6. Update pages.last_scan_id
         await supabase
           .from("pages")
           .update({ last_scan_id: analysisId })
@@ -337,13 +353,12 @@ export const deployDetected = inngest.createFunction(
         .eq("id", deployId);
     });
 
-    // Find pages linked to this repo
+    // Find all pages for this user (free tier = 1 domain, all pages deploy from same repo)
     const pages = await step.run("find-pages", async () => {
       const { data } = await supabase
         .from("pages")
         .select("id, url, last_scan_id")
-        .eq("user_id", userId)
-        .eq("repo_id", repoId);
+        .eq("user_id", userId);
 
       return data || [];
     });
@@ -355,7 +370,7 @@ export const deployDetected = inngest.createFunction(
         .update({ status: "complete" })
         .eq("id", deployId);
 
-      return { scanned: 0, message: "No pages linked to repo" };
+      return { scanned: 0, message: "No pages found for user" };
     }
 
     // Create analyses for each page

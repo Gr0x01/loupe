@@ -83,12 +83,27 @@ analyses (
   screenshot_url text,
   output text,                    -- formatted markdown report
   structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
-  changes_summary jsonb,          -- comparison with parent (findings_status, score_delta, progress)
-  metrics_snapshot jsonb,         -- PostHog metrics { pageviews, unique_visitors, bounce_rate, period_days, captured_at }
+  changes_summary jsonb,          -- post-analysis results (findings_evaluations, score_delta, progress, analytics_insights)
+  metrics_snapshot jsonb,         -- deprecated: PostHog metrics (now in changes_summary)
+  analytics_correlation jsonb,    -- post-analysis results when analytics connected
   status text NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
   error_message text,
   created_at timestamptz DEFAULT now()
 )
+
+analytics_snapshots (
+  id uuid PK default gen_random_uuid(),
+  analysis_id uuid FK analyses ON DELETE CASCADE,
+  user_id uuid FK auth.users ON DELETE CASCADE,
+  tool_name text NOT NULL,        -- e.g., 'get_page_stats', 'query_trend'
+  tool_input jsonb NOT NULL,      -- tool call parameters
+  tool_output jsonb NOT NULL,     -- tool response
+  provider text NOT NULL,         -- 'posthog'
+  page_url text NOT NULL,
+  captured_at timestamptz DEFAULT now()
+)
+-- Indexes: analysis_id, (user_id, page_url, tool_name, captured_at desc)
+-- RLS: user can view own snapshots
 
 pages (
   id uuid PK default gen_random_uuid(),
@@ -98,10 +113,12 @@ pages (
   scan_frequency text NOT NULL DEFAULT 'weekly',  -- weekly | daily | manual
   last_scan_id uuid FK analyses ON DELETE SET NULL,
   repo_id uuid FK repos ON DELETE SET NULL,  -- link to GitHub repo for auto-scan
+  hide_from_leaderboard boolean NOT NULL DEFAULT false,  -- opt-out from public leaderboard
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, url)
 )
 -- RLS: user can only access own pages (auth.uid() = user_id)
+-- Index: idx_analyses_leaderboard ON analyses (created_at DESC) WHERE status = 'complete'
 
 profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
@@ -206,9 +223,15 @@ deploys (
 
 ## LLM Layer
 
-**Current (Phase 1A):** Single Gemini 3 Pro call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output. Switched from Sonnet 4 after eval — Gemini 3 Pro gave more specific/opinionated feedback at ~25% lower cost and same speed.
+**Main analysis:** Single Gemini 3 Pro call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output. Switched from Sonnet 4 after eval — Gemini 3 Pro gave more specific/opinionated feedback at ~25% lower cost and same speed.
 
-**Pipeline interface** (`lib/ai/pipeline.ts`): `runAnalysisPipeline(screenshotBase64, url)` returns `{ output, structured }`. Implementation behind this interface is swappable — the API route doesn't care if it's 1 call or 3. Model: `gemini-3-pro-preview` (will update ID when it exits preview).
+**Post-analysis:** Gemini 3 Pro with optional tools. Evaluates change quality (not just diff), correlates with analytics. Max 6 steps for tool calls.
+
+### Pipeline functions (`lib/ai/pipeline.ts`)
+- `runAnalysisPipeline(screenshotBase64, url)` — Main audit with vision. Returns `{ output, structured }`.
+- `runPostAnalysisPipeline(context, options)` — Unified comparison + correlation. Returns `ChangesSummary` with evaluations and analytics insights.
+
+Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 
 ### Structured output schema
 ```typescript
@@ -262,15 +285,75 @@ Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 
 ## PostHog Integration (User Data)
 
-**Purpose:** Pull page metrics (pageviews, unique visitors, bounce rate) to display alongside audits.
+**Purpose:** Pull page metrics and correlate with audit findings. LLM queries analytics on-demand via tools.
+
+### Architecture: Unified Post-Analysis Pipeline
+
+```
+Analysis completes (structured findings)
+         │
+         ▼
+┌─────────────────────────────────────────────┐
+│  runPostAnalysisPipeline() [Gemini 3 Pro]   │
+│                                             │
+│  Scenarios:                                 │
+│  • Re-scan + no analytics: Evaluate changes │
+│  • Re-scan + analytics: Changes + metrics   │
+│  • First scan + analytics: Metrics context  │
+│                                             │
+│  LLM Tools (if PostHog connected):          │
+│    ├─ discover_metrics                      │
+│    ├─ get_page_stats                        │
+│    ├─ query_trend                           │
+│    ├─ query_custom_event                    │
+│    ├─ get_funnel                            │
+│    └─ compare_periods                       │
+│              │                              │
+│              ▼                              │
+│    PostHogAdapter (HogQL queries)           │
+│              │                              │
+│              ▼                              │
+│    analytics_snapshots (store results)      │
+└─────────────────────────────────────────────┘
+         │
+         ▼
+   analyses.changes_summary (includes analytics_insights)
+   analyses.analytics_correlation (if analytics connected)
+```
+
+### Key Design Decisions
+1. **Unified pipeline** — Comparison and correlation are one pass, not separate. The LLM needs full context to evaluate change quality.
+2. **Gemini 3 Pro for nuance** — Flash is yes/no. Pro can evaluate whether a "fix" actually improved things or just shuffled words.
+3. **Tools are optional** — Pipeline runs without analytics; tools are conditionally available based on credentials.
+4. **Max 5-6 tool calls** — LLM decides what to query; bounded to control cost and latency.
 
 ### How it works
 1. User connects PostHog in `/settings/integrations` with Personal API key + Project ID
 2. Credentials validated via test HogQL query, stored in `integrations` table
-3. During each scan, if user has PostHog connected:
-   - Fetch metrics for the page URL (last 7 days)
-   - Store in `analyses.metrics_snapshot`
-4. Metrics displayed in analysis results header
+3. After main analysis completes, post-analysis pipeline runs if:
+   - This is a re-scan (previous findings exist), OR
+   - User has PostHog connected
+4. LLM evaluates changes and queries relevant metrics via tools
+5. Results stored in `changes_summary` and `analytics_correlation`
+6. All tool call results saved to `analytics_snapshots` for historical trends
+
+### Database
+```sql
+analytics_snapshots (
+  id uuid PK,
+  analysis_id uuid FK analyses,
+  user_id uuid FK auth.users,
+  tool_name text NOT NULL,
+  tool_input jsonb NOT NULL,
+  tool_output jsonb NOT NULL,
+  provider text NOT NULL,
+  page_url text NOT NULL,
+  captured_at timestamptz DEFAULT now()
+)
+-- Indexes: analysis_id, (user_id, page_url, tool_name, captured_at desc)
+
+analyses.analytics_correlation jsonb  -- Post-analysis results when analytics connected
+```
 
 ### API Routes
 - `POST /api/integrations/posthog/connect` — Validate + store credentials
@@ -283,10 +366,15 @@ Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 - Project ID validated as numeric
 
 ### Rate Limits
-PostHog: 120 queries/hour. One query per scan is well within limits.
+PostHog: 120 queries/hour. Max 6 tool calls per analysis is well within limits.
 
 ### Key Files
-- `src/lib/posthog-api.ts` — HogQL query client, validation, metrics fetcher
+- `src/lib/analytics/types.ts` — Shared types
+- `src/lib/analytics/provider.ts` — AnalyticsProvider interface + factory
+- `src/lib/analytics/posthog-adapter.ts` — PostHog HogQL implementation
+- `src/lib/analytics/tools.ts` — LLM tool definitions (AI SDK 6 format)
+- `src/lib/ai/pipeline.ts` — runPostAnalysisPipeline() + runAnalysisPipeline()
+- `src/lib/posthog-api.ts` — Legacy: validation only (fetchPageMetrics deprecated)
 - `src/app/api/integrations/posthog/connect/route.ts` — Connect endpoint
 - `src/app/api/integrations/posthog/route.ts` — Disconnect endpoint
 
@@ -300,7 +388,7 @@ PostHog: 120 queries/hour. One query per scan is well within limits.
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
 - `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
-- `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans linked pages
+- `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans all user pages (simplified for MVP: 1 domain per user)
 
 ## File Structure
 ```
@@ -323,7 +411,7 @@ src/
 │   │   ├── analysis/[id]/route.ts  # GET: poll results (includes page_context)
 │   │   ├── rescan/route.ts         # POST: re-scan (auto-registers page)
 │   │   ├── pages/route.ts          # GET: list pages, POST: register page (with limits)
-│   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page
+│   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page (DELETE cascades to analyses)
 │   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
 │   │   ├── founding-status/route.ts # GET: founding 50 progress
 │   │   ├── share-credit/route.ts   # POST: claim bonus page from sharing
@@ -375,8 +463,12 @@ npm run dev                    # Next.js on port 3002
 |-----------|------|
 | Screenshot (proxy bandwidth) | ~$0.0002 (100KB × $2/GB) |
 | Supabase storage | negligible |
-| Gemini 3 Pro vision call | ~$0.03 |
-| **Total per analysis** | **~$0.03-0.08** |
+| Gemini 3 Pro vision call (main audit) | ~$0.03 |
+| Gemini 3 Pro post-analysis (comparison + correlation) | ~$0.03 |
+| PostHog API | Free (within rate limits) |
+| **Total per analysis** | **~$0.06** |
+
+Note: Post-analysis only runs on re-scans or when analytics connected. First anonymous audits are ~$0.03.
 
 ## Cost Estimates Per User
 

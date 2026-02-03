@@ -57,29 +57,38 @@ Foundation for integrations. Users can track pages over time.
 
 **Status:** Complete. Users can monitor pages, see timeline, scheduled scans work.
 
-## Phase 1C-2 — Launch Prep (IN PROGRESS)
+## Phase 1C-2 — Launch Prep (DONE)
 Ship free for Founding 50, learn, then build billing with evidence.
 
 ### Founding 50 constraints
-- [ ] User cap: 50 users max (check on signup, show waitlist after)
-- [ ] Page limit: 1 page per user (check in `POST /api/pages`)
-- [ ] Scan frequency: Daily scans for Founding 50
+- [x] User cap: 50 users max (check on signup, show waitlist after)
+- [x] Page limit: 1 page per user (check in `POST /api/pages`)
+- [x] Scan frequency: Daily scans for Founding 50
 
 ### Share to unlock
-- [ ] Share mechanic: +1 page per share (instant credit, honor system)
-- [ ] UI: "Share to unlock more pages" with Twitter/LinkedIn/copy link
-- [ ] Track shares in user record (`bonus_pages` column)
+- [x] Share mechanic: +1 page per share (instant credit, honor system)
+- [x] UI: "Share to unlock more pages" with Twitter/LinkedIn/copy link
+- [x] Track shares in user record (`bonus_pages` column)
 
 ### Waitlist (after 50)
-- [ ] Waitlist table + form + API
-- [ ] Landing page shows waitlist state when cap is hit
-- [ ] Free audit stays accessible (acquisition engine)
+- [x] Waitlist table + form + API
+- [x] Landing page shows waitlist state when cap is hit
+- [x] Free audit stays accessible (acquisition engine)
 
 ### Landing page updates
-- [ ] "Founding 50" messaging
-- [ ] Progress indicator ("X/50 spots claimed")
+- [x] "Founding 50" messaging
+- [x] Progress indicator ("X/50 spots claimed")
 
-**Done when:** Can sign up, hit limits, share to unlock, and waitlist after 50.
+**Status:** Complete. Founding 50 system implemented with page limits, share-to-unlock, and waitlist.
+
+### Implementation Details
+- DB: `profiles.bonus_pages` + `profiles.is_founding_50` columns, `waitlist` table
+- APIs: `/api/founding-status`, `/api/share-credit`, `/api/waitlist`
+- Page limit enforced in `POST /api/pages` (403 with `error: "page_limit_reached"`)
+- Auth callback redirects to `/waitlist` when cap reached and user is not founding member
+- Landing page shows X/50 progress bar or waitlist message
+- Dashboard shows slot count, opens ShareModal when at limit
+- Login page shows waitlist form when founding 50 is full
 
 ---
 
@@ -94,15 +103,24 @@ The integrations and correlation magic.
 - [x] Settings page UI (`/settings/integrations`) for connecting GitHub
 - [x] Repo management (add/remove repos, webhook creation)
 - [x] `deploy-detected` Inngest function for auto-scan flow
-- [ ] Link pages to repos (page settings UI) — minor UI addition
+- [x] Simplified deploy scans — all user pages scanned on any repo push (MVP: 1 domain per user)
+- [x] Delete page feature — dashboard delete with confirmation, cascades to analyses
 - [ ] Show deploy info on analysis results — minor UI addition
 
-### PostHog Integration (NOT STARTED)
-- [ ] PostHog API integration (Query API with HogQL)
-- [ ] Pull metrics: pageviews, unique visitors, bounce rate, custom events
-- [ ] Store metric snapshots on analysis records
-- [ ] Correlation engine: LLM call after scan with deploy + metrics context
-- [ ] Set up PostHog on getloupe.io
+### PostHog Integration (DONE)
+- [x] PostHog API integration (Query API with HogQL via PostHogAdapter)
+- [x] Pull metrics: pageviews, unique visitors, bounce rate, custom events (via LLM tools)
+- [x] Store tool call results in `analytics_snapshots` table
+- [x] Unified post-analysis pipeline: comparison + correlation in one Gemini 3 Pro pass
+- [x] LLM tools: discover_metrics, get_page_stats, query_trend, query_custom_event, get_funnel, compare_periods
+- [ ] Set up PostHog on getloupe.io (production tracking)
+
+### Google Analytics 4 Integration (NOT STARTED)
+- [ ] GA4 API integration (Data API v1)
+- [ ] OAuth flow for GA4 connection
+- [ ] Pull metrics: sessions, users, bounce rate, conversions
+- [ ] Store metric snapshots on analysis records (shared with PostHog)
+- [ ] Settings UI for connecting GA4 property
 
 **Done when:** Push to main → Loupe auto-scans → shows "this deploy changed X, metrics moved Y."
 
@@ -114,6 +132,19 @@ Build after learning from first 50 users.
 - [ ] Settings page (integrations, email preferences)
 
 **Done when:** Someone can pay and use the pro tier.
+
+## Phase 1C-4 — Leaderboard (DONE)
+Public leaderboard showing top-scoring sites with backlinks.
+
+- [x] `hide_from_leaderboard` column on `pages` table (opt-out, default: visible)
+- [x] `GET /api/leaderboard` endpoint (top_scores, most_improved categories; month, all_time periods)
+- [x] `/leaderboard` page with tabs and rank badges
+- [x] Leaderboard toggle in `/pages/[id]` settings
+- [x] Links to leaderboard from landing page and dashboard
+
+**Status:** Complete. Public leaderboard with opt-out model.
+
+---
 
 ## What's NOT in MVP
 - Team tier
