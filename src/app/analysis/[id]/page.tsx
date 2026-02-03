@@ -35,6 +35,7 @@ interface HeadlineRewrite {
 
 interface StructuredOutput {
   overallScore: number;
+  verdict?: string;
   categories: Category[];
   summary: string;
   topActions: (TopAction | string)[];
@@ -62,6 +63,14 @@ interface ChangesSummary {
   };
 }
 
+interface PageContext {
+  page_id: string;
+  page_name: string | null;
+  scan_number: number;
+  prev_analysis_id: string | null;
+  next_analysis_id: string | null;
+}
+
 interface Analysis {
   id: string;
   url: string;
@@ -73,6 +82,7 @@ interface Analysis {
   parent_analysis_id: string | null;
   changes_summary: ChangesSummary | null;
   parent_structured_output: StructuredOutput | null;
+  page_context: PageContext | null;
 }
 
 // --- Constants ---
@@ -305,7 +315,20 @@ function ScoreArc({ score, grade, className }: { score: number; grade: string; c
   );
 }
 
-function FindingCard({ finding }: { finding: Finding }) {
+function FindingCard({
+  finding,
+  expanded,
+  onToggle,
+  shareId,
+}: {
+  finding: Finding;
+  expanded: boolean;
+  onToggle: () => void;
+  shareId: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [fixCopied, setFixCopied] = useState(false);
+
   const cardClass = {
     issue: "finding-issue",
     suggestion: "finding-suggestion",
@@ -328,28 +351,105 @@ function FindingCard({ finding }: { finding: Finding }) {
     ? `impact-badge impact-badge-${finding.impact}`
     : null;
 
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}${window.location.pathname}#${shareId}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyFix = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (finding.fix) {
+      navigator.clipboard.writeText(finding.fix);
+      setFixCopied(true);
+      setTimeout(() => setFixCopied(false), 2000);
+    }
+  };
+
   return (
-    <div className={`${cardClass} p-5 transition-all duration-150`}>
-      <div className="flex items-start gap-3">
+    <div
+      id={shareId}
+      className={`${cardClass} group transition-all duration-150 cursor-pointer`}
+      onClick={onToggle}
+    >
+      {/* Collapsed header — always visible */}
+      <div className="flex items-center gap-3 p-4">
         <span className={iconClass}>{icon}</span>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-[1.0625rem] font-semibold text-text-primary leading-snug">
-              {finding.title}
-            </p>
-            {impactBadgeClass && (
-              <span className={impactBadgeClass}>
-                {finding.impact} impact
-              </span>
-            )}
-          </div>
-          <p className="text-[0.9375rem] text-text-secondary mt-1.5 leading-relaxed">
+        <p
+          className="flex-1 text-lg text-text-primary leading-snug"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          {finding.title}
+        </p>
+        {impactBadgeClass && (
+          <span className={impactBadgeClass}>
+            {finding.impact}
+          </span>
+        )}
+        {/* Share button — hover reveal */}
+        <button
+          onClick={handleShare}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-text-muted hover:text-accent hover:bg-[rgba(91,46,145,0.08)]"
+          title={copied ? "Copied!" : "Copy link to finding"}
+        >
+          {copied ? (
+            <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 10l-2 2a2 2 0 01-2.83-2.83l3-3a2 2 0 012.83 0" />
+              <path d="M10 6l2-2a2 2 0 012.83 2.83l-3 3a2 2 0 01-2.83 0" />
+            </svg>
+          )}
+        </button>
+        {/* Chevron */}
+        <svg
+          className={`w-5 h-5 text-text-muted transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="5 8 10 13 15 8" />
+        </svg>
+      </div>
+
+      {/* Expandable content */}
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-out ${
+          expanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="px-4 pb-4 pt-0 pl-[52px]">
+          <p className="text-[0.9375rem] text-text-secondary leading-relaxed">
             {finding.detail}
           </p>
           {finding.fix && (
-            <p className="text-[0.875rem] text-accent mt-2 font-medium leading-relaxed">
-              Fix: {finding.fix}
-            </p>
+            <div className="fix-block">
+              <button
+                onClick={handleCopyFix}
+                className="fix-block-copy"
+                title={fixCopied ? "Copied!" : "Copy fix"}
+              >
+                {fixCopied ? (
+                  <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                    <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                  </svg>
+                )}
+              </button>
+              <p className="fix-block-label">Fix</p>
+              <p>{finding.fix}</p>
+            </div>
           )}
         </div>
       </div>
@@ -412,6 +512,33 @@ export default function AnalysisPage() {
   const [rescanLoading, setRescanLoading] = useState(false);
   const [rescanEmail, setRescanEmail] = useState("");
   const [rescanEmailSent, setRescanEmailSent] = useState(false);
+  const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
+
+  // Auto-expand first finding when category changes
+  useEffect(() => {
+    if (activeCategory && analysis?.structured_output) {
+      const cat = analysis.structured_output.categories.find((c) => c.name === activeCategory);
+      if (cat && cat.findings.length > 0) {
+        const sortedFindings = [...cat.findings].sort(
+          (a, b) => typePriority(a.type) - typePriority(b.type)
+        );
+        const firstFindingId = `finding-${activeCategory.replace(/\s+/g, "-").toLowerCase()}-0`;
+        setExpandedFindings(new Set([firstFindingId]));
+      }
+    }
+  }, [activeCategory, analysis?.structured_output]);
+
+  const toggleFinding = useCallback((findingId: string) => {
+    setExpandedFindings((prev) => {
+      const next = new Set(prev);
+      if (next.has(findingId)) {
+        next.delete(findingId);
+      } else {
+        next.add(findingId);
+      }
+      return next;
+    });
+  }, []);
 
   const handleRescan = async () => {
     if (!analysis) return;
@@ -603,9 +730,70 @@ export default function AnalysisPage() {
   const percentile = derivePercentile(s.overallScore);
   const hexColor = scoreCssColor(s.overallScore);
 
+  const pageCtx = analysis.page_context;
+
   return (
     <main className="min-h-screen text-text-primary">
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
+        {/* Page context banner — shown when analysis belongs to a registered page */}
+        {pageCtx && (
+          <div className="pt-6 pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/pages/${pageCtx.page_id}`}
+                  className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1.5"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {pageCtx.page_name || getDomain(analysis.url)}
+                </Link>
+                <span className="text-text-muted">/</span>
+                <span className="text-sm font-medium text-text-primary">
+                  Scan #{pageCtx.scan_number}
+                </span>
+              </div>
+
+              {/* Prev/Next navigation */}
+              <div className="flex items-center gap-2">
+                {pageCtx.prev_analysis_id ? (
+                  <Link
+                    href={`/analysis/${pageCtx.prev_analysis_id}`}
+                    className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Prev
+                  </Link>
+                ) : (
+                  <span className="text-sm text-text-muted py-1.5 px-3 opacity-50">Prev</span>
+                )}
+                {pageCtx.next_analysis_id ? (
+                  <Link
+                    href={`/analysis/${pageCtx.next_analysis_id}`}
+                    className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1"
+                  >
+                    Next
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M7 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Link>
+                ) : (
+                  <span className="text-sm text-text-muted py-1.5 px-3 opacity-50">Next</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
 {/* Zone 1: Hero Scorecard */}
         <section className="py-8 lg:py-12">
           <div className="glass-card-elevated mx-auto overflow-hidden">
@@ -626,13 +814,10 @@ export default function AnalysisPage() {
               {/* Verdict + percentile */}
               <div className="flex-1 text-center lg:text-left min-w-0">
                 <p
-                  className={`hero-reveal-verdict text-2xl sm:text-3xl font-bold leading-tight ${scoreColor(s.overallScore)}`}
+                  className="hero-reveal-verdict text-2xl sm:text-3xl font-bold leading-tight text-text-primary"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  {verdictLabel(s.overallScore)}
-                </p>
-                <p className="text-lg text-text-primary mt-3 leading-relaxed">
-                  {scoreVerdict(s.overallScore)}
+                  {s.verdict || verdictLabel(s.overallScore)}
                 </p>
 
                 {/* Percentile */}
@@ -983,20 +1168,53 @@ export default function AnalysisPage() {
             {/* Left sidebar: category nav */}
             <div className="lg:col-span-3 lg:sticky lg:top-6 lg:self-start">
               <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-                {s.categories.map((cat) => (
-                  <button
-                    key={cat.name}
-                    onClick={() => setActiveCategory(cat.name)}
-                    className={`sidebar-nav-item whitespace-nowrap text-left text-sm ${
-                      activeCategory === cat.name ? "sidebar-nav-item-active" : ""
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    <span className={`font-bold ${scoreColor(cat.score)}`}>
-                      {cat.score}
-                    </span>
-                  </button>
-                ))}
+                {s.categories.map((cat) => {
+                  const issueCount = cat.findings.filter((f) => f.type === "issue").length;
+                  const strengthCount = cat.findings.filter((f) => f.type === "strength").length;
+                  const total = issueCount + strengthCount || 1;
+                  const issuePct = (issueCount / total) * 100;
+                  const strengthPct = (strengthCount / total) * 100;
+
+                  return (
+                    <button
+                      key={cat.name}
+                      onClick={() => setActiveCategory(cat.name)}
+                      className={`sidebar-nav-item whitespace-nowrap text-left text-sm flex-col items-stretch ${
+                        activeCategory === cat.name ? "sidebar-nav-item-active" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>{cat.name}</span>
+                        <span className={`font-bold ${scoreColor(cat.score)}`}>
+                          {cat.score}
+                        </span>
+                      </div>
+                      {/* Mini bar showing issue/strength ratio */}
+                      {(issueCount > 0 || strengthCount > 0) && (
+                        <div className="sidebar-mini-bar">
+                          {issueCount > 0 && (
+                            <div
+                              className="sidebar-mini-bar-segment"
+                              style={{
+                                width: `${issuePct}%`,
+                                backgroundColor: "var(--score-low)",
+                              }}
+                            />
+                          )}
+                          {strengthCount > 0 && (
+                            <div
+                              className="sidebar-mini-bar-segment"
+                              style={{
+                                width: `${strengthPct}%`,
+                                backgroundColor: "var(--score-high)",
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </nav>
               {activeCategory && CATEGORY_EXPLAINERS[activeCategory] && (
                 <div className="hidden lg:block mt-4 explainer-card">
@@ -1008,11 +1226,20 @@ export default function AnalysisPage() {
             </div>
 
             {/* Right: findings for active category */}
-            <div className="lg:col-span-9 space-y-3">
+            <div className="lg:col-span-9 space-y-2">
               {activeCatFindings.length > 0 ? (
-                activeCatFindings.map((finding, i) => (
-                  <FindingCard key={i} finding={finding} />
-                ))
+                activeCatFindings.map((finding, i) => {
+                  const findingId = `finding-${activeCategory.replace(/\s+/g, "-").toLowerCase()}-${i}`;
+                  return (
+                    <FindingCard
+                      key={findingId}
+                      finding={finding}
+                      expanded={expandedFindings.has(findingId)}
+                      onToggle={() => toggleFinding(findingId)}
+                      shareId={findingId}
+                    />
+                  );
+                })
               ) : (
                 <div className="text-center py-12">
                   <p className="text-text-muted text-base">

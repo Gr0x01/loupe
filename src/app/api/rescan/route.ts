@@ -67,6 +67,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Auto-register page if it doesn't exist
+    const { data: existingPage } = await supabase
+      .from("pages")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("url", parent.url)
+      .single();
+
+    if (!existingPage) {
+      const { error: pageInsertError } = await supabase.from("pages").insert({
+        user_id: user.id,
+        url: parent.url,
+        scan_frequency: "weekly",
+        last_scan_id: parentAnalysisId, // Link to parent, will be updated when new scan completes
+      });
+      if (pageInsertError) {
+        // Non-fatal: page might already exist due to race condition
+        console.warn("Auto-register page failed:", pageInsertError.message);
+      }
+    }
+
     // Trigger Inngest with parent reference
     await inngest.send({
       name: "analysis/created",

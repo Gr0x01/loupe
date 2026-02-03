@@ -79,13 +79,27 @@ analyses (
   email text,
   ip_address text,               -- requester IP for rate limiting
   user_id uuid FK auth.users,    -- nullable, set if user is logged in
+  parent_analysis_id uuid FK analyses,  -- for re-scans, links to previous scan
   screenshot_url text,
   output text,                    -- formatted markdown report
   structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
+  changes_summary jsonb,          -- comparison with parent (findings_status, score_delta, progress)
   status text NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
   error_message text,
   created_at timestamptz DEFAULT now()
 )
+
+pages (
+  id uuid PK default gen_random_uuid(),
+  user_id uuid NOT NULL FK auth.users ON DELETE CASCADE,
+  url text NOT NULL,
+  name text,                      -- optional friendly name
+  scan_frequency text NOT NULL DEFAULT 'weekly',  -- weekly | daily | manual
+  last_scan_id uuid FK analyses ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, url)
+)
+-- RLS: user can only access own pages (auth.uid() = user_id)
 
 profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
@@ -185,7 +199,9 @@ Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts)
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion.
+- `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
+- `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
 
 ## File Structure
 ```
@@ -193,14 +209,20 @@ src/
 ├── app/
 │   ├── page.tsx                    # Landing page
 │   ├── login/page.tsx              # Sign in (magic link + Google)
+│   ├── dashboard/page.tsx          # List of monitored pages
+│   ├── pages/[id]/page.tsx         # Page timeline (scan history, trend)
 │   ├── auth/
 │   │   ├── callback/route.ts       # OAuth + magic link callback
 │   │   ├── signout/route.ts        # Sign out
 │   │   └── error/page.tsx          # Auth error page
-│   ├── analysis/[id]/page.tsx      # Results page
+│   ├── analysis/[id]/page.tsx      # Results page (with page context + nav)
 │   ├── api/
 │   │   ├── analyze/route.ts        # POST: create analysis
-│   │   ├── analysis/[id]/route.ts  # GET: poll results
+│   │   ├── analysis/[id]/route.ts  # GET: poll results (includes page_context)
+│   │   ├── rescan/route.ts         # POST: re-scan (auto-registers page)
+│   │   ├── pages/route.ts          # GET: list pages, POST: register page
+│   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page
+│   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
 │   │   └── inngest/route.ts        # Inngest serve
 │   ├── globals.css
 │   └── layout.tsx
@@ -211,7 +233,7 @@ src/
 │   │   └── proxy.ts                # updateSession() for proxy
 │   ├── screenshot.ts               # Vultr service client + Supabase upload
 │   ├── ai/
-│   │   └── pipeline.ts             # LLM analysis (Sonnet vision)
+│   │   └── pipeline.ts             # LLM analysis (Gemini 3 Pro vision)
 │   └── inngest/
 │       ├── client.ts               # Inngest client
 │       └── functions.ts            # analysis/created handler

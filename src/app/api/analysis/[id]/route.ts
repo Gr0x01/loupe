@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function GET(
   _req: NextRequest,
@@ -32,5 +32,67 @@ export async function GET(
     parent_structured_output = parent?.structured_output ?? null;
   }
 
-  return NextResponse.json({ ...data, parent_structured_output });
+  // Check if this analysis belongs to a registered page
+  // Only show page_context if the requesting user owns this analysis (privacy)
+  let page_context = null;
+  if (data.user_id) {
+    let currentUserId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      currentUserId = user?.id ?? null;
+    } catch {
+      // Not logged in
+    }
+
+    // Only fetch page context if the current user owns this analysis
+    if (currentUserId && currentUserId === data.user_id) {
+      const { data: page } = await supabase
+        .from("pages")
+        .select("id, name, url")
+        .eq("user_id", data.user_id)
+        .eq("url", data.url)
+        .single();
+
+      if (page) {
+        // Run count/prev/next queries in parallel
+        const [countResult, prevResult, nextResult] = await Promise.all([
+          supabase
+            .from("analyses")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", data.user_id)
+            .eq("url", data.url)
+            .lte("created_at", data.created_at),
+          supabase
+            .from("analyses")
+            .select("id")
+            .eq("user_id", data.user_id)
+            .eq("url", data.url)
+            .lt("created_at", data.created_at)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single(),
+          supabase
+            .from("analyses")
+            .select("id")
+            .eq("user_id", data.user_id)
+            .eq("url", data.url)
+            .gt("created_at", data.created_at)
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .single(),
+        ]);
+
+        page_context = {
+          page_id: page.id,
+          page_name: page.name,
+          scan_number: countResult.count || 1,
+          prev_analysis_id: prevResult.data?.id ?? null,
+          next_analysis_id: nextResult.data?.id ?? null,
+        };
+      }
+    }
+  }
+
+  return NextResponse.json({ ...data, parent_structured_output, page_context });
 }
