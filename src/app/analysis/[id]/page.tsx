@@ -816,6 +816,7 @@ export default function AnalysisPage() {
   const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
   const [expandedEvaluations, setExpandedEvaluations] = useState<Set<number>>(new Set());
   const [deployExpanded, setDeployExpanded] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [foundingStatus, setFoundingStatus] = useState<{
     claimed: number;
     total: number;
@@ -897,6 +898,12 @@ export default function AnalysisPage() {
       setClaimError("Network error. Try again.");
     }
     setClaimLoading(false);
+  };
+
+  const handleShareLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const fetchAnalysis = useCallback(async () => {
@@ -1271,20 +1278,58 @@ export default function AnalysisPage() {
               </div>
             </div>
 
-            {/* Card footer — actions */}
-            <div className="hero-reveal-actions flex items-center justify-between border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
-              <Link
-                href="/"
-                className="text-sm text-text-muted hover:text-accent transition-colors"
-              >
-                Audit another page
-              </Link>
-              <button
-                onClick={() => navigator.clipboard.writeText(window.location.href)}
-                className="btn-primary text-sm py-2.5 px-5"
-              >
-                Share your score
-              </button>
+            {/* Card footer — email capture */}
+            <div className="hero-reveal-actions border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
+              {claimEmailSent ? (
+                /* Success state */
+                <div className="flex items-center justify-between">
+                  <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+                    {linkCopied ? "Copied!" : "Share"}
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                    </svg>
+                    <span className="text-sm text-text-primary">You&apos;re in — check your inbox</span>
+                  </div>
+                </div>
+              ) : (
+                /* Default state */
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    {/* Left: Share */}
+                    <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors order-2 sm:order-1">
+                      {linkCopied ? "Copied!" : "Share"}
+                    </button>
+
+                    {/* Right: hook + form */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 order-1 sm:order-2">
+                      <p className="text-sm text-text-secondary">
+                        We&apos;ll watch for changes →
+                      </p>
+                      <form onSubmit={handleClaimEmail} className="flex items-stretch gap-2">
+                        <input
+                          type="email"
+                          placeholder="you@company.com"
+                          value={claimEmail}
+                          onChange={(e) => setClaimEmail(e.target.value)}
+                          className="input-glass text-sm py-2 w-44"
+                          aria-label="Email address"
+                          required
+                        />
+                        <button
+                          type="submit"
+                          disabled={claimLoading}
+                          className="btn-primary text-sm py-2 px-4 whitespace-nowrap"
+                        >
+                          {claimLoading ? "..." : "Watch"}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                  {claimError && <p className="text-xs text-score-low mt-2 text-right">{claimError}</p>}
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -1357,63 +1402,6 @@ export default function AnalysisPage() {
                       </li>
                     ))}
                   </ul>
-                </div>
-              </div>
-              {/* Inline monitoring teaser — the conversion bridge */}
-              <div className="mt-12 text-center">
-                <div className="py-8 px-6 rounded-2xl bg-[rgba(91,46,145,0.06)] border border-[rgba(91,46,145,0.1)] max-w-xl mx-auto">
-                  {claimEmailSent ? (
-                    <div>
-                      <p className="text-xl font-medium text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
-                        You&apos;re in
-                      </p>
-                      <p className="text-sm text-text-muted mt-2">Check your inbox to start watching {getDomain(analysis.url)}</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* The bridge headline */}
-                      <p
-                        className="text-xl text-text-primary mb-2"
-                        style={{ fontFamily: "var(--font-instrument-serif)" }}
-                      >
-                        You&apos;ll fix these. How will you know when they break?
-                      </p>
-
-                      {/* Concrete "why" copy */}
-                      <p className="text-sm text-text-secondary mb-5">
-                        After your next deploy, something will shift. A headline gets reworded. A CTA moves below the fold. We&apos;ll catch it before your visitors do.
-                      </p>
-
-                      {/* Form */}
-                      <form onSubmit={handleClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-3 justify-center max-w-sm mx-auto">
-                        <input
-                          type="email"
-                          placeholder="you@company.com"
-                          value={claimEmail}
-                          onChange={(e) => setClaimEmail(e.target.value)}
-                          className="input-glass flex-1 text-sm"
-                          aria-label="Email address"
-                          required
-                        />
-                        <button
-                          type="submit"
-                          disabled={claimLoading}
-                          className="btn-primary whitespace-nowrap"
-                        >
-                          {claimLoading ? "Sending..." : "Watch this page"}
-                        </button>
-                      </form>
-
-                      {/* Error or Founding 50 */}
-                      {claimError ? (
-                        <p className="text-xs text-score-low mt-3">{claimError}</p>
-                      ) : foundingStatus && !foundingStatus.isFull && (
-                        <p className="text-xs text-text-muted mt-4">
-                          <span className="font-semibold text-accent">Founding 50:</span> {foundingStatus.remaining} spots left for free Pro access
-                        </p>
-                      )}
-                    </>
-                  )}
                 </div>
               </div>
             </section>
@@ -2003,10 +1991,10 @@ export default function AnalysisPage() {
           {/* Footer links */}
           <div className="flex items-center justify-center gap-6 text-sm text-text-muted mt-6">
             <button
-              onClick={() => navigator.clipboard.writeText(window.location.href)}
+              onClick={handleShareLink}
               className="hover:text-accent transition-colors"
             >
-              Copy link
+              {linkCopied ? "Copied!" : "Copy link"}
             </button>
             <Link href="/" className="hover:text-accent transition-colors">
               Audit another page
