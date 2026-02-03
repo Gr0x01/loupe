@@ -44,8 +44,22 @@ interface StructuredOutput {
   headlineRewrite?: HeadlineRewrite | null;
 }
 
+// Updated ChangesSummary with new schema
+interface FindingEvaluation {
+  title: string;
+  element: string;
+  previous_status: "issue" | "suggestion";
+  evaluation: "resolved" | "improved" | "unchanged" | "regressed" | "new";
+  quality_assessment: string;
+  detail: string;
+}
+
 interface ChangesSummary {
-  findings_status: {
+  // New schema fields
+  findings_evaluations?: FindingEvaluation[];
+  analytics_insights?: string;
+  // Legacy schema fields (for backwards compatibility)
+  findings_status?: {
     title: string;
     element: string;
     previous_status: string;
@@ -58,7 +72,10 @@ interface ChangesSummary {
   progress: {
     total_original: number;
     resolved: number;
-    persisting: number;
+    improved?: number;
+    unchanged?: number;
+    persisting?: number; // Legacy field
+    regressed?: number;
     new_issues: number;
   };
 }
@@ -69,6 +86,14 @@ interface PageContext {
   scan_number: number;
   prev_analysis_id: string | null;
   next_analysis_id: string | null;
+}
+
+interface DeployContext {
+  commit_sha: string;
+  commit_message: string;
+  commit_author: string;
+  commit_timestamp: string;
+  changed_files: string[];
 }
 
 interface MetricsSnapshot {
@@ -92,6 +117,8 @@ interface Analysis {
   parent_structured_output: StructuredOutput | null;
   page_context: PageContext | null;
   metrics_snapshot: MetricsSnapshot | null;
+  deploy_context: DeployContext | null;
+  trigger_type: "manual" | "daily" | "weekly" | "deploy" | null;
 }
 
 // --- Constants ---
@@ -120,6 +147,80 @@ const CATEGORY_EXPLAINERS: Record<string, string> = {
 };
 
 const ACTION_TAGS = ["HIGH IMPACT", "QUICK WIN", "LEAKING"] as const;
+
+// Evaluation status configuration for the 5 states
+const EVALUATION_CONFIG = {
+  resolved: {
+    label: "Resolved",
+    iconClass: "evaluation-icon-resolved",
+    badgeClass: "evaluation-badge-resolved",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+      </svg>
+    ),
+    color: "var(--score-high)",
+  },
+  improved: {
+    label: "Improved",
+    iconClass: "evaluation-icon-improved",
+    badgeClass: "evaluation-badge-improved",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 12l4-4 4-4" />
+        <path d="M4 12h8" />
+      </svg>
+    ),
+    color: "var(--score-mid)",
+  },
+  unchanged: {
+    label: "Unchanged",
+    iconClass: "evaluation-icon-unchanged",
+    badgeClass: "evaluation-badge-unchanged",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="8" x2="13" y2="8" />
+      </svg>
+    ),
+    color: "#8E8EA0",
+  },
+  regressed: {
+    label: "Regressed",
+    iconClass: "evaluation-icon-regressed",
+    badgeClass: "evaluation-badge-regressed",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 4l-4 4-4 4" />
+        <path d="M12 4H4" />
+      </svg>
+    ),
+    color: "var(--score-low)",
+  },
+  new: {
+    label: "New",
+    iconClass: "evaluation-icon-new",
+    badgeClass: "evaluation-badge-new",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="8" y1="3" x2="8" y2="13" />
+        <line x1="3" y1="8" x2="13" y2="8" />
+      </svg>
+    ),
+    color: "var(--score-low)",
+  },
+  // Legacy status mapping
+  persists: {
+    label: "Unchanged",
+    iconClass: "evaluation-icon-unchanged",
+    badgeClass: "evaluation-badge-unchanged",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="8" x2="13" y2="8" />
+      </svg>
+    ),
+    color: "#8E8EA0",
+  },
+} as const;
 
 // --- Helpers ---
 
@@ -465,6 +566,173 @@ function FindingCard({
   );
 }
 
+// Evaluation Card for the "What Changed" section
+function EvaluationCard({
+  evaluation,
+  expanded,
+  onToggle,
+  deployContext,
+}: {
+  evaluation: FindingEvaluation;
+  expanded: boolean;
+  onToggle: () => void;
+  deployContext?: DeployContext | null;
+}) {
+  const config = EVALUATION_CONFIG[evaluation.evaluation];
+
+  // Check if any changed files might correlate with this finding's element
+  const correlatedFile = deployContext?.changed_files.find(file => {
+    const element = evaluation.element.toLowerCase();
+    const fileName = file.toLowerCase();
+    // Simple heuristic: check if the element name appears in the file path
+    return fileName.includes(element.replace(/\s+/g, '')) ||
+           element.includes(fileName.split('/').pop()?.replace(/\.(tsx?|jsx?)$/, '') || '');
+  });
+
+  return (
+    <div
+      className="evaluation-card group"
+      onClick={onToggle}
+    >
+      {/* Header — always visible */}
+      <div className="flex items-start gap-3 p-4">
+        <span className={`evaluation-icon ${config.iconClass}`}>
+          {config.icon}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p
+              className="text-[1.0625rem] font-semibold text-text-primary leading-snug"
+              style={{ fontFamily: "var(--font-instrument-serif)" }}
+            >
+              {evaluation.title}
+            </p>
+            <span className={`evaluation-badge ${config.badgeClass}`}>
+              {config.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="element-badge">{evaluation.element}</span>
+            {correlatedFile && (
+              <span className="element-badge text-accent border-accent-border">
+                {correlatedFile.split('/').pop()}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* Chevron */}
+        <svg
+          className={`w-5 h-5 text-text-muted transition-transform duration-200 flex-shrink-0 ${expanded ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="5 8 10 13 15 8" />
+        </svg>
+      </div>
+
+      {/* Expandable content */}
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-out ${
+          expanded ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border-outer mt-2">
+          {/* Quality assessment — the key insight */}
+          {evaluation.quality_assessment && (
+            <div className="pt-3">
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
+                Assessment
+              </p>
+              <p
+                className="text-[0.9375rem] text-text-primary leading-relaxed"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                {evaluation.quality_assessment}
+              </p>
+            </div>
+          )}
+          {/* Detail */}
+          {evaluation.detail && (
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
+                Detail
+              </p>
+              <p className="text-[0.875rem] text-text-secondary leading-relaxed">
+                {evaluation.detail}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Segmented Progress Bar component
+function SegmentedProgressBar({
+  progress,
+}: {
+  progress: ChangesSummary["progress"];
+}) {
+  const total = progress.total_original || 1;
+
+  // Calculate percentages for each segment
+  const resolved = progress.resolved || 0;
+  const improved = progress.improved || 0;
+  const unchanged = progress.unchanged || progress.persisting || 0;
+  const regressed = progress.regressed || 0;
+
+  const resolvedPct = (resolved / total) * 100;
+  const improvedPct = (improved / total) * 100;
+  const unchangedPct = (unchanged / total) * 100;
+  const regressedPct = (regressed / total) * 100;
+
+  // Build segments array (only include non-zero segments)
+  const segments: { color: string; pct: number; label: string; count: number }[] = [];
+  if (resolved > 0) segments.push({ color: "var(--score-high)", pct: resolvedPct, label: "resolved", count: resolved });
+  if (improved > 0) segments.push({ color: "var(--score-mid)", pct: improvedPct, label: "improved", count: improved });
+  if (unchanged > 0) segments.push({ color: "#8E8EA0", pct: unchangedPct, label: "unchanged", count: unchanged });
+  if (regressed > 0) segments.push({ color: "var(--score-low)", pct: regressedPct, label: "regressed", count: regressed });
+
+  return (
+    <div>
+      {/* Segmented bar */}
+      <div className="progress-segmented">
+        {segments.map((seg, i) => (
+          <div
+            key={seg.label}
+            className="progress-segment"
+            style={{
+              width: `${seg.pct}%`,
+              backgroundColor: seg.color,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="progress-legend">
+        {segments.map((seg) => (
+          <span key={seg.label} className="progress-legend-item">
+            <span className="progress-legend-dot" style={{ backgroundColor: seg.color }} />
+            <span className="font-semibold">{seg.count}</span> {seg.label}
+          </span>
+        ))}
+        {progress.new_issues > 0 && (
+          <span className="progress-legend-item">
+            <span className="progress-legend-dot" style={{ backgroundColor: "var(--score-low)" }} />
+            <span className="font-semibold">{progress.new_issues}</span> new
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ScreenshotModal({
   url,
   pageUrl,
@@ -476,7 +744,7 @@ function ScreenshotModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -517,10 +785,19 @@ export default function AnalysisPage() {
   const [error, setError] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [showScreenshot, setShowScreenshot] = useState(false);
-  const [rescanLoading, setRescanLoading] = useState(false);
-  const [rescanEmail, setRescanEmail] = useState("");
-  const [rescanEmailSent, setRescanEmailSent] = useState(false);
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimEmail, setClaimEmail] = useState("");
+  const [claimEmailSent, setClaimEmailSent] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
+  const [expandedEvaluations, setExpandedEvaluations] = useState<Set<number>>(new Set());
+  const [deployExpanded, setDeployExpanded] = useState(false);
+  const [foundingStatus, setFoundingStatus] = useState<{
+    claimed: number;
+    total: number;
+    remaining: number;
+    isFull: boolean;
+  } | null>(null);
 
   // Auto-expand first finding when category changes
   useEffect(() => {
@@ -548,49 +825,54 @@ export default function AnalysisPage() {
     });
   }, []);
 
-  const handleRescan = async () => {
-    if (!analysis) return;
-    setRescanLoading(true);
-    try {
-      const res = await fetch("/api/rescan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentAnalysisId: analysis.id }),
-      });
-      if (res.status === 401) {
-        // Not logged in — need to auth first
-        setRescanLoading(false);
-        return;
+  const toggleEvaluation = useCallback((index: number) => {
+    setExpandedEvaluations((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
       }
-      const data = await res.json();
-      if (data.id) {
-        router.push(`/analysis/${data.id}`);
-      }
-    } catch {
-      setRescanLoading(false);
-    }
-  };
+      return next;
+    });
+  }, []);
 
-  const handleRescanEmail = async (e: React.FormEvent) => {
+  // Fetch founding status on mount
+  useEffect(() => {
+    fetch("/api/founding-status")
+      .then((res) => res.json())
+      .then((data) => {
+        // Validate response shape before setting
+        if (data && typeof data.claimed === "number" && typeof data.remaining === "number") {
+          setFoundingStatus(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleClaimEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rescanEmail || !analysis) return;
-    setRescanLoading(true);
+    if (!claimEmail || !analysis) return;
+    setClaimLoading(true);
+    setClaimError("");
     try {
       const res = await fetch("/api/auth/magic-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: rescanEmail,
-          redirectTo: `${window.location.origin}/auth/callback?rescan=${analysis.id}`,
+          email: claimEmail,
+          redirectTo: `${window.location.origin}/auth/callback?claim=${analysis.id}`,
         }),
       });
       if (res.ok) {
-        setRescanEmailSent(true);
+        setClaimEmailSent(true);
+      } else {
+        setClaimError("Failed to send link. Try again.");
       }
     } catch {
-      // ignore
+      setClaimError("Network error. Try again.");
     }
-    setRescanLoading(false);
+    setClaimLoading(false);
   };
 
   const fetchAnalysis = useCallback(async () => {
@@ -740,6 +1022,17 @@ export default function AnalysisPage() {
 
   const pageCtx = analysis.page_context;
 
+  // Get findings evaluations (new schema) or convert from legacy
+  const findingsEvaluations: FindingEvaluation[] = analysis.changes_summary?.findings_evaluations ||
+    (analysis.changes_summary?.findings_status?.map(f => ({
+      title: f.title,
+      element: f.element,
+      previous_status: f.previous_status as "issue" | "suggestion",
+      evaluation: (f.current_status === "persists" ? "unchanged" : f.current_status) as FindingEvaluation["evaluation"],
+      quality_assessment: "",
+      detail: f.detail,
+    })) || []);
+
   return (
     <main className="min-h-screen text-text-primary">
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
@@ -764,9 +1057,45 @@ export default function AnalysisPage() {
                   {pageCtx.page_name || getDomain(analysis.url)}
                 </Link>
                 <span className="text-text-muted">/</span>
-                <span className="text-sm font-medium text-text-primary">
-                  Scan #{pageCtx.scan_number}
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-text-primary">
+                    Scan #{pageCtx.scan_number}
+                  </span>
+                  {/* Trigger type indicator */}
+                  {analysis.deploy_context ? (
+                    <button
+                      onClick={() => setDeployExpanded(!deployExpanded)}
+                      className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent transition-colors mt-0.5"
+                    >
+                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <circle cx="8" cy="8" r="3" />
+                        <path d="M8 1v4M8 11v4M1 8h4M11 8h4" strokeLinecap="round" />
+                      </svg>
+                      <span>Triggered by deploy</span>
+                      <span className="font-mono text-text-secondary">{analysis.deploy_context.commit_sha.slice(0, 7)}</span>
+                      <svg
+                        className={`w-3 h-3 transition-transform ${deployExpanded ? 'rotate-180' : ''}`}
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  ) : analysis.trigger_type && analysis.trigger_type !== "manual" ? (
+                    <span className="flex items-center gap-1.5 text-xs text-text-muted mt-0.5">
+                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <circle cx="8" cy="8" r="6" />
+                        <path d="M8 4v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>
+                        {analysis.trigger_type === "daily" && "Daily scan"}
+                        {analysis.trigger_type === "weekly" && "Weekly scan"}
+                      </span>
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
               {/* Prev/Next navigation */}
@@ -799,6 +1128,38 @@ export default function AnalysisPage() {
                 )}
               </div>
             </div>
+
+            {/* Deploy context expanded dropdown */}
+            {analysis.deploy_context && deployExpanded && (
+              <div className="mt-3 glass-card p-4 max-w-md">
+                <p className="font-medium text-text-primary text-sm">
+                  &ldquo;{analysis.deploy_context.commit_message}&rdquo;
+                </p>
+                <p className="text-xs text-text-muted mt-1">
+                  {analysis.deploy_context.commit_author} committed {timeAgo(analysis.deploy_context.commit_timestamp)}
+                </p>
+
+                {analysis.deploy_context.changed_files.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border-outer">
+                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
+                      Changed files
+                    </p>
+                    <ul className="space-y-0.5">
+                      {analysis.deploy_context.changed_files.slice(0, 3).map((file, i) => (
+                        <li key={i} className="text-xs font-mono text-text-secondary truncate">
+                          {file}
+                        </li>
+                      ))}
+                      {analysis.deploy_context.changed_files.length > 3 && (
+                        <li className="text-xs text-text-muted">
+                          +{analysis.deploy_context.changed_files.length - 3} more
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -974,9 +1335,63 @@ export default function AnalysisPage() {
                   </ul>
                 </div>
               </div>
-              <p className="bridge-text">
-                This is your page today. But pages don&apos;t stay still.
-              </p>
+              {/* Bridge text + inline claim teaser */}
+              <div className="mt-12 text-center">
+                <p
+                  className="text-xl text-text-primary"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  This is your page today.
+                </p>
+                <p
+                  className="text-xl text-text-secondary italic"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  But pages don&apos;t stay still.
+                </p>
+
+                {/* Soft claim teaser */}
+                <div className="mt-6 py-5 px-6 rounded-xl bg-[rgba(91,46,145,0.06)] max-w-md mx-auto">
+                  {claimEmailSent ? (
+                    <div>
+                      <p className="text-base font-medium text-text-primary">Claim link sent</p>
+                      <p className="text-sm text-text-muted mt-1">Check your inbox.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-base text-text-secondary mb-3">
+                        Claim {getDomain(analysis.url)} to get notified when it changes.
+                      </p>
+                      <form onSubmit={handleClaimEmail} className="flex items-stretch gap-2">
+                        <input
+                          type="email"
+                          placeholder="you@company.com"
+                          value={claimEmail}
+                          onChange={(e) => setClaimEmail(e.target.value)}
+                          className="input-glass flex-1 text-sm py-2"
+                          aria-label="Email address"
+                          required
+                        />
+                        <button
+                          type="submit"
+                          disabled={claimLoading}
+                          className="text-accent font-medium hover:bg-[rgba(91,46,145,0.12)] px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          {claimLoading ? "..." : "Claim →"}
+                        </button>
+                      </form>
+                      {claimError && (
+                        <p className="text-xs text-score-low mt-2">{claimError}</p>
+                      )}
+                      {foundingStatus && foundingStatus.remaining <= 20 && !claimError && (
+                        <p className="text-xs text-text-muted mt-3">
+                          {foundingStatus.remaining} founding spots left
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             </section>
 
             <hr className="section-divider" />
@@ -1319,28 +1734,91 @@ export default function AnalysisPage() {
 
         <hr className="section-divider" />
 
-        {/* Comparison View — shown when this is a re-scan with results */}
+        {/* Comparison View — REDESIGNED "What Changed" section */}
         {analysis.changes_summary && (
           <>
             <section className="result-section">
-              <div className="section-header">
+              {/* Section Header with running summary */}
+              <div className="section-header flex-col !items-start gap-2">
                 <h2
                   className="text-4xl font-bold text-text-primary"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
                   What changed
                 </h2>
+                {analysis.changes_summary.running_summary && (
+                  <p className="text-base text-text-secondary mt-1">
+                    {analysis.changes_summary.running_summary}
+                  </p>
+                )}
               </div>
 
-              {/* Score delta + progress */}
+              {/* Deploy Context Banner (if deploy-triggered and in changes section) */}
+              {analysis.trigger_type === "deploy" && analysis.deploy_context && (
+                <div className="deploy-context-banner flex items-center gap-4 mb-6">
+                  <div className="evaluation-icon evaluation-icon-improved">
+                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <circle cx="8" cy="8" r="3" />
+                      <path d="M8 1v4M8 11v4M1 8h4M11 8h4" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      &ldquo;{analysis.deploy_context.commit_message}&rdquo;
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      <span className="font-mono">{analysis.deploy_context.commit_sha.slice(0, 7)}</span>
+                      {" by "}{analysis.deploy_context.commit_author}
+                      {" "}
+                      {timeAgo(analysis.deploy_context.commit_timestamp)}
+                    </p>
+                  </div>
+                  {analysis.deploy_context.changed_files.length > 0 && (
+                    <div className="hidden sm:block text-right flex-shrink-0">
+                      <p className="text-xs text-text-muted mb-0.5">Changed</p>
+                      <p className="text-xs font-mono text-text-secondary">
+                        {analysis.deploy_context.changed_files.slice(0, 2).map(f => f.split('/').pop()).join(', ')}
+                        {analysis.deploy_context.changed_files.length > 2 && ` +${analysis.deploy_context.changed_files.length - 2}`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Analytics Insights Callout (if present) */}
+              {analysis.changes_summary.analytics_insights && (
+                <div className="analytics-insight-card mb-6">
+                  <div className="flex items-start gap-4">
+                    <div className="evaluation-icon evaluation-icon-improved flex-shrink-0">
+                      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="2 12 6 8 9 11 14 4" />
+                        <polyline points="10 4 14 4 14 8" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
+                        Analytics correlation
+                      </p>
+                      <p
+                        className="text-lg text-text-primary leading-relaxed"
+                        style={{ fontFamily: "var(--font-instrument-serif)" }}
+                      >
+                        {analysis.changes_summary.analytics_insights}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Score + Progress Hero Card */}
               <div className="glass-card-elevated p-6 md:p-8 mb-6">
-                <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="flex flex-col sm:flex-row items-start gap-8">
                   {/* Score change */}
-                  <div className="text-center sm:text-left">
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1">Score</p>
+                  <div className="flex-shrink-0">
+                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Score</p>
                     <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-instrument-serif)" }}>
-                      {analysis.parent_structured_output?.overallScore ?? "?"}{" "}
-                      <span className="text-text-muted font-normal text-xl">&rarr;</span>{" "}
+                      <span className="text-text-muted">{analysis.parent_structured_output?.overallScore ?? "?"}</span>
+                      <span className="text-text-muted font-normal text-xl mx-2">&rarr;</span>
                       <span className={scoreColor(s.overallScore)}>{s.overallScore}</span>
                       {analysis.changes_summary.score_delta !== 0 && (
                         <span className={`text-lg ml-2 ${analysis.changes_summary.score_delta > 0 ? "text-score-high" : "text-score-low"}`}>
@@ -1350,87 +1828,26 @@ export default function AnalysisPage() {
                     </p>
                   </div>
 
-                  {/* Progress bar */}
+                  {/* Segmented Progress bar */}
                   <div className="flex-1 w-full">
                     <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Progress</p>
-                    {(() => {
-                      const p = analysis.changes_summary!.progress;
-                      const total = p.total_original || 1;
-                      const pct = Math.round((p.resolved / total) * 100);
-                      return (
-                        <>
-                          <div className="progress-track">
-                            <div
-                              className="progress-fill"
-                              style={{ width: `${pct}%`, backgroundColor: "var(--score-high)" }}
-                            />
-                          </div>
-                          <p className="text-sm text-text-secondary mt-1.5">
-                            {p.resolved} of {p.total_original} issues fixed
-                            {p.new_issues > 0 && <span className="text-score-low"> &middot; {p.new_issues} new</span>}
-                          </p>
-                        </>
-                      );
-                    })()}
+                    <SegmentedProgressBar progress={analysis.changes_summary.progress} />
                   </div>
                 </div>
               </div>
 
-              {/* Finding statuses */}
+              {/* Finding Evaluations List */}
               <div className="space-y-2">
-                {analysis.changes_summary.findings_status.map((f, i) => {
-                  const statusConfig = {
-                    resolved: { icon: "\u2713", label: "Resolved", className: "finding-strength" },
-                    persists: { icon: "\u25CF", label: "Persists", className: "finding-suggestion" },
-                    regressed: { icon: "!", label: "Regressed", className: "finding-issue" },
-                    new: { icon: "\u2605", label: "New", className: "finding-issue" },
-                  }[f.current_status];
-
-                  return (
-                    <div key={i} className={`${statusConfig.className} p-4 transition-all duration-150`}>
-                      <div className="flex items-start gap-3">
-                        <span className={`finding-icon ${
-                          f.current_status === "resolved" ? "finding-icon-strength" :
-                          f.current_status === "persists" ? "finding-icon-suggestion" :
-                          "finding-icon-issue"
-                        }`}>
-                          {statusConfig.icon}
-                        </span>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-[1.0625rem] font-semibold text-text-primary leading-snug">
-                              {f.title}
-                            </p>
-                            <span className={`text-xs font-semibold uppercase tracking-wide ${
-                              f.current_status === "resolved" ? "text-score-high" :
-                              f.current_status === "new" || f.current_status === "regressed" ? "text-score-low" :
-                              "text-score-mid"
-                            }`}>
-                              {statusConfig.label}
-                            </span>
-                          </div>
-                          <p className="text-[0.9375rem] text-text-secondary mt-1 leading-relaxed">
-                            {f.detail}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {findingsEvaluations.map((evaluation, i) => (
+                  <EvaluationCard
+                    key={i}
+                    evaluation={evaluation}
+                    expanded={expandedEvaluations.has(i)}
+                    onToggle={() => toggleEvaluation(i)}
+                    deployContext={analysis.deploy_context}
+                  />
+                ))}
               </div>
-
-              {/* Running summary */}
-              {analysis.changes_summary.running_summary && (
-                <div className="glass-card p-6 mt-6">
-                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Summary</p>
-                  <p
-                    className="text-lg text-text-primary leading-relaxed"
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    {analysis.changes_summary.running_summary}
-                  </p>
-                </div>
-              )}
 
               {/* Category deltas */}
               {analysis.changes_summary.category_deltas.length > 0 && (
@@ -1458,80 +1875,122 @@ export default function AnalysisPage() {
           </>
         )}
 
-        {/* Zone 6: Re-scan CTA */}
-        <section className="py-10">
-          <div className="glass-card-elevated p-8 md:p-10 max-w-[720px] mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center">
-              {/* Left: Value prop */}
-              <div className="lg:col-span-3 text-center lg:text-left">
-                <h2
-                  className="text-3xl font-bold text-text-primary mb-2"
+        {/* Zone 6: Claim CTA */}
+        <section id="claim-cta" className="py-10">
+          <div className="glass-card-elevated p-6 md:p-8 max-w-[540px] mx-auto">
+            {claimEmailSent ? (
+              /* Post-submit state */
+              <div className="text-center py-4">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(91,46,145,0.1)] mb-4">
+                  <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <p
+                  className="text-2xl font-bold text-text-primary"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  {analysis.changes_summary ? "Keep going" : <>Make a fix.<br />Prove it&nbsp;worked.</>}
-                </h2>
-                <p className="text-base text-text-secondary">
-                  {analysis.changes_summary
-                    ? "Ship more changes, then re-scan to track\u00A0progress."
-                    : "We\u2019ll re-audit and show you what\u00A0improved."}
+                  Claim link sent
+                </p>
+                <p className="text-base text-text-secondary mt-2">
+                  Check your inbox for the magic link.
                 </p>
               </div>
+            ) : (
+              /* Claim form */
+              <div className="text-center">
+                {/* Headline + subhead */}
+                <h2
+                  className="text-2xl md:text-3xl font-bold text-text-primary"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  {analysis.changes_summary
+                    ? "Keep tracking"
+                    : <>Claim {getDomain(analysis.url)}</>}
+                </h2>
+                <p className="text-base text-text-secondary mt-2 mb-6">
+                  {analysis.changes_summary
+                    ? "We\u2019re watching. You\u2019ll know when something shifts."
+                    : "We\u2019ll watch it and alert you when it changes."}
+                </p>
 
-              {/* Right: Action */}
-              <div className="lg:col-span-2">
-                {rescanEmailSent ? (
-                  <div className="text-center lg:text-left">
-                    <p
-                      className="text-2xl font-bold text-text-primary"
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
-                    >
-                      Check your&nbsp;email
+                {/* Email form — the hero */}
+                <form onSubmit={handleClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-3 mb-3">
+                  <input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={claimEmail}
+                    onChange={(e) => setClaimEmail(e.target.value)}
+                    className="input-glass flex-1 text-center sm:text-left"
+                    aria-label="Email address"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={claimLoading}
+                    className="btn-primary whitespace-nowrap"
+                  >
+                    {claimLoading ? "Sending..." : "Claim it"}
+                  </button>
+                </form>
+
+                {/* Error message */}
+                {claimError && (
+                  <p className="text-sm text-score-low mt-2 mb-4">{claimError}</p>
+                )}
+
+                {/* Trust line */}
+                {!claimError && (
+                  <p className="text-sm text-text-muted mb-6">
+                    Free forever. No credit card.
+                  </p>
+                )}
+
+                {/* Founding 50 */}
+                {foundingStatus && !foundingStatus.isFull && !analysis.changes_summary && (
+                  <div className="pt-4 border-t border-border-outer">
+                    {/* Label */}
+                    <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-2">
+                      Founding 50
                     </p>
-                    <p className="text-sm text-text-muted mt-2">
-                      Click the link to start your&nbsp;re-scan.
+                    {/* Dots */}
+                    <div className="flex items-center justify-center gap-0.5 mb-2">
+                      {Array.from({ length: foundingStatus.total }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            i < foundingStatus.claimed
+                              ? "bg-accent"
+                              : "bg-[rgba(0,0,0,0.1)]"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {/* Value line */}
+                    <p className="text-sm text-text-muted">
+                      {foundingStatus.remaining} spots left — free Pro (<span className="font-semibold text-text-secondary">$19/mo</span>) for life
                     </p>
                   </div>
-                ) : (
-                  <form onSubmit={handleRescanEmail} className="space-y-3">
-                    <input
-                      type="email"
-                      placeholder="you@company.com"
-                      value={rescanEmail}
-                      onChange={(e) => setRescanEmail(e.target.value)}
-                      className="input-glass w-full"
-                      required
-                    />
-                    <button
-                      type="submit"
-                      disabled={rescanLoading}
-                      className="btn-primary w-full"
-                    >
-                      {rescanLoading ? "Sending..." : "Send me the link"}
-                    </button>
-                    <p className="text-xs text-text-muted text-center">
-                      One click to re-scan. No password.
-                    </p>
-                  </form>
                 )}
               </div>
-            </div>
-
-            {/* Footer actions */}
-            <div className="flex items-center justify-center gap-6 text-sm text-text-muted mt-8 pt-6 border-t border-border-outer">
-              <button
-                onClick={() => navigator.clipboard.writeText(window.location.href)}
-                className="hover:text-accent transition-colors"
-              >
-                Copy link
-              </button>
-              <Link href="/" className="hover:text-accent transition-colors">
-                Audit another page
-              </Link>
-            </div>
+            )}
           </div>
 
-          {/* Timestamp outside card */}
-          <p className="text-xs text-text-muted text-center mt-6">
+          {/* Footer links */}
+          <div className="flex items-center justify-center gap-6 text-sm text-text-muted mt-6">
+            <button
+              onClick={() => navigator.clipboard.writeText(window.location.href)}
+              className="hover:text-accent transition-colors"
+            >
+              Copy link
+            </button>
+            <Link href="/" className="hover:text-accent transition-colors">
+              Audit another page
+            </Link>
+          </div>
+
+          {/* Timestamp */}
+          <p className="text-xs text-text-muted text-center mt-4">
             Snapshot from {new Date(analysis.created_at).toLocaleDateString()}
           </p>
         </section>

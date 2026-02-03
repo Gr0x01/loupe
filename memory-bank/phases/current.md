@@ -92,7 +92,7 @@ Ship free for Founding 50, learn, then build billing with evidence.
 
 ---
 
-## Phase 1C-3 — GitHub + PostHog + Correlation (GITHUB DONE)
+## Phase 1C-3 — GitHub + PostHog + Correlation (DONE)
 The integrations and correlation magic.
 
 ### GitHub Integration (DONE)
@@ -105,7 +105,9 @@ The integrations and correlation magic.
 - [x] `deploy-detected` Inngest function for auto-scan flow
 - [x] Simplified deploy scans — all user pages scanned on any repo push (MVP: 1 domain per user)
 - [x] Delete page feature — dashboard delete with confirmation, cascades to analyses
-- [ ] Show deploy info on analysis results — minor UI addition
+- [x] Show deploy info on analysis results — deploy context passed to LLM + UI with expandable dropdown
+- [x] `deploy_id` + `trigger_type` columns on analyses table
+- [x] Deploy context passed to LLM for code↔page correlation
 
 ### PostHog Integration (DONE)
 - [x] PostHog API integration (Query API with HogQL via PostHogAdapter)
@@ -113,7 +115,12 @@ The integrations and correlation magic.
 - [x] Store tool call results in `analytics_snapshots` table
 - [x] Unified post-analysis pipeline: comparison + correlation in one Gemini 3 Pro pass
 - [x] LLM tools: discover_metrics, get_page_stats, query_trend, query_custom_event, get_funnel, compare_periods
-- [ ] Set up PostHog on getloupe.io (production tracking)
+- [x] Set up PostHog on getloupe.io (production tracking)
+
+### Scan Trigger Context (DONE)
+- [x] `trigger_type` column: 'manual' | 'daily' | 'weekly' | 'deploy' | null
+- [x] UI shows trigger labels: "Daily scan" / "Weekly scan" / "Triggered by deploy abc1234"
+- [x] Deploy-triggered scans show expandable commit info (SHA, message, author, changed files)
 
 ### Google Analytics 4 Integration (NOT STARTED)
 - [ ] GA4 API integration (Data API v1)
@@ -122,7 +129,29 @@ The integrations and correlation magic.
 - [ ] Store metric snapshots on analysis records (shared with PostHog)
 - [ ] Settings UI for connecting GA4 property
 
-**Done when:** Push to main → Loupe auto-scans → shows "this deploy changed X, metrics moved Y."
+**Status:** Complete. Full deploy→scan→correlation loop works end-to-end.
+
+## Phase 1C-5 — Marketing Frameworks + Comparison View (DONE)
+Strengthen LLM analysis quality and redesign the "What changed" UI.
+
+### Marketing Framework Improvements (DONE)
+- [x] Added Jobs-to-be-Done (JTBD) evaluation to audit prompt
+- [x] Added Message-Market Match (does copy resonate with specific audience?)
+- [x] Added Differentiation / "Only" test (could competitor say the same thing?)
+- [x] Added Awareness Stages (Schwartz) — problem-aware vs solution-aware messaging
+- [x] Added Risk Reversal evaluation (guarantees, objection handling)
+- [x] Post-analysis prompt now has stricter quality criteria for "resolved" vs "improved"
+
+### Comparison View Redesign (DONE)
+- [x] 5 evaluation states: resolved (green), improved (amber), unchanged (gray), regressed (red), new (red)
+- [x] `quality_assessment` field now displayed — shows WHY the LLM gave each evaluation
+- [x] Expandable evaluation cards with progressive disclosure
+- [x] Segmented progress bar showing all states (not just resolved)
+- [x] Analytics insights card when PostHog connected
+- [x] Deploy context banner showing commit info within "What changed" section
+- [x] Element badges that highlight when changed files match finding elements
+
+**Status:** Complete. LLM provides nuanced quality evaluation, UI displays full context.
 
 ## Phase 1D — Billing (DEFERRED)
 Build after learning from first 50 users.

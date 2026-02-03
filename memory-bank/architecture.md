@@ -80,6 +80,8 @@ analyses (
   ip_address text,               -- requester IP for rate limiting
   user_id uuid FK auth.users,    -- nullable, set if user is logged in
   parent_analysis_id uuid FK analyses,  -- for re-scans, links to previous scan
+  deploy_id uuid FK deploys ON DELETE SET NULL,  -- links to triggering deploy (if deploy-triggered)
+  trigger_type text,                -- 'manual' | 'daily' | 'weekly' | 'deploy' | null (initial audit)
   screenshot_url text,
   output text,                    -- formatted markdown report
   structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
@@ -225,29 +227,75 @@ deploys (
 
 **Main analysis:** Single Gemini 3 Pro call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output. Switched from Sonnet 4 after eval — Gemini 3 Pro gave more specific/opinionated feedback at ~25% lower cost and same speed.
 
-**Post-analysis:** Gemini 3 Pro with optional tools. Evaluates change quality (not just diff), correlates with analytics. Max 6 steps for tool calls.
+**Post-analysis:** Gemini 3 Pro with optional tools. Evaluates change quality (not just diff), correlates with analytics. Max 6 steps for tool calls. Receives deploy context when scan is deploy-triggered.
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
-- `runAnalysisPipeline(screenshotBase64, url)` — Main audit with vision. Returns `{ output, structured }`.
-- `runPostAnalysisPipeline(context, options)` — Unified comparison + correlation. Returns `ChangesSummary` with evaluations and analytics insights.
+- `runAnalysisPipeline(screenshotBase64, url, metadata)` — Main audit with vision. Returns `{ output, structured }`.
+- `runPostAnalysisPipeline(context, options)` — Unified comparison + correlation. Receives `deployContext` with commit info. Returns `ChangesSummary` with evaluations and analytics insights.
 
 Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 
-### Structured output schema
+### Marketing Frameworks (in prompts)
+- **PAS** (Problem-Agitate-Solve) — messaging structure
+- **Fogg Behavior Model** — CTA evaluation (motivation + ability + trigger)
+- **Cialdini's Principles** — trust signals (social proof, authority, scarcity)
+- **Gestalt Principles** — visual design (proximity, contrast, alignment)
+- **JTBD** (Jobs-to-be-Done) — does page address the job visitor is hiring product for?
+- **Message-Market Match** — does messaging resonate with specific audience?
+- **Differentiation / "Only" Test** — could competitor say the same thing?
+- **Awareness Stages (Schwartz)** — problem-aware vs solution-aware messaging
+- **Risk Reversal** — how page addresses objections
+
+### Structured output schema (main audit)
 ```typescript
 {
   overallScore: number,        // 1-100
+  verdict: string,             // one-liner takeaway
+  whatsWorking: string[],      // 3 strengths
+  whatsNot: string[],          // 3 weaknesses
+  headlineRewrite: { current, suggested, reasoning } | null,
   categories: [{
     name: string,              // e.g. "Messaging & Copy"
     score: number,             // 1-100
     findings: [{
       type: "strength" | "issue" | "suggestion",
       title: string,
-      detail: string           // specific to this page
+      detail: string,
+      impact: "high" | "medium" | "low",
+      fix: string,             // concrete fix with actual copy rewrites
+      methodology: string,     // framework used (e.g. "Fogg Behavior Model")
+      element: string          // page element (e.g. "hero headline")
     }]
   }],
-  summary: string,             // 2-3 sentence executive summary
-  topActions: string[]         // top 3 most impactful changes
+  summary: string,
+  topActions: [{ action: string, impact: string }]
+}
+```
+
+### Post-analysis output schema (re-scans)
+```typescript
+{
+  findings_evaluations: [{
+    title: string,
+    element: string,
+    previous_status: "issue" | "suggestion",
+    evaluation: "resolved" | "improved" | "unchanged" | "regressed" | "new",
+    quality_assessment: string,  // WHY this evaluation (nuanced quality judgment)
+    detail: string
+  }],
+  score_delta: number,
+  category_deltas: [{ name, previous, current, delta }],
+  running_summary: string,
+  progress: {
+    total_original: number,
+    resolved: number,
+    improved: number,
+    unchanged: number,
+    regressed: number,
+    new_issues: number
+  },
+  analytics_insights?: string,  // correlation with metrics (when PostHog connected)
+  metrics_summary?: { pageviews_7d, unique_visitors_7d, bounce_rate_7d }
 }
 ```
 
@@ -257,7 +305,7 @@ Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 3. Trust & Social Proof
 4. Visual Hierarchy
 5. Design Quality
-6. Mobile Readiness
+6. SEO & Metadata
 
 ### Evaluation results (completed)
 Tested configs A-E against inkdex.io:

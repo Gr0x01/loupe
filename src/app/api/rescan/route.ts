@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
         url: parent.url,
         user_id: user.id,
         parent_analysis_id: parentAnalysisId,
+        trigger_type: "manual",
         status: "pending",
       })
       .select("id")

@@ -67,15 +67,44 @@ export interface ChangesSummary {
   tool_calls_made?: string[];
 }
 
+export interface DeployContext {
+  commitSha: string;
+  commitMessage: string;
+  commitAuthor: string;
+  commitTimestamp: string;
+  changedFiles: string[];
+}
+
 const SYSTEM_PROMPT = `You are an expert web marketing and design consultant. You analyze web pages using both a screenshot AND extracted page metadata (headings, meta tags, CTAs, link counts, etc.).
 
-You evaluate pages across these categories:
-1. **Messaging & Copy** — Ground in PAS (Problem-Agitate-Solve), the "So What?" test, and the specificity ladder. Is the headline clear? Does it communicate a specific outcome? Is the value proposition obvious in 5 seconds? E.g. "Your headline fails the 'So What?' test — it says what you do but not the outcome."
-2. **Call to Action** — Ground in Fogg Behavior Model (motivation + ability + trigger) and friction audit. Is the primary CTA visible, compelling, and specific? Is there a clear next step? E.g. "CTA lacks urgency trigger (Fogg model) — no reason to act now vs. later."
-3. **Trust & Social Proof** — Ground in Cialdini's principles (social proof, authority, scarcity). Are there testimonials, logos, numbers, or other credibility signals? E.g. "No social proof above the fold — Cialdini's social proof principle suggests testimonials near the CTA convert 2x better."
+## Core Marketing Principles (Apply Across All Categories)
+
+**Jobs-to-be-Done (JTBD)**: What job is the visitor hiring this product/service to do? Does the page speak to that job's functional, emotional, and social dimensions — or just list features?
+
+**Message-Market Match**: Is this messaging for a specific audience with a specific problem? Or generic copy that tries to appeal to everyone and resonates with no one?
+
+**Differentiation ("Only" Test)**: Could a competitor say the same thing? If you can swap in a competitor's name and the copy still works, it fails. Look for what makes THIS solution unique.
+
+**Awareness Stages (Schwartz)**: Consider where visitors likely are:
+- Problem-aware: Need to feel understood before hearing solutions
+- Solution-aware: Need to see why THIS solution vs. alternatives
+- Product-aware: Need proof, specifics, and reasons to act now
+
+**Risk Reversal**: How does the page address objections and reduce perceived risk? Guarantees, social proof, free trials, and specificity all reduce friction.
+
+## Evaluation Categories
+
+1. **Messaging & Copy** — Ground in PAS (Problem-Agitate-Solve), JTBD, and the "So What?" test. Does the headline communicate a specific outcome for a specific audience? Does it address the job they're trying to do? Would a competitor's page say the same thing? E.g. "Your headline fails the 'Only' test — 'We help businesses grow' could describe any competitor."
+
+2. **Call to Action** — Ground in Fogg Behavior Model (motivation + ability + trigger) and risk reversal. Is the CTA specific about what happens next? Does it reduce perceived risk? Does it match the visitor's awareness stage? E.g. "CTA says 'Get Started' but problem-aware visitors need to understand the solution first — consider 'See How It Works'."
+
+3. **Trust & Social Proof** — Ground in Cialdini's principles and risk reversal. Are credibility signals specific and relevant to the target audience? Do testimonials address common objections? E.g. "Testimonials praise the team but don't address the #1 objection: 'Will this work for MY situation?'"
+
 4. **Visual Hierarchy** — Ground in Gutenberg diagram, F-pattern, and visual weight. Does the eye flow naturally? Is the most important content most prominent? E.g. "Primary CTA doesn't follow the F-pattern reading flow."
+
 5. **Design Quality** — Ground in Gestalt principles (proximity, contrast, alignment). Is spacing consistent? Typography clean? Colors purposeful? E.g. "Inconsistent spacing breaks the proximity principle — related elements should be grouped tighter."
-6. **SEO & Metadata** — Ground in search intent matching and click-through optimization. Are meta title/description set and compelling? Is heading hierarchy correct? Are images accessible (alt text)? E.g. "Meta description is generic — doesn't match transactional search intent for this page type."
+
+6. **SEO & Metadata** — Ground in search intent matching and click-through optimization. Does the meta description match what searchers are looking for at their awareness stage? E.g. "Meta description is generic — doesn't match transactional search intent for this page type."
 
 Use the screenshot for visual assessment (layout, colors, spacing, hierarchy).
 Use the metadata for structural assessment (heading hierarchy, meta tags, link counts, alt text, CTA text, social proof signals).
@@ -295,17 +324,37 @@ const POST_ANALYSIS_PROMPT = `You are an expert marketing analyst evaluating cha
    - Connect specific changes to specific metric movements when plausible
    - Be careful about causation vs correlation
 
-3. **Provide Actionable Intelligence**:
+3. **Correlate with Deploy Context** (when provided):
+   - Consider what code changes were made in the triggering deploy
+   - Look for connections between changed files and what you observe on the page
+   - If frontend components changed, pay special attention to those areas
+   - Help the user understand which code changes might have caused which page changes
+
+4. **Provide Actionable Intelligence**:
    - What's actually improving vs what looks like change but isn't
    - Where metrics suggest the changes are/aren't working
    - What to focus on next based on both audit findings and real data
 
 ## Evaluation Scale for Changes:
-- "resolved" — The issue is genuinely fixed, good execution
-- "improved" — Better than before but not fully resolved
-- "unchanged" — Changed superficially but core issue remains (or literally unchanged)
-- "regressed" — Made worse than before
-- "new" — New issue not in previous audit
+
+**"resolved"** — The issue is genuinely fixed with good execution. Apply these tests:
+- **Differentiation**: Does the new copy pass the "Only" test? Could a competitor say the same thing?
+- **Specificity**: Are there concrete details, numbers, or outcomes — not just clearer phrasing?
+- **Audience Fit**: Does it speak to a specific person with a specific problem?
+- **JTBD**: Does it address the job the visitor is trying to accomplish?
+Example: "We help you grow" → "SaaS founders: reduce churn 23% in 90 days" = RESOLVED
+Example: "We help you grow" → "We help startups grow faster" = IMPROVED (still generic)
+
+**"improved"** — Better than before but missing one or more of: differentiation, specificity, or audience fit
+
+**"unchanged"** — Changed superficially but core issue remains. Common patterns:
+- Added adjectives but no specificity ("fast" → "blazing fast")
+- Swapped synonyms but kept generic framing
+- Made clearer but still fails the "Only" test
+
+**"regressed"** — Made worse than before (less specific, more confusing, lost differentiation)
+
+**"new"** — New issue not in previous audit
 
 ## When Analytics Tools Available:
 Call tools strategically (max 5 calls). Good patterns:
@@ -356,11 +405,60 @@ export interface PostAnalysisContext {
   currentFindings: AnalysisResult["structured"];
   previousFindings?: AnalysisResult["structured"] | null;
   previousRunningSummary?: string | null;
+  deployContext?: DeployContext | null;
 }
 
 export interface PostAnalysisOptions {
   supabase: SupabaseClient;
   analyticsCredentials?: AnalyticsCredentials | null;
+}
+
+/**
+ * Format deploy context for inclusion in the LLM prompt
+ */
+function formatDeployContext(deploy: DeployContext): string {
+  const lines: string[] = ["## Deploy Context"];
+  lines.push("This scan was triggered by a code deploy. Here's what changed:\n");
+
+  const shortSha = deploy.commitSha.slice(0, 7);
+  const timestamp = new Date(deploy.commitTimestamp);
+  const timeAgo = getTimeAgo(timestamp);
+
+  lines.push(`**Commit:** ${shortSha} (pushed ${timeAgo})`);
+  lines.push(`**Author:** ${deploy.commitAuthor}`);
+  lines.push(`**Message:** ${deploy.commitMessage}`);
+
+  if (deploy.changedFiles.length > 0) {
+    lines.push("\n**Changed Files:**");
+    // Show up to 15 files, truncate if more
+    const filesToShow = deploy.changedFiles.slice(0, 15);
+    for (const file of filesToShow) {
+      lines.push(`- ${file}`);
+    }
+    if (deploy.changedFiles.length > 15) {
+      lines.push(`- ...and ${deploy.changedFiles.length - 15} more files`);
+    }
+  }
+
+  lines.push("\nConsider how these code changes might relate to any page changes you observe.");
+
+  return lines.join("\n");
+}
+
+/**
+ * Get human-readable time ago string
+ */
+function getTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 }
 
 /**
@@ -372,11 +470,17 @@ export async function runPostAnalysisPipeline(
   context: PostAnalysisContext,
   options: PostAnalysisOptions
 ): Promise<ChangesSummary> {
-  const { currentFindings, previousFindings, previousRunningSummary, pageUrl } = context;
+  const { currentFindings, previousFindings, previousRunningSummary, pageUrl, deployContext } = context;
   const { supabase, analyticsCredentials } = options;
 
   // Build the prompt
   const promptParts: string[] = [];
+
+  // Add deploy context first if available (most relevant context for this scan)
+  if (deployContext) {
+    promptParts.push(formatDeployContext(deployContext));
+    promptParts.push("");
+  }
 
   if (previousFindings) {
     promptParts.push(`## Previous Audit Findings\n${JSON.stringify(previousFindings, null, 2)}`);

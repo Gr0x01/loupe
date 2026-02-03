@@ -2,7 +2,7 @@ import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
 import { runAnalysisPipeline, runPostAnalysisPipeline } from "@/lib/ai/pipeline";
-import type { ChangesSummary } from "@/lib/ai/pipeline";
+import type { ChangesSummary, DeployContext } from "@/lib/ai/pipeline";
 
 export const analyzeUrl = inngest.createFunction(
   {
@@ -56,7 +56,7 @@ export const analyzeUrl = inngest.createFunction(
       // 5. Run unified post-analysis pipeline (comparison + analytics correlation)
       const { data: analysis } = await supabase
         .from("analyses")
-        .select("user_id")
+        .select("user_id, deploy_id")
         .eq("id", analysisId)
         .single();
 
@@ -79,6 +79,26 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
+        // Fetch deploy context if this analysis was triggered by a deploy
+        let deployContext: DeployContext | null = null;
+        if (analysis.deploy_id) {
+          const { data: deploy } = await supabase
+            .from("deploys")
+            .select("commit_sha, commit_message, commit_author, commit_timestamp, changed_files")
+            .eq("id", analysis.deploy_id)
+            .single();
+
+          if (deploy) {
+            deployContext = {
+              commitSha: deploy.commit_sha,
+              commitMessage: deploy.commit_message,
+              commitAuthor: deploy.commit_author,
+              commitTimestamp: deploy.commit_timestamp,
+              changedFiles: deploy.changed_files || [],
+            };
+          }
+        }
+
         // Check for PostHog integration
         let analyticsCredentials = null;
         const { data: posthogIntegration } = await supabase
@@ -96,8 +116,8 @@ export const analyzeUrl = inngest.createFunction(
           };
         }
 
-        // Run post-analysis if we have previous findings OR analytics
-        if (previousFindings || analyticsCredentials) {
+        // Run post-analysis if we have previous findings OR analytics OR deploy context
+        if (previousFindings || analyticsCredentials || deployContext) {
           try {
             const changesSummary = await runPostAnalysisPipeline(
               {
@@ -107,6 +127,7 @@ export const analyzeUrl = inngest.createFunction(
                 currentFindings: structured,
                 previousFindings,
                 previousRunningSummary,
+                deployContext,
               },
               {
                 supabase,
@@ -198,6 +219,7 @@ export const scheduledScan = inngest.createFunction(
             url: page.url,
             user_id: page.user_id,
             parent_analysis_id: page.last_scan_id,
+            trigger_type: "weekly",
             status: "pending",
           })
           .select("id")
@@ -279,6 +301,7 @@ export const scheduledScanDaily = inngest.createFunction(
             url: page.url,
             user_id: page.user_id,
             parent_analysis_id: page.last_scan_id,
+            trigger_type: "daily",
             status: "pending",
           })
           .select("id")
@@ -384,6 +407,8 @@ export const deployDetected = inngest.createFunction(
             url: page.url,
             user_id: userId,
             parent_analysis_id: page.last_scan_id,
+            deploy_id: deployId,
+            trigger_type: "deploy",
             status: "pending",
           })
           .select("id")

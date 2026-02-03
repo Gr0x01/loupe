@@ -32,6 +32,26 @@ export async function GET(
     parent_structured_output = parent?.structured_output ?? null;
   }
 
+  // If this analysis was triggered by a deploy, include the deploy info
+  let deploy_context = null;
+  if (data.deploy_id) {
+    const { data: deploy } = await supabase
+      .from("deploys")
+      .select("commit_sha, commit_message, commit_author, commit_timestamp, changed_files")
+      .eq("id", data.deploy_id)
+      .single();
+
+    if (deploy) {
+      deploy_context = {
+        commit_sha: deploy.commit_sha,
+        commit_message: deploy.commit_message,
+        commit_author: deploy.commit_author,
+        commit_timestamp: deploy.commit_timestamp,
+        changed_files: deploy.changed_files || [],
+      };
+    }
+  }
+
   // Check if this analysis belongs to a registered page
   // Only show page_context if the requesting user owns this analysis (privacy)
   let page_context = null;
@@ -94,5 +114,11 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ ...data, parent_structured_output, page_context });
+  return NextResponse.json({
+    ...data,
+    parent_structured_output,
+    page_context,
+    deploy_context,
+    trigger_type: data.trigger_type || null,
+  });
 }
