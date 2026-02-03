@@ -38,7 +38,7 @@ User enters URL → POST /api/analyze
 
 **Server:** 45.63.3.155:3333 (Vultr VPS, New Jersey)
 **Stack:** Express + puppeteer-extra + puppeteer-extra-plugin-stealth
-**Process manager:** PM2
+**Process manager:** systemd (`screenshot.service`, `Restart=always`)
 
 ### Key features
 - **Persistent browser pool** — 2 warm Chromium instances (proxy + direct), no cold start per request
@@ -46,13 +46,14 @@ User enters URL → POST /api/analyze
 - **Stealth plugin** — `puppeteer-extra-plugin-stealth` evades basic headless detection
 - **SSRF protection** — blocks private/internal IPs and non-HTTP protocols
 - **Concurrency limit** — max 3 concurrent screenshots
-- **Page render strategy** — `domcontentloaded` + 2.5s settle delay (faster than `networkidle2`)
+- **Page render strategy** — `domcontentloaded` + 2.5s settle delay + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
 - **Request interception** — blocks non-visual resources to save proxy bandwidth: analytics (GA, GTM, Segment, Mixpanel, Amplitude, Heap, Clarity, FullStory, Hotjar), tracking pixels (Facebook), error monitoring (Sentry, Bugsnag), chat widgets (Intercom, Crisp), ads, embedded video, media/websocket/eventsource resource types. Fonts, CSS, images, and documents pass through.
+- **Browser crash recovery** — 30s health check interval, auto-relaunches dead browser instances
 
 ### Endpoints
+- `GET /screenshot-and-extract?url=<url>&proxy=<true|false>` — capture screenshot + extract metadata, returns JSON `{screenshot, metadata}`
 - `GET /screenshot?url=<url>&proxy=<true|false>` — capture screenshot, returns JPEG binary
 - `GET /health` — health check
-- `GET /reddit-proxy?sub=<subreddit>` — Reddit JSON proxy (shared with Boost)
 
 ### Performance
 - Simple sites: ~5s
@@ -63,19 +64,21 @@ User enters URL → POST /api/analyze
 - `SCREENSHOT_SERVICE_URL=http://45.63.3.155:3333`
 - `SCREENSHOT_API_KEY` — x-api-key header for auth
 - Decodo proxy creds hardcoded in service (username: `spnouemsou`)
-- Vultr SSH: root / `5xP[83JSF}FsPsiZ`
+- Vultr SSH: root / key-based (`~/.ssh/id_ed25519`). Password in `.env.local`
 
 ## Supabase
 
 **Project:** `drift` (ID: `hquufdmuyzetlfhhljcr`, region: us-west-2)
 *Note: Supabase project name remains `drift` — this is an external resource ID, not user-facing.*
 
-### Schema (Phase 1A)
+### Schema
 ```sql
 analyses (
   id uuid PK default gen_random_uuid(),
   url text NOT NULL,
   email text,
+  ip_address text,               -- requester IP for rate limiting
+  user_id uuid FK auth.users,    -- nullable, set if user is logged in
   screenshot_url text,
   output text,                    -- formatted markdown report
   structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
@@ -83,21 +86,62 @@ analyses (
   error_message text,
   created_at timestamptz DEFAULT now()
 )
+
+profiles (
+  id uuid PK FK auth.users ON DELETE CASCADE,
+  email text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+)
+-- Auto-created via trigger on auth.users insert
+-- RLS: user can read/update own profile
 ```
 
 ### Storage
 - `screenshots` bucket (public) — stores `analyses/{id}.jpg`
 
+### RPC Functions
+- `create_analysis_if_allowed(p_ip, p_url, p_email, p_window_minutes, p_max_requests, p_user_id)` — atomic rate-limited insert. Returns `{id}` on success or `{error: "rate_limit_exceeded"}` if IP exceeds limit within window. Optional `p_user_id` associates analysis with logged-in user.
+
+### Rate Limiting
+- **Method:** IP-based via Supabase RPC (atomic check+insert, no race condition)
+- **Window:** 60 minutes, **Max:** 5 requests per IP
+- **IP detection:** `x-real-ip` → first `x-forwarded-for` entry (client IP)
+- **Response:** 429 with `Retry-After` header
+
 ### RLS
-- Public read on `analyses` (no auth in Phase 1A)
+- Public read on `analyses` (free tool stays open)
 - Service role for insert/update
 - Public read on screenshots bucket
+- `profiles`: user-scoped read/update (auth.uid() = id)
+
+## Auth (Phase 1B)
+
+**Methods:** Magic link (email OTP) + Google OAuth
+**Session management:** Cookie-based via `@supabase/ssr`. Proxy (`proxy.ts`) refreshes tokens on each request.
+**No protected routes yet** — auth is optional, used to associate data with users.
+
+### Auth flow
+1. User visits `/login` → enters email (magic link) or clicks Google
+2. Supabase sends OTP email or redirects to Google consent
+3. Callback at `/auth/callback` exchanges code/token for session
+4. Session stored in cookies, refreshed by proxy on each request
+5. `/auth/signout` (POST) clears session
+
+### Key files
+- `proxy.ts` — Next.js 16 proxy, calls `updateSession()` to refresh auth cookies
+- `src/lib/supabase/proxy.ts` — `updateSession()` implementation
+- `src/lib/supabase/server.ts` — cookie-based `createClient()` + service role `createServiceClient()`
+- `src/lib/supabase/client.ts` — browser client (anon key)
+- `src/app/login/page.tsx` — magic link + Google OAuth
+- `src/app/auth/callback/route.ts` — handles OAuth code + magic link token
+- `src/app/auth/signout/route.ts` — POST, signs out + redirects
 
 ## LLM Layer
 
-**Current (Phase 1A):** Single Sonnet call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output.
+**Current (Phase 1A):** Single Gemini 3 Pro call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output. Switched from Sonnet 4 after eval — Gemini 3 Pro gave more specific/opinionated feedback at ~25% lower cost and same speed.
 
-**Pipeline interface** (`lib/ai/pipeline.ts`): `runAnalysisPipeline(screenshotBase64, url)` returns `{ output, structured }`. Implementation behind this interface is swappable — the API route doesn't care if it's 1 call or 3.
+**Pipeline interface** (`lib/ai/pipeline.ts`): `runAnalysisPipeline(screenshotBase64, url)` returns `{ output, structured }`. Implementation behind this interface is swappable — the API route doesn't care if it's 1 call or 3. Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 
 ### Structured output schema
 ```typescript
@@ -125,12 +169,14 @@ analyses (
 5. Design Quality
 6. Mobile Readiness
 
-### Planned evaluation (Step 4b)
-Test against ~10 URLs, compare quality + cost:
-- **A**: 1 Sonnet call (current)
-- **B**: 2 specialized agents → orchestrator
-- **C**: 1 Sonnet + Haiku formatter
-- **D**: Non-Anthropic (Gemini 2.5 Pro, GPT-4o)
+### Evaluation results (completed)
+Tested configs A-E against inkdex.io:
+- **A**: 1 Sonnet 4 call — 78/100, ~$0.04, 31s
+- **B**: 3 Sonnet calls (specialists + orchestrator) — 72/100, ~$0.12, 53s
+- **C**: Sonnet + Haiku formatter — 68/100, ~$0.04, 49s (generic output)
+- **D**: Gemini 3 Pro — **84/100, ~$0.03, 33s** ← winner
+- **E**: Opus 4 — 72/100, ~$0.15, 45s
+Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 
 ## Inngest
 
@@ -146,6 +192,11 @@ Test against ~10 URLs, compare quality + cost:
 src/
 ├── app/
 │   ├── page.tsx                    # Landing page
+│   ├── login/page.tsx              # Sign in (magic link + Google)
+│   ├── auth/
+│   │   ├── callback/route.ts       # OAuth + magic link callback
+│   │   ├── signout/route.ts        # Sign out
+│   │   └── error/page.tsx          # Auth error page
 │   ├── analysis/[id]/page.tsx      # Results page
 │   ├── api/
 │   │   ├── analyze/route.ts        # POST: create analysis
@@ -156,7 +207,8 @@ src/
 ├── lib/
 │   ├── supabase/
 │   │   ├── client.ts               # Browser client (anon key)
-│   │   └── server.ts               # Service role client
+│   │   ├── server.ts               # Cookie-based client + service role client
+│   │   └── proxy.ts                # updateSession() for proxy
 │   ├── screenshot.ts               # Vultr service client + Supabase upload
 │   ├── ai/
 │   │   └── pipeline.ts             # LLM analysis (Sonnet vision)
@@ -185,7 +237,7 @@ npm run dev                    # Next.js on port 3002
 |-----------|------|
 | Screenshot (proxy bandwidth) | ~$0.0002 (100KB × $2/GB) |
 | Supabase storage | negligible |
-| Sonnet vision call | ~$0.03-0.08 |
+| Gemini 3 Pro vision call | ~$0.03 |
 | **Total per analysis** | **~$0.03-0.08** |
 
 ## Cost Estimates Per User

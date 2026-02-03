@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 
 const RATE_LIMIT_WINDOW_MINUTES = 60;
@@ -11,8 +11,7 @@ export async function POST(req: NextRequest) {
   try {
     const ip =
       req.headers.get("x-real-ip") ||
-      req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
-      req.ip ||
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       null;
 
     if (!ip) {
@@ -59,6 +58,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
+    // Check if user is logged in (optional — free tool stays open)
+    let userId: string | null = null;
+    try {
+      const authClient = await createClient();
+      const { data: { user } } = await authClient.auth.getUser();
+      userId = user?.id ?? null;
+    } catch {
+      // Not logged in — that's fine
+    }
+
     const supabase = createServiceClient();
 
     // Atomic rate-limited insert via RPC
@@ -68,6 +77,7 @@ export async function POST(req: NextRequest) {
       p_email: email || null,
       p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
       p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+      p_user_id: userId,
     });
 
     if (error) {

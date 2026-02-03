@@ -12,10 +12,10 @@ Get something live and shareable.
 - [x] API routes (`POST /api/analyze`, `GET /api/analysis/[id]`)
 - [x] Landing page with URL input → analysis results
 - [x] Results page (`/analysis/[id]`) with score, categories, findings
-- [ ] LLM pipeline evaluation (test configs A-D against ~10 URLs)
+- [x] LLM pipeline evaluation → Gemini 3 Pro won (best quality, lowest cost, fast)
 - [ ] Shareable results card (OG image generation)
 - [ ] Email gate on second use
-- [ ] Rate limiting / bot protection (before launch)
+- [x] Rate limiting / bot protection (before launch)
 
 **Done when:** Someone can enter a URL and get a useful analysis back.
 
@@ -24,7 +24,7 @@ Get something live and shareable.
 ## Phase 1B — Monitoring + Alerts
 The actual product loop.
 
-- [ ] Auth (Supabase Auth, magic link or Google)
+- [x] Auth (Supabase Auth, magic link + Google OAuth)
 - [ ] Save pages to monitor (1 free)
 - [ ] Inngest scheduled jobs — weekly screenshots
 - [ ] Change detection (pixelmatch + LLM description of what shifted)
