@@ -392,7 +392,7 @@ function FindingCard({
         <button
           onClick={handleShare}
           className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-text-muted hover:text-accent hover:bg-[rgba(91,46,145,0.08)]"
-          title={copied ? "Copied!" : "Copy link to finding"}
+          title={copied ? "Copied!" : "Copy link"}
         >
           {copied ? (
             <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -400,8 +400,9 @@ function FindingCard({
             </svg>
           ) : (
             <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 10l-2 2a2 2 0 01-2.83-2.83l3-3a2 2 0 012.83 0" />
-              <path d="M10 6l2-2a2 2 0 012.83 2.83l-3 3a2 2 0 01-2.83 0" />
+              <path d="M4 8v5a1 1 0 001 1h6a1 1 0 001-1V8" />
+              <polyline points="11 4 8 1 5 4" />
+              <line x1="8" y1="1" x2="8" y2="10" />
             </svg>
           )}
         </button>
@@ -422,33 +423,38 @@ function FindingCard({
       {/* Expandable content */}
       <div
         className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="px-4 pb-4 pt-0 pl-[52px]">
-          <p className="text-[0.9375rem] text-text-secondary leading-relaxed">
+        <div className="px-4 pb-4 pt-1 pl-[52px] space-y-4">
+          {/* Detail text */}
+          <p className="text-[0.9375rem] text-text-primary leading-relaxed">
             {finding.detail}
           </p>
+
+          {/* Fix block */}
           {finding.fix && (
             <div className="fix-block">
-              <button
-                onClick={handleCopyFix}
-                className="fix-block-copy"
-                title={fixCopied ? "Copied!" : "Copy fix"}
-              >
-                {fixCopied ? (
-                  <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                    <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                  </svg>
-                )}
-              </button>
-              <p className="fix-block-label">Fix</p>
-              <p>{finding.fix}</p>
+              <div className="fix-block-header">
+                <span className="fix-block-label">How to fix</span>
+                <button
+                  onClick={handleCopyFix}
+                  className="fix-block-copy"
+                  title={fixCopied ? "Copied!" : "Copy"}
+                >
+                  {fixCopied ? (
+                    <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                      <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <p className="fix-block-text">{finding.fix}</p>
             </div>
           )}
         </div>
