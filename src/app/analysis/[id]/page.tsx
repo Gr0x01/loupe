@@ -1460,87 +1460,72 @@ export default function AnalysisPage() {
 
         {/* Zone 6: Re-scan CTA */}
         <section className="py-10">
-          <div className="glass-card-elevated p-8 md:p-12 text-center max-w-[700px] mx-auto">
-            <h2
-              className="text-4xl font-bold text-text-primary mb-3"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              {analysis.changes_summary
-                ? "Keep improving"
-                : "Pages drift. You won\u2019t always notice."}
-            </h2>
-            <p className="text-lg text-text-secondary mb-8 max-w-[480px] mx-auto">
-              {analysis.changes_summary
-                ? "Made more changes? Re-scan to see your progress."
-                : "Deploys, CMS updates, AI-generated code. Your page changes more than you think. Re-scan after making fixes to track your progress."}
-            </p>
-
-            {rescanEmailSent ? (
-              <div className="text-center">
-                <p className="text-lg text-text-primary font-semibold">Check your email</p>
-                <p className="text-sm text-text-secondary mt-2">
-                  Click the link we sent to start your re-scan.
+          <div className="glass-card-elevated p-8 md:p-10 max-w-[720px] mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center">
+              {/* Left: Value prop */}
+              <div className="lg:col-span-3 text-center lg:text-left">
+                <h2
+                  className="text-3xl font-bold text-text-primary mb-2"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  {analysis.changes_summary ? "Keep going" : "Fix something. See it move."}
+                </h2>
+                <p className="text-base text-text-secondary">
+                  {analysis.changes_summary
+                    ? "Made more changes? Re-scan to measure your improvement."
+                    : "Re-scan after making fixes to see your score change."}
                 </p>
               </div>
-            ) : (
-              <>
-                <button
-                  onClick={handleRescan}
-                  disabled={rescanLoading}
-                  className="btn-primary text-lg py-3 px-8 mb-4"
-                >
-                  {rescanLoading ? "Starting re-scan..." : "Re-scan this page"}
-                </button>
-                <p className="text-xs text-text-muted mb-4">
-                  Same page, fresh audit. See what improved.
-                </p>
 
-                {/* Fallback: email auth for unauthenticated users */}
-                <div className="border-t border-border-outer pt-6 mt-6">
-                  <p className="text-sm text-text-muted mb-3">
-                    Or enter your email to get a re-scan link:
-                  </p>
-                  <form onSubmit={handleRescanEmail} className="flex flex-col sm:flex-row items-stretch gap-3 max-w-[460px] mx-auto">
+              {/* Right: Action */}
+              <div className="lg:col-span-2">
+                {rescanEmailSent ? (
+                  <div className="text-center lg:text-left">
+                    <p className="text-base font-semibold text-text-primary">Check your email</p>
+                    <p className="text-sm text-text-muted mt-1">Click the link to start your re-scan.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRescanEmail} className="space-y-3">
                     <input
                       type="email"
                       placeholder="you@company.com"
                       value={rescanEmail}
                       onChange={(e) => setRescanEmail(e.target.value)}
-                      className="flex-1 input-glass"
+                      className="input-glass w-full"
                       required
                     />
-                    <button type="submit" disabled={rescanLoading} className="btn-secondary whitespace-nowrap">
-                      Send re-scan link
+                    <button
+                      type="submit"
+                      disabled={rescanLoading}
+                      className="btn-primary w-full"
+                    >
+                      {rescanLoading ? "Sending..." : "Get re-scan link"}
                     </button>
+                    <p className="text-xs text-text-muted text-center">
+                      One-click access, no password
+                    </p>
                   </form>
-                </div>
-              </>
-            )}
+                )}
+              </div>
+            </div>
 
-            <div className="flex items-center justify-center gap-4 text-sm text-text-muted mt-6">
+            {/* Footer actions */}
+            <div className="flex items-center justify-center gap-6 text-sm text-text-muted mt-8 pt-6 border-t border-border-outer">
               <button
-                onClick={() =>
-                  navigator.clipboard.writeText(window.location.href)
-                }
+                onClick={() => navigator.clipboard.writeText(window.location.href)}
                 className="hover:text-accent transition-colors"
               >
                 Copy link
               </button>
-              <span className="text-[rgba(0,0,0,0.1)]">|</span>
-              <Link
-                href="/"
-                className="hover:text-accent transition-colors"
-              >
+              <Link href="/" className="hover:text-accent transition-colors">
                 Audit another page
               </Link>
             </div>
           </div>
 
-          {/* Footer note */}
-          <p className="text-sm text-text-muted text-center mt-8 max-w-md mx-auto">
-            This audit is a snapshot from{" "}
-            {new Date(analysis.created_at).toLocaleDateString()}. Pages change.
-            Run it again anytime to track your progress.
+          {/* Timestamp outside card */}
+          <p className="text-xs text-text-muted text-center mt-6">
+            Snapshot from {new Date(analysis.created_at).toLocaleDateString()}
           </p>
         </section>
       </div>
