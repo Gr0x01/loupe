@@ -10,12 +10,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate redirectTo is on our own origin (prevent open redirect)
-    const origin = new URL(req.url).origin;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
+    const allowedOrigin = new URL(appUrl).origin;
     let safeRedirect: string | undefined;
     if (redirectTo && typeof redirectTo === "string") {
       try {
         const parsed = new URL(redirectTo);
-        if (parsed.origin === origin) safeRedirect = redirectTo;
+        if (parsed.origin === allowedOrigin) safeRedirect = redirectTo;
       } catch {
         // invalid URL, ignore
       }
