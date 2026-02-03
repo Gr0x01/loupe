@@ -21,5 +21,16 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(data);
+  // If this is a re-scan, include parent's structured_output for comparison view
+  let parent_structured_output = null;
+  if (data.parent_analysis_id) {
+    const { data: parent } = await supabase
+      .from("analyses")
+      .select("structured_output")
+      .eq("id", data.parent_analysis_id)
+      .single();
+    parent_structured_output = parent?.structured_output ?? null;
+  }
+
+  return NextResponse.json({ ...data, parent_structured_output });
 }

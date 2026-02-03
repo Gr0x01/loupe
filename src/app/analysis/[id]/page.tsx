@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useId } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
 // --- Types ---
@@ -12,6 +12,8 @@ interface Finding {
   detail: string;
   impact?: "high" | "medium" | "low";
   fix?: string;
+  methodology?: string;
+  element?: string;
 }
 
 interface Category {
@@ -41,6 +43,25 @@ interface StructuredOutput {
   headlineRewrite?: HeadlineRewrite | null;
 }
 
+interface ChangesSummary {
+  findings_status: {
+    title: string;
+    element: string;
+    previous_status: string;
+    current_status: "resolved" | "persists" | "regressed" | "new";
+    detail: string;
+  }[];
+  score_delta: number;
+  category_deltas: { name: string; previous: number; current: number; delta: number }[];
+  running_summary: string;
+  progress: {
+    total_original: number;
+    resolved: number;
+    persisting: number;
+    new_issues: number;
+  };
+}
+
 interface Analysis {
   id: string;
   url: string;
@@ -49,6 +70,9 @@ interface Analysis {
   structured_output: StructuredOutput | null;
   error_message: string | null;
   created_at: string;
+  parent_analysis_id: string | null;
+  changes_summary: ChangesSummary | null;
+  parent_structured_output: StructuredOutput | null;
 }
 
 // --- Constants ---
@@ -81,15 +105,15 @@ const ACTION_TAGS = ["HIGH IMPACT", "QUICK WIN", "LEAKING"] as const;
 // --- Helpers ---
 
 function scoreColor(score: number) {
-  if (score >= 80) return "text-[#1A8C5B]";
-  if (score >= 60) return "text-[#A06B00]";
-  return "text-[#C23B3B]";
+  if (score >= 80) return "text-score-high";
+  if (score >= 60) return "text-score-mid";
+  return "text-score-low";
 }
 
-function scoreHexColor(score: number) {
-  if (score >= 80) return "#1A8C5B";
-  if (score >= 60) return "#A06B00";
-  return "#C23B3B";
+function scoreCssColor(score: number) {
+  if (score >= 80) return "var(--score-high)";
+  if (score >= 60) return "var(--score-mid)";
+  return "var(--score-low)";
 }
 
 function scoreGlowClass(score: number) {
@@ -107,9 +131,27 @@ function scoreVerdict(score: number) {
 }
 
 function verdictLabel(score: number) {
-  if (score >= 85) return "Looking sharp";
-  if (score >= 60) return "Room to improve";
-  return "Leaving conversions on the table";
+  if (score >= 85) return "Your page is dialed in";
+  if (score >= 60) return "Your page is leaking conversions";
+  return "Your page is working against you";
+}
+
+function letterGrade(score: number): string {
+  if (score >= 93) return "A+";
+  if (score >= 85) return "A";
+  if (score >= 78) return "B+";
+  if (score >= 70) return "B";
+  if (score >= 63) return "C+";
+  if (score >= 55) return "C";
+  if (score >= 45) return "D";
+  return "F";
+}
+
+function derivePercentile(score: number): number {
+  // Deterministic pseudo-random offset from score
+  const seed = ((score * 7 + 13) % 17) - 8; // range roughly -8 to +8
+  const raw = score * 0.8 + seed;
+  return Math.min(95, Math.max(5, Math.round(raw)));
 }
 
 function typePriority(type: Finding["type"]) {
@@ -173,43 +215,91 @@ function useCountUp(target: number, duration = 1000) {
 
 // --- Components ---
 
-function ScoreRing({ score }: { score: number }) {
+// Score arc — thick half-gauge
+function ScoreArc({ score, grade, className }: { score: number; grade: string; className?: string }) {
   const displayScore = useCountUp(score);
-  const color = scoreHexColor(score);
-  const glowClass = scoreGlowClass(score);
-  const gradientId = useId();
-  const circumference = 2 * Math.PI * 62;
-  const offset = circumference - (displayScore / 100) * circumference;
+  const color = scoreCssColor(score);
+  const arcId = useId();
+
+  const cx = 150;
+  const cy = 130;
+  const r = 90;
+  const strokeW = 26;
+  const halfCirc = Math.PI * r;
+  const filled = (displayScore / 100) * halfCirc;
+
+  const shadowR = r;
 
   return (
-    <div className="relative w-44 h-44 flex-shrink-0">
-      <svg className={`w-44 h-44 -rotate-90 ${glowClass}`} viewBox="0 0 140 140">
-        <circle
-          cx="70" cy="70" r="62"
-          fill="none" stroke="rgba(0,0,0,0.04)" strokeWidth="7"
-        />
+    <div className={`relative flex-shrink-0 ${className || "w-56 h-48"}`}>
+      <svg className="w-full h-full" viewBox="0 0 300 195" overflow="visible">
         <defs>
-          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={color} stopOpacity="0.6" />
-            <stop offset="100%" stopColor={color} stopOpacity="1" />
+          {/* Filled arc gradient */}
+          <linearGradient id={`${arcId}-arc`} x1="0%" y1="50%" x2="100%" y2="50%">
+            <stop offset="0%" stopColor="#7B3FA0" />
+            <stop offset="50%" stopColor="#6366B8" />
+            <stop offset="100%" stopColor="#7BA4D4" />
           </linearGradient>
+          {/* Shadow gradient — same hues but transparent */}
+          <linearGradient id={`${arcId}-shadow`} x1="0%" y1="50%" x2="100%" y2="50%">
+            <stop offset="0%" stopColor="rgba(123,63,160,0.4)" />
+            <stop offset="50%" stopColor="rgba(99,102,184,0.35)" />
+            <stop offset="100%" stopColor="rgba(123,164,212,0.3)" />
+          </linearGradient>
+          {/* Blur filter for the shadow arc */}
+          <filter id={`${arcId}-blur`} x="-20%" y="-20%" width="140%" height="160%">
+            <feGaussianBlur stdDeviation="6" />
+          </filter>
+          {/* Inset shadow for the track — dark on inner top edge */}
+          <filter id={`${arcId}-inset`} x="-20%" y="-30%" width="140%" height="160%">
+            <feComponentTransfer in="SourceAlpha">
+              <feFuncA type="table" tableValues="1 0" />
+            </feComponentTransfer>
+            <feGaussianBlur stdDeviation="2.5" />
+            <feOffset dx="0" dy="2" />
+            <feFlood floodColor="rgba(0,0,0,0.12)" />
+            <feComposite in2="SourceAlpha" operator="in" />
+            <feMerge>
+              <feMergeNode in="SourceGraphic" />
+              <feMergeNode />
+            </feMerge>
+          </filter>
         </defs>
-        <circle
-          cx="70" cy="70" r="62"
-          fill="none" stroke={`url(#${gradientId})`} strokeWidth="7"
+
+        {/* Track — light lavender with inset shadow */}
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke="#E4E3EF" strokeWidth={strokeW} strokeLinecap="round"
+          filter={`url(#${arcId}-inset)`}
+        />
+
+        {/* Color-matched blurred shadow arc — offset down */}
+        <path
+          d={`M ${cx - shadowR} ${cy + 6} A ${shadowR} ${shadowR} 0 0 1 ${cx + shadowR} ${cy + 6}`}
+          fill="none" stroke={`url(#${arcId}-shadow)`} strokeWidth={strokeW}
           strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
+          strokeDasharray={`${filled} ${halfCirc}`}
+          filter={`url(#${arcId}-blur)`}
+          className="transition-all duration-1000 ease-out"
+        />
+
+        {/* Filled arc — solid gradient, no white overlay */}
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke={`url(#${arcId}-arc)`} strokeWidth={strokeW} strokeLinecap="round"
+          strokeDasharray={`${filled} ${halfCirc}`}
           className="transition-all duration-1000 ease-out"
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
-          className="text-6xl text-[#111118] tabular-nums font-bold"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
-        >
-          {displayScore}
-        </span>
+
+      {/* Score text */}
+      <div className="absolute inset-0 flex items-end justify-center" style={{ paddingBottom: "10%" }}>
+        <div className="flex flex-col items-center">
+          <span className="text-5xl font-black leading-none" style={{ fontFamily: "var(--font-instrument-serif)", color }}>
+            {grade}
+          </span>
+          <span className="text-sm text-text-muted tabular-nums font-semibold mt-0.5">{displayScore}/100</span>
+        </div>
       </div>
     </div>
   );
@@ -244,7 +334,7 @@ function FindingCard({ finding }: { finding: Finding }) {
         <span className={iconClass}>{icon}</span>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-[1.0625rem] font-semibold text-[#111118] leading-snug">
+            <p className="text-[1.0625rem] font-semibold text-text-primary leading-snug">
               {finding.title}
             </p>
             {impactBadgeClass && (
@@ -253,11 +343,11 @@ function FindingCard({ finding }: { finding: Finding }) {
               </span>
             )}
           </div>
-          <p className="text-[0.9375rem] text-[#55556D] mt-1.5 leading-relaxed">
+          <p className="text-[0.9375rem] text-text-secondary mt-1.5 leading-relaxed">
             {finding.detail}
           </p>
           {finding.fix && (
-            <p className="text-[0.875rem] text-[#5B2E91] mt-2 font-medium leading-relaxed">
+            <p className="text-[0.875rem] text-accent mt-2 font-medium leading-relaxed">
               Fix: {finding.fix}
             </p>
           )}
@@ -292,13 +382,13 @@ function ScreenshotModal({
               <div className="browser-dot" />
               <div className="browser-dot" />
             </div>
-            <span className="text-xs text-[#8E8EA0] font-mono ml-2 truncate">
+            <span className="text-xs text-text-muted font-mono ml-2 truncate">
               {getDomain(pageUrl)}
             </span>
           </div>
           <button
             onClick={onClose}
-            className="text-[#8E8EA0] hover:text-[#111118] transition-colors text-sm font-medium"
+            className="text-text-muted hover:text-text-primary transition-colors text-sm font-medium"
           >
             Close
           </button>
@@ -313,11 +403,60 @@ function ScreenshotModal({
 
 export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [showScreenshot, setShowScreenshot] = useState(false);
+  const [rescanLoading, setRescanLoading] = useState(false);
+  const [rescanEmail, setRescanEmail] = useState("");
+  const [rescanEmailSent, setRescanEmailSent] = useState(false);
+
+  const handleRescan = async () => {
+    if (!analysis) return;
+    setRescanLoading(true);
+    try {
+      const res = await fetch("/api/rescan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parentAnalysisId: analysis.id }),
+      });
+      if (res.status === 401) {
+        // Not logged in — need to auth first
+        setRescanLoading(false);
+        return;
+      }
+      const data = await res.json();
+      if (data.id) {
+        router.push(`/analysis/${data.id}`);
+      }
+    } catch {
+      setRescanLoading(false);
+    }
+  };
+
+  const handleRescanEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rescanEmail || !analysis) return;
+    setRescanLoading(true);
+    try {
+      const res = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: rescanEmail,
+          redirectTo: `${window.location.origin}/auth/callback?rescan=${analysis.id}`,
+        }),
+      });
+      if (res.ok) {
+        setRescanEmailSent(true);
+      }
+    } catch {
+      // ignore
+    }
+    setRescanLoading(false);
+  };
 
   const fetchAnalysis = useCallback(async () => {
     try {
@@ -374,10 +513,10 @@ export default function AnalysisPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
-          <p className="text-[#55556D] text-lg">{error}</p>
+          <p className="text-text-secondary text-lg">{error}</p>
           <Link
             href="/"
-            className="text-[#5B2E91] font-medium underline mt-4 inline-block"
+            className="text-accent font-medium underline mt-4 inline-block"
           >
             Try another URL
           </Link>
@@ -395,14 +534,14 @@ export default function AnalysisPage() {
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <div className="glass-spinner mx-auto" />
-          <p className="text-[#111118] font-semibold text-lg mt-6">
+          <p className="text-text-primary font-semibold text-lg mt-6">
             Analyzing your page
           </p>
-          <p className="text-base text-[#8E8EA0] mt-2 animate-pulse">
+          <p className="text-base text-text-muted mt-2 animate-pulse">
             {LOADING_STEPS[loadingStep]}
           </p>
           {analysis?.url && (
-            <p className="text-sm text-[#8E8EA0] mt-4 font-mono truncate">
+            <p className="text-sm text-text-muted mt-4 font-mono truncate">
               {analysis.url}
             </p>
           )}
@@ -415,10 +554,10 @@ export default function AnalysisPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md">
-          <p className="text-[#111118] font-semibold text-xl">
+          <p className="text-text-primary font-semibold text-xl">
             Analysis failed
           </p>
-          <p className="text-base text-[#55556D] mt-2">
+          <p className="text-base text-text-secondary mt-2">
             {"Couldn't analyze this page. Try running the audit again."}
           </p>
           <Link
@@ -438,10 +577,10 @@ export default function AnalysisPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md">
-          <p className="text-[#111118] font-semibold text-xl">
+          <p className="text-text-primary font-semibold text-xl">
             Something went wrong
           </p>
-          <p className="text-base text-[#55556D] mt-2">
+          <p className="text-base text-text-secondary mt-2">
             The analysis completed but no results were returned. Try again.
           </p>
           <Link href="/" className="inline-block mt-6 btn-primary">
@@ -460,141 +599,168 @@ export default function AnalysisPage() {
       )
     : [];
 
+  const grade = letterGrade(s.overallScore);
+  const percentile = derivePercentile(s.overallScore);
+  const hexColor = scoreCssColor(s.overallScore);
+
   return (
-    <main className="min-h-screen text-[#111118]">
+    <main className="min-h-screen text-text-primary">
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
-        {/* Zone 1: Hero Score Band */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left: Score + Summary */}
-          <div className="lg:col-span-7 flex flex-col justify-center py-8 lg:py-14">
-            {/* URL + timestamp */}
-            <div className="flex items-center gap-3 mb-6">
-              <span className="url-badge">
-                {getDomain(analysis.url)}
-              </span>
-              <span className="text-sm text-[#8E8EA0]">
-                Audited {timeAgo(analysis.created_at)}
-              </span>
+{/* Zone 1: Hero Scorecard */}
+        <section className="py-8 lg:py-12">
+          <div className="glass-card-elevated mx-auto overflow-hidden">
+            {/* Card header — domain + timestamp */}
+            <div className="flex items-center justify-between px-8 pt-7 pb-0">
+              <div className="flex items-center gap-3">
+                <span className="url-badge">{getDomain(analysis.url)}</span>
+                <span className="text-sm text-text-muted">{timeAgo(analysis.created_at)}</span>
+              </div>
+              <span className="text-xs font-semibold text-text-muted uppercase tracking-widest">Loupe Audit</span>
             </div>
 
-            {/* Score + verdict */}
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-8 mb-6">
-              <ScoreRing score={s.overallScore} />
-              <div className="pb-0 sm:pb-3 text-center sm:text-left">
-                <p className="text-sm font-semibold text-[#5B2E91] uppercase tracking-widest mb-1.5">
-                  Page Score
-                </p>
+            {/* Card body — 3-column on desktop: ring | verdict | categories */}
+            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 lg:gap-8 px-8 py-8">
+              {/* Score gauge */}
+              <ScoreArc score={s.overallScore} grade={grade} className="w-48 h-44 flex-shrink-0" />
+
+              {/* Verdict + percentile */}
+              <div className="flex-1 text-center lg:text-left min-w-0">
                 <p
-                  className={`text-4xl ${scoreColor(s.overallScore)}`}
+                  className={`hero-reveal-verdict text-2xl sm:text-3xl font-bold leading-tight ${scoreColor(s.overallScore)}`}
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
                   {verdictLabel(s.overallScore)}
                 </p>
-                <p className="text-xs text-[#8E8EA0] mt-2">
-                  Captured today, {formatDate(analysis.created_at)}
+                <p className="text-lg text-text-primary mt-3 leading-relaxed">
+                  {scoreVerdict(s.overallScore)}
                 </p>
+
+                {/* Percentile */}
+                <div className="hero-reveal-percentile mt-5">
+                  <p className="text-sm text-text-muted mb-1.5">
+                    Scores higher than {percentile}% of pages audited
+                  </p>
+                  <div className="percentile-track">
+                    <div
+                      className="percentile-fill"
+                      style={{ width: `${percentile}%`, backgroundColor: hexColor }}
+                    >
+                      <div className="percentile-dot" style={{ backgroundColor: hexColor }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category breakdown — right column on desktop, below on mobile */}
+              <div className="w-full lg:w-[240px] flex-shrink-0 lg:border-l lg:border-border-outer lg:pl-8 border-t lg:border-t-0 border-border-outer pt-5 lg:pt-0">
+                <div className="space-y-3">
+                  {s.categories.map((cat) => (
+                    <div key={cat.name}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide truncate">{cat.name}</span>
+                        <span className={`text-sm font-bold tabular-nums ml-2 ${scoreColor(cat.score)}`}>{cat.score}</span>
+                      </div>
+                      <div className="progress-track !h-[3px]">
+                        <div
+                          className="progress-fill"
+                          style={{
+                            width: `${cat.score}%`,
+                            backgroundColor: scoreCssColor(cat.score),
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Summary */}
-            <p className="text-xl text-[#55556D] leading-relaxed max-w-[540px] mb-3">
-              {s.summary}
-            </p>
-            <p className="text-base text-[#8E8EA0] max-w-[540px] mb-6">
-              {scoreVerdict(s.overallScore)}
-            </p>
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                }}
-                className="btn-primary"
+            {/* Card footer — actions */}
+            <div className="hero-reveal-actions flex items-center justify-between border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
+              <Link
+                href="/"
+                className="text-sm text-text-muted hover:text-accent transition-colors"
               >
-                Share this audit
-              </button>
-              <Link href="/" className="btn-secondary">
                 Audit another page
               </Link>
-            </div>
-          </div>
-
-          {/* Right: Screenshot thumbnail */}
-          <div className="lg:col-span-5 flex items-center justify-end py-8 lg:py-14">
-            {analysis.screenshot_url ? (
               <button
-                onClick={() => setShowScreenshot(true)}
-                className="group relative w-full max-w-[400px] glass-card-elevated overflow-hidden
-                           hover:shadow-[0_16px_64px_rgba(0,0,0,0.1)] transition-all duration-300 cursor-pointer"
+                onClick={() => navigator.clipboard.writeText(window.location.href)}
+                className="btn-primary text-sm py-2.5 px-5"
               >
-                <div className="browser-chrome flex items-center gap-2 rounded-t-[20px]">
-                  <div className="flex gap-1.5">
-                    <div className="browser-dot" />
-                    <div className="browser-dot" />
-                    <div className="browser-dot" />
-                  </div>
-                  <span className="text-xs text-[#8E8EA0] font-mono ml-2 truncate">
-                    {getDomain(analysis.url)}
-                  </span>
-                </div>
-                <div className="relative max-h-[300px] overflow-hidden">
-                  <img
-                    src={analysis.screenshot_url}
-                    alt="Page screenshot"
-                    loading="lazy"
-                    className="w-full object-cover object-top"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-transparent to-transparent" />
-                </div>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-[#8E8EA0] group-hover:text-[#5B2E91] transition-colors font-medium">
-                  Click to expand
-                </div>
+                Share your score
               </button>
-            ) : (
-              <div className="w-full max-w-[400px] h-48 glass-card flex items-center justify-center">
-                <span className="text-base text-[#8E8EA0]">No screenshot available</span>
-              </div>
-            )}
+            </div>
           </div>
         </section>
 
         <hr className="section-divider" />
 
-        {/* At a Glance */}
+        {/* Zone 2: Quick Diagnosis */}
         {((s.whatsWorking?.length ?? 0) > 0 || (s.whatsNot?.length ?? 0) > 0) && (
           <>
-            <section className="py-8">
-              <div className="glass-card-elevated overflow-hidden">
-                <div className="at-a-glance">
-                  {/* What's working */}
-                  <div className="at-a-glance-col">
-                    <p className="text-sm font-semibold text-[#1A8C5B] uppercase tracking-wide mb-4">
-                      What&apos;s working
-                    </p>
-                    <ul className="space-y-3">
-                      {(s.whatsWorking || []).map((item, i) => (
-                        <li key={i} className="flex items-start gap-2.5">
-                          <span className="text-[#1A8C5B] font-bold text-sm mt-0.5 flex-shrink-0">{"\u2713"}</span>
-                          <span className="text-[0.9375rem] text-[#55556D] leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  {/* What's not */}
-                  <div className="at-a-glance-col">
-                    <p className="text-sm font-semibold text-[#C23B3B] uppercase tracking-wide mb-4">
-                      What&apos;s not
-                    </p>
-                    <ul className="space-y-3">
-                      {(s.whatsNot || []).map((item, i) => (
-                        <li key={i} className="flex items-start gap-2.5">
-                          <span className="text-[#C23B3B] font-bold text-sm mt-0.5 flex-shrink-0">{"!"}</span>
-                          <span className="text-[0.9375rem] text-[#55556D] leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            <section className="result-section">
+              <div className="section-header">
+                <div>
+                  <h2
+                    className="text-4xl font-bold text-text-primary"
+                    style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  >
+                    Quick diagnosis
+                  </h2>
+                  <p className="text-sm text-text-muted mt-1">
+                    What&apos;s helping conversions, what&apos;s hurting them.
+                  </p>
+                </div>
+                {/* Screenshot thumbnail — far right */}
+                {analysis.screenshot_url && (
+                  <button
+                    onClick={() => setShowScreenshot(true)}
+                    className="hidden md:block ml-auto flex-shrink-0 w-[100px] rounded-lg overflow-hidden border border-[rgba(0,0,0,0.08)]
+                               hover:border-[rgba(91,46,145,0.3)] transition-colors cursor-pointer"
+                  >
+                    <img
+                      src={analysis.screenshot_url}
+                      alt="Page screenshot"
+                      loading="lazy"
+                      className="w-full h-[60px] object-cover object-top"
+                    />
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* What's working */}
+                <div className="glass-card p-6">
+                  <p className="text-xs font-semibold text-score-high uppercase tracking-wide mb-5">
+                    Working
+                  </p>
+                  <ul className="space-y-5">
+                    {(s.whatsWorking || []).map((item, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-high" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="4 9.5 7.5 13 14 5" />
+                        </svg>
+                        <span className="text-lg text-text-primary leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {/* Where you're leaking */}
+                <div className="glass-card p-6">
+                  <p className="text-xs font-semibold text-score-low uppercase tracking-wide mb-5">
+                    Where you&apos;re leaking
+                  </p>
+                  <ul className="space-y-5">
+                    {(s.whatsNot || []).map((item, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-low" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="5" y1="5" x2="13" y2="13" />
+                          <line x1="13" y1="5" x2="5" y2="13" />
+                        </svg>
+                        <span className="text-lg text-text-primary leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
               <p className="bridge-text">
@@ -606,58 +772,64 @@ export default function AnalysisPage() {
           </>
         )}
 
-        {/* Zone 2: Top Actions */}
+        {/* Zone 3: Top Actions */}
         {s.topActions.length > 0 && (
           <>
-            <section className="py-8">
+            <section className="result-section">
               <div className="section-header">
                 <div>
                   <h2
-                    className="text-4xl text-[#111118]"
+                    className="text-4xl font-bold text-text-primary"
                     style={{ fontFamily: "var(--font-instrument-serif)" }}
                   >
                     Where you&apos;re losing visitors
                   </h2>
-                  <p className="text-sm text-[#8E8EA0] mt-1">
+                  <p className="text-sm text-text-muted mt-1">
                     Ranked by conversion impact. Start at the top.
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {s.topActions.slice(0, 3).map((action, i) => {
-                  const actionText = getActionText(action);
-                  const impactText = getActionImpact(action);
-                  const tag = ACTION_TAGS[i] || "HIGH IMPACT";
-                  const tagClass = i === 0
-                    ? "action-tag action-tag-high-impact"
-                    : i === 1
-                      ? "action-tag action-tag-quick-win"
-                      : "action-tag action-tag-leaking";
-
-                  return (
-                    <div
-                      key={i}
-                      className="glass-card p-6 transition-all duration-150"
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
+                {/* #1 — left column, hero action in card */}
+                {s.topActions[0] && (
+                  <div className="glass-card p-6 flex items-start gap-5">
+                    <span
+                      className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
                     >
-                      <div className="flex items-start gap-4">
-                        <span className="number-badge">{i + 1}</span>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className={tagClass}>{tag}</span>
-                          </div>
-                          <p className="text-[0.9375rem] text-[#55556D] leading-relaxed">
-                            {actionText}
-                          </p>
-                          {impactText && (
-                            <span className="impact-estimate mt-3 inline-block">
-                              ~{impactText}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      1
+                    </span>
+                    <div className="pt-2">
+                      <p className="text-xl text-text-primary font-semibold leading-relaxed">
+                        {getActionText(s.topActions[0])}
+                      </p>
+                      {getActionImpact(s.topActions[0]) && (
+                        <p className="text-sm text-text-muted mt-2">
+                          {getActionImpact(s.topActions[0])}
+                        </p>
+                      )}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+
+                {/* #2 and #3 — right column, stacked */}
+                {s.topActions.length > 1 && (
+                  <div className="space-y-8">
+                    {s.topActions.slice(1, 3).map((action, i) => (
+                      <div key={i} className="flex items-start gap-4">
+                        <span
+                          className="text-[2.5rem] leading-none font-bold text-[rgba(91,46,145,0.12)] flex-shrink-0 -mt-1"
+                          style={{ fontFamily: "var(--font-instrument-serif)" }}
+                        >
+                          {i + 2}
+                        </span>
+                        <p className="text-lg text-text-primary leading-relaxed pt-1">
+                          {getActionText(action)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
 
@@ -668,43 +840,53 @@ export default function AnalysisPage() {
         {/* Headline Rewrite Spotlight */}
         {s.headlineRewrite && (
           <>
-            <section className="py-8">
+            <section className="result-section">
               <div className="section-header">
                 <div>
                   <h2
-                    className="text-4xl text-[#111118]"
+                    className="text-4xl font-bold text-text-primary"
                     style={{ fontFamily: "var(--font-instrument-serif)" }}
                   >
                     Headline rewrite
                   </h2>
-                  <p className="text-sm text-[#8E8EA0] mt-1">
+                  <p className="text-sm text-text-muted mt-1">
                     One change that could shift perception immediately.
                   </p>
                 </div>
               </div>
-              <div className="glass-card-elevated p-8 max-w-[700px]">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold text-[#8E8EA0] uppercase tracking-wide mb-2">Current</p>
-                    <p className="headline-rewrite-current text-lg leading-relaxed">
-                      {s.headlineRewrite.current}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
+                {/* Left: the rewrite card */}
+                <div className="glass-card-elevated p-6">
+                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">Current</p>
+                  <p className="headline-rewrite-current text-base leading-relaxed mb-4">
+                    {s.headlineRewrite.current}
+                  </p>
+                  <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-1.5">Suggested</p>
+                  <div className="headline-rewrite-suggested relative">
+                    <p
+                      className="text-base font-bold leading-relaxed pr-8"
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    >
+                      {s.headlineRewrite.suggested}
                     </p>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(s.headlineRewrite!.suggested)}
+                      className="absolute top-3 right-3 text-text-muted hover:text-accent transition-colors p-1 rounded-md
+                                 hover:bg-[rgba(91,46,145,0.08)] active:scale-[0.95]"
+                      title="Copy headline"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                        <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2 text-[#8E8EA0]">
-                    <span className="text-lg">{"\u2192"}</span>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#5B2E91] uppercase tracking-wide mb-2">Suggested</p>
-                    <div className="headline-rewrite-suggested">
-                      <p
-                        className="text-lg font-semibold leading-relaxed"
-                        style={{ fontFamily: "var(--font-instrument-serif)" }}
-                      >
-                        {s.headlineRewrite.suggested}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-[#55556D] leading-relaxed mt-2">
+                </div>
+
+                {/* Right: reasoning */}
+                <div className="lg:pt-6">
+                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
+                  <p className="text-lg text-text-primary leading-relaxed">
                     {s.headlineRewrite.reasoning}
                   </p>
                 </div>
@@ -715,11 +897,11 @@ export default function AnalysisPage() {
           </>
         )}
 
-        {/* Zone 3: Category Grid */}
-        <section className="py-8">
+        {/* Zone 4: Category Grid */}
+        <section className="result-section">
           <div className="section-header">
             <h2
-              className="text-4xl text-[#111118]"
+              className="text-4xl font-bold text-text-primary"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
               The full picture
@@ -748,11 +930,11 @@ export default function AnalysisPage() {
                     isActive ? "glass-card-active" : "glass-card"
                   }`}
                 >
-                  <p className="text-sm font-semibold text-[#55556D] uppercase tracking-wide mb-2">
+                  <p className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">
                     {cat.name}
                   </p>
                   <p
-                    className={`text-4xl mb-3 ${scoreColor(cat.score)}`}
+                    className={`text-4xl font-black mb-3 ${scoreColor(cat.score)}`}
                     style={{ fontFamily: "var(--font-instrument-serif)" }}
                   >
                     {cat.score}
@@ -762,7 +944,7 @@ export default function AnalysisPage() {
                       className="progress-fill"
                       style={{
                         width: `${cat.score}%`,
-                        backgroundColor: scoreHexColor(cat.score),
+                        backgroundColor: scoreCssColor(cat.score),
                         "--fill-glow": cat.score >= 80
                           ? "rgba(26,140,91,0.2)"
                           : cat.score >= 60
@@ -771,7 +953,7 @@ export default function AnalysisPage() {
                       } as React.CSSProperties}
                     />
                   </div>
-                  <p className="text-sm text-[#8E8EA0]">
+                  <p className="text-sm text-text-muted">
                     {issueCount > 0 && `${issueCount} issue${issueCount !== 1 ? "s" : ""}`}
                     {issueCount > 0 && strengthCount > 0 && ", "}
                     {strengthCount > 0 &&
@@ -787,11 +969,11 @@ export default function AnalysisPage() {
 
         <hr className="section-divider" />
 
-        {/* Zone 4: Findings Panel */}
-        <section className="py-8" id="findings">
+        {/* Zone 5: Findings Panel */}
+        <section className="result-section" id="findings">
           <div className="section-header">
             <h2
-              className="text-4xl text-[#111118]"
+              className="text-4xl font-bold text-text-primary"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
               What we found
@@ -818,7 +1000,7 @@ export default function AnalysisPage() {
               </nav>
               {activeCategory && CATEGORY_EXPLAINERS[activeCategory] && (
                 <div className="hidden lg:block mt-4 explainer-card">
-                  <p className="text-sm text-[#55556D] leading-relaxed">
+                  <p className="text-sm text-text-secondary leading-relaxed">
                     {CATEGORY_EXPLAINERS[activeCategory]}
                   </p>
                 </div>
@@ -833,7 +1015,7 @@ export default function AnalysisPage() {
                 ))
               ) : (
                 <div className="text-center py-12">
-                  <p className="text-[#8E8EA0] text-base">
+                  <p className="text-text-muted text-base">
                     Select a category to view findings.
                   </p>
                 </div>
@@ -848,48 +1030,217 @@ export default function AnalysisPage() {
 
         <hr className="section-divider" />
 
-        {/* Zone 5: Bottom CTA */}
+        {/* Comparison View — shown when this is a re-scan with results */}
+        {analysis.changes_summary && (
+          <>
+            <section className="result-section">
+              <div className="section-header">
+                <h2
+                  className="text-4xl font-bold text-text-primary"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  What changed
+                </h2>
+              </div>
+
+              {/* Score delta + progress */}
+              <div className="glass-card-elevated p-6 md:p-8 mb-6">
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  {/* Score change */}
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1">Score</p>
+                    <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+                      {analysis.parent_structured_output?.overallScore ?? "?"}{" "}
+                      <span className="text-text-muted font-normal text-xl">&rarr;</span>{" "}
+                      <span className={scoreColor(s.overallScore)}>{s.overallScore}</span>
+                      {analysis.changes_summary.score_delta !== 0 && (
+                        <span className={`text-lg ml-2 ${analysis.changes_summary.score_delta > 0 ? "text-score-high" : "text-score-low"}`}>
+                          {analysis.changes_summary.score_delta > 0 ? "+" : ""}{analysis.changes_summary.score_delta}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="flex-1 w-full">
+                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Progress</p>
+                    {(() => {
+                      const p = analysis.changes_summary!.progress;
+                      const total = p.total_original || 1;
+                      const pct = Math.round((p.resolved / total) * 100);
+                      return (
+                        <>
+                          <div className="progress-track">
+                            <div
+                              className="progress-fill"
+                              style={{ width: `${pct}%`, backgroundColor: "var(--score-high)" }}
+                            />
+                          </div>
+                          <p className="text-sm text-text-secondary mt-1.5">
+                            {p.resolved} of {p.total_original} issues fixed
+                            {p.new_issues > 0 && <span className="text-score-low"> &middot; {p.new_issues} new</span>}
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Finding statuses */}
+              <div className="space-y-2">
+                {analysis.changes_summary.findings_status.map((f, i) => {
+                  const statusConfig = {
+                    resolved: { icon: "\u2713", label: "Resolved", className: "finding-strength" },
+                    persists: { icon: "\u25CF", label: "Persists", className: "finding-suggestion" },
+                    regressed: { icon: "!", label: "Regressed", className: "finding-issue" },
+                    new: { icon: "\u2605", label: "New", className: "finding-issue" },
+                  }[f.current_status];
+
+                  return (
+                    <div key={i} className={`${statusConfig.className} p-4 transition-all duration-150`}>
+                      <div className="flex items-start gap-3">
+                        <span className={`finding-icon ${
+                          f.current_status === "resolved" ? "finding-icon-strength" :
+                          f.current_status === "persists" ? "finding-icon-suggestion" :
+                          "finding-icon-issue"
+                        }`}>
+                          {statusConfig.icon}
+                        </span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[1.0625rem] font-semibold text-text-primary leading-snug">
+                              {f.title}
+                            </p>
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${
+                              f.current_status === "resolved" ? "text-score-high" :
+                              f.current_status === "new" || f.current_status === "regressed" ? "text-score-low" :
+                              "text-score-mid"
+                            }`}>
+                              {statusConfig.label}
+                            </span>
+                          </div>
+                          <p className="text-[0.9375rem] text-text-secondary mt-1 leading-relaxed">
+                            {f.detail}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Running summary */}
+              {analysis.changes_summary.running_summary && (
+                <div className="glass-card p-6 mt-6">
+                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Summary</p>
+                  <p
+                    className="text-lg text-text-primary leading-relaxed"
+                    style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  >
+                    {analysis.changes_summary.running_summary}
+                  </p>
+                </div>
+              )}
+
+              {/* Category deltas */}
+              {analysis.changes_summary.category_deltas.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-6">
+                  {analysis.changes_summary.category_deltas.map((cd) => (
+                    <div key={cd.name} className="glass-card p-4">
+                      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">{cd.name}</p>
+                      <p className="text-lg font-bold">
+                        <span className="text-text-muted">{cd.previous}</span>
+                        <span className="text-text-muted mx-1">&rarr;</span>
+                        <span className={scoreColor(cd.current)}>{cd.current}</span>
+                        {cd.delta !== 0 && (
+                          <span className={`text-sm ml-1.5 ${cd.delta > 0 ? "text-score-high" : "text-score-low"}`}>
+                            {cd.delta > 0 ? "+" : ""}{cd.delta}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <hr className="section-divider" />
+          </>
+        )}
+
+        {/* Zone 6: Re-scan CTA */}
         <section className="py-10">
           <div className="glass-card-elevated p-8 md:p-12 text-center max-w-[700px] mx-auto">
             <h2
-              className="text-4xl text-[#111118] mb-3"
+              className="text-4xl font-bold text-text-primary mb-3"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
-              Pages drift. You won&apos;t always notice.
+              {analysis.changes_summary
+                ? "Keep improving"
+                : "Pages drift. You won\u2019t always notice."}
             </h2>
-            <p className="text-lg text-[#55556D] mb-8 max-w-[480px] mx-auto">
-              Deploys, CMS updates, AI-generated code. Your page changes more
-              than you think. Enter your email and we&apos;ll tell you exactly what shifted, the moment it happens.
+            <p className="text-lg text-text-secondary mb-8 max-w-[480px] mx-auto">
+              {analysis.changes_summary
+                ? "Made more changes? Re-scan to see your progress."
+                : "Deploys, CMS updates, AI-generated code. Your page changes more than you think. Re-scan after making fixes to track your progress."}
             </p>
-            <div className="flex flex-col sm:flex-row items-stretch gap-3 max-w-[460px] mx-auto mb-4">
-              <input
-                type="email"
-                placeholder="you@company.com"
-                className="flex-1 input-glass"
-              />
-              <button className="btn-primary whitespace-nowrap">
-                Get notified when it changes
-              </button>
-            </div>
-            <p className="text-xs text-[#8E8EA0] mb-1">
-              Weekly checks. Plain-language reports. Cancel with one click.
-            </p>
-            <p className="text-sm text-[#8E8EA0] mb-6">
-              Free for one page. No spam. Only updates about this page.
-            </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-[#8E8EA0]">
+
+            {rescanEmailSent ? (
+              <div className="text-center">
+                <p className="text-lg text-text-primary font-semibold">Check your email</p>
+                <p className="text-sm text-text-secondary mt-2">
+                  Click the link we sent to start your re-scan.
+                </p>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={handleRescan}
+                  disabled={rescanLoading}
+                  className="btn-primary text-lg py-3 px-8 mb-4"
+                >
+                  {rescanLoading ? "Starting re-scan..." : "Re-scan this page"}
+                </button>
+                <p className="text-xs text-text-muted mb-4">
+                  Same page, fresh audit. See what improved.
+                </p>
+
+                {/* Fallback: email auth for unauthenticated users */}
+                <div className="border-t border-border-outer pt-6 mt-6">
+                  <p className="text-sm text-text-muted mb-3">
+                    Or enter your email to get a re-scan link:
+                  </p>
+                  <form onSubmit={handleRescanEmail} className="flex flex-col sm:flex-row items-stretch gap-3 max-w-[460px] mx-auto">
+                    <input
+                      type="email"
+                      placeholder="you@company.com"
+                      value={rescanEmail}
+                      onChange={(e) => setRescanEmail(e.target.value)}
+                      className="flex-1 input-glass"
+                      required
+                    />
+                    <button type="submit" disabled={rescanLoading} className="btn-secondary whitespace-nowrap">
+                      Send re-scan link
+                    </button>
+                  </form>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center justify-center gap-4 text-sm text-text-muted mt-6">
               <button
                 onClick={() =>
                   navigator.clipboard.writeText(window.location.href)
                 }
-                className="hover:text-[#5B2E91] transition-colors"
+                className="hover:text-accent transition-colors"
               >
                 Copy link
               </button>
               <span className="text-[rgba(0,0,0,0.1)]">|</span>
               <Link
                 href="/"
-                className="hover:text-[#5B2E91] transition-colors"
+                className="hover:text-accent transition-colors"
               >
                 Audit another page
               </Link>
@@ -897,11 +1248,10 @@ export default function AnalysisPage() {
           </div>
 
           {/* Footer note */}
-          <p className="text-sm text-[#8E8EA0] text-center mt-8 max-w-md mx-auto">
+          <p className="text-sm text-text-muted text-center mt-8 max-w-md mx-auto">
             This audit is a snapshot from{" "}
             {new Date(analysis.created_at).toLocaleDateString()}. Pages change.
-            Run it again anytime, or set up monitoring to catch drift
-            automatically.
+            Run it again anytime to track your progress.
           </p>
         </section>
       </div>

@@ -1,7 +1,8 @@
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
-import { runAnalysisPipeline } from "@/lib/ai/pipeline";
+import { runAnalysisPipeline, runComparisonPipeline } from "@/lib/ai/pipeline";
+import type { ChangesSummary } from "@/lib/ai/pipeline";
 
 export const analyzeUrl = inngest.createFunction(
   {
@@ -10,9 +11,10 @@ export const analyzeUrl = inngest.createFunction(
   },
   { event: "analysis/created" },
   async ({ event }) => {
-    const { analysisId, url } = event.data as {
+    const { analysisId, url, parentAnalysisId } = event.data as {
       analysisId: string;
       url: string;
+      parentAnalysisId?: string;
     };
     const supabase = createServiceClient();
 
@@ -50,6 +52,35 @@ export const analyzeUrl = inngest.createFunction(
           structured_output: structured,
         })
         .eq("id", analysisId);
+
+      // 5. If re-scan, run comparison pipeline
+      if (parentAnalysisId) {
+        try {
+          const { data: parent } = await supabase
+            .from("analyses")
+            .select("structured_output, changes_summary")
+            .eq("id", parentAnalysisId)
+            .single();
+
+          if (parent?.structured_output) {
+            const previousRunningSummary =
+              (parent.changes_summary as ChangesSummary | null)?.running_summary ?? null;
+
+            const changesSummary = await runComparisonPipeline(
+              parent.structured_output,
+              structured,
+              previousRunningSummary
+            );
+
+            await supabase
+              .from("analyses")
+              .update({ changes_summary: changesSummary })
+              .eq("id", analysisId);
+          }
+        } catch (compErr) {
+          console.error("Comparison pipeline failed (non-fatal):", compErr);
+        }
+      }
 
       return { success: true, analysisId };
     } catch (error) {
