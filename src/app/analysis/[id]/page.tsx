@@ -350,18 +350,6 @@ function FindingCard({
     strength: "finding-strength",
   }[finding.type];
 
-  const iconClass = {
-    issue: "finding-icon finding-icon-issue",
-    suggestion: "finding-icon finding-icon-suggestion",
-    strength: "finding-icon finding-icon-strength",
-  }[finding.type];
-
-  const icon = {
-    issue: "!",
-    suggestion: "\u2726",
-    strength: "\u2713",
-  }[finding.type];
-
   const impactBadgeClass = finding.impact
     ? `impact-badge impact-badge-${finding.impact}`
     : null;
@@ -391,7 +379,6 @@ function FindingCard({
     >
       {/* Collapsed header — always visible */}
       <div className="flex items-center gap-3 p-4">
-        <span className={iconClass}>{icon}</span>
         <p
           className="flex-1 text-lg text-text-primary leading-snug"
           style={{ fontFamily: "var(--font-instrument-serif)" }}
@@ -441,7 +428,7 @@ function FindingCard({
           expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="px-4 pb-4 pt-1 pl-[52px] space-y-4">
+        <div className="px-4 pb-4 pt-1 space-y-4">
           {/* Detail text */}
           <p className="text-[0.9375rem] text-text-primary leading-relaxed">
             {finding.detail}
@@ -1209,9 +1196,11 @@ export default function AnalysisPage() {
               <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
                 {s.categories.map((cat) => {
                   const issueCount = cat.findings.filter((f) => f.type === "issue").length;
+                  const suggestionCount = cat.findings.filter((f) => f.type === "suggestion").length;
                   const strengthCount = cat.findings.filter((f) => f.type === "strength").length;
-                  const total = issueCount + strengthCount || 1;
+                  const total = issueCount + suggestionCount + strengthCount || 1;
                   const issuePct = (issueCount / total) * 100;
+                  const suggestionPct = (suggestionCount / total) * 100;
                   const strengthPct = (strengthCount / total) * 100;
 
                   return (
@@ -1228,7 +1217,7 @@ export default function AnalysisPage() {
                           {cat.score}
                         </span>
                       </div>
-                      {/* Mini bar — always render track for consistent height */}
+                      {/* Mini bar — issues (red), suggestions (amber), strengths (green) */}
                       <div className="sidebar-mini-bar">
                         {issueCount > 0 && (
                           <div
@@ -1236,6 +1225,15 @@ export default function AnalysisPage() {
                             style={{
                               width: `${issuePct}%`,
                               backgroundColor: "var(--score-low)",
+                            }}
+                          />
+                        )}
+                        {suggestionCount > 0 && (
+                          <div
+                            className="sidebar-mini-bar-segment"
+                            style={{
+                              width: `${suggestionPct}%`,
+                              backgroundColor: "var(--score-mid)",
                             }}
                           />
                         )}
