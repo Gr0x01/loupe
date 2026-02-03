@@ -1468,12 +1468,12 @@ export default function AnalysisPage() {
                   className="text-3xl font-bold text-text-primary mb-2"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  {analysis.changes_summary ? "Keep going" : "Fix something. See it move."}
+                  {analysis.changes_summary ? "Keep going" : "Fix something. See it\u00A0move."}
                 </h2>
                 <p className="text-base text-text-secondary">
                   {analysis.changes_summary
-                    ? "Made more changes? Re-scan to measure your improvement."
-                    : "Re-scan after making fixes to see your score change."}
+                    ? "Made more changes? Re-scan to measure your\u00A0improvement."
+                    : "Re-scan after making fixes to see your score\u00A0change."}
                 </p>
               </div>
 
