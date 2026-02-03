@@ -129,67 +129,38 @@ function TopThreeCard({ entry, showImprovement }: { entry: LeaderboardEntry; sho
   );
 }
 
-function LeaderboardRow({ entry, showImprovement }: { entry: LeaderboardEntry; showImprovement: boolean }) {
-  const isTopThree = entry.rank <= 3;
-
+function GridCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImprovement: boolean }) {
   return (
-    <div
-      className={`glass-card p-4 flex items-center gap-4 group transition-all duration-150 ${
-        isTopThree ? "ring-1 ring-[rgba(91,46,145,0.08)]" : ""
-      }`}
+    <Link
+      href={`/analysis/${entry.analysis_id}`}
+      className="glass-card p-3 group transition-all duration-150 hover:translate-y-[-2px] block"
     >
-      {/* Rank */}
-      <RankDisplay rank={entry.rank} isTopThree={isTopThree} />
-
-      {/* Screenshot thumbnail */}
-      <div className="w-16 h-11 rounded-lg overflow-hidden bg-[rgba(0,0,0,0.03)] flex-shrink-0 ring-1 ring-[rgba(0,0,0,0.04)]">
-        <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
-      </div>
-
-      {/* Domain + link */}
-      <div className="flex-1 min-w-0">
-        <a
-          href={entry.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-semibold text-text-primary hover:text-accent transition-colors truncate flex items-center gap-1.5"
-        >
-          {entry.domain}
-          <svg
-            className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-        </a>
-        <Link
-          href={`/analysis/${entry.analysis_id}`}
-          className="text-sm text-text-muted hover:text-accent transition-colors"
-        >
-          View audit
-        </Link>
-      </div>
-
-      {/* Score / Improvement */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {showImprovement && entry.improvement !== undefined && (
-          <span className="text-sm font-bold text-score-high bg-[rgba(26,140,91,0.1)] px-2.5 py-1 rounded-full">
-            +{entry.improvement}
-          </span>
-        )}
-        <div className={`px-3 py-1 rounded-lg ${scoreBgColor(entry.score)}`}>
+      {/* Top row: Rank + Score */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold text-text-muted">#{entry.rank}</span>
+        <div className="flex items-center gap-1.5">
+          {showImprovement && entry.improvement !== undefined && (
+            <span className="text-xs font-bold text-score-high">+{entry.improvement}</span>
+          )}
           <span
-            className={`text-xl font-bold ${scoreColor(entry.score)}`}
+            className={`text-base font-bold ${scoreColor(entry.score)}`}
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             {entry.score}
           </span>
         </div>
       </div>
-    </div>
+
+      {/* Screenshot thumbnail */}
+      <div className="w-full aspect-[16/10] rounded-lg overflow-hidden bg-[rgba(0,0,0,0.03)] mb-2 ring-1 ring-[rgba(0,0,0,0.04)]">
+        <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
+      </div>
+
+      {/* Domain */}
+      <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent transition-colors">
+        {entry.domain}
+      </p>
+    </Link>
   );
 }
 
@@ -422,11 +393,11 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {/* Rest of the list */}
+              {/* Rest of the list - compact grid */}
               {rest.length > 0 && (
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-8">
                   {rest.map((entry) => (
-                    <LeaderboardRow
+                    <GridCard
                       key={entry.analysis_id}
                       entry={entry}
                       showImprovement={showImprovement}
