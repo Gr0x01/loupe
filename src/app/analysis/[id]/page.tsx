@@ -1218,7 +1218,7 @@ export default function AnalysisPage() {
                     <button
                       key={cat.name}
                       onClick={() => setActiveCategory(cat.name)}
-                      className={`sidebar-nav-item whitespace-nowrap text-left text-sm flex-col items-stretch ${
+                      className={`sidebar-nav-item whitespace-nowrap text-left text-sm ${
                         activeCategory === cat.name ? "sidebar-nav-item-active" : ""
                       }`}
                     >
