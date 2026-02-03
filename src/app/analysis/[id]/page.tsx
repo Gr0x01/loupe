@@ -1137,19 +1137,33 @@ export default function AnalysisPage() {
                       .getElementById("findings")
                       ?.scrollIntoView({ behavior: "smooth" });
                   }}
-                  className={`text-left p-5 cursor-pointer transition-all duration-150 active:scale-[0.98] ${
+                  className={`relative text-left p-5 cursor-pointer transition-all duration-150 active:scale-[0.98] ${
                     isActive ? "glass-card-active" : "glass-card"
                   }`}
                 >
+                  {/* Attention dot for low scores */}
+                  {cat.score < 60 && !isActive && (
+                    <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-score-low opacity-80" />
+                  )}
+
                   <p className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">
                     {cat.name}
                   </p>
-                  <p
-                    className={`text-4xl font-black mb-3 ${scoreColor(cat.score)}`}
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    {cat.score}
-                  </p>
+
+                  {/* Score with subtle glow */}
+                  <div className="relative inline-block mb-3">
+                    <p
+                      className={`text-4xl font-black ${scoreColor(cat.score)}`}
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    >
+                      {cat.score}
+                    </p>
+                    <div
+                      className="absolute inset-0 -z-10 blur-xl opacity-20 rounded-full scale-[2]"
+                      style={{ backgroundColor: scoreCssColor(cat.score) }}
+                    />
+                  </div>
+
                   <div className="progress-track mb-3">
                     <div
                       className="progress-fill"
@@ -1157,21 +1171,34 @@ export default function AnalysisPage() {
                         width: `${cat.score}%`,
                         backgroundColor: scoreCssColor(cat.score),
                         "--fill-glow": cat.score >= 80
-                          ? "rgba(26,140,91,0.2)"
+                          ? "rgba(26,140,91,0.25)"
                           : cat.score >= 60
-                            ? "rgba(160,107,0,0.2)"
-                            : "rgba(194,59,59,0.2)",
+                            ? "rgba(160,107,0,0.25)"
+                            : "rgba(194,59,59,0.25)",
                       } as React.CSSProperties}
                     />
                   </div>
-                  <p className="text-sm text-text-muted">
-                    {issueCount > 0 && `${issueCount} issue${issueCount !== 1 ? "s" : ""}`}
-                    {issueCount > 0 && strengthCount > 0 && ", "}
-                    {strengthCount > 0 &&
-                      `${strengthCount} strength${strengthCount !== 1 ? "s" : ""}`}
-                    {issueCount === 0 && strengthCount === 0 &&
-                      `${cat.findings.length} finding${cat.findings.length !== 1 ? "s" : ""}`}
-                  </p>
+
+                  {/* Semantic finding badges */}
+                  <div className="flex items-center gap-3">
+                    {issueCount > 0 && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-score-low">
+                        <span className="w-1.5 h-1.5 rounded-full bg-score-low" />
+                        {issueCount}
+                      </span>
+                    )}
+                    {strengthCount > 0 && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-score-high">
+                        <span className="w-1.5 h-1.5 rounded-full bg-score-high" />
+                        {strengthCount}
+                      </span>
+                    )}
+                    {issueCount === 0 && strengthCount === 0 && (
+                      <span className="text-xs text-text-muted">
+                        {cat.findings.length} finding{cat.findings.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}
