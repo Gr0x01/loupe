@@ -1468,12 +1468,12 @@ export default function AnalysisPage() {
                   className="text-3xl font-bold text-text-primary mb-2"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  {analysis.changes_summary ? "Keep going" : "Fix something. See it\u00A0move."}
+                  {analysis.changes_summary ? "Keep going" : "Make a fix. Prove it\u00A0worked."}
                 </h2>
                 <p className="text-base text-text-secondary">
                   {analysis.changes_summary
-                    ? "Made more changes? Re-scan to measure your\u00A0improvement."
-                    : "Re-scan after making fixes to see your score\u00A0change."}
+                    ? "Ship more changes, then re-scan to track\u00A0progress."
+                    : "We\u2019ll re-audit and show you what\u00A0improved."}
                 </p>
               </div>
 
@@ -1499,10 +1499,10 @@ export default function AnalysisPage() {
                       disabled={rescanLoading}
                       className="btn-primary w-full"
                     >
-                      {rescanLoading ? "Sending..." : "Get re-scan link"}
+                      {rescanLoading ? "Sending..." : "Send me the link"}
                     </button>
                     <p className="text-xs text-text-muted text-center">
-                      One-click access, no password
+                      One click to re-scan. No password.
                     </p>
                   </form>
                 )}
