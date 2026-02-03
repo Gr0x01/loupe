@@ -71,6 +71,14 @@ interface PageContext {
   next_analysis_id: string | null;
 }
 
+interface MetricsSnapshot {
+  pageviews: number;
+  unique_visitors: number;
+  bounce_rate: number;
+  period_days: number;
+  captured_at: string;
+}
+
 interface Analysis {
   id: string;
   url: string;
@@ -83,6 +91,7 @@ interface Analysis {
   changes_summary: ChangesSummary | null;
   parent_structured_output: StructuredOutput | null;
   page_context: PageContext | null;
+  metrics_snapshot: MetricsSnapshot | null;
 }
 
 // --- Constants ---
@@ -192,6 +201,12 @@ function getDomain(url: string) {
   } catch {
     return url;
   }
+}
+
+function formatNumber(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
 }
 
 function getActionText(action: TopAction | string): string {
@@ -803,13 +818,31 @@ export default function AnalysisPage() {
 {/* Zone 1: Hero Scorecard */}
         <section className="py-8 lg:py-12">
           <div className="glass-card-elevated mx-auto overflow-hidden">
-            {/* Card header — domain + timestamp */}
+            {/* Card header — domain + timestamp + metrics */}
             <div className="flex items-center justify-between px-8 pt-7 pb-0">
               <div className="flex items-center gap-3">
                 <span className="url-badge">{getDomain(analysis.url)}</span>
                 <span className="text-sm text-text-muted">{timeAgo(analysis.created_at)}</span>
               </div>
-              <span className="text-xs font-semibold text-text-muted uppercase tracking-widest">Loupe Audit</span>
+              <div className="flex items-center gap-4">
+                {/* PostHog metrics pill */}
+                {analysis.metrics_snapshot && (
+                  <div className="flex items-center gap-3 text-xs text-text-muted">
+                    <span title="Pageviews (last 7 days)">
+                      <span className="font-semibold text-text-secondary">{formatNumber(analysis.metrics_snapshot.pageviews)}</span> views
+                    </span>
+                    <span className="text-[rgba(0,0,0,0.1)]">|</span>
+                    <span title="Unique visitors (last 7 days)">
+                      <span className="font-semibold text-text-secondary">{formatNumber(analysis.metrics_snapshot.unique_visitors)}</span> visitors
+                    </span>
+                    <span className="text-[rgba(0,0,0,0.1)]">|</span>
+                    <span title="Bounce rate (last 7 days)">
+                      <span className="font-semibold text-text-secondary">{analysis.metrics_snapshot.bounce_rate}%</span> bounce
+                    </span>
+                  </div>
+                )}
+                <span className="text-xs font-semibold text-text-muted uppercase tracking-widest">Loupe Audit</span>
+              </div>
             </div>
 
             {/* Card body — 3-column on desktop: ring | verdict | categories */}
@@ -1195,29 +1228,27 @@ export default function AnalysisPage() {
                           {cat.score}
                         </span>
                       </div>
-                      {/* Mini bar showing issue/strength ratio */}
-                      {(issueCount > 0 || strengthCount > 0) && (
-                        <div className="sidebar-mini-bar">
-                          {issueCount > 0 && (
-                            <div
-                              className="sidebar-mini-bar-segment"
-                              style={{
-                                width: `${issuePct}%`,
-                                backgroundColor: "var(--score-low)",
-                              }}
-                            />
-                          )}
-                          {strengthCount > 0 && (
-                            <div
-                              className="sidebar-mini-bar-segment"
-                              style={{
-                                width: `${strengthPct}%`,
-                                backgroundColor: "var(--score-high)",
-                              }}
-                            />
-                          )}
-                        </div>
-                      )}
+                      {/* Mini bar — always render track for consistent height */}
+                      <div className="sidebar-mini-bar">
+                        {issueCount > 0 && (
+                          <div
+                            className="sidebar-mini-bar-segment"
+                            style={{
+                              width: `${issuePct}%`,
+                              backgroundColor: "var(--score-low)",
+                            }}
+                          />
+                        )}
+                        {strengthCount > 0 && (
+                          <div
+                            className="sidebar-mini-bar-segment"
+                            style={{
+                              width: `${strengthPct}%`,
+                              backgroundColor: "var(--score-high)",
+                            }}
+                          />
+                        )}
+                      </div>
                     </button>
                   );
                 })}
