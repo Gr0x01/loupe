@@ -130,8 +130,8 @@ async function getTopScoresFallback(
     (hiddenPages || []).map((p) => `${p.url}:${p.user_id}`)
   );
 
-  // Filter and sort by score
-  const entries = (analyses || [])
+  // Filter, dedupe by URL (keep best score), and sort
+  const allEntries = (analyses || [])
     .filter((a) => {
       // Include if not in hidden set (either no page or not hidden)
       const key = `${a.url}:${a.user_id}`;
@@ -144,7 +144,18 @@ async function getTopScoresFallback(
       screenshot_url: a.screenshot_url,
       created_at: a.created_at,
     }))
-    .filter((a) => a.score > 0)
+    .filter((a) => a.score > 0);
+
+  // Dedupe by URL - keep highest score for each URL
+  const bestByUrl = new Map<string, typeof allEntries[0]>();
+  for (const entry of allEntries) {
+    const existing = bestByUrl.get(entry.url);
+    if (!existing || entry.score > existing.score) {
+      bestByUrl.set(entry.url, entry);
+    }
+  }
+
+  const entries = Array.from(bestByUrl.values())
     .sort((a, b) => b.score - a.score || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .slice(0, limit);
 
