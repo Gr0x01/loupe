@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { DM_Sans, Instrument_Serif } from "next/font/google";
+import { DM_Sans, Inter_Tight } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
+import { PostHogProvider } from "@/components/PostHogProvider";
+import { PostHogPageView } from "@/components/PostHogPageView";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -8,9 +10,8 @@ const dmSans = DM_Sans({
   subsets: ["latin"],
 });
 
-const instrumentSerif = Instrument_Serif({
+const interTight = Inter_Tight({
   variable: "--font-instrument-serif",
-  weight: "400",
   subsets: ["latin"],
 });
 
@@ -38,9 +39,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${dmSans.variable} ${instrumentSerif.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${dmSans.variable} ${interTight.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        {children}
+        <PostHogProvider>
+          <PostHogPageView />
+          {children}
+        </PostHogProvider>
       </body>
     </html>
   );

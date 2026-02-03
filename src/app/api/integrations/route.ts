@@ -30,6 +30,14 @@ export async function GET() {
     repos = repoData || [];
   }
 
+  // Get PostHog integration
+  const { data: posthog } = await serviceClient
+    .from("integrations")
+    .select("id, provider_account_id, metadata, created_at")
+    .eq("user_id", user.id)
+    .eq("provider", "posthog")
+    .maybeSingle();
+
   return NextResponse.json({
     github: github ? {
       connected: true,
@@ -38,6 +46,11 @@ export async function GET() {
       connected_at: github.created_at,
       repos,
     } : null,
-    // Future: posthog, etc.
+    posthog: posthog ? {
+      connected: true,
+      project_id: posthog.provider_account_id,
+      host: posthog.metadata?.host || "https://us.i.posthog.com",
+      connected_at: posthog.created_at,
+    } : null,
   });
 }

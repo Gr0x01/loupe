@@ -20,8 +20,16 @@ interface GitHubIntegration {
   repos: { id: string; full_name: string; default_branch: string }[];
 }
 
+interface PostHogIntegration {
+  connected: boolean;
+  project_id: string;
+  host: string;
+  connected_at: string;
+}
+
 interface IntegrationsData {
   github: GitHubIntegration | null;
+  posthog: PostHogIntegration | null;
 }
 
 function GitHubIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -173,6 +181,146 @@ function AddRepoModal({
   );
 }
 
+function PostHogConnectModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [host, setHost] = useState("https://us.i.posthog.com");
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConnecting(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/integrations/posthog/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey, projectId, host }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to connect");
+        return;
+      }
+
+      onSuccess();
+      onClose();
+    } catch {
+      setError("Failed to connect");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-solid rounded-2xl shadow-xl p-6 w-full max-w-md border border-border-subtle"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-2xl font-bold text-text-primary mb-4"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          Connect PostHog
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Personal API Key
+              </label>
+              <input
+                type="password"
+                placeholder="phx_..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="input-glass w-full"
+                required
+              />
+              <p className="text-xs text-text-muted mt-1">
+                Create one at PostHog → Settings → Personal API Keys
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Project ID
+              </label>
+              <input
+                type="text"
+                placeholder="12345"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="input-glass w-full"
+                required
+              />
+              <p className="text-xs text-text-muted mt-1">
+                Found in PostHog → Settings → Project Details
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Host
+              </label>
+              <select
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                className="input-glass w-full"
+              >
+                <option value="https://us.i.posthog.com">US Cloud (us.i.posthog.com)</option>
+                <option value="https://eu.i.posthog.com">EU Cloud (eu.i.posthog.com)</option>
+                <option value="https://app.posthog.com">Legacy (app.posthog.com)</option>
+              </select>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-score-low text-sm mb-4">{error}</div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-secondary flex-1"
+              disabled={connecting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary flex-1"
+              disabled={connecting || !apiKey || !projectId}
+            >
+              {connecting ? "Connecting..." : "Connect"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function IntegrationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -180,9 +328,11 @@ function IntegrationsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddRepo, setShowAddRepo] = useState(false);
+  const [showPostHogConnect, setShowPostHogConnect] = useState(false);
   const [connectingId, setConnectingId] = useState<number | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [disconnectingGitHub, setDisconnectingGitHub] = useState(false);
+  const [disconnectingPostHog, setDisconnectingPostHog] = useState(false);
 
   // Show success/error messages from OAuth callback
   const successParam = searchParams.get("success");
@@ -277,6 +427,24 @@ function IntegrationsContent() {
       setError("Failed to remove repo");
     } finally {
       setDisconnecting(null);
+    }
+  };
+
+  const handleDisconnectPostHog = async () => {
+    if (!confirm("Disconnect PostHog?")) return;
+
+    setDisconnectingPostHog(true);
+    try {
+      const res = await fetch("/api/integrations/posthog", { method: "DELETE" });
+      if (!res.ok) {
+        setError("Failed to disconnect PostHog");
+        return;
+      }
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to disconnect PostHog");
+    } finally {
+      setDisconnectingPostHog(false);
     }
   };
 
@@ -450,25 +618,66 @@ function IntegrationsContent() {
           </div>
         </section>
 
-        {/* Future: PostHog */}
+        {/* PostHog Integration */}
         <section className="mb-8">
-          <div className="glass-card p-6 opacity-60">
+          <div className="glass-card-elevated p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-[#1d4aff] flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">P</span>
+                  <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-text-primary">PostHog</h2>
                   <p className="text-sm text-text-secondary">
-                    Correlate page changes with analytics
+                    See pageviews and bounce rate with each scan
                   </p>
                 </div>
               </div>
-              <span className="text-sm text-text-muted font-medium px-3 py-1 rounded-full bg-[rgba(0,0,0,0.03)]">
-                Coming soon
-              </span>
+
+              {!integrations?.posthog ? (
+                <button
+                  onClick={() => setShowPostHogConnect(true)}
+                  className="btn-primary"
+                >
+                  Connect
+                </button>
+              ) : (
+                <button
+                  onClick={handleDisconnectPostHog}
+                  disabled={disconnectingPostHog}
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
+                >
+                  {disconnectingPostHog ? "Disconnecting..." : "Disconnect"}
+                </button>
+              )}
             </div>
+
+            {integrations?.posthog && (
+              <div className="mt-6 pt-6 border-t border-border-subtle">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-[#1d4aff] flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">P</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      Project {integrations.posthog.project_id}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {integrations.posthog.host.replace("https://", "")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <p className="text-sm text-text-secondary">
+                    <span className="font-medium text-text-primary">How it works:</span>{" "}
+                    Each scan will include pageviews, unique visitors, and bounce rate for the last 7 days.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -488,6 +697,12 @@ function IntegrationsContent() {
         onClose={() => setShowAddRepo(false)}
         onConnect={handleConnectRepo}
         connectingId={connectingId}
+      />
+
+      <PostHogConnectModal
+        isOpen={showPostHogConnect}
+        onClose={() => setShowPostHogConnect(false)}
+        onSuccess={() => fetchIntegrations()}
       />
     </main>
   );

@@ -380,7 +380,7 @@ function FindingCard({
       {/* Collapsed header — always visible */}
       <div className="flex items-center gap-3 p-4">
         <p
-          className="flex-1 text-lg text-text-primary leading-snug"
+          className="flex-1 text-lg font-semibold text-text-primary leading-snug"
           style={{ fontFamily: "var(--font-instrument-serif)" }}
         >
           {finding.title}

@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
 import { runAnalysisPipeline, runComparisonPipeline } from "@/lib/ai/pipeline";
 import type { ChangesSummary } from "@/lib/ai/pipeline";
+import { fetchPageMetrics } from "@/lib/posthog-api";
 
 export const analyzeUrl = inngest.createFunction(
   {
@@ -82,7 +83,7 @@ export const analyzeUrl = inngest.createFunction(
         }
       }
 
-      // 6. Update pages.last_scan_id if this analysis belongs to a registered page
+      // 6. Fetch PostHog metrics if user has integration connected
       const { data: analysis } = await supabase
         .from("analyses")
         .select("user_id")
@@ -90,6 +91,37 @@ export const analyzeUrl = inngest.createFunction(
         .single();
 
       if (analysis?.user_id) {
+        try {
+          const { data: posthogIntegration } = await supabase
+            .from("integrations")
+            .select("access_token, provider_account_id, metadata")
+            .eq("user_id", analysis.user_id)
+            .eq("provider", "posthog")
+            .maybeSingle();
+
+          if (posthogIntegration) {
+            const metrics = await fetchPageMetrics(
+              {
+                apiKey: posthogIntegration.access_token,
+                projectId: posthogIntegration.provider_account_id,
+                host: posthogIntegration.metadata?.host,
+              },
+              url,
+              7 // last 7 days
+            );
+
+            if (metrics) {
+              await supabase
+                .from("analyses")
+                .update({ metrics_snapshot: metrics })
+                .eq("id", analysisId);
+            }
+          }
+        } catch (metricsErr) {
+          console.error("Failed to fetch PostHog metrics (non-fatal):", metricsErr);
+        }
+
+        // 7. Update pages.last_scan_id
         await supabase
           .from("pages")
           .update({ last_scan_id: analysisId })
