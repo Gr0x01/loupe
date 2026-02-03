@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 interface LeaderboardEntry {
@@ -148,72 +148,108 @@ function ListCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImp
   );
 }
 
-function SegmentedToggle<T extends string>({
-  options,
-  value,
-  onChange,
-  labels,
+/**
+ * Compact filter bar - text links separated by pipes.
+ * Maximum 44px tall. No decorative containers.
+ */
+function FilterBar({
+  category,
+  onCategoryChange,
+  period,
+  onPeriodChange,
 }: {
-  options: T[];
-  value: T;
-  onChange: (v: T) => void;
-  labels: Record<T, string>;
+  category: Category;
+  onCategoryChange: (c: Category) => void;
+  period: Period;
+  onPeriodChange: (p: Period) => void;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const optionRefs = useRef<Map<T, HTMLButtonElement>>(new Map());
-  const [pillStyle, setPillStyle] = useState({ left: 0, width: 0 });
-  const [hasInitialized, setHasInitialized] = useState(false);
+  return (
+    <div className="flex items-center justify-center gap-1.5 text-sm">
+      {/* Category: Top / Improved */}
+      <button
+        onClick={() => onCategoryChange("top_scores")}
+        className={`px-2 py-1 rounded transition-colors ${
+          category === "top_scores"
+            ? "text-text-primary font-semibold"
+            : "text-text-muted hover:text-text-secondary"
+        }`}
+      >
+        Top
+      </button>
+      <span className="text-text-muted/50">|</span>
+      <button
+        onClick={() => onCategoryChange("most_improved")}
+        className={`px-2 py-1 rounded transition-colors ${
+          category === "most_improved"
+            ? "text-text-primary font-semibold"
+            : "text-text-muted hover:text-text-secondary"
+        }`}
+      >
+        Improved
+      </button>
+
+      {/* Separator dot */}
+      <span className="text-text-muted/30 mx-1">&#8226;</span>
+
+      {/* Period: Month / All */}
+      <button
+        onClick={() => onPeriodChange("month")}
+        className={`px-2 py-1 rounded transition-colors ${
+          period === "month"
+            ? "text-text-primary font-semibold"
+            : "text-text-muted hover:text-text-secondary"
+        }`}
+      >
+        Month
+      </button>
+      <span className="text-text-muted/50">|</span>
+      <button
+        onClick={() => onPeriodChange("all_time")}
+        className={`px-2 py-1 rounded transition-colors ${
+          period === "all_time"
+            ? "text-text-primary font-semibold"
+            : "text-text-muted hover:text-text-secondary"
+        }`}
+      >
+        All
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Content wrapper with fade transition when key changes.
+ */
+function FadeTransition({
+  filterKey,
+  children,
+}: {
+  filterKey: string;
+  children: React.ReactNode;
+}) {
+  const [displayedKey, setDisplayedKey] = useState(filterKey);
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    const updatePill = () => {
-      const activeOption = optionRefs.current.get(value);
-      const container = containerRef.current;
-      if (activeOption && container) {
-        const containerRect = container.getBoundingClientRect();
-        const optionRect = activeOption.getBoundingClientRect();
-        setPillStyle({
-          left: optionRect.left - containerRect.left,
-          width: optionRect.width,
-        });
-        if (!hasInitialized) {
-          requestAnimationFrame(() => setHasInitialized(true));
-        }
-      }
-    };
+    if (filterKey !== displayedKey) {
+      // Fade out
+      setIsVisible(false);
 
-    const timer = setTimeout(updatePill, 10);
-    window.addEventListener("resize", updatePill);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", updatePill);
-    };
-  }, [value, hasInitialized]);
+      // After fade out, update content and fade in
+      const timeout = setTimeout(() => {
+        setDisplayedKey(filterKey);
+        setIsVisible(true);
+      }, 150);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [filterKey, displayedKey]);
 
   return (
     <div
-      ref={containerRef}
-      className="relative flex items-center bg-[rgba(0,0,0,0.03)] rounded-md p-0.5"
+      className={`transition-opacity duration-150 ${isVisible ? "opacity-100" : "opacity-0"}`}
     >
-      {/* Sliding pill background */}
-      <span
-        className={`absolute top-0.5 bottom-0.5 bg-white rounded shadow-sm ${hasInitialized ? "transition-all duration-200" : ""}`}
-        style={{ left: pillStyle.left, width: pillStyle.width }}
-      />
-      {options.map((opt) => (
-        <button
-          key={opt}
-          ref={(el) => {
-            if (el) optionRefs.current.set(opt, el);
-            else optionRefs.current.delete(opt);
-          }}
-          onClick={() => onChange(opt)}
-          className={`relative z-10 px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors duration-150 whitespace-nowrap ${
-            value === opt ? "text-text-primary" : "text-text-muted hover:text-text-secondary"
-          }`}
-        >
-          {labels[opt]}
-        </button>
-      ))}
+      {children}
     </div>
   );
 }
@@ -289,129 +325,128 @@ export default function LeaderboardPage() {
   const rest = entries.slice(3);
   const showImprovement = category === "most_improved";
 
+  // Key for fade transition - changes when filters change
+  const contentKey = `${category}-${period}`;
+
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <p className="text-sm font-medium text-accent uppercase tracking-wide mb-3">
-              {category === "top_scores" ? "Top Performers" : "Biggest Gains"}
-            </p>
-            <h1
-              className="text-4xl sm:text-5xl text-text-primary mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      {/* Header */}
+      <div className="text-center mb-6 sm:mb-10">
+        <p className="text-xs sm:text-sm font-medium text-accent uppercase tracking-wide mb-2 sm:mb-3">
+          {category === "top_scores" ? "Top Performers" : "Biggest Gains"}
+        </p>
+        <h1
+          className="text-3xl sm:text-4xl md:text-5xl text-text-primary mb-3 sm:mb-4"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          {category === "top_scores"
+            ? "The best-audited pages on the web"
+            : "From good to great"}
+        </h1>
+        <p className="text-base sm:text-lg text-text-secondary max-w-lg mx-auto">
+          {category === "top_scores"
+            ? "Sites that got their messaging, CTAs, and trust signals right."
+            : "Pages that improved the most since their first audit."}
+        </p>
+      </div>
+
+      {/* Filter Bar - compact text links */}
+      <div className="mb-6 sm:mb-10">
+        <FilterBar
+          category={category}
+          onCategoryChange={setCategory}
+          period={period}
+          onPeriodChange={setPeriod}
+        />
+      </div>
+
+      {/* Content with fade transition */}
+      <FadeTransition filterKey={contentKey}>
+        {loading ? (
+          <div className="text-center py-20">
+            <div className="glass-spinner mx-auto" />
+            <p className="text-text-secondary mt-4">Loading leaderboard...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-20">
+            <p className="text-text-secondary text-lg mb-4">{error}</p>
+            <button
+              onClick={() => setRefetchKey((k) => k + 1)}
+              className="btn-primary"
             >
-              {category === "top_scores"
-                ? "The best-audited pages on the web"
-                : "From good to great"}
-            </h1>
-            <p className="text-lg text-text-secondary max-w-lg mx-auto">
-              {category === "top_scores"
-                ? "Sites that got their messaging, CTAs, and trust signals right."
-                : "Pages that improved the most since their first audit."}
-            </p>
+              Try again
+            </button>
           </div>
-
-          {/* Controls - always single row */}
-          <div className="flex items-center justify-between gap-2 mb-10">
-            <SegmentedToggle
-              options={["top_scores", "most_improved"] as Category[]}
-              value={category}
-              onChange={setCategory}
-              labels={{ top_scores: "Top Scores", most_improved: "Most Improved" }}
-            />
-            <SegmentedToggle
-              options={["month", "all_time"] as Period[]}
-              value={period}
-              onChange={setPeriod}
-              labels={{ month: "This Month", all_time: "All Time" }}
-            />
-          </div>
-
-          {/* Content */}
-          {loading ? (
-            <div className="text-center py-20">
-              <div className="glass-spinner mx-auto" />
-              <p className="text-text-secondary mt-4">Loading leaderboard...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-20">
-              <p className="text-text-secondary text-lg mb-4">{error}</p>
-              <button
-                onClick={() => setRefetchKey((k) => k + 1)}
-                className="btn-primary"
-              >
-                Try again
-              </button>
-            </div>
-          ) : entries.length === 0 ? (
-            <EmptyState category={category} period={period} />
-          ) : (
-            <>
-              {/* Top 3 podium */}
-              {topThree.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                  {/* Reorder for podium effect on desktop: 2, 1, 3 */}
-                  {topThree.length >= 2 && (
-                    <div className="sm:order-1 order-2">
-                      <TopThreeCard entry={topThree[1]} showImprovement={showImprovement} />
-                    </div>
-                  )}
-                  {topThree.length >= 1 && (
-                    <div className="sm:order-2 order-1 sm:-mt-4">
-                      <TopThreeCard entry={topThree[0]} showImprovement={showImprovement} />
-                    </div>
-                  )}
-                  {topThree.length >= 3 && (
-                    <div className="sm:order-3 order-3">
-                      <TopThreeCard entry={topThree[2]} showImprovement={showImprovement} />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Rest of the list - horizontal rows */}
-              {rest.length > 0 && (
-                <div className="mt-10">
-                  <h3 className="text-sm font-medium text-text-muted uppercase tracking-wide mb-4">
-                    Also on the board
-                  </h3>
-                  <div className="flex flex-col gap-2">
-                    {rest.map((entry) => (
-                      <ListCard
-                        key={entry.analysis_id}
-                        entry={entry}
-                        showImprovement={showImprovement}
-                      />
-                    ))}
+        ) : entries.length === 0 ? (
+          <EmptyState category={category} period={period} />
+        ) : (
+          <>
+            {/* Top 3 podium */}
+            {topThree.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                {/* Reorder for podium effect on desktop: 2, 1, 3 */}
+                {topThree.length >= 2 && (
+                  <div className="sm:order-1 order-2">
+                    <TopThreeCard entry={topThree[1]} showImprovement={showImprovement} />
                   </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
+                {topThree.length >= 1 && (
+                  <div className="sm:order-2 order-1 sm:-mt-4">
+                    <TopThreeCard entry={topThree[0]} showImprovement={showImprovement} />
+                  </div>
+                )}
+                {topThree.length >= 3 && (
+                  <div className="sm:order-3 order-3">
+                    <TopThreeCard entry={topThree[2]} showImprovement={showImprovement} />
+                  </div>
+                )}
+              </div>
+            )}
 
-          {/* Bottom CTA Section */}
-          <section className="mt-16 glass-card-elevated p-8 sm:p-10 text-center">
-            <h2
-              className="text-2xl sm:text-3xl text-text-primary mb-3"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              Think your page belongs here?
-            </h2>
-            <p className="text-text-secondary mb-8 max-w-md mx-auto">
-              Audit your landing page and see how it stacks up. Fix the issues, re-scan, and climb the board.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/" className="btn-primary">
-                Audit your page
-              </Link>
-              <Link
-                href="/dashboard"
-                className="text-accent font-medium hover:underline"
-              >
-                Already monitoring? View dashboard
-              </Link>
-            </div>
-          </section>
+            {/* Rest of the list - horizontal rows */}
+            {rest.length > 0 && (
+              <div className="mt-10">
+                <h3 className="text-sm font-medium text-text-muted uppercase tracking-wide mb-4">
+                  Also on the board
+                </h3>
+                <div className="flex flex-col gap-2">
+                  {rest.map((entry) => (
+                    <ListCard
+                      key={entry.analysis_id}
+                      entry={entry}
+                      showImprovement={showImprovement}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </FadeTransition>
+
+      {/* Bottom CTA Section */}
+      <section className="mt-12 sm:mt-16 glass-card-elevated p-6 sm:p-8 md:p-10 text-center">
+        <h2
+          className="text-xl sm:text-2xl md:text-3xl text-text-primary mb-3"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          Think your page belongs here?
+        </h2>
+        <p className="text-sm sm:text-base text-text-secondary mb-6 sm:mb-8 max-w-md mx-auto">
+          Audit your landing page and see how it stacks up. Fix the issues, re-scan, and climb the board.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Link href="/" className="btn-primary">
+            Audit your page
+          </Link>
+          <Link
+            href="/dashboard"
+            className="text-accent font-medium hover:underline"
+          >
+            Already monitoring? View dashboard
+          </Link>
         </div>
+      </section>
+    </div>
   );
 }
