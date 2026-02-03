@@ -87,43 +87,42 @@ function TopThreeCard({ entry, showImprovement }: { entry: LeaderboardEntry; sho
   return (
     <Link
       href={`/analysis/${entry.analysis_id}`}
-      className="glass-card-elevated p-6 flex flex-col items-center text-center group transition-all duration-200 hover:scale-[1.02]"
+      className="block rounded-2xl overflow-hidden bg-white shadow-sm ring-1 ring-[rgba(0,0,0,0.04)] group transition-all duration-200 hover:shadow-lg hover:ring-[rgba(91,46,145,0.1)]"
     >
-      {/* Rank badge */}
-      <div
-        className="w-12 h-12 flex items-center justify-center rounded-2xl bg-accent text-white font-bold text-xl mb-4"
-        style={{
-          boxShadow: "0 6px 20px rgba(91, 46, 145, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
-        }}
-      >
-        {entry.rank}
-      </div>
-
-      {/* Screenshot */}
-      <div className="w-full aspect-[16/10] rounded-xl overflow-hidden bg-[rgba(0,0,0,0.03)] mb-4 ring-1 ring-[rgba(0,0,0,0.04)]">
+      {/* Screenshot with overlays */}
+      <div className="relative aspect-[4/3]">
         <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
-      </div>
 
-      {/* Domain */}
-      <p className="font-semibold text-text-primary text-lg truncate max-w-full group-hover:text-accent transition-colors">
-        {entry.domain}
-      </p>
+        {/* Rank badge - top left */}
+        <div
+          className="absolute top-3 left-3 w-9 h-9 flex items-center justify-center rounded-xl bg-accent text-white font-bold text-base"
+          style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+        >
+          {entry.rank}
+        </div>
 
-      {/* Score */}
-      <div className="mt-3 flex items-center gap-2">
-        {showImprovement && entry.improvement !== undefined && (
-          <span className="text-sm font-bold text-score-high bg-[rgba(26,140,91,0.1)] px-2 py-0.5 rounded-full">
-            +{entry.improvement}
-          </span>
-        )}
-        <div className={`px-4 py-1.5 rounded-xl ${scoreBgColor(entry.score)} ${scoreGlow(entry.score)}`}>
+        {/* Score - bottom right */}
+        <div
+          className="absolute bottom-3 right-3 px-3 py-1 rounded-lg bg-white/90 backdrop-blur-sm"
+          style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
+        >
+          {showImprovement && entry.improvement !== undefined && (
+            <span className="text-xs font-bold text-score-high mr-1.5">+{entry.improvement}</span>
+          )}
           <span
-            className={`text-3xl font-bold ${scoreColor(entry.score)}`}
+            className={`text-xl font-bold ${scoreColor(entry.score)}`}
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             {entry.score}
           </span>
         </div>
+      </div>
+
+      {/* Domain - tight below image */}
+      <div className="px-3 py-2.5">
+        <p className="font-semibold text-text-primary text-sm truncate group-hover:text-accent transition-colors">
+          {entry.domain}
+        </p>
       </div>
     </Link>
   );
@@ -133,17 +132,24 @@ function GridCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImp
   return (
     <Link
       href={`/analysis/${entry.analysis_id}`}
-      className="glass-card p-3 group transition-all duration-150 hover:translate-y-[-2px] block"
+      className="block rounded-xl overflow-hidden bg-white shadow-sm ring-1 ring-[rgba(0,0,0,0.04)] group transition-all duration-150 hover:shadow-md hover:ring-[rgba(91,46,145,0.08)]"
     >
-      {/* Top row: Rank + Score */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold text-text-muted">#{entry.rank}</span>
-        <div className="flex items-center gap-1.5">
+      {/* Screenshot with overlays */}
+      <div className="relative aspect-[4/3]">
+        <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
+
+        {/* Rank - top left */}
+        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-xs font-bold">
+          #{entry.rank}
+        </div>
+
+        {/* Score - bottom right */}
+        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-white/90 backdrop-blur-sm text-sm">
           {showImprovement && entry.improvement !== undefined && (
-            <span className="text-xs font-bold text-score-high">+{entry.improvement}</span>
+            <span className="text-xs font-bold text-score-high mr-1">+{entry.improvement}</span>
           )}
           <span
-            className={`text-base font-bold ${scoreColor(entry.score)}`}
+            className={`font-bold ${scoreColor(entry.score)}`}
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             {entry.score}
@@ -151,15 +157,12 @@ function GridCard({ entry, showImprovement }: { entry: LeaderboardEntry; showImp
         </div>
       </div>
 
-      {/* Screenshot thumbnail */}
-      <div className="w-full aspect-[16/10] rounded-lg overflow-hidden bg-[rgba(0,0,0,0.03)] mb-2 ring-1 ring-[rgba(0,0,0,0.04)]">
-        <ScreenshotThumbnail url={entry.screenshot_url} domain={entry.domain} />
-      </div>
-
       {/* Domain */}
-      <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent transition-colors">
-        {entry.domain}
-      </p>
+      <div className="px-2.5 py-2">
+        <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent transition-colors">
+          {entry.domain}
+        </p>
+      </div>
     </Link>
   );
 }
