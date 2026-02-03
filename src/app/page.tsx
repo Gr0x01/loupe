@@ -346,6 +346,11 @@ export default function Home() {
             error={error}
             loadingStep={loadingStep}
           />
+          <div className="mt-8 flex items-center justify-center gap-4 text-sm text-text-muted">
+            <Link href="/leaderboard" className="hover:text-accent transition-colors">
+              View the leaderboard
+            </Link>
+          </div>
         </div>
       </section>
     </div>

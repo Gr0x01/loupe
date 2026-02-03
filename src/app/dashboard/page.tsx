@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ShareModal from "@/components/ShareModal";
+import SiteNav from "@/components/SiteNav";
+import SiteFooter from "@/components/SiteFooter";
 
 interface PageData {
   id: string;
@@ -442,65 +444,68 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="glass-spinner mx-auto" />
-          <p className="text-text-secondary mt-4">Loading your pages...</p>
-        </div>
-      </main>
+      <div className="min-h-screen flex flex-col">
+        <SiteNav />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center">
+            <div className="glass-spinner mx-auto" />
+            <p className="text-text-secondary mt-4">Loading your pages...</p>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-text-secondary text-lg">{error}</p>
-          <button
-            onClick={() => {
-              setError("");
-              setLoading(true);
-              fetchPages();
-            }}
-            className="btn-primary mt-4"
-          >
-            Try again
-          </button>
-        </div>
-      </main>
+      <div className="min-h-screen flex flex-col">
+        <SiteNav />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center">
+            <p className="text-text-secondary text-lg">{error}</p>
+            <button
+              onClick={() => {
+                setError("");
+                setLoading(true);
+                fetchPages();
+              }}
+              className="btn-primary mt-4"
+            >
+              Try again
+            </button>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen text-text-primary">
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1
-              className="text-4xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              Your pages
-            </h1>
-            <div className="flex items-center gap-3 mt-1">
-              <p className="text-text-secondary">
-                {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
-              </p>
-              {userLimits.max > 0 && (
-                <span className="text-xs font-medium text-text-muted bg-[rgba(0,0,0,0.03)] px-2 py-0.5 rounded-full">
-                  {pages.length}/{userLimits.max} slots
-                </span>
-              )}
+    <div className="min-h-screen flex flex-col">
+      <SiteNav />
+      <main className="flex-1 text-text-primary">
+        <div className="max-w-3xl mx-auto px-6 py-12">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1
+                className="text-4xl font-bold text-text-primary"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                Your pages
+              </h1>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-text-secondary">
+                  {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
+                </p>
+                {userLimits.max > 0 && (
+                  <span className="text-xs font-medium text-text-muted bg-[rgba(0,0,0,0.03)] px-2 py-0.5 rounded-full">
+                    {pages.length}/{userLimits.max} slots
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/settings/integrations"
-              className="text-sm text-text-muted hover:text-accent transition-colors"
-            >
-              Integrations
-            </Link>
             <button
               onClick={handleAddClick}
               className="btn-primary"
@@ -508,30 +513,20 @@ export default function DashboardPage() {
               {pages.length >= userLimits.max && userLimits.max > 0 ? "Unlock more" : "Add page"}
             </button>
           </div>
-        </div>
 
-        {/* Pages list or empty state */}
-        {pages.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="space-y-3">
-            {pages.map((page) => (
-              <PageCard key={page.id} page={page} onDelete={handleDeleteClick} />
-            ))}
-          </div>
-        )}
-
-        {/* Footer links */}
-        <div className="mt-12 flex items-center justify-center gap-4 text-sm text-text-muted">
-          <Link href="/" className="hover:text-accent transition-colors">
-            Audit a new page
-          </Link>
-          <span className="text-[rgba(0,0,0,0.1)]">|</span>
-          <Link href="/leaderboard" className="hover:text-accent transition-colors">
-            Leaderboard
-          </Link>
+          {/* Pages list or empty state */}
+          {pages.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="space-y-3">
+              {pages.map((page) => (
+                <PageCard key={page.id} page={page} onDelete={handleDeleteClick} />
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      </main>
+      <SiteFooter />
 
       <AddPageModal
         isOpen={showAddModal}
@@ -554,6 +549,6 @@ export default function DashboardPage() {
         loading={deleteLoading}
         pageName={deleteTarget?.name || getDomain(deleteTarget?.url || "")}
       />
-    </main>
+    </div>
   );
 }

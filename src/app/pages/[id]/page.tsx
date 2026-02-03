@@ -10,6 +10,7 @@ interface PageInfo {
   name: string | null;
   scan_frequency: string;
   repo_id: string | null;
+  hide_from_leaderboard: boolean;
   created_at: string;
 }
 
@@ -375,6 +376,7 @@ export default function PageTimelinePage() {
   const [rescanLoading, setRescanLoading] = useState(false);
   const [freqLoading, setFreqLoading] = useState(false);
   const [repoLoading, setRepoLoading] = useState(false);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
 
   // Fetch connected repos
@@ -528,6 +530,34 @@ export default function PageTimelinePage() {
     }
   };
 
+  const handleLeaderboardToggle = async (hideFromLeaderboard: boolean) => {
+    if (!data) return;
+
+    setLeaderboardLoading(true);
+    try {
+      const res = await fetch(`/api/pages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hide_from_leaderboard: hideFromLeaderboard }),
+      });
+
+      if (res.ok) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                page: { ...prev.page, hide_from_leaderboard: hideFromLeaderboard },
+              }
+            : null
+        );
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4">
@@ -598,32 +628,69 @@ export default function PageTimelinePage() {
           <ScoreTrendChart history={history} />
         </div>
 
-        {/* Actions bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <FrequencySelector
-              current={page.scan_frequency}
-              onChange={handleFrequencyChange}
-              loading={freqLoading}
-            />
-            <RepoSelector
-              currentRepoId={page.repo_id}
-              repos={connectedRepos}
-              onChange={handleRepoChange}
-              loading={repoLoading}
-            />
+        {/* Settings bar */}
+        <div className="glass-card p-5 mb-8">
+          <div className="flex flex-col gap-4">
+            {/* Row 1: Scan settings and rescan button */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <FrequencySelector
+                  current={page.scan_frequency}
+                  onChange={handleFrequencyChange}
+                  loading={freqLoading}
+                />
+                <RepoSelector
+                  currentRepoId={page.repo_id}
+                  repos={connectedRepos}
+                  onChange={handleRepoChange}
+                  loading={repoLoading}
+                />
+              </div>
+              <button
+                onClick={handleRescan}
+                disabled={rescanLoading || hasPendingScan}
+                className="btn-primary"
+              >
+                {rescanLoading
+                  ? "Starting scan..."
+                  : hasPendingScan
+                    ? "Scan in progress..."
+                    : "Re-scan now"}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-[rgba(0,0,0,0.06)]" />
+
+            {/* Row 2: Leaderboard toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text-secondary">Show on leaderboard</span>
+                <Link
+                  href="/leaderboard"
+                  className="text-xs text-text-muted hover:text-accent transition-colors"
+                >
+                  View leaderboard
+                </Link>
+              </div>
+              <button
+                onClick={() => handleLeaderboardToggle(!page.hide_from_leaderboard)}
+                disabled={leaderboardLoading}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+                  page.hide_from_leaderboard
+                    ? "bg-[rgba(0,0,0,0.1)]"
+                    : "bg-accent"
+                }`}
+                aria-label={page.hide_from_leaderboard ? "Enable leaderboard" : "Disable leaderboard"}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    page.hide_from_leaderboard ? "translate-x-0" : "translate-x-5"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
-          <button
-            onClick={handleRescan}
-            disabled={rescanLoading || hasPendingScan}
-            className="btn-primary"
-          >
-            {rescanLoading
-              ? "Starting scan..."
-              : hasPendingScan
-                ? "Scan in progress..."
-                : "Re-scan now"}
-          </button>
         </div>
 
         {/* Scan history */}
