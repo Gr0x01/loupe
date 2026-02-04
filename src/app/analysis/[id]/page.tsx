@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useId } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -131,12 +131,22 @@ interface Analysis {
 
 // --- Constants ---
 
-const LOADING_STEPS = [
-  "Checking your page...",
-  "Reading headlines and CTAs...",
-  "Reviewing trust signals and social proof...",
-  "Checking visual hierarchy...",
-  "Writing your audit...",
+// Analysis pipeline stages
+const ANALYSIS_STAGES = [
+  { id: "screenshot", label: "Screenshotting your page" },
+  { id: "reading", label: "Reading your headline and CTA" },
+  { id: "trust", label: "Checking trust signals" },
+  { id: "hierarchy", label: "Reviewing visual hierarchy" },
+  { id: "writing", label: "Writing your audit" },
+];
+
+// Examples of what Loupe catches - the stuff they CAN'T track themselves
+const DRIFT_EXAMPLES = [
+  "Cursor updated your pricing page — your 'Cancel anytime' guarantee is gone",
+  "Your checkout button moved below the fold after yesterday's deploy",
+  "Your hero still says 'Coming Soon' — it's been 47 days",
+  "Conversions dropped 23% the same week your social proof disappeared",
+  "Your CTA says 'Submit' instead of 'Get My Plan' — changed 3 deploys ago",
 ];
 
 const CATEGORY_EXPLAINERS: Record<string, string> = {
@@ -812,6 +822,8 @@ function ScreenshotModal({
 export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const previewLoading = searchParams.get("preview") === "loading";
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState("");
@@ -950,18 +962,19 @@ export default function AnalysisPage() {
     return () => clearInterval(interval);
   }, [fetchAnalysis]);
 
-  // Loading step cycle
+  // Loading step cycle (cycles through analysis stages)
   useEffect(() => {
     if (
+      previewLoading ||
       analysis?.status === "pending" ||
       analysis?.status === "processing"
     ) {
       const timer = setInterval(() => {
-        setLoadingStep((s) => (s + 1) % LOADING_STEPS.length);
-      }, 3000);
+        setLoadingStep((s) => (s + 1) % ANALYSIS_STAGES.length);
+      }, 3500);
       return () => clearInterval(timer);
     }
-  }, [analysis?.status]);
+  }, [analysis?.status, previewLoading]);
 
   // --- Loading / Error / Failed states ---
 
@@ -982,25 +995,143 @@ export default function AnalysisPage() {
   }
 
   if (
+    previewLoading ||
     !analysis ||
     analysis.status === "pending" ||
     analysis.status === "processing"
   ) {
+    const currentStageIndex = loadingStep % ANALYSIS_STAGES.length;
+
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center max-w-md">
-          <div className="glass-spinner mx-auto" />
-          <p className="text-text-primary font-semibold text-lg mt-6">
-            Analyzing your page
-          </p>
-          <p className="text-base text-text-muted mt-2 animate-pulse">
-            {LOADING_STEPS[loadingStep]}
-          </p>
-          {analysis?.url && (
-            <p className="text-sm text-text-muted mt-4 font-mono truncate">
-              {analysis.url}
-            </p>
-          )}
+      <div className="flex justify-center px-4 pt-12 pb-16">
+        <div className="w-full max-w-[540px]">
+          {/* Single consolidated card */}
+          <div className="glass-card-elevated p-8">
+            {/* URL + Progress */}
+            <div className="text-center mb-6">
+              {analysis?.url && (
+                <p className="text-sm text-text-muted font-mono mb-3 truncate">
+                  {getDomain(analysis.url)}
+                </p>
+              )}
+              <div className="flex gap-1.5 w-full max-w-[200px] mx-auto mb-2">
+                {ANALYSIS_STAGES.map((stage, i) => (
+                  <div
+                    key={stage.id}
+                    className="h-1.5 flex-1 rounded-full bg-bg-inset overflow-hidden"
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        i < currentStageIndex
+                          ? "w-full bg-accent"
+                          : i === currentStageIndex
+                          ? "w-1/2 bg-accent animate-pulse"
+                          : "w-0"
+                      }`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-base text-text-secondary">
+                {ANALYSIS_STAGES[currentStageIndex].label}...
+              </p>
+            </div>
+
+            {/* Preview with overlapping suggestion card */}
+            <div className="relative mb-8">
+              {/* Base skeleton - the "current state" */}
+              <div className="bg-bg-inset/50 rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  {/* Mini score skeleton */}
+                  <div className="w-16 h-16 rounded-full bg-border-subtle/40 animate-pulse flex-shrink-0" />
+                  {/* Skeleton content */}
+                  <div className="flex-1 space-y-2.5 pt-1">
+                    <div className="h-4 w-4/5 bg-border-subtle/60 rounded animate-pulse" />
+                    <div className="h-3 w-3/5 bg-border-subtle/40 rounded animate-pulse" />
+                    <div className="h-3 w-2/5 bg-border-subtle/30 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Overlapping "suggestion" card - the value preview */}
+              <div className="absolute -bottom-4 -right-2 sm:right-6 w-[280px] glass-card p-3.5 shadow-lg border-l-2 border-accent">
+                <p className="text-[10px] font-semibold text-accent uppercase tracking-wide mb-1.5">
+                  What we catch
+                </p>
+                <p className="text-sm text-text-primary font-medium leading-snug transition-opacity duration-300">
+                  &ldquo;{DRIFT_EXAMPLES[loadingStep % DRIFT_EXAMPLES.length]}&rdquo;
+                </p>
+              </div>
+            </div>
+
+            {/* Value prop + Email capture */}
+            {claimEmailSent ? (
+              <div className="text-center py-3">
+                <div className="inline-flex items-center gap-2 text-score-high mb-1">
+                  <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                  </svg>
+                  <span className="font-medium text-text-primary">Check your inbox</span>
+                </div>
+                <p className="text-sm text-text-muted">We&apos;re watching. You&apos;ll know when it drifts.</p>
+              </div>
+            ) : (
+              <>
+                <p
+                  className="text-xl font-bold text-text-primary text-center mb-1"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  We just captured your page
+                </p>
+                <p className="text-base text-text-secondary text-center mb-5">
+                  We&apos;ll email you when something shifts.
+                </p>
+
+                <form onSubmit={handleClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-2 max-w-md mx-auto">
+                  <input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={claimEmail}
+                    onChange={(e) => setClaimEmail(e.target.value)}
+                    className="input-glass flex-1 text-center sm:text-left"
+                    aria-label="Email address"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={claimLoading}
+                    className="btn-primary whitespace-nowrap"
+                  >
+                    {claimLoading ? "..." : "Watch my page"}
+                  </button>
+                </form>
+                {claimError && (
+                  <p className="text-xs text-score-low mt-2 text-center">{claimError}</p>
+                )}
+                <p className="text-xs text-text-muted text-center mt-4">
+                  Free. No spam. Just drift alerts.
+                </p>
+
+                {foundingStatus && !foundingStatus.isFull && (
+                  <div className="mt-4 text-center">
+                    <div className="flex items-center justify-center gap-0.5 mb-2">
+                      {Array.from({ length: Math.min(foundingStatus.total, 50) }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            i < foundingStatus.claimed ? "bg-accent" : "bg-border-subtle"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-text-muted">
+                      <span className="font-semibold text-accent">{foundingStatus.remaining}</span> spots — daily scans, free
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
