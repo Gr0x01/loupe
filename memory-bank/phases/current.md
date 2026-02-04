@@ -175,6 +175,38 @@ Public leaderboard showing top-scoring sites with backlinks.
 
 ---
 
+## Phase 1E — SEO Landing Pages (IN PROGRESS)
+
+12 SEO landing pages to capture traffic from AI coding tool users.
+
+### Tier 1: Core SEO Pages (DONE)
+- [x] `/monitor-website-changes` — reviewed, ICP-aligned
+- [x] `/website-audit` — reviewed, ICP-aligned
+- [x] `/alternatives/visualping` — reviewed, ICP-aligned, honest comparison
+
+### Tier 2: Tool Pages (DONE)
+- [x] `/for/lovable`, `/for/bolt`, `/for/cursor`, `/for/v0`, `/for/replit`, `/for/base44`
+- [x] Tool-specific pain points (not generic AI complaints)
+- [x] Dynamic template uses tool name in headers
+
+### Tier 3: Integration Guides (NEEDS WORK)
+- [ ] `/guides/posthog` — currently marketing fluff, needs to be actual documentation
+- [ ] `/guides/ga4` — same issue
+- [ ] `/guides/github` — same issue
+
+**Problem with guides:** They're SEO landing pages pretending to be documentation. Someone clicking "PostHog Integration Guide" expects HOW to connect, not WHY they should.
+
+**TODO for guides:**
+1. Add actual screenshots of the settings/connection flow
+2. Show what permissions are requested
+3. Explain what data syncs and what doesn't
+4. Add troubleshooting section
+5. Make "steps" actual user actions, not feature descriptions
+
+**Alternative:** Kill these pages and handle integration setup in-app or actual docs.
+
+---
+
 ## What's NOT in MVP
 - Team tier
 - Multi-page free tier
