@@ -52,19 +52,46 @@ export async function GET(
     }
   }
 
+  // Get current user (if logged in)
+  let currentUserId: string | null = null;
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    currentUserId = user?.id ?? null;
+  } catch {
+    // Not logged in
+  }
+
+  // Check if this URL is claimed by anyone (for showing/hiding claim form)
+  let claim_status: {
+    is_claimed: boolean;
+    claimed_by_current_user: boolean;
+    claimed_page_id: string | null;
+  } = {
+    is_claimed: false,
+    claimed_by_current_user: false,
+    claimed_page_id: null,
+  };
+
+  const { data: claimedPage } = await supabase
+    .from("pages")
+    .select("id, user_id")
+    .eq("url", data.url)
+    .limit(1)
+    .maybeSingle();
+
+  if (claimedPage) {
+    claim_status.is_claimed = true;
+    if (currentUserId && claimedPage.user_id === currentUserId) {
+      claim_status.claimed_by_current_user = true;
+      claim_status.claimed_page_id = claimedPage.id;
+    }
+  }
+
   // Check if this analysis belongs to a registered page
   // Only show page_context if the requesting user owns this analysis (privacy)
   let page_context = null;
   if (data.user_id) {
-    let currentUserId: string | null = null;
-    try {
-      const authClient = await createClient();
-      const { data: { user } } = await authClient.auth.getUser();
-      currentUserId = user?.id ?? null;
-    } catch {
-      // Not logged in
-    }
-
     // Only fetch page context if the current user owns this analysis
     if (currentUserId && currentUserId === data.user_id) {
       const { data: page } = await supabase
@@ -120,5 +147,6 @@ export async function GET(
     page_context,
     deploy_context,
     trigger_type: data.trigger_type || null,
+    claim_status,
   });
 }

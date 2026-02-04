@@ -105,6 +105,12 @@ interface MetricsSnapshot {
   captured_at: string;
 }
 
+interface ClaimStatus {
+  is_claimed: boolean;
+  claimed_by_current_user: boolean;
+  claimed_page_id: string | null;
+}
+
 interface Analysis {
   id: string;
   url: string;
@@ -120,6 +126,7 @@ interface Analysis {
   metrics_snapshot: MetricsSnapshot | null;
   deploy_context: DeployContext | null;
   trigger_type: "manual" | "daily" | "weekly" | "deploy" | null;
+  claim_status?: ClaimStatus;
 }
 
 // --- Constants ---
@@ -1281,7 +1288,28 @@ export default function AnalysisPage() {
 
             {/* Card footer — email capture */}
             <div className="hero-reveal-actions border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
-              {claimEmailSent ? (
+              {analysis.claim_status?.claimed_by_current_user ? (
+                /* Current user already watching */
+                <div className="flex items-center justify-between">
+                  <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+                    {linkCopied ? "Copied!" : "Share"}
+                  </button>
+                  <Link
+                    href={`/pages/${analysis.claim_status.claimed_page_id}`}
+                    className="text-sm text-accent hover:underline"
+                  >
+                    You&apos;re already watching this → View page
+                  </Link>
+                </div>
+              ) : analysis.claim_status?.is_claimed ? (
+                /* Domain claimed by someone else */
+                <div className="flex items-center justify-between">
+                  <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+                    {linkCopied ? "Copied!" : "Share"}
+                  </button>
+                  <span className="text-sm text-text-muted">Already being monitored by someone else</span>
+                </div>
+              ) : claimEmailSent ? (
                 /* Success state */
                 <div className="flex items-center justify-between">
                   <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
@@ -1891,7 +1919,51 @@ export default function AnalysisPage() {
         {/* Zone 6: Claim CTA */}
         <section id="claim-cta" className="py-10">
           <div className="glass-card-elevated p-6 md:p-8 max-w-[540px] mx-auto">
-            {claimEmailSent ? (
+            {analysis.claim_status?.claimed_by_current_user ? (
+              /* Current user already watching this domain */
+              <div className="text-center py-4">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(91,46,145,0.1)] mb-4">
+                  <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <p
+                  className="text-2xl font-bold text-text-primary"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  You&apos;re watching this
+                </p>
+                <p className="text-base text-text-secondary mt-2 mb-4">
+                  {getDomain(analysis.url)} is already on your watchlist.
+                </p>
+                <Link
+                  href={`/pages/${analysis.claim_status.claimed_page_id}`}
+                  className="btn-primary inline-block"
+                >
+                  Go to your page
+                </Link>
+              </div>
+            ) : analysis.claim_status?.is_claimed ? (
+              /* Domain already claimed by another user */
+              <div className="text-center py-4">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(0,0,0,0.05)] mb-4">
+                  <svg className="w-6 h-6 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </div>
+                <p
+                  className="text-2xl font-bold text-text-primary"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  Already being monitored
+                </p>
+                <p className="text-base text-text-secondary mt-2">
+                  Someone else is watching {getDomain(analysis.url)}. You can still view this audit and share it.
+                </p>
+              </div>
+            ) : claimEmailSent ? (
               /* Post-submit state */
               <div className="text-center py-4">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(91,46,145,0.1)] mb-4">

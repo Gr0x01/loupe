@@ -203,3 +203,20 @@
 - HogQL queries sanitized to prevent injection (domain escaped)
 - Host whitelist prevents SSRF (only us.i.posthog.com, eu.i.posthog.com, app.posthog.com)
 - 15s request timeout prevents hanging
+
+## D18: Domain claiming — First-come-first-served for now (Feb 4, 2026)
+
+**Decision**: One account owns a domain. If User A claims `example.com`, User B cannot claim it. Show "already being monitored" message.
+
+**Why**:
+- Simple to implement and reason about
+- Creates ownership feeling ("my page")
+- Prevents confusing duplicate monitoring states
+
+**Future considerations**:
+- Track claiming patterns by email domain (are most claimers `*@theirdomain.com`?)
+- If pattern holds → enforce email-domain matching (only `*@example.com` can claim `example.com`)
+- If we hit ~5000 users and squatting becomes a problem → add domain verification (DNS TXT or meta tag)
+- For now, observe and ship simple
+
+**Not building yet**: The blocking logic. Currently anyone can claim any domain. Will implement the check when we have evidence it's needed or when abuse appears.

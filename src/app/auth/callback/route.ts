@@ -127,6 +127,21 @@ async function handleClaim(
     return redirectTo;
   }
 
+  // Check if this URL is already claimed by ANY user (first-come-first-served)
+  const { data: alreadyClaimed } = await supabase
+    .from("pages")
+    .select("id, user_id")
+    .eq("url", analysis.url)
+    .limit(1)
+    .maybeSingle();
+
+  if (alreadyClaimed && alreadyClaimed.user_id !== userId) {
+    // Domain already claimed by someone else
+    redirectTo.pathname = `/analysis/${analysisId}`;
+    redirectTo.searchParams.set("already_claimed", "true");
+    return redirectTo;
+  }
+
   // Check if this URL is already registered by this user
   const { data: existingPage } = await supabase
     .from("pages")
