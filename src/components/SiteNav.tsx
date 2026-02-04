@@ -100,9 +100,9 @@ export default function SiteNav() {
             <Image
               src="/logo.svg"
               alt="Loupe"
-              width={80}
-              height={26}
-              className="h-6 w-auto"
+              width={56}
+              height={18}
+              className="h-[18px] w-auto"
               priority
             />
           </Link>
