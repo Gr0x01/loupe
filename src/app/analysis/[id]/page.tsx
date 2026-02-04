@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useId } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 // --- Types ---
 
@@ -881,17 +882,17 @@ export default function AnalysisPage() {
     setClaimLoading(true);
     setClaimError("");
     try {
-      const res = await fetch("/api/auth/magic-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: claimEmail,
-          redirectTo: `${window.location.origin}/auth/callback?claim=${analysis.id}`,
-        }),
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: claimEmail.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?claim=${analysis.id}`,
+        },
       });
-      if (res.ok) {
+      if (!error) {
         setClaimEmailSent(true);
       } else {
+        console.error("Magic link error:", error.message);
         setClaimError("Failed to send link. Try again.");
       }
     } catch {
