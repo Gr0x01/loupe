@@ -53,9 +53,9 @@ Foundation for integrations. Users can track pages over time.
 - [x] Dashboard page (`/dashboard`) — list of monitored pages with scores/deltas
 - [x] Page timeline page (`/pages/[id]`) — all scans, score trend chart, re-scan button, frequency selector
 - [x] Results page context — shows "Scan #N of domain.com" with prev/next navigation
-- [ ] Email notifications — "Your weekly scan is ready" via Resend (stretch goal)
+- [x] Email notifications — scan complete emails via Resend (daily/weekly/deploy scans, not manual)
 
-**Status:** Complete. Users can monitor pages, see timeline, scheduled scans work.
+**Status:** Complete. Users can monitor pages, see timeline, scheduled scans work, email notifications sent.
 
 ## Phase 1C-2 — Launch Prep (DONE)
 Ship free for Founding 50, learn, then build billing with evidence.
@@ -158,7 +158,7 @@ Build after learning from first 50 users.
 
 - [ ] Stripe integration (price TBD based on user feedback)
 - [ ] Grandfather early users
-- [ ] Settings page (integrations, email preferences)
+- [x] Settings page (integrations, email preferences) — `/settings/integrations` done
 
 **Done when:** Someone can pay and use the pro tier.
 
