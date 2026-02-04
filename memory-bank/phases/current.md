@@ -122,12 +122,14 @@ The integrations and correlation magic.
 - [x] UI shows trigger labels: "Daily scan" / "Weekly scan" / "Triggered by deploy abc1234"
 - [x] Deploy-triggered scans show expandable commit info (SHA, message, author, changed files)
 
-### Google Analytics 4 Integration (NOT STARTED)
-- [ ] GA4 API integration (Data API v1)
-- [ ] OAuth flow for GA4 connection
-- [ ] Pull metrics: sessions, users, bounce rate, conversions
-- [ ] Store metric snapshots on analysis records (shared with PostHog)
-- [ ] Settings UI for connecting GA4 property
+### Google Analytics 4 Integration (DONE)
+- [x] GA4 API integration (Data API v1beta)
+- [x] OAuth flow for GA4 connection (with refresh token handling)
+- [x] Pull metrics: pageviews, users, bounce rate, session duration
+- [x] Two-step flow: OAuth → property selection modal
+- [x] Settings UI for connecting GA4 property
+- [x] GA4 adapter implements same AnalyticsProvider interface as PostHog
+- [x] Pipeline auto-detects PostHog or GA4 and uses appropriate adapter
 
 **Status:** Complete. Full deploy→scan→correlation loop works end-to-end.
 

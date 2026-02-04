@@ -38,6 +38,14 @@ export async function GET() {
     .eq("provider", "posthog")
     .maybeSingle();
 
+  // Get GA4 integration
+  const { data: ga4 } = await serviceClient
+    .from("integrations")
+    .select("id, provider_account_id, metadata, created_at")
+    .eq("user_id", user.id)
+    .eq("provider", "ga4")
+    .maybeSingle();
+
   return NextResponse.json({
     github: github ? {
       connected: true,
@@ -51,6 +59,14 @@ export async function GET() {
       project_id: posthog.provider_account_id,
       host: posthog.metadata?.host || "https://us.i.posthog.com",
       connected_at: posthog.created_at,
+    } : null,
+    ga4: ga4 ? {
+      connected: true,
+      property_id: ga4.metadata?.property_id || null,
+      property_name: ga4.metadata?.property_name || null,
+      email: ga4.metadata?.email,
+      pending_property_selection: !ga4.metadata?.property_id,
+      connected_at: ga4.created_at,
     } : null,
   });
 }

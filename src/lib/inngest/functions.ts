@@ -104,8 +104,21 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
-        // Check for PostHog integration
-        let analyticsCredentials = null;
+        // Check for PostHog integration first, then GA4
+        let analyticsCredentials: {
+          type: "posthog";
+          apiKey: string;
+          projectId: string;
+          host?: string;
+        } | {
+          type: "ga4";
+          accessToken: string;
+          refreshToken: string;
+          tokenExpiresAt: number;
+          propertyId: string;
+          integrationId: string;
+        } | null = null;
+
         const { data: posthogIntegration } = await supabase
           .from("integrations")
           .select("access_token, provider_account_id, metadata")
@@ -115,10 +128,32 @@ export const analyzeUrl = inngest.createFunction(
 
         if (posthogIntegration) {
           analyticsCredentials = {
+            type: "posthog",
             apiKey: posthogIntegration.access_token,
             projectId: posthogIntegration.provider_account_id,
             host: posthogIntegration.metadata?.host,
           };
+        }
+
+        // If no PostHog, check for GA4
+        if (!analyticsCredentials) {
+          const { data: ga4Integration } = await supabase
+            .from("integrations")
+            .select("id, access_token, metadata")
+            .eq("user_id", analysis.user_id)
+            .eq("provider", "ga4")
+            .maybeSingle();
+
+          if (ga4Integration?.metadata?.property_id) {
+            analyticsCredentials = {
+              type: "ga4",
+              accessToken: ga4Integration.access_token,
+              refreshToken: ga4Integration.metadata.refresh_token,
+              tokenExpiresAt: ga4Integration.metadata.token_expires_at,
+              propertyId: ga4Integration.metadata.property_id,
+              integrationId: ga4Integration.id,
+            };
+          }
         }
 
         // Run post-analysis if we have previous findings OR analytics OR deploy context

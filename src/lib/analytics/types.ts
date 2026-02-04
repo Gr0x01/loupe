@@ -8,6 +8,14 @@ export interface AnalyticsCredentials {
   host?: string;
 }
 
+export interface GA4Credentials {
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiresAt: number;
+  propertyId: string;
+  integrationId: string;
+}
+
 export interface PageStats {
   pageviews: number;
   unique_visitors: number;

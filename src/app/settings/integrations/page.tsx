@@ -28,9 +28,25 @@ interface PostHogIntegration {
   connected_at: string;
 }
 
+interface GA4Integration {
+  connected: boolean;
+  property_id: string | null;
+  property_name: string | null;
+  email: string;
+  pending_property_selection: boolean;
+  connected_at: string;
+}
+
+interface GA4Property {
+  property_id: string;
+  display_name: string;
+  account_name: string;
+}
+
 interface IntegrationsData {
   github: GitHubIntegration | null;
   posthog: PostHogIntegration | null;
+  ga4: GA4Integration | null;
 }
 
 function GitHubIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -354,6 +370,158 @@ function PostHogConnectModal({
   );
 }
 
+function GA4PropertySelectModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [properties, setProperties] = useState<GA4Property[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectingId, setSelectingId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchProperties = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/integrations/ga4/properties");
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error || "Failed to load properties");
+          return;
+        }
+        const data = await res.json();
+        setProperties(data.properties || []);
+      } catch {
+        setError("Failed to load properties");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, [isOpen]);
+
+  const handleSelect = async (property: GA4Property) => {
+    setSelectingId(property.property_id);
+    setError("");
+
+    try {
+      const res = await fetch("/api/integrations/ga4/select-property", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: property.property_id,
+          property_name: property.display_name,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to select property");
+        return;
+      }
+
+      onSuccess();
+      onClose();
+    } catch {
+      setError("Failed to select property");
+    } finally {
+      setSelectingId(null);
+    }
+  };
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-solid rounded-2xl shadow-xl p-6 w-full max-w-lg max-h-[80vh] flex flex-col border border-border-subtle"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-2xl font-bold text-text-primary mb-2"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          Select GA4 Property
+        </h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Choose which property to pull analytics from
+        </p>
+
+        {loading && (
+          <div className="flex-1 flex items-center justify-center py-8">
+            <div className="glass-spinner" />
+          </div>
+        )}
+
+        {error && (
+          <div className="text-score-low text-center py-4">{error}</div>
+        )}
+
+        {!loading && !error && properties.length === 0 && (
+          <div className="text-text-secondary text-center py-8">
+            <p>No GA4 properties found.</p>
+            <p className="text-sm mt-2">Make sure your Google account has access to at least one GA4 property.</p>
+          </div>
+        )}
+
+        {!loading && !error && properties.length > 0 && (
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            {properties.map((property) => {
+              const isSelecting = selectingId === property.property_id;
+              return (
+                <button
+                  key={property.property_id}
+                  onClick={() => handleSelect(property)}
+                  disabled={selectingId !== null}
+                  className="w-full glass-card p-4 text-left hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 disabled:opacity-50"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-text-primary truncate">
+                        {property.display_name}
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        {property.account_name} · ID: {property.property_id}
+                      </p>
+                    </div>
+                    <span className="text-accent text-sm font-medium flex-shrink-0">
+                      {isSelecting ? "Selecting..." : "Select"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-border-subtle">
+          <button onClick={onClose} className="btn-secondary w-full">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function IntegrationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -362,16 +530,19 @@ function IntegrationsContent() {
   const [error, setError] = useState("");
   const [showAddRepo, setShowAddRepo] = useState(false);
   const [showPostHogConnect, setShowPostHogConnect] = useState(false);
+  const [showGA4PropertySelect, setShowGA4PropertySelect] = useState(false);
   const [connectingId, setConnectingId] = useState<number | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [disconnectingGitHub, setDisconnectingGitHub] = useState(false);
   const [disconnectingPostHog, setDisconnectingPostHog] = useState(false);
+  const [disconnectingGA4, setDisconnectingGA4] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [togglingEmail, setTogglingEmail] = useState(false);
 
   // Show success/error messages from OAuth callback
   const successParam = searchParams.get("success");
   const errorParam = searchParams.get("error");
+  const pendingParam = searchParams.get("pending");
 
   const fetchProfile = async () => {
     try {
@@ -409,6 +580,17 @@ function IntegrationsContent() {
     fetchIntegrations();
     fetchProfile();
   }, []);
+
+  // Open property selection modal if pending=ga4 in URL (after OAuth)
+  useEffect(() => {
+    if (pendingParam === "ga4" && !loading) {
+      setShowGA4PropertySelect(true);
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("pending");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [pendingParam, loading]);
 
   const handleToggleEmailNotifications = async () => {
     setTogglingEmail(true);
@@ -516,6 +698,28 @@ function IntegrationsContent() {
       setError("Failed to disconnect PostHog");
     } finally {
       setDisconnectingPostHog(false);
+    }
+  };
+
+  const handleConnectGA4 = () => {
+    window.location.href = "/api/integrations/ga4/connect";
+  };
+
+  const handleDisconnectGA4 = async () => {
+    if (!confirm("Disconnect Google Analytics?")) return;
+
+    setDisconnectingGA4(true);
+    try {
+      const res = await fetch("/api/integrations/ga4", { method: "DELETE" });
+      if (!res.ok) {
+        setError("Failed to disconnect Google Analytics");
+        return;
+      }
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to disconnect Google Analytics");
+    } finally {
+      setDisconnectingGA4(false);
     }
   };
 
@@ -750,6 +954,99 @@ function IntegrationsContent() {
           </div>
         </section>
 
+        {/* Google Analytics 4 Integration */}
+        <section className="mb-8">
+          <div className="glass-card-elevated p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+                    <path d="M22.84 12.13a10.67 10.67 0 0 0-.18-1.93H12v3.59h6.08a5.25 5.25 0 0 1-2.25 3.45v2.82h3.63c2.13-1.96 3.38-4.87 3.38-7.93z" fill="#4285F4"/>
+                    <path d="M12 23c3.04 0 5.6-1 7.46-2.74l-3.63-2.82c-1.01.68-2.3 1.08-3.83 1.08-2.94 0-5.43-1.98-6.32-4.65H1.91v2.91A11 11 0 0 0 12 23z" fill="#34A853"/>
+                    <path d="M5.68 13.87a6.62 6.62 0 0 1 0-4.18V6.78H1.91a11 11 0 0 0 0 9.88l3.77-2.79z" fill="#FBBC05"/>
+                    <path d="M12 4.75c1.66 0 3.15.57 4.32 1.68l3.22-3.22A10.98 10.98 0 0 0 12 1 11 11 0 0 0 1.91 6.78l3.77 2.91c.89-2.67 3.38-4.94 6.32-4.94z" fill="#EA4335"/>
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">Google Analytics 4</h2>
+                  <p className="text-sm text-text-secondary">
+                    See pageviews and bounce rate with each scan
+                  </p>
+                </div>
+              </div>
+
+              {!integrations?.ga4 ? (
+                <button onClick={handleConnectGA4} className="btn-primary w-full sm:w-auto">
+                  Connect
+                </button>
+              ) : (
+                <button
+                  onClick={handleDisconnectGA4}
+                  disabled={disconnectingGA4}
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
+                >
+                  {disconnectingGA4 ? "Disconnecting..." : "Disconnect"}
+                </button>
+              )}
+            </div>
+
+            {integrations?.ga4 && (
+              <div className="mt-6 pt-6 border-t border-border-subtle">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-[#EA4335] flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">G</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {integrations.ga4.property_id ? (
+                      <>
+                        <p className="font-medium text-text-primary truncate">
+                          {integrations.ga4.property_name || `Property ${integrations.ga4.property_id}`}
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          {integrations.ga4.email}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-text-primary">
+                          Property not selected
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          {integrations.ga4.email}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  {integrations.ga4.pending_property_selection && (
+                    <button
+                      onClick={() => setShowGA4PropertySelect(true)}
+                      className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
+                    >
+                      Select property
+                    </button>
+                  )}
+                </div>
+
+                {integrations.ga4.pending_property_selection && (
+                  <div className="glass-card p-4 bg-score-low/5 border-l-4 border-score-low mb-4">
+                    <p className="text-sm text-text-primary font-medium">Action required</p>
+                    <p className="text-sm text-text-secondary mt-1">
+                      Select a GA4 property to start pulling analytics data.
+                    </p>
+                  </div>
+                )}
+
+                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <p className="text-sm text-text-secondary">
+                    <span className="font-medium text-text-primary">How it works:</span>{" "}
+                    We'll pull your analytics so you can see if changes actually moved the&nbsp;needle.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* Email Notifications */}
         <section className="mb-8">
           <div className="glass-card-elevated p-5 sm:p-6">
@@ -807,6 +1104,12 @@ function IntegrationsContent() {
       <PostHogConnectModal
         isOpen={showPostHogConnect}
         onClose={() => setShowPostHogConnect(false)}
+        onSuccess={() => fetchIntegrations()}
+      />
+
+      <GA4PropertySelectModal
+        isOpen={showGA4PropertySelect}
+        onClose={() => setShowGA4PropertySelect(false)}
         onSuccess={() => fetchIntegrations()}
       />
     </>

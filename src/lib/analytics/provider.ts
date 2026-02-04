@@ -4,6 +4,7 @@
 
 import type {
   AnalyticsCredentials,
+  GA4Credentials,
   PageStats,
   TrendPoint,
   EventCount,
@@ -12,6 +13,7 @@ import type {
   SchemaInfo,
   ExperimentsResult,
 } from "./types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AnalyticsProvider {
   /** Get available events and properties for discovery */
@@ -54,16 +56,24 @@ export interface AnalyticsProvider {
   getExperiments(days: number): Promise<ExperimentsResult>;
 }
 
-export type ProviderType = "posthog";
+export type ProviderType = "posthog" | "ga4";
 
 export async function createProvider(
   type: ProviderType,
-  credentials: AnalyticsCredentials
+  credentials: AnalyticsCredentials | GA4Credentials,
+  options?: { supabase?: SupabaseClient }
 ): Promise<AnalyticsProvider> {
   switch (type) {
     case "posthog": {
       const { PostHogAdapter } = await import("./posthog-adapter");
-      return new PostHogAdapter(credentials);
+      return new PostHogAdapter(credentials as AnalyticsCredentials);
+    }
+    case "ga4": {
+      const { GA4Adapter } = await import("./ga4-adapter");
+      if (!options?.supabase) {
+        throw new Error("GA4 adapter requires supabase client for token refresh");
+      }
+      return new GA4Adapter(credentials as GA4Credentials, options.supabase);
     }
     default:
       throw new Error(`Unknown analytics provider: ${type}`);
