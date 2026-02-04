@@ -1,87 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import MockComparisonCard from "@/components/MockComparisonCard";
+import FreeAuditForm from "@/components/seo/FreeAuditForm";
 
 interface FoundingStatus {
   claimed: number;
   total: number;
   isFull: boolean;
   remaining: number;
-}
-
-const LOADING_STEPS = [
-  "Checking your page...",
-  "Reading headlines and CTAs...",
-  "Checking trust signals and social proof...",
-  "Reviewing visual hierarchy...",
-  "Writing your audit...",
-];
-
-function HeroInput({
-  onSubmit,
-  loading,
-  error,
-  loadingStep,
-}: {
-  onSubmit: (url: string) => void;
-  loading: boolean;
-  error: string;
-  loadingStep: number;
-}) {
-  const [url, setUrl] = useState("");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!url.trim() || loading) return;
-    onSubmit(url.trim());
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div
-        className="bg-surface-solid rounded-2xl border border-border-subtle p-4
-                    shadow-[0_2px_8px_rgba(17,17,24,0.06),0_1px_2px_rgba(17,17,24,0.04)]"
-      >
-        {loading ? (
-          <div className="flex items-center justify-center py-3 px-3">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-              <span className="text-text-secondary text-lg">
-                {LOADING_STEPS[loadingStep] || LOADING_STEPS[0]}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-stretch gap-3">
-            <input
-              type="text"
-              inputMode="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://yoursite.com"
-              className="flex-1 bg-transparent text-text-primary placeholder-text-muted
-                         text-lg px-3 py-3 outline-none"
-            />
-            <button
-              type="submit"
-              disabled={!url.trim()}
-              className="btn-primary px-8 py-3
-                         disabled:opacity-30 disabled:cursor-not-allowed
-                         flex-shrink-0 whitespace-nowrap"
-            >
-              Audit my page
-            </button>
-          </div>
-        )}
-      </div>
-      {error && (
-        <p className="text-sm text-score-low mt-3 text-center">{error}</p>
-      )}
-    </form>
-  );
 }
 
 function FoundingProgress({ status }: { status: FoundingStatus | null }) {
@@ -539,12 +467,7 @@ function AnalyticsSection() {
 }
 
 export default function Home() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [loadingStep, setLoadingStep] = useState(0);
   const [foundingStatus, setFoundingStatus] = useState<FoundingStatus | null>(null);
-  const router = useRouter();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     // Fetch founding 50 status
@@ -553,48 +476,6 @@ export default function Home() {
       .then((data) => setFoundingStatus(data))
       .catch(() => {}); // Silently fail — status is nice-to-have
   }, []);
-
-  useEffect(() => {
-    if (loading) {
-      setLoadingStep(0);
-      intervalRef.current = setInterval(() => {
-        setLoadingStep((prev) =>
-          prev < LOADING_STEPS.length - 1 ? prev + 1 : prev
-        );
-      }, 3000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [loading]);
-
-  async function handleAnalyze(url: string) {
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Something went wrong");
-        setLoading(false);
-        return;
-      }
-
-      router.push(`/analysis/${data.id}`);
-    } catch {
-      setError("Failed to start analysis. Please try again.");
-      setLoading(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -624,12 +505,7 @@ export default function Home() {
               </p>
 
               <div className="mt-12 max-w-xl mx-auto lg:mx-0">
-                <HeroInput
-                  onSubmit={handleAnalyze}
-                  loading={loading}
-                  error={error}
-                  loadingStep={loadingStep}
-                />
+                <FreeAuditForm />
                 <div className="flex items-center gap-4 mt-4 justify-center lg:justify-start flex-wrap">
                   <p className="text-sm text-text-muted">
                     Free audit. No signup needed.
@@ -673,12 +549,7 @@ export default function Home() {
             <span className="text-text-muted/30">•</span>
             <span>Free audit, no&nbsp;signup</span>
           </div>
-          <HeroInput
-            onSubmit={handleAnalyze}
-            loading={loading}
-            error={error}
-            loadingStep={loadingStep}
-          />
+          <FreeAuditForm />
         </div>
       </section>
     </div>

@@ -1188,3 +1188,43 @@ body.modal-open .site-nav {
 .section-dark .step-number {
   color: rgba(167, 139, 250, 0.25);
 }
+
+/* ===== FAQ ACCORDION ANIMATION ===== */
+.faq-item {
+  overflow: hidden;
+}
+
+.faq-item summary {
+  transition: color 150ms ease;
+}
+
+.faq-item summary:hover {
+  color: var(--accent);
+}
+
+.faq-item .faq-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms ease-out;
+}
+
+.faq-item .faq-content > div {
+  overflow: hidden;
+}
+
+.faq-item[open] .faq-content {
+  grid-template-rows: 1fr;
+}
+
+/* Fade in content */
+.faq-item .faq-content > div > * {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.faq-item[open] .faq-content > div > * {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 100ms;
+}
