@@ -25,8 +25,7 @@ export async function GET(request: NextRequest) {
   });
 
   // Redirect to GitHub App installation page
-  // The app slug is derived from the app name: "Loupe by getloupe.io" -> "loupe-by-getloupe-io"
-  const appSlug = "loupe-by-getloupe-io";
+  const appSlug = process.env.GITHUB_APP_SLUG || "loupe-by-getloupe-io";
   const installUrl = new URL(`https://github.com/apps/${appSlug}/installations/new`);
   installUrl.searchParams.set("state", state);
 

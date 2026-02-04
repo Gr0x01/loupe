@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { listInstallationRepos, createRepoWebhook } from "@/lib/github/app";
+import { listInstallationRepos, createRepoWebhook, deleteRepoWebhook } from "@/lib/github/app";
 
 // Validate repo fullName format (owner/repo) to prevent path manipulation
 const REPO_FULLNAME_REGEX = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
@@ -28,7 +28,10 @@ export async function GET() {
     return NextResponse.json({ error: "GitHub not connected" }, { status: 400 });
   }
 
-  const installationId = integration.metadata.installation_id as number;
+  const installationId = Number(integration.metadata.installation_id);
+  if (isNaN(installationId)) {
+    return NextResponse.json({ error: "Invalid installation data" }, { status: 500 });
+  }
 
   try {
     // Fetch repos from GitHub using installation token
@@ -100,7 +103,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "GitHub not connected" }, { status: 400 });
   }
 
-  const installationId = integration.metadata.installation_id as number;
+  const installationId = Number(integration.metadata.installation_id);
+  if (isNaN(installationId)) {
+    return NextResponse.json({ error: "Invalid installation data" }, { status: 500 });
+  }
 
   // Check if already connected
   const { data: existing } = await serviceClient
@@ -146,7 +152,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("Failed to create GitHub webhook:", err);
       return NextResponse.json(
-        { error: "Failed to create webhook", details: String(err) },
+        { error: "Failed to create webhook. Please try again." },
         { status: 502 }
       );
     }
@@ -172,8 +178,14 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error("Failed to store repo:", insertError);
-      // Try to clean up webhook if we created one
-      // Note: We can't easily delete via installation token here without more work
+      // Clean up webhook if we created one
+      if (webhookId) {
+        try {
+          await deleteRepoWebhook(installationId, fullName, webhookId);
+        } catch (cleanupErr) {
+          console.error("Failed to cleanup webhook after DB error:", cleanupErr);
+        }
+      }
       return NextResponse.json({ error: "Failed to store repo" }, { status: 500 });
     }
 

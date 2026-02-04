@@ -1,28 +1,41 @@
-import { SignJWT, importSPKI, importPKCS8 } from "jose";
+import { SignJWT } from "jose";
 import { createPrivateKey } from "crypto";
 
-const APP_ID = process.env.GITHUB_APP_ID!;
-const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY!;
+/**
+ * Get and validate GitHub App configuration.
+ * Throws if not configured.
+ */
+function getAppConfig() {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+
+  if (!appId || !privateKey) {
+    throw new Error("GitHub App not configured: missing GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY");
+  }
+
+  return { appId, privateKey };
+}
 
 /**
  * Create a JWT for GitHub App authentication.
  * Used to get installation access tokens.
  */
 export async function createAppJWT(): Promise<string> {
+  const { appId, privateKey } = getAppConfig();
   const now = Math.floor(Date.now() / 1000);
 
   // Parse the private key (handle \n in env var)
-  const privateKeyPem = PRIVATE_KEY.replace(/\\n/g, "\n");
+  const privateKeyPem = privateKey.replace(/\\n/g, "\n");
 
   // GitHub provides PKCS#1 keys, convert to KeyObject
-  const privateKey = createPrivateKey(privateKeyPem);
+  const key = createPrivateKey(privateKeyPem);
 
   const jwt = await new SignJWT({})
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt(now - 60) // 60 seconds in the past to account for clock drift
     .setExpirationTime(now + 600) // 10 minutes max
-    .setIssuer(APP_ID)
-    .sign(privateKey);
+    .setIssuer(appId)
+    .sign(key);
 
   return jwt;
 }
@@ -51,11 +64,15 @@ export async function getInstallationToken(installationId: number): Promise<stri
   }
 
   const data = await response.json();
+  if (typeof data.token !== "string") {
+    throw new Error("Unexpected response from GitHub: missing token");
+  }
   return data.token;
 }
 
 /**
  * List repositories accessible to an installation.
+ * Note: Only fetches first 100 repos. Users with >100 repos need pagination.
  */
 export async function listInstallationRepos(installationId: number): Promise<{
   id: number;

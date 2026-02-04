@@ -28,6 +28,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Validate installation ID is a reasonable integer
+  const installationIdNum = parseInt(installationId, 10);
+  if (isNaN(installationIdNum) || installationIdNum <= 0 || installationIdNum > Number.MAX_SAFE_INTEGER) {
+    redirectUrl.searchParams.set("error", "invalid_installation_id");
+    return NextResponse.redirect(redirectUrl);
+  }
+
   // Must be authenticated
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -37,6 +44,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Verify the installation is accessible before storing
+    const { getInstallationToken } = await import("@/lib/github/app");
+    try {
+      await getInstallationToken(installationIdNum);
+    } catch (verifyErr) {
+      console.error("Failed to verify GitHub installation:", verifyErr);
+      redirectUrl.searchParams.set("error", "installation_verification_failed");
+      return NextResponse.redirect(redirectUrl);
+    }
+
     // Store installation in integrations table (upsert)
     const serviceClient = createServiceClient();
     const { error: upsertError } = await serviceClient
@@ -44,10 +61,10 @@ export async function GET(request: NextRequest) {
       .upsert({
         user_id: user.id,
         provider: "github",
-        provider_account_id: installationId,
+        provider_account_id: String(installationIdNum),
         access_token: "", // Not used for GitHub App - we generate tokens on demand
         metadata: {
-          installation_id: Number(installationId),
+          installation_id: installationIdNum,
           setup_action: setupAction,
           installed_at: new Date().toISOString(),
         },

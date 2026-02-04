@@ -58,15 +58,15 @@ export async function POST(request: NextRequest) {
     .eq("github_repo_id", body.repository.id)
     .maybeSingle();
 
-  if (!repo) {
-    console.log(`Webhook received for unknown repo: ${body.repository.full_name}`);
-    return NextResponse.json({ message: "Repo not registered" }, { status: 200 });
-  }
-
-  // Verify signature
-  if (!verifySignature(payload, signature, repo.webhook_secret)) {
-    console.error(`Invalid webhook signature for ${repo.full_name}`);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  // Verify signature (use empty string if no repo to prevent timing attacks)
+  // Return same response for missing repo or bad signature to prevent enumeration
+  if (!repo || !verifySignature(payload, signature, repo.webhook_secret)) {
+    if (!repo) {
+      console.log(`Webhook received for unknown repo: ${body.repository.full_name}`);
+    } else {
+      console.error(`Invalid webhook signature for ${repo.full_name}`);
+    }
+    return NextResponse.json({ message: "Webhook processed" }, { status: 200 });
   }
 
   // Only process pushes to the default branch
