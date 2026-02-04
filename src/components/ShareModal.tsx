@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -15,8 +16,13 @@ export default function ShareModal({ isOpen, onClose, onSuccess }: ShareModalPro
   const [crediting, setCrediting] = useState(false);
   const [credited, setCredited] = useState(false);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const claimCredit = async () => {
     if (crediting || credited) return;
@@ -64,9 +70,9 @@ export default function ShareModal({ isOpen, onClose, onSuccess }: ShareModalPro
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -164,6 +170,7 @@ export default function ShareModal({ isOpen, onClose, onSuccess }: ShareModalPro
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

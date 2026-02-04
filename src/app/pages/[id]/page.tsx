@@ -14,11 +14,6 @@ interface PageInfo {
   created_at: string;
 }
 
-interface ConnectedRepo {
-  id: string;
-  full_name: string;
-}
-
 interface ScanHistory {
   id: string;
   scan_number: number;
@@ -88,12 +83,9 @@ function ScoreTrendChart({ history }: { history: ScanHistory[] }) {
     .slice(0, 10) // Last 10 scans
     .reverse(); // Oldest first
 
+  // Don't render anything if < 2 scans - parent will show inline text
   if (completedScans.length < 2) {
-    return (
-      <div className="glass-card p-6 text-center">
-        <p className="text-text-muted">Run at least 2 scans to see the trend.</p>
-      </div>
-    );
+    return null;
   }
 
   const scores = completedScans.map((s) => s.score!);
@@ -122,11 +114,11 @@ function ScoreTrendChart({ history }: { history: ScanHistory[] }) {
   const color = scoreCssColor(latestScore);
 
   return (
-    <div className="glass-card p-6">
-      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-4">
+    <div className="glass-card p-4">
+      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">
         Score trend
       </p>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-[400px]">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-[360px]">
         <defs>
           <linearGradient id={`${chartId}-gradient`} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.2" />
@@ -177,49 +169,76 @@ function ScoreTrendChart({ history }: { history: ScanHistory[] }) {
   );
 }
 
-function ScanCard({ scan, pageUrl }: { scan: ScanHistory; pageUrl: string }) {
+function ScanCard({ scan }: { scan: ScanHistory }) {
   const isComplete = scan.status === "complete";
   const isPending = scan.status === "pending" || scan.status === "processing";
 
   return (
     <Link
       href={`/analysis/${scan.id}`}
-      className={`glass-card p-5 block transition-all duration-150 ${
-        isComplete ? "hover:border-[rgba(91,46,145,0.15)]" : "opacity-70"
-      }`}
+      className={`glass-card p-5 block transition-all duration-200 ${
+        isComplete ? "hover:shadow-lg hover:-translate-y-0.5" : "opacity-70"
+      } group`}
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-5">
+        {/* Score block - the anchor */}
+        {isComplete && scan.score !== null && (
+          <>
+            <div className="flex-shrink-0 w-14 text-center">
+              <p
+                className={`text-3xl font-normal ${scoreColor(scan.score)}`}
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                {scan.score}
+              </p>
+              {scan.score_delta !== null && scan.score_delta !== 0 && (
+                <div className={`flex items-center justify-center gap-0.5 mt-0.5 ${
+                  scan.score_delta > 0 ? "text-score-high" : "text-score-low"
+                }`}>
+                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                    {scan.score_delta > 0 ? (
+                      <path d="M6 2L10 7H2L6 2Z" />
+                    ) : (
+                      <path d="M6 10L2 5H10L6 10Z" />
+                    )}
+                  </svg>
+                  <span className="text-sm font-semibold">{Math.abs(scan.score_delta)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Vertical divider */}
+            <div className="w-px h-10 bg-border-subtle flex-shrink-0" />
+          </>
+        )}
+
+        {/* Content block */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-text-primary">
               {formatDate(scan.created_at)}
             </span>
-            <span className="text-sm text-text-muted">
+            <span className="text-xs text-text-muted">
               {timeAgo(scan.created_at)}
             </span>
             {scan.is_baseline && (
               <span className="text-xs font-medium text-accent bg-accent-subtle px-2 py-0.5 rounded-full">
-                Baseline
+                First scan
               </span>
             )}
           </div>
 
           {/* Progress info */}
-          {scan.progress && (
+          {scan.progress && (scan.progress.resolved > 0 || scan.progress.new_issues > 0) && (
             <div className="mt-2 flex items-center gap-3 text-sm">
               {scan.progress.resolved > 0 && (
-                <span className="text-score-high">
-                  {scan.progress.resolved} resolved
+                <span className="text-score-high font-medium">
+                  {scan.progress.resolved} fixed
                 </span>
               )}
               {scan.progress.new_issues > 0 && (
-                <span className="text-score-low">
+                <span className="text-score-low font-medium">
                   {scan.progress.new_issues} new
-                </span>
-              )}
-              {scan.progress.persisting > 0 && (
-                <span className="text-text-muted">
-                  {scan.progress.persisting} persisting
                 </span>
               )}
             </div>
@@ -239,31 +258,9 @@ function ScanCard({ scan, pageUrl }: { scan: ScanHistory; pageUrl: string }) {
           )}
         </div>
 
-        {/* Score */}
-        {isComplete && scan.score !== null && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span
-              className={`text-2xl font-bold ${scoreColor(scan.score)}`}
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              {scan.score}
-            </span>
-            {scan.score_delta !== null && scan.score_delta !== 0 && (
-              <span
-                className={`text-sm font-semibold ${
-                  scan.score_delta > 0 ? "text-score-high" : "text-score-low"
-                }`}
-              >
-                {scan.score_delta > 0 ? "+" : ""}
-                {scan.score_delta}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Arrow */}
+        {/* Chevron */}
         <svg
-          className="w-5 h-5 text-text-muted flex-shrink-0"
+          className="w-5 h-5 text-text-muted flex-shrink-0 group-hover:text-accent group-hover:translate-x-0.5 transition-all duration-200"
           viewBox="0 0 20 20"
           fill="none"
           stroke="currentColor"
@@ -276,95 +273,9 @@ function ScanCard({ scan, pageUrl }: { scan: ScanHistory; pageUrl: string }) {
   );
 }
 
-function FrequencySelector({
-  current,
-  onChange,
-  loading,
-}: {
-  current: string;
-  onChange: (freq: string) => void;
-  loading: boolean;
-}) {
-  const options = [
-    { value: "weekly", label: "Weekly" },
-    { value: "daily", label: "Daily" },
-    { value: "manual", label: "Manual" },
-  ];
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-text-muted">Scan frequency:</span>
-      <select
-        value={current}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={loading}
-        className="input-glass text-sm py-1.5 px-3 pr-8 appearance-none cursor-pointer"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%238E8EA0' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
-          backgroundPosition: "right 8px center",
-          backgroundSize: "16px 16px",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function RepoSelector({
-  currentRepoId,
-  repos,
-  onChange,
-  loading,
-}: {
-  currentRepoId: string | null;
-  repos: ConnectedRepo[];
-  onChange: (repoId: string | null) => void;
-  loading: boolean;
-}) {
-  if (repos.length === 0) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-text-muted">Auto-scan:</span>
-        <Link
-          href="/settings/integrations"
-          className="text-sm text-accent hover:text-accent-hover transition-colors"
-        >
-          Connect GitHub
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-text-muted">Auto-scan:</span>
-      <select
-        value={currentRepoId || ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        disabled={loading}
-        className="input-glass text-sm py-1.5 px-3 pr-8 appearance-none cursor-pointer"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%238E8EA0' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
-          backgroundPosition: "right 8px center",
-          backgroundSize: "16px 16px",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
-        <option value="">Not linked</option>
-        {repos.map((repo) => (
-          <option key={repo.id} value={repo.id}>
-            {repo.full_name}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+interface IntegrationsState {
+  github: { connected: boolean };
+  posthog: { connected: boolean };
 }
 
 export default function PageTimelinePage() {
@@ -374,27 +285,29 @@ export default function PageTimelinePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rescanLoading, setRescanLoading] = useState(false);
-  const [freqLoading, setFreqLoading] = useState(false);
-  const [repoLoading, setRepoLoading] = useState(false);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-  const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
+  const [integrations, setIntegrations] = useState<IntegrationsState>({
+    github: { connected: false },
+    posthog: { connected: false },
+  });
 
-  // Fetch connected repos
+  // Fetch integrations status
   useEffect(() => {
-    const fetchRepos = async () => {
+    const fetchIntegrations = async () => {
       try {
         const res = await fetch("/api/integrations");
         if (res.ok) {
           const data = await res.json();
-          if (data.github?.repos) {
-            setConnectedRepos(data.github.repos);
-          }
+          setIntegrations({
+            github: { connected: data.github?.connected || false },
+            posthog: { connected: data.posthog?.connected || false },
+          });
         }
-      } catch {
-        // Ignore - repos just won't show
+      } catch (err) {
+        console.warn("Failed to fetch integrations:", err);
       }
     };
-    fetchRepos();
+    fetchIntegrations();
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -440,6 +353,7 @@ export default function PageTimelinePage() {
   const handleRescan = async () => {
     if (!data || data.history.length === 0) return;
 
+    setError(""); // Clear previous errors
     setRescanLoading(true);
     try {
       // Get the latest complete scan as parent
@@ -463,70 +377,22 @@ export default function PageTimelinePage() {
       }
 
       const result = await res.json();
+
+      if (!res.ok) {
+        console.error("Rescan failed:", result.error);
+        setError(result.error || "Failed to start re-scan");
+        return;
+      }
+
       if (result.id) {
         // Refresh to show new scan
         await fetchData();
       }
-    } catch {
+    } catch (err) {
+      console.error("Rescan error:", err);
       setError("Failed to start re-scan");
     } finally {
       setRescanLoading(false);
-    }
-  };
-
-  const handleFrequencyChange = async (freq: string) => {
-    if (!data) return;
-
-    setFreqLoading(true);
-    try {
-      const res = await fetch(`/api/pages/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scan_frequency: freq }),
-      });
-
-      if (res.ok) {
-        setData((prev) =>
-          prev
-            ? {
-                ...prev,
-                page: { ...prev.page, scan_frequency: freq },
-              }
-            : null
-        );
-      }
-    } catch {
-      // Ignore
-    } finally {
-      setFreqLoading(false);
-    }
-  };
-
-  const handleRepoChange = async (repoId: string | null) => {
-    if (!data) return;
-
-    setRepoLoading(true);
-    try {
-      const res = await fetch(`/api/pages/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_id: repoId }),
-      });
-
-      if (res.ok) {
-        setData((prev) =>
-          prev
-            ? {
-                ...prev,
-                page: { ...prev.page, repo_id: repoId },
-              }
-            : null
-        );
-      }
-    } catch {
-      // Ignore
-    } finally {
-      setRepoLoading(false);
     }
   };
 
@@ -551,8 +417,8 @@ export default function PageTimelinePage() {
             : null
         );
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      console.error("Failed to toggle leaderboard:", err);
     } finally {
       setLeaderboardLoading(false);
     }
@@ -587,105 +453,160 @@ export default function PageTimelinePage() {
   const hasPendingScan = history.some(
     (s) => s.status === "pending" || s.status === "processing"
   );
+  const latestComplete = history.find((s) => s.status === "complete" && s.score !== null);
+  const completedScansCount = history.filter((s) => s.status === "complete" && s.score !== null).length;
+  const showTrendChart = completedScansCount >= 2;
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1
-            className="text-4xl font-bold text-text-primary mb-2"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
-            {displayName}
-          </h1>
-          <p className="text-text-muted font-mono text-sm">{page.url}</p>
-          <p className="text-text-secondary mt-2">
-            {total_scans} scan{total_scans !== 1 ? "s" : ""} since{" "}
-            {formatDate(page.created_at)}
-          </p>
-        </div>
+    <div className="max-w-3xl mx-auto px-4 pt-4 pb-8">
+      {/* Breadcrumb */}
+      <Link
+        href="/dashboard"
+        className="text-sm text-text-muted hover:text-accent transition-colors inline-flex items-center gap-1 mb-6"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M13 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Dashboard
+      </Link>
 
-        {/* Score trend chart */}
+      {/* Page Info Card with Score */}
+      <div className="glass-card p-5 mb-4">
+        {/* Mobile: stacked layout, Desktop: horizontal */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
+          {/* Score + Page info row */}
+          <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0">
+            {/* Score */}
+            {latestComplete && (
+              <>
+                <div className="flex-shrink-0 text-center">
+                  <span
+                    className={`text-4xl font-normal ${scoreColor(latestComplete.score!)}`}
+                    style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  >
+                    {latestComplete.score}
+                  </span>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {timeAgo(latestComplete.created_at)}
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="w-px h-12 bg-border-subtle flex-shrink-0" />
+              </>
+            )}
+
+            {/* Page info */}
+            <div className="min-w-0 flex-1">
+              <h1
+                className="text-lg sm:text-xl font-semibold text-text-primary truncate"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                {displayName}
+              </h1>
+              <p className="text-xs text-text-muted font-mono mt-1 truncate">
+                {page.url}
+              </p>
+            </div>
+          </div>
+
+          {/* Scan button - full width on mobile */}
+          <button
+            onClick={handleRescan}
+            disabled={rescanLoading || hasPendingScan}
+            className="btn-secondary text-sm py-2 px-4 whitespace-nowrap flex-shrink-0 w-full sm:w-auto"
+          >
+            {rescanLoading
+              ? "On it..."
+              : hasPendingScan
+                ? "Scanning..."
+                : "Scan again"}
+          </button>
+        </div>
+      </div>
+
+      {/* Integration Pills */}
+      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-8">
+        {/* PostHog status */}
+        {integrations.posthog.connected ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-secondary border border-border-subtle">
+            <svg className="w-3 h-3 text-score-high" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            PostHog
+          </span>
+        ) : (
+          <Link
+            href="/settings/integrations"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-muted border border-dashed border-border-subtle hover:border-accent hover:text-accent transition-colors"
+          >
+            <span className="text-xs leading-none">+</span>
+            PostHog
+          </Link>
+        )}
+
+        {/* GitHub status */}
+        {integrations.github.connected ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-secondary border border-border-subtle">
+            <svg className="w-3 h-3 text-score-high" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            GitHub
+          </span>
+        ) : (
+          <Link
+            href="/settings/integrations"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-muted border border-dashed border-border-subtle hover:border-accent hover:text-accent transition-colors"
+          >
+            <span className="text-xs leading-none">+</span>
+            GitHub
+          </Link>
+        )}
+
+        {/* Leaderboard toggle */}
+        <button
+          onClick={() => handleLeaderboardToggle(!page.hide_from_leaderboard)}
+          disabled={leaderboardLoading}
+          className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium bg-surface border border-border-subtle text-text-secondary sm:ml-auto hover:border-accent-border transition-colors"
+        >
+          Leaderboard
+          <span
+            className={`relative w-7 h-4 rounded-full transition-colors duration-200 ${
+              page.hide_from_leaderboard ? "bg-[rgba(0,0,0,0.1)]" : "bg-accent"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                page.hide_from_leaderboard ? "translate-x-0" : "translate-x-3"
+              }`}
+            />
+          </span>
+        </button>
+      </div>
+
+      {/* Score trend chart or inline prompt */}
+      {showTrendChart ? (
         <div className="mb-8">
           <ScoreTrendChart history={history} />
         </div>
+      ) : completedScansCount === 1 ? (
+        <p className="text-sm text-text-muted mb-8 text-center">
+          One more scan and you&apos;ll see the trend.
+        </p>
+      ) : null}
 
-        {/* Settings bar */}
-        <div className="glass-card p-5 mb-8">
-          <div className="flex flex-col gap-4">
-            {/* Row 1: Scan settings and rescan button */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <FrequencySelector
-                  current={page.scan_frequency}
-                  onChange={handleFrequencyChange}
-                  loading={freqLoading}
-                />
-                <RepoSelector
-                  currentRepoId={page.repo_id}
-                  repos={connectedRepos}
-                  onChange={handleRepoChange}
-                  loading={repoLoading}
-                />
-              </div>
-              <button
-                onClick={handleRescan}
-                disabled={rescanLoading || hasPendingScan}
-                className="btn-primary"
-              >
-                {rescanLoading
-                  ? "Starting scan..."
-                  : hasPendingScan
-                    ? "Scan in progress..."
-                    : "Re-scan now"}
-              </button>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-[rgba(0,0,0,0.06)]" />
-
-            {/* Row 2: Leaderboard toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-text-secondary">Show on leaderboard</span>
-                <Link
-                  href="/leaderboard"
-                  className="text-xs text-text-muted hover:text-accent transition-colors"
-                >
-                  View leaderboard
-                </Link>
-              </div>
-              <button
-                onClick={() => handleLeaderboardToggle(!page.hide_from_leaderboard)}
-                disabled={leaderboardLoading}
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                  page.hide_from_leaderboard
-                    ? "bg-[rgba(0,0,0,0.1)]"
-                    : "bg-accent"
-                }`}
-                aria-label={page.hide_from_leaderboard ? "Enable leaderboard" : "Disable leaderboard"}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                    page.hide_from_leaderboard ? "translate-x-0" : "translate-x-5"
-                  }`}
-                />
-              </button>
-            </div>
+      {/* Scan history */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
+          Past scans
+        </p>
+        {history.length === 0 ? (
+          <div className="glass-card p-6 text-center">
+            <p className="text-text-muted">Waiting on your first scan.</p>
           </div>
-        </div>
-
-        {/* Scan history */}
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-4">
-            Scan history
-          </p>
-          {history.length === 0 ? (
-            <div className="glass-card p-8 text-center">
-              <p className="text-text-muted">No scans yet. Click Re-scan to start.</p>
-            </div>
-          ) : (
-            history.map((scan) => (
-              <ScanCard key={scan.id} scan={scan} pageUrl={page.url} />
+        ) : (
+          history.map((scan) => (
+            <ScanCard key={scan.id} scan={scan} />
             ))
           )}
         </div>

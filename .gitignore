@@ -16,3 +16,7 @@ npm-debug.log*
 # misc
 .DS_Store
 *.tsbuildinfo
+
+# temp
+/tmp
+/tmp/*   

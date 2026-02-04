@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ShareModal from "@/components/ShareModal";
@@ -189,8 +190,13 @@ function AddPageModal({
 }) {
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,9 +204,9 @@ function AddPageModal({
     onSubmit(url, name);
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -259,7 +265,8 @@ function AddPageModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -276,11 +283,17 @@ function DeleteConfirmModal({
   loading: boolean;
   pageName: string;
 }) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -315,7 +328,8 @@ function DeleteConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

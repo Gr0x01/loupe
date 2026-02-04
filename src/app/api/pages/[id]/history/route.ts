@@ -29,7 +29,7 @@ export async function GET(
     // Get the page to verify ownership and get URL
     const { data: page, error: pageError } = await supabase
       .from("pages")
-      .select("id, url, name, scan_frequency, repo_id, hide_from_leaderboard, created_at")
+      .select("id, url, name, scan_frequency, repo_id, hide_from_leaderboard, created_at, last_scan_id")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -38,32 +38,51 @@ export async function GET(
       return NextResponse.json({ error: "Page not found" }, { status: 404 });
     }
 
-    // Get all analyses for this URL by this user, ordered by date desc
-    const { data: analyses, error: analysesError } = await supabase
-      .from("analyses")
-      .select(`
-        id,
-        url,
-        status,
-        structured_output,
-        changes_summary,
-        created_at,
-        parent_analysis_id
-      `)
-      .eq("user_id", user.id)
-      .eq("url", page.url)
-      .order("created_at", { ascending: false });
+    // Build history by following the last_scan_id chain
+    // This handles cases where analyses may have been created before user auth
+    const analyses: Array<{
+      id: string;
+      url: string;
+      status: string;
+      structured_output: { overallScore?: number } | null;
+      changes_summary: { score_delta?: number; progress?: unknown } | null;
+      created_at: string;
+      parent_analysis_id: string | null;
+    }> = [];
 
-    if (analysesError) {
-      console.error("Failed to fetch analyses:", analysesError);
-      return NextResponse.json(
-        { error: "Failed to fetch scan history" },
-        { status: 500 }
-      );
+    // Start from last_scan_id and follow parent_analysis_id chain
+    let currentId = page.last_scan_id;
+    const seenIds = new Set<string>();
+
+    while (currentId && !seenIds.has(currentId)) {
+      seenIds.add(currentId);
+
+      const { data: analysis } = await supabase
+        .from("analyses")
+        .select(`
+          id,
+          url,
+          status,
+          structured_output,
+          changes_summary,
+          created_at,
+          parent_analysis_id
+        `)
+        .eq("id", currentId)
+        .single();
+
+      if (analysis) {
+        analyses.push(analysis);
+        currentId = analysis.parent_analysis_id;
+      } else {
+        break;
+      }
     }
 
+    console.log("[history] Found", analyses.length, "analyses via last_scan_id chain");
+
     // Format the history with score, status, and changes preview
-    const history = (analyses || []).map((analysis, index) => ({
+    const history = analyses.map((analysis, index) => ({
       id: analysis.id,
       scan_number: (analyses?.length || 0) - index,
       status: analysis.status,
