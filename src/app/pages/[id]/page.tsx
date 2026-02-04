@@ -471,29 +471,25 @@ export default function PageTimelinePage() {
       </Link>
 
       {/* Page Info Card with Score */}
-      <div className="glass-card p-5 mb-4">
-        {/* Mobile: stacked layout, Desktop: horizontal */}
+      <div className="glass-card p-4 sm:p-5 mb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
           {/* Score + Page info row */}
-          <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0">
-            {/* Score */}
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            {/* Score badge */}
             {latestComplete && (
-              <>
-                <div className="flex-shrink-0 text-center">
-                  <span
-                    className={`text-4xl font-normal ${scoreColor(latestComplete.score!)}`}
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    {latestComplete.score}
-                  </span>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    {timeAgo(latestComplete.created_at)}
-                  </p>
-                </div>
+              <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-[rgba(255,255,255,0.5)] flex items-center justify-center border border-border-subtle">
+                <span
+                  className={`text-2xl sm:text-3xl font-normal ${scoreColor(latestComplete.score!)}`}
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  {latestComplete.score}
+                </span>
+              </div>
+            )}
 
-                {/* Divider */}
-                <div className="w-px h-12 bg-border-subtle flex-shrink-0" />
-              </>
+            {/* Divider - desktop only */}
+            {latestComplete && (
+              <div className="hidden sm:block w-px h-12 bg-border-subtle flex-shrink-0" />
             )}
 
             {/* Page info */}
@@ -510,78 +506,70 @@ export default function PageTimelinePage() {
             </div>
           </div>
 
-          {/* Scan button - full width on mobile */}
+          {/* Scan button */}
           <button
             onClick={handleRescan}
             disabled={rescanLoading || hasPendingScan}
-            className="btn-secondary text-sm py-2 px-4 whitespace-nowrap flex-shrink-0 w-full sm:w-auto"
+            className="btn-secondary text-sm py-2.5 px-4 whitespace-nowrap flex-shrink-0 w-full sm:w-auto flex items-center justify-center gap-2"
           >
-            {rescanLoading
-              ? "On it..."
-              : hasPendingScan
-                ? "Scanning..."
-                : "Scan again"}
+            {rescanLoading || hasPendingScan ? (
+              <>
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                {rescanLoading ? "Starting..." : "Scanning..."}
+              </>
+            ) : (
+              "Scan again"
+            )}
           </button>
         </div>
-      </div>
 
-      {/* Integration Pills */}
-      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-8">
-        {/* PostHog status */}
-        {integrations.posthog.connected ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-secondary border border-border-subtle">
-            <svg className="w-3 h-3 text-score-high" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            PostHog
-          </span>
-        ) : (
-          <Link
-            href="/settings/integrations"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-muted border border-dashed border-border-subtle hover:border-accent hover:text-accent transition-colors"
-          >
-            <span className="text-xs leading-none">+</span>
-            PostHog
-          </Link>
-        )}
+        {/* Status row - inside card */}
+        <div className="mt-4 pt-4 border-t border-border-subtle flex items-center justify-between gap-4">
+          {/* Integrations - dots on mobile, pills on desktop */}
+          <div className="flex items-center gap-2 sm:gap-2">
+            {/* PostHog */}
+            {integrations.posthog.connected ? (
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(26,140,91,0.08)] text-score-high border border-[rgba(26,140,91,0.15)]">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="hidden sm:inline">PostHog</span>
+              </span>
+            ) : (
+              <Link href="/settings/integrations" className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-muted border border-dashed border-border-subtle hover:border-accent hover:text-accent transition-colors">
+                <span>+</span>
+                <span className="hidden sm:inline">PostHog</span>
+              </Link>
+            )}
+            {/* GitHub */}
+            {integrations.github.connected ? (
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(26,140,91,0.08)] text-score-high border border-[rgba(26,140,91,0.15)]">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="hidden sm:inline">GitHub</span>
+              </span>
+            ) : (
+              <Link href="/settings/integrations" className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-muted border border-dashed border-border-subtle hover:border-accent hover:text-accent transition-colors">
+                <span>+</span>
+                <span className="hidden sm:inline">GitHub</span>
+              </Link>
+            )}
+          </div>
 
-        {/* GitHub status */}
-        {integrations.github.connected ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-secondary border border-border-subtle">
-            <svg className="w-3 h-3 text-score-high" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            GitHub
-          </span>
-        ) : (
-          <Link
-            href="/settings/integrations"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-text-muted border border-dashed border-border-subtle hover:border-accent hover:text-accent transition-colors"
+          {/* Leaderboard toggle */}
+          <button
+            onClick={() => handleLeaderboardToggle(!page.hide_from_leaderboard)}
+            disabled={leaderboardLoading}
+            className="flex items-center gap-2 text-xs sm:text-sm text-text-secondary flex-shrink-0"
           >
-            <span className="text-xs leading-none">+</span>
-            GitHub
-          </Link>
-        )}
-
-        {/* Leaderboard toggle */}
-        <button
-          onClick={() => handleLeaderboardToggle(!page.hide_from_leaderboard)}
-          disabled={leaderboardLoading}
-          className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium bg-surface border border-border-subtle text-text-secondary sm:ml-auto hover:border-accent-border transition-colors"
-        >
-          Leaderboard
-          <span
-            className={`relative w-7 h-4 rounded-full transition-colors duration-200 ${
-              page.hide_from_leaderboard ? "bg-[rgba(0,0,0,0.1)]" : "bg-accent"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                page.hide_from_leaderboard ? "translate-x-0" : "translate-x-3"
-              }`}
-            />
-          </span>
-        </button>
+            <span className="hidden sm:inline">Show on leaderboard</span>
+            <span className="sm:hidden">Public</span>
+            <span className={`relative w-7 sm:w-8 h-4 sm:h-5 rounded-full transition-colors duration-200 ${page.hide_from_leaderboard ? "bg-[rgba(0,0,0,0.1)]" : "bg-accent"}`}>
+              <span className={`absolute top-0.5 left-0.5 w-3 sm:w-4 h-3 sm:h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${page.hide_from_leaderboard ? "translate-x-0" : "translate-x-3"}`} />
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Score trend chart or inline prompt */}

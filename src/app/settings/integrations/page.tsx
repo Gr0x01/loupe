@@ -581,14 +581,14 @@ function IntegrationsContent() {
 
         {/* GitHub Integration */}
         <section className="mb-8">
-          <div className="glass-card-elevated p-6">
-            <div className="flex items-start justify-between gap-4">
+          <div className="glass-card-elevated p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-[#24292e] flex items-center justify-center">
-                  <GitHubIcon className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#24292e] flex items-center justify-center flex-shrink-0">
+                  <GitHubIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-text-primary">GitHub</h2>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">GitHub</h2>
                   <p className="text-sm text-text-secondary">
                     Auto-scan pages when you push to main
                   </p>
@@ -596,14 +596,14 @@ function IntegrationsContent() {
               </div>
 
               {!integrations?.github ? (
-                <button onClick={handleConnectGitHub} className="btn-primary">
+                <button onClick={handleConnectGitHub} className="btn-primary w-full sm:w-auto">
                   Connect
                 </button>
               ) : (
                 <button
                   onClick={handleDisconnectGitHub}
                   disabled={disconnectingGitHub}
-                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
                 >
                   {disconnectingGitHub ? "Disconnecting..." : "Disconnect"}
                 </button>
@@ -685,10 +685,10 @@ function IntegrationsContent() {
 
         {/* PostHog Integration */}
         <section className="mb-8">
-          <div className="glass-card-elevated p-6">
-            <div className="flex items-start justify-between gap-4">
+          <div className="glass-card-elevated p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
                   <svg className="w-8 h-5" viewBox="0 0 50 30" fill="none">
                     <path d="M10.8914 17.2057c-.3685.7371-1.42031.7371-1.78884 0L8.2212 15.443c-.14077-.2815-.14077-.6129 0-.8944l.88136-1.7627c.36853-.7371 1.42034-.7371 1.78884 0l.8814 1.7627c.1407.2815.1407.6129 0 .8944l-.8814 1.7627zM10.8914 27.2028c-.3685.737-1.42031.737-1.78884 0L8.2212 25.44c-.14077-.2815-.14077-.6129 0-.8944l.88136-1.7627c.36853-.7371 1.42034-.7371 1.78884 0l.8814 1.7627c.1407.2815.1407.6129 0 .8944l-.8814 1.7628z" fill="#1D4AFF"/>
                     <path d="M0 23.4082c0-.8909 1.07714-1.3371 1.70711-.7071l4.58338 4.5834c.62997.63.1838 1.7071-.7071 1.7071H.999999c-.552284 0-.999999-.4477-.999999-1v-4.5834zm0-4.8278c0 .2652.105357.5196.292893.7071l9.411217 9.4112c.18753.1875.44189.2929.70709.2929h5.1692c.8909 0 1.3371-1.0771.7071-1.7071L1.70711 12.7041C1.07714 12.0741 0 12.5203 0 13.4112v5.1692zm0-9.99701c0 .26521.105357.51957.292893.7071L19.7011 28.6987c.1875.1875.4419.2929.7071.2929h5.1692c.8909 0 1.3371-1.0771.7071-1.7071L1.70711 2.70711C1.07715 2.07715 0 2.52331 0 3.41421v5.16918zm9.997 0c0 .26521.1054.51957.2929.7071l17.994 17.99401c.63.63 1.7071.1838 1.7071-.7071v-5.1692c0-.2652-.1054-.5196-.2929-.7071l-17.994-17.994c-.63-.62996-1.7071-.18379-1.7071.70711v5.16918zm11.7041-5.87628c-.63-.62997-1.7071-.1838-1.7071.7071v5.16918c0 .26521.1054.51957.2929.7071l7.997 7.99701c.63.63 1.7071.1838 1.7071-.7071v-5.1692c0-.2652-.1054-.5196-.2929-.7071l-7.997-7.99699z" fill="#F9BD2B"/>
@@ -697,8 +697,8 @@ function IntegrationsContent() {
                     <path d="M19.994 11.4112c0-.2652-.1053-.5196-.2929-.7071l-7.997-7.99699c-.6299-.62997-1.70709-.1838-1.70709.7071v5.16918c0 .26521.10539.51957.29289.7071l9.7041 9.70411v-7.5834zM9.99701 28.9916h5.58339c.8909 0 1.3371-1.0771.7071-1.7071L9.99701 20.994v7.9976zM9.99701 10.997v7.5834c0 .2652.10539.5196.29289.7071l9.7041 9.7041v-7.5834c0-.2652-.1053-.5196-.2929-.7071L9.99701 10.997z" fill="#F54E00"/>
                   </svg>
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-text-primary">PostHog</h2>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">PostHog</h2>
                   <p className="text-sm text-text-secondary">
                     See pageviews and bounce rate with each scan
                   </p>
@@ -708,7 +708,7 @@ function IntegrationsContent() {
               {!integrations?.posthog ? (
                 <button
                   onClick={() => setShowPostHogConnect(true)}
-                  className="btn-primary"
+                  className="btn-primary w-full sm:w-auto"
                 >
                   Connect
                 </button>
@@ -716,7 +716,7 @@ function IntegrationsContent() {
                 <button
                   onClick={handleDisconnectPostHog}
                   disabled={disconnectingPostHog}
-                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
                 >
                   {disconnectingPostHog ? "Disconnecting..." : "Disconnect"}
                 </button>
@@ -752,18 +752,18 @@ function IntegrationsContent() {
 
         {/* Email Notifications */}
         <section className="mb-8">
-          <div className="glass-card-elevated p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="glass-card-elevated p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                   </svg>
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-text-primary">Email Notifications</h2>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">Email Notifications</h2>
                   <p className="text-sm text-text-secondary">
-                    Get notified when scheduled scans complete
+                    Get notified when scans complete
                   </p>
                 </div>
               </div>
@@ -771,14 +771,14 @@ function IntegrationsContent() {
               <button
                 onClick={handleToggleEmailNotifications}
                 disabled={togglingEmail}
-                className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                className={`relative w-11 h-6 sm:w-12 sm:h-7 rounded-full transition-colors duration-200 flex-shrink-0 ${
                   emailNotifications ? "bg-accent" : "bg-text-muted/30"
                 } disabled:opacity-50`}
                 role="switch"
                 aria-checked={emailNotifications}
               >
                 <span
-                  className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                  className={`absolute top-0.5 sm:top-1 left-0.5 sm:left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
                     emailNotifications ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
