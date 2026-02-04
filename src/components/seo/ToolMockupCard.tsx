@@ -1,6 +1,6 @@
 "use client";
 
-import { type AITool, toolPageData } from "@/lib/seo/page-data";
+import { type AITool, toolPageData, toolLogos } from "@/lib/seo/page-data";
 
 // Evaluation status icons
 const CheckIcon = () => (
@@ -47,21 +47,6 @@ const PlusIcon = () => (
   </svg>
 );
 
-const ToolIcon = () => (
-  <svg
-    className="w-3 h-3"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polyline points="4 6 7 9 4 12" />
-    <line x1="9" y1="12" x2="12" y2="12" />
-  </svg>
-);
-
 interface ToolMockupCardProps {
   tool: AITool;
 }
@@ -69,6 +54,7 @@ interface ToolMockupCardProps {
 export default function ToolMockupCard({ tool }: ToolMockupCardProps) {
   const data = toolPageData[tool];
   const changes = data.mockChanges;
+  const LogoComponent = toolLogos[tool];
 
   const statusConfig = {
     resolved: {
@@ -96,7 +82,7 @@ export default function ToolMockupCard({ tool }: ToolMockupCardProps) {
       {/* Header — tool context */}
       <div className="flex items-center gap-2 mb-5 flex-wrap">
         <span className="element-badge flex items-center gap-1.5">
-          <ToolIcon />
+          <LogoComponent className="w-4 h-4" />
           <span>{data.name}</span>
         </span>
         <span className="text-text-muted">&middot;</span>

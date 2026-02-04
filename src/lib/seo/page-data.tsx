@@ -1,4 +1,87 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+
+// ===== TOOL LOGOS =====
+// Simple SVG representations of each tool's brand
+
+export const LovableLogo = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <path
+      d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+      fill="#EC4899"
+    />
+  </svg>
+);
+
+export const BoltLogo = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <path
+      d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"
+      fill="#F59E0B"
+      stroke="#F59E0B"
+      strokeWidth="1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const CursorLogo = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    {/* 3D cube */}
+    <path d="M12 2L4 7v10l8 5 8-5V7l-8-5z" fill="#1a1a1a" />
+    <path d="M12 2L4 7l8 5 8-5-8-5z" fill="#333" />
+    <path d="M12 12l8-5v10l-8 5V12z" fill="#262626" />
+    {/* Cursor arrow */}
+    <path
+      d="M10 8l-2 8 2.5-2.5L12 17l1.5-3.5L16 15l-6-7z"
+      fill="#F97316"
+    />
+  </svg>
+);
+
+export const V0Logo = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <path
+      d="M7 6l5 12 5-12"
+      stroke="#000"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="18" cy="14" r="3.5" stroke="#000" strokeWidth="2" fill="none" />
+  </svg>
+);
+
+export const ReplitLogo = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    {/* Replit's "prompt" symbol - three circles in a triangular pattern */}
+    <circle cx="12" cy="6" r="3" fill="#F26207" />
+    <circle cx="7" cy="15" r="3" fill="#F26207" />
+    <circle cx="17" cy="15" r="3" fill="#F26207" />
+  </svg>
+);
+
+export const Base44Logo = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <rect x="3" y="3" width="18" height="18" rx="4" fill="#6366F1" />
+    {/* Grid pattern representing building blocks */}
+    <rect x="7" y="7" width="4" height="4" rx="1" fill="white" />
+    <rect x="13" y="7" width="4" height="4" rx="1" fill="white" />
+    <rect x="7" y="13" width="4" height="4" rx="1" fill="white" />
+    <rect x="13" y="13" width="4" height="4" rx="1" fill="white" />
+  </svg>
+);
+
+// Logo component lookup
+export const toolLogos: Record<AITool, (props: { className?: string }) => ReactNode> = {
+  lovable: LovableLogo,
+  bolt: BoltLogo,
+  cursor: CursorLogo,
+  v0: V0Logo,
+  replit: ReplitLogo,
+  base44: Base44Logo,
+};
 
 // ===== TOOL PAGES DATA =====
 
@@ -26,11 +109,11 @@ export const toolPageData: Record<AITool, ToolPageData> = {
   lovable: {
     name: "Lovable",
     tagline: "Building with Lovable?",
-    headline: "Lovable changed your site.\nDo you know what's different?",
+    headline: "Ship fast with Lovable.\nLoupe shows you what changed.",
     subheadline:
-      "Your AI said 'Done!' — but did your pricing section survive? Your CTA? Your testimonials?",
+      "Keep prompting. Keep shipping. Loupe watches your live site and tells you exactly what's different after each change.",
     supportingText:
-      "Loupe screenshots your site after every prompt. We'll show you exactly what's different.",
+      "The perfect companion for Lovable — screenshot tracking that shows what shipped.",
     painPoints: [
       {
         title: "One prompt breaks three things",
@@ -95,43 +178,43 @@ export const toolPageData: Record<AITool, ToolPageData> = {
   bolt: {
     name: "Bolt",
     tagline: "Building with Bolt?",
-    headline: "Bolt 'fixed' your checkout.\nWhat else did it change?",
+    headline: "Build full-stack with Bolt.\nLoupe shows you what shipped.",
     subheadline:
-      "AI moves fast. Your site changes faster. Know what's different before your customers complain.",
+      "Bolt deploys fast. Loupe captures what's live — homepage, checkout, every page — so you always know what users see.",
     supportingText:
-      "Loupe monitors your pages and shows you exactly what drifted.",
+      "The perfect companion for Bolt — visual monitoring for full-stack deploys.",
     painPoints: [
       {
-        title: "Fixes cause new problems",
+        title: "One prompt deploys everything",
         description:
-          "You asked Bolt to fix the form. It also changed your button colors, font sizes, and broke mobile layout.",
+          "You asked for a landing page. Bolt built routes, added a database, deployed it all. What's actually live?",
       },
       {
-        title: "Mobile breaks silently",
+        title: "No staging, no preview",
         description:
-          "Desktop looks fine. But Bolt's 'responsive' updates? Check your phone.",
+          "Bolt ships to production. There's no 'review before deploy' step. It's live the moment it's done.",
       },
       {
-        title: "No way to see what changed",
+        title: "Full-stack blind spots",
         description:
-          "Bolt shows you the result, not the diff. Good luck remembering what your checkout looked like before.",
+          "Desktop looks fine. But the mobile layout? The checkout flow? The error states? Bolt doesn't show you.",
       },
     ],
     benefits: [
       {
-        title: "Screenshot every change",
+        title: "See what shipped",
         description:
-          "We capture your pages after updates so you have proof of what's live.",
+          "After every deploy, we screenshot your live app so you know what users actually see.",
       },
       {
-        title: "Meaningful diff",
+        title: "Catch broken flows",
         description:
-          "Not pixel changes — actual content changes. Headlines, CTAs, sections.",
+          "Not just the homepage — checkout, signup, and conversion paths. All monitored.",
       },
       {
-        title: "Alert on drift",
+        title: "Alert before users complain",
         description:
-          "Email when something important moves. Weekly or after every update.",
+          "Email when something important changes. Catch it before support tickets pile up.",
       },
     ],
     mockChanges: [
@@ -155,52 +238,52 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Bolt Website Monitoring — Track What Your AI Changes | Loupe",
+      title: "Bolt App Monitoring — See What Your Full-Stack AI Shipped | Loupe",
       description:
-        "Monitor your Bolt landing page for drift. See what your AI changed and catch broken layouts before customers notice. Free audit.",
+        "Building with Bolt? Loupe monitors your live app after every deploy. Catch broken pages and flows before users do. Free audit.",
     },
   },
 
   cursor: {
     name: "Cursor",
     tagline: "Shipping with Cursor?",
-    headline: "Cursor refactored your code.\nWhat happened to your site?",
+    headline: "Refactor fast with Cursor.\nLoupe catches visual regressions.",
     subheadline:
-      "The code looks cleaner. But did your marketing page survive the refactor?",
+      "Ship with confidence. Loupe monitors your live site after every push and shows you what actually changed.",
     supportingText:
-      "Loupe connects to your deploys and shows you what changed customer-facing.",
+      "The perfect companion for Cursor — visual regression detection that works with your deploy flow.",
     painPoints: [
       {
-        title: "Refactors break UI",
+        title: "Refactors break pages silently",
         description:
-          "Component renamed, import updated, props changed — and the hero section is blank.",
+          "Component renamed, props changed, imports updated — and the testimonial grid is blank. No error, just empty.",
       },
       {
-        title: "Speed over review",
+        title: "50 files changed, one broke prod",
         description:
-          "Cursor is fast. Too fast to catch every side effect before you push.",
+          "Your refactor touched half the codebase. Which file deleted the CTA?",
       },
       {
-        title: "Lost in the diff",
+        title: "Tests pass, UI doesn't",
         description:
-          "50 files changed. Which one broke your landing page?",
+          "Unit tests don't catch missing social proof. Integration tests don't check your conversion copy.",
       },
     ],
     benefits: [
       {
-        title: "Deploy → Screenshot → Compare",
+        title: "Push → Screenshot → Diff",
         description:
-          "Connect GitHub. We watch what actually renders after your push.",
+          "Connect GitHub. Every deploy triggers a visual capture. See what actually shipped.",
       },
       {
-        title: "Code meets outcome",
+        title: "Commit → Consequence",
         description:
-          "See which commit changed which element. Attribution, not guessing.",
+          "See which commit changed which element. Trace the regression to the line.",
       },
       {
-        title: "Catch visual regressions",
+        title: "Catch what tests miss",
         description:
-          "Not every bug throws an error. Some just delete your social proof.",
+          "Visual regressions don't throw errors. Loupe catches them before users do.",
       },
     ],
     mockChanges: [
@@ -224,20 +307,20 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Cursor Website Monitoring — Track What Your AI Changed | Loupe",
+      title: "Cursor Deploy Monitoring — Catch Visual Regressions After Refactors | Loupe",
       description:
-        "Shipping with Cursor? Loupe monitors your site after every deploy. See what your refactor actually changed on the live site.",
+        "Deploying with Cursor? Loupe monitors your site after every push. See which commit broke which page. Catch visual regressions before users do.",
     },
   },
 
   v0: {
     name: "v0",
     tagline: "Generating with v0?",
-    headline: "v0 generated your UI.\nDoes it still say what you meant?",
+    headline: "Generate beautiful UI with v0.\nLoupe checks what shipped.",
     subheadline:
-      "Beautiful components. But is your value prop still clear? Is your CTA still visible?",
+      "v0 makes it gorgeous. Loupe makes sure your copy, CTAs, and value prop made it to production.",
     supportingText:
-      "Loupe analyzes your pages for marketing effectiveness — not just pixel perfection.",
+      "The perfect companion for v0 — catch placeholder text before it goes live.",
     painPoints: [
       {
         title: "Beautiful but broken",
@@ -302,11 +385,11 @@ export const toolPageData: Record<AITool, ToolPageData> = {
   replit: {
     name: "Replit",
     tagline: "Building on Replit?",
-    headline: "Replit Agent built your site.\nWhat did it actually change?",
+    headline: "Build and deploy with Replit.\nLoupe shows you what's live.",
     subheadline:
-      "The AI said it's done. But your homepage, your pricing, your signup flow — did they survive?",
+      "Replit Agent ships fast. Loupe captures every deploy so you always know what your users see.",
     supportingText:
-      "Loupe monitors your live site and shows you when something drifts.",
+      "The perfect companion for Replit — monitoring for auto-deploys.",
     painPoints: [
       {
         title: "It's live before you review it",
@@ -371,11 +454,11 @@ export const toolPageData: Record<AITool, ToolPageData> = {
   base44: {
     name: "Base44",
     tagline: "Building with Base44?",
-    headline: "Base44 built your product.\nIs your landing page still selling it?",
+    headline: "Build your product with Base44.\nLoupe checks if it's converting.",
     subheadline:
-      "You described what you wanted. But does the live site match your vision?",
+      "Base44 builds fast. Loupe analyzes your live pages to make sure your messaging is clear and your CTAs work.",
     supportingText:
-      "Loupe watches your pages and flags when the message drifts from your intent.",
+      "The perfect companion for Base44 — conversion-focused page monitoring.",
     painPoints: [
       {
         title: "Lost in translation",
