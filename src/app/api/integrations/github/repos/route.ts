@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
+// Validate repo fullName format (owner/repo) to prevent path manipulation
+const REPO_FULLNAME_REGEX = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
+
 // GET /api/integrations/github/repos - list user's GitHub repos
 export async function GET() {
   const supabase = await createClient();
@@ -37,6 +40,12 @@ export async function GET() {
     );
 
     if (!response.ok) {
+      if (response.status === 401) {
+        return NextResponse.json(
+          { error: "GitHub token expired or revoked. Please reconnect." },
+          { status: 401 }
+        );
+      }
       console.error("GitHub API error:", response.status);
       return NextResponse.json({ error: "GitHub API error" }, { status: 502 });
     }
@@ -93,6 +102,11 @@ export async function POST(request: NextRequest) {
 
   if (!repoId || !fullName) {
     return NextResponse.json({ error: "repoId and fullName required" }, { status: 400 });
+  }
+
+  // Validate fullName format to prevent path manipulation attacks
+  if (!REPO_FULLNAME_REGEX.test(fullName)) {
+    return NextResponse.json({ error: "Invalid repo name format" }, { status: 400 });
   }
 
   const serviceClient = createServiceClient();
@@ -167,6 +181,12 @@ export async function POST(request: NextRequest) {
       );
 
       if (!webhookResponse.ok) {
+        if (webhookResponse.status === 401) {
+          return NextResponse.json(
+            { error: "GitHub token expired or revoked. Please reconnect." },
+            { status: 401 }
+          );
+        }
         const error = await webhookResponse.json();
         console.error("Failed to create GitHub webhook:", error);
         return NextResponse.json(

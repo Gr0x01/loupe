@@ -475,16 +475,20 @@ export default function PageTimelinePage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
           {/* Score + Page info row */}
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            {/* Score badge */}
+            {/* Score badge - links to latest analysis */}
             {latestComplete && (
-              <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-[rgba(255,255,255,0.5)] flex items-center justify-center border border-border-subtle">
+              <Link
+                href={`/analysis/${latestComplete.id}`}
+                className="flex-shrink-0 w-14 h-14 rounded-xl bg-[rgba(255,255,255,0.5)] flex items-center justify-center border border-border-subtle hover:border-accent hover:bg-[rgba(255,255,255,0.7)] transition-colors"
+                title="View latest scan"
+              >
                 <span
                   className={`text-2xl sm:text-3xl font-normal ${scoreColor(latestComplete.score!)}`}
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
                   {latestComplete.score}
                 </span>
-              </div>
+              </Link>
             )}
 
             {/* Divider - desktop only */}

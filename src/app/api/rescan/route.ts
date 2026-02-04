@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Auto-register page if it doesn't exist
+    // Auto-register page if it doesn't exist, or update last_scan_id for existing
     const { data: existingPage } = await supabase
       .from("pages")
       .select("id")
@@ -81,12 +81,18 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         url: parent.url,
         scan_frequency: "weekly",
-        last_scan_id: parentAnalysisId, // Link to parent, will be updated when new scan completes
+        last_scan_id: newAnalysis.id, // Point to new scan so it appears in history immediately
       });
       if (pageInsertError) {
         // Non-fatal: page might already exist due to race condition
         console.warn("Auto-register page failed:", pageInsertError.message);
       }
+    } else {
+      // Update last_scan_id immediately so new scan appears in history
+      await supabase
+        .from("pages")
+        .update({ last_scan_id: newAnalysis.id })
+        .eq("id", existingPage.id);
     }
 
     // Trigger Inngest with parent reference

@@ -180,7 +180,8 @@ deploys (
   commit_timestamp timestamptz,
   changed_files jsonb,
   status text DEFAULT 'pending',    -- pending | scanning | complete | failed
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(repo_id, commit_sha)       -- prevents duplicate webhook processing
 )
 -- No RLS - accessed via service role from webhooks
 ```

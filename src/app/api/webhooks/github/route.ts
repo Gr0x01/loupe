@@ -106,6 +106,11 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    // Handle duplicate webhook (unique constraint violation on repo_id + commit_sha)
+    if (error.code === "23505") {
+      console.log(`Duplicate webhook for ${repo.full_name} commit ${headCommit.id.slice(0, 7)}, ignoring`);
+      return NextResponse.json({ message: "Duplicate ignored" }, { status: 200 });
+    }
     console.error("Failed to create deploy record:", error);
     return NextResponse.json({ error: "Failed to record deploy" }, { status: 500 });
   }

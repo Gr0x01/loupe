@@ -220,3 +220,22 @@
 - For now, observe and ship simple
 
 **Not building yet**: The blocking logic. Currently anyone can claim any domain. Will implement the check when we have evidence it's needed or when abuse appears.
+
+## D19: GitHub Integration Security (Feb 4, 2026)
+
+**Decision**: Implemented targeted security fixes for GitHub webhook/repo connection.
+
+**What we fixed**:
+1. **Path manipulation** (Critical): Validate `fullName` format with regex (`^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$`) before using in GitHub API URLs
+2. **Token revocation handling** (Medium): Detect 401 responses and return clear "token expired, please reconnect" message
+3. **Duplicate webhooks** (Medium): Unique constraint on `deploys(repo_id, commit_sha)` + graceful handling (return 200, log, ignore)
+
+**What we accepted for MVP**:
+- **Signature verification after DB lookup**: Per-repo secrets provide isolation; global secret would break existing webhooks; DB query is fast (indexed)
+- **Plain text token storage**: Common OAuth practice; DB connection encrypted; key management adds complexity
+- **Pages not linked to repos**: Known limitation documented in current.md
+
+**Why these tradeoffs**:
+- Solo dev MVP — security fixes should address real attack vectors, not theoretical enterprise concerns
+- Per-repo webhook secrets already provide good isolation (attacker needs both repo access AND webhook secret)
+- Token encryption adds complexity without meaningfully improving security (attacker with DB access has bigger problems)
