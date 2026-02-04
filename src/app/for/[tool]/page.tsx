@@ -110,7 +110,7 @@ export default async function ToolPage({ params }: PageProps) {
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
-              AI builds fast. But what did it break?
+              {data.name} builds fast. But what did it break?
             </h2>
           </div>
 
@@ -132,7 +132,7 @@ export default async function ToolPage({ params }: PageProps) {
 
       {/* Benefits Section */}
       <BenefitGrid
-        headline="Loupe watches what your AI changes"
+        headline={`Loupe watches what ${data.name} changes`}
         benefits={data.benefits.map((b, i) => ({
           title: b.title,
           description: b.description,

@@ -33,19 +33,19 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       "Loupe screenshots your site after every prompt. We'll show you exactly what's different.",
     painPoints: [
       {
-        title: "Features vanish silently",
+        title: "One prompt breaks three things",
         description:
-          "One prompt to 'fix the header' and suddenly your pricing comparison is gone.",
+          "You asked Lovable to fix the header. It also rewrote your hero, moved your CTA, and deleted pricing.",
       },
       {
-        title: "Copy gets rewritten",
+        title: "Copy gets 'improved'",
         description:
-          "Lovable loves to 'improve' your headlines. Sometimes that means losing what worked.",
+          "Lovable loves to rewrite your headlines. Sometimes that means losing the copy that was actually converting.",
       },
       {
-        title: "No way to compare",
+        title: "No visual history",
         description:
-          "There's no history, no screenshots. You can't even remember what it looked like yesterday.",
+          "Lovable doesn't show you what changed. You can't diff prompts or see what your site looked like yesterday.",
       },
     ],
     benefits: [
@@ -102,19 +102,19 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       "Loupe monitors your pages and shows you exactly what drifted.",
     painPoints: [
       {
-        title: "Changes cascade",
+        title: "Fixes cause new problems",
         description:
-          "One fix triggers three more changes you didn't ask for.",
+          "You asked Bolt to fix the form. It also changed your button colors, font sizes, and broke mobile layout.",
       },
       {
         title: "Mobile breaks silently",
         description:
-          "Desktop looks fine. Mobile? That's where Bolt decided to experiment.",
+          "Desktop looks fine. But Bolt's 'responsive' updates? Check your phone.",
       },
       {
-        title: "No way to compare",
+        title: "No way to see what changed",
         description:
-          "You can't see what changed if you don't know what it looked like before.",
+          "Bolt shows you the result, not the diff. Good luck remembering what your checkout looked like before.",
       },
     ],
     benefits: [
@@ -240,19 +240,19 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       "Loupe analyzes your pages for marketing effectiveness — not just pixel perfection.",
     painPoints: [
       {
-        title: "Style over substance",
+        title: "Beautiful but broken",
         description:
-          "v0 optimizes for looks. Your conversion copy? Not its priority.",
+          "v0 makes it look great. But your value prop is buried, your CTA is below the fold, and half the copy is placeholder.",
       },
       {
-        title: "Generic copy slips in",
+        title: "Placeholder text goes live",
         description:
-          '"Lorem ipsum" and placeholder text have a way of going live.',
+          "'Your tagline here' and 'Lorem ipsum' have a way of making it to production.",
       },
       {
-        title: "Iteration drift",
+        title: "Each generation resets",
         description:
-          "Each generation is a fresh start. Your carefully tuned copy? Gone.",
+          "v0 doesn't remember what worked. Every new prompt starts from scratch.",
       },
     ],
     benefits: [
@@ -309,19 +309,19 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       "Loupe monitors your live site and shows you when something drifts.",
     painPoints: [
       {
-        title: "Black box updates",
+        title: "It's live before you review it",
         description:
-          "Replit Agent makes changes and goes live. You see 'success.' What changed?",
+          "Replit Agent deploys automatically. You see 'success' but have no idea what actually changed.",
       },
       {
-        title: "Prompt confusion",
+        title: "'Improve' means different things",
         description:
-          "Your prompt said 'improve.' The agent's idea of improvement might differ.",
+          "You said improve the landing page. The agent simplified it down to three sentences.",
       },
       {
-        title: "No staging",
+        title: "Your users are your QA",
         description:
-          "It's live the moment it's done. Your users find the bugs.",
+          "No staging, no preview. You find out something's broken when a customer tells you.",
       },
     ],
     benefits: [
@@ -378,19 +378,19 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       "Loupe watches your pages and flags when the message drifts from your intent.",
     painPoints: [
       {
-        title: "Intent vs output",
+        title: "Lost in translation",
         description:
-          "You said 'professional.' Base44 heard 'corporate.' Now your page feels cold.",
+          "You said 'friendly and professional.' Base44 built 'generic corporate.' Not what you meant.",
       },
       {
-        title: "Rapid iteration blur",
+        title: "20 prompts later, you forgot",
         description:
-          "After 20 prompts, do you remember what the hero originally said?",
+          "You've iterated so many times you can't remember what the hero said when it was converting.",
       },
       {
-        title: "Copy quality varies",
+        title: "Quality is a coin flip",
         description:
-          "Some generations nail it. Others produce 'Welcome to our platform.'",
+          "One prompt gives you gold. The next gives you 'Welcome to our innovative solution platform.'",
       },
     ],
     benefits: [
