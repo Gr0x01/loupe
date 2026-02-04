@@ -84,7 +84,7 @@ body::before {
   background-size: 256px 256px;
 }
 
-body > * {
+body > *:not(.fixed) {
   position: relative;
   z-index: 1;
 }
@@ -978,7 +978,7 @@ body > * {
   position: sticky;
   top: 0;
   z-index: 50;
-  padding: 12px 0;
+  padding: 8px 0;
   opacity: 1;
   transform: translateY(0);
   transition: opacity 200ms ease, transform 200ms ease;
@@ -997,7 +997,7 @@ body.modal-open .site-nav {
   justify-content: space-between;
   height: 56px;
   padding: 0 20px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, 0.6);

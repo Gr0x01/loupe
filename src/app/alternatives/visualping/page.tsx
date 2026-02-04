@@ -6,7 +6,7 @@ import MockComparisonCard from "@/components/MockComparisonCard";
 export const metadata: Metadata = {
   title: "Visualping Alternative for Founders Who Ship Fast | Loupe",
   description:
-    "Looking for a Visualping alternative? Loupe catches drift in your landing page — not just pixel changes. Built for founders using Lovable, Cursor, and Bolt. Free audit, no signup.",
+    "Looking for a Visualping alternative? Loupe shows what changed and why — not just pixel diffs. Built for founders shipping with Lovable and Bolt. Free audit, no signup.",
 };
 
 // Check and X icons for comparison table
@@ -31,77 +31,66 @@ const PartialMark = () => (
 // Comparison data
 const COMPARISON_TABLE = [
   {
-    category: "Detection Method",
     feature: "How changes are detected",
     loupe: "Analyzes content meaning",
     visualping: "Compares pixel screenshots",
     loupeWins: true,
   },
   {
-    category: "Detection Method",
     feature: "Understands text changes",
-    loupe: "Yes — headlines, CTAs, copy",
+    loupe: "Headlines, CTAs, copy",
     visualping: "Highlights text diffs",
     loupeWins: true,
   },
   {
-    category: "Detection Method",
-    feature: "Filters noise automatically",
-    loupe: "Yes — ignores dynamic content",
+    feature: "Filters noise",
+    loupe: "Ignores dynamic content",
     visualping: "Manual exclusion zones",
     loupeWins: true,
   },
   {
-    category: "Analysis",
     feature: "Explains why changes matter",
-    loupe: "Yes — marketing impact analysis",
-    visualping: "No — shows diff only",
+    loupe: "What it means for signups",
+    visualping: "Shows diff only",
     loupeWins: true,
   },
   {
-    category: "Analysis",
-    feature: "Conversion impact scoring",
-    loupe: "Scores what matters for conversions",
-    visualping: "Not available",
+    feature: "Flags what matters to signups",
+    loupe: "Yes",
+    visualping: "No",
     loupeWins: true,
   },
   {
-    category: "Analysis",
     feature: "Before/after comparison",
     loupe: "Side-by-side screenshots",
     visualping: "Side-by-side screenshots",
     loupeWins: null,
   },
   {
-    category: "Integrations",
     feature: "Slack notifications",
     loupe: "Coming soon",
     visualping: "Yes",
     loupeWins: false,
   },
   {
-    category: "Integrations",
     feature: "Email alerts",
     loupe: "Yes",
     visualping: "Yes",
     loupeWins: null,
   },
   {
-    category: "Integrations",
     feature: "GitHub deploy triggers",
     loupe: "Yes — webhooks",
-    visualping: "Not available",
+    visualping: "No",
     loupeWins: true,
   },
   {
-    category: "Pricing",
     feature: "Free tier",
     loupe: "Unlimited audits",
     visualping: "5 pages monitored",
     loupeWins: true,
   },
   {
-    category: "Pricing",
     feature: "Team collaboration",
     loupe: "Coming soon",
     visualping: "Yes — paid plans",
@@ -113,7 +102,7 @@ const COMPARISON_TABLE = [
 const USE_CASES = [
   {
     title: "Tracking your own site after deploys",
-    loupe: "Loupe tells you exactly what copy changed, whether CTAs moved, and if trust signals disappeared. You get actionable insights, not just 'something changed.'",
+    loupe: "Loupe tells you exactly what copy changed, whether CTAs moved, and if trust signals disappeared. You get specifics — what changed, whether it matters, what to do about it.",
     visualping: "Visualping shows pixel-level changes. Good for knowing if anything changed, but you'll need to figure out what and why yourself.",
     recommendation: "loupe",
   },
@@ -131,7 +120,7 @@ const USE_CASES = [
   },
   {
     title: "Catching AI tool drift",
-    loupe: "Built for this. When Lovable, Cursor, or Bolt accidentally removes social proof or changes a high-converting headline, Loupe explains what was lost and why it matters.",
+    loupe: "Built for this. When Lovable, Bolt, or Replit accidentally removes social proof or changes a high-converting headline, Loupe explains what was lost and why it matters.",
     visualping: "Will show something changed, but won't tell you if the CTA urgency was removed or why it matters.",
     recommendation: "loupe",
   },
@@ -149,11 +138,11 @@ const FAQ_ITEMS = [
   },
   {
     question: "Does Loupe do pixel comparisons too?",
-    answer: "Yes, Loupe captures full-page screenshots and shows side-by-side visual comparisons. But where Visualping stops at 'here's what looks different,' Loupe goes further: it analyzes the content and tells you what changed semantically — headlines, CTAs, trust signals, layout patterns.",
+    answer: "Yes, Loupe captures full-page screenshots and shows side-by-side visual comparisons. But where Visualping stops at 'here's what looks different,' Loupe goes further: it analyzes the content and tells you what actually changed — your headline, your CTA, your trust signals.",
   },
   {
     question: "How is Loupe's pricing different?",
-    answer: "Loupe offers unlimited free audits — run as many one-time page analyses as you want. Monitoring (ongoing tracking) is paid. Visualping limits their free tier to 5 monitored pages with limited check frequency. For founders who want to audit pages frequently without committing to monitoring, Loupe's free tier is more generous.",
+    answer: "Loupe offers unlimited free audits — run as many one-time page analyses as you want. Monitoring is paid. Visualping limits their free tier to 5 monitored pages with limited check frequency. For founders who want to audit pages frequently without committing to monitoring, Loupe's free tier is more generous.",
   },
   {
     question: "What if I'm already using Visualping?",
@@ -166,13 +155,6 @@ const FAQ_ITEMS = [
 ];
 
 export default function VisualpingAlternativePage() {
-  // Group comparison table by category
-  const categories = COMPARISON_TABLE.reduce((acc, row) => {
-    if (!acc[row.category]) acc[row.category] = [];
-    acc[row.category].push(row);
-    return acc;
-  }, {} as Record<string, typeof COMPARISON_TABLE>);
-
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Hero */}
@@ -188,20 +170,20 @@ export default function VisualpingAlternativePage() {
                 className="text-[clamp(2rem,4vw,3rem)] leading-[1.1] text-text-primary mb-6"
                 style={{ fontFamily: "var(--font-instrument-serif)" }}
               >
-                Pixel diffs tell you{" "}
-                <span className="italic">something</span> changed.
+                A Visualping alternative that tells you{" "}
+                <span className="italic">what</span> changed
                 <br />
-                <span className="text-accent">Loupe tells you what&nbsp;and&nbsp;why.</span>
+                <span className="text-accent">and why it matters.</span>
               </h1>
               <p className="text-lg text-text-secondary mb-8 max-w-xl">
-                Built for founders shipping with Lovable, Cursor, or Bolt.
-                Catch drift before it costs you conversions.
+                Built for founders shipping with Lovable, Bolt, or Replit.
+                Catch what changed while you were shipping.
               </p>
               <FreeAuditForm />
             </div>
 
             {/* Right column - Visual */}
-            <div className="hidden lg:block">
+            <div className="mt-8 lg:mt-0">
               <MockComparisonCard />
             </div>
           </div>
@@ -228,7 +210,15 @@ export default function VisualpingAlternativePage() {
             {/* Visualping approach */}
             <div className="glass-card p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-5 h-5 rounded-full bg-[#1882ff] flex-shrink-0" />
+                <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 20 21" fill="none">
+                  <circle cx="10" cy="10.5" r="10" fill="#1882ff" />
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M19.96 11.38a10.15 10.15 0 00.02-1.54l-3.71.78-3.13-2.66a.75.75 0 00-1.18.3l-1.71 4.4-1.98-7.73a.75.75 0 00-1.38-.19L4.27 9.37H.07a10.1 10.1 0 00-.06 1.5h4.7c.27 0 .52-.15.65-.38L7.28 7.1l2.1 8.2a.75.75 0 001.42.09l2.17-5.6 2.6 2.21c.18.15.42.21.65.16z"
+                    fill="#fff"
+                  />
+                </svg>
                 <div>
                   <h3 className="font-bold text-text-primary">Visualping</h3>
                   <p className="text-sm text-text-muted">Pixel comparison</p>
@@ -304,124 +294,65 @@ export default function VisualpingAlternativePage() {
       </section>
 
       {/* Detailed Comparison Table */}
-      <section className="px-4 py-20">
-        <div className="w-full max-w-4xl mx-auto">
-          <div className="text-center mb-12">
+      <section className="px-4 py-16">
+        <div className="w-full max-w-3xl mx-auto">
+          <div className="text-center mb-10">
             <h2
-              className="text-[clamp(1.5rem,3vw,2rem)] text-text-primary mb-4"
+              className="text-[clamp(1.5rem,3vw,2rem)] text-text-primary mb-3"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
-              Feature-by-feature comparison
+              Loupe vs Visualping
             </h2>
-            <p className="text-text-secondary">
+            <p className="text-text-secondary text-sm">
               An honest look at where each tool excels
             </p>
           </div>
 
-          {/* Desktop table */}
-          <div className="hidden md:block rounded-xl border border-border-subtle bg-white overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr,1fr,1fr] border-b border-border-subtle bg-bg-inset">
-              <div className="px-6 py-4 text-sm font-semibold text-text-muted uppercase tracking-wide">
-                Feature
-              </div>
-              <div className="px-6 py-4 text-center text-sm font-bold text-accent border-l border-border-subtle uppercase tracking-wide">
-                Loupe
-              </div>
-              <div className="px-6 py-4 text-center text-sm font-semibold text-text-muted border-l border-border-subtle uppercase tracking-wide">
-                Visualping
-              </div>
-            </div>
-
-            {/* Table body grouped by category */}
-            {Object.entries(categories).map(([category, rows], catIdx) => (
-              <div key={category}>
-                {/* Category header */}
-                <div className="px-6 py-3 bg-bg-inset border-b border-border-subtle">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-                    {category}
-                  </span>
-                </div>
-                {/* Category rows */}
-                {rows.map((row, rowIdx) => (
-                  <div
-                    key={row.feature}
-                    className={`grid grid-cols-[1fr,1fr,1fr] ${
-                      rowIdx < rows.length - 1 || catIdx < Object.keys(categories).length - 1
-                        ? "border-b border-border-subtle/50"
-                        : ""
-                    }`}
-                  >
-                    <div className="px-6 py-4 text-text-primary text-sm">
+          {/* Compact table */}
+          <div className="rounded-xl border border-border-subtle bg-white overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-bg-inset border-b border-border-subtle">
+                  <th className="px-4 py-3 text-left font-semibold text-text-muted uppercase tracking-wide text-xs">
+                    Feature
+                  </th>
+                  <th className="px-4 py-3 text-left font-bold text-accent uppercase tracking-wide text-xs border-l border-border-subtle">
+                    Loupe
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-text-muted uppercase tracking-wide text-xs border-l border-border-subtle">
+                    Visualping
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON_TABLE.map((row, i) => (
+                  <tr key={row.feature} className={i < COMPARISON_TABLE.length - 1 ? "border-b border-border-subtle/50" : ""}>
+                    <td className="px-4 py-2.5 text-text-primary font-medium">
                       {row.feature}
-                    </div>
-                    <div className="px-6 py-4 border-l border-border-subtle">
-                      <div className="flex items-center gap-2 justify-center">
-                        {row.loupeWins === true && <CheckMark />}
-                        {row.loupeWins === false && <PartialMark />}
-                        {row.loupeWins === null && <CheckMark />}
-                        <span className="text-sm text-text-secondary">{row.loupe}</span>
-                      </div>
-                    </div>
-                    <div className="px-6 py-4 border-l border-border-subtle">
-                      <div className="flex items-center gap-2 justify-center">
-                        {row.loupeWins === true && <PartialMark />}
-                        {row.loupeWins === false && <CheckMark />}
-                        {row.loupeWins === null && <CheckMark />}
-                        <span className="text-sm text-text-muted">{row.visualping}</span>
-                      </div>
-                    </div>
-                  </div>
+                    </td>
+                    <td className={`px-4 py-2.5 border-l border-border-subtle ${row.loupeWins === true ? "text-text-primary" : "text-text-muted"}`}>
+                      {row.loupe}
+                    </td>
+                    <td className={`px-4 py-2.5 border-l border-border-subtle ${row.loupeWins === false ? "text-text-primary" : "text-text-muted"}`}>
+                      {row.visualping}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* Mobile comparison cards */}
-          <div className="md:hidden space-y-4">
-            {Object.entries(categories).map(([category, rows]) => (
-              <div key={category} className="glass-card overflow-hidden">
-                <div className="px-4 py-3 bg-bg-inset border-b border-border-subtle">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-                    {category}
-                  </span>
-                </div>
-                <div className="divide-y divide-border-subtle">
-                  {rows.map((row) => (
-                    <div key={row.feature} className="p-4">
-                      <p className="text-sm font-medium text-text-primary mb-3">{row.feature}</p>
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          {row.loupeWins === true && <CheckMark />}
-                          {row.loupeWins === false && <PartialMark />}
-                          {row.loupeWins === null && <CheckMark />}
-                          <div>
-                            <p className="text-xs font-medium text-accent">Loupe</p>
-                            <p className="text-sm text-text-secondary">{row.loupe}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          {row.loupeWins === true && <PartialMark />}
-                          {row.loupeWins === false && <CheckMark />}
-                          {row.loupeWins === null && <CheckMark />}
-                          <div>
-                            <p className="text-xs font-medium text-text-muted">Visualping</p>
-                            <p className="text-sm text-text-muted">{row.visualping}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+          {/* Inline CTA */}
+          <div className="mt-8 text-center">
+            <p className="text-text-secondary mb-4">See the difference yourself</p>
+            <FreeAuditForm />
           </div>
         </div>
       </section>
 
       {/* Use Case Breakdown */}
       <section className="section-dark px-4 py-20">
-        <div className="w-full max-w-5xl mx-auto">
+        <div className="w-full max-w-3xl mx-auto">
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-white mb-4"

@@ -92,7 +92,7 @@ export default function SiteNav() {
   const isActive = (href: string) => pathname === href;
 
   return (
-    <header className="site-nav">
+    <header className="site-nav fixed top-0 left-0 right-0 z-50">
       <div className="max-w-3xl mx-auto px-4">
         <div className="site-nav-inner">
           {/* Logo */}
