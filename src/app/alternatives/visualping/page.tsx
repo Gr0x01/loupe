@@ -4,9 +4,9 @@ import CTASection from "@/components/seo/CTASection";
 import MockComparisonCard from "@/components/MockComparisonCard";
 
 export const metadata: Metadata = {
-  title: "Loupe vs Visualping — When Content Understanding Beats Pixel Diffs | Loupe",
+  title: "Visualping Alternative for Founders Who Ship Fast | Loupe",
   description:
-    "Compare Loupe and Visualping for website monitoring. Visualping does pixel comparisons. Loupe understands what changed and why it matters. See which fits your workflow.",
+    "Looking for a Visualping alternative? Loupe catches drift in your landing page — not just pixel changes. Built for founders using Lovable, Cursor, and Bolt. Free audit, no signup.",
 };
 
 // Check and X icons for comparison table
@@ -26,44 +26,6 @@ const PartialMark = () => (
   <svg className="w-5 h-5 text-score-mid flex-shrink-0" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2}>
     <path d="M5 10h10" strokeLinecap="round" />
   </svg>
-);
-
-// Approach comparison visuals
-const PixelDiffVisual = () => (
-  <div className="rounded-lg border border-border-subtle p-4 bg-[#fefafa]">
-    <div className="text-xs font-medium text-text-muted mb-3">Pixel-based detection</div>
-    <div className="flex items-center gap-3">
-      <div className="w-20 h-14 rounded bg-[#f5f5f5] border border-border-subtle flex items-center justify-center">
-        <div className="w-16 h-3 bg-score-low/30 rounded" />
-      </div>
-      <span className="text-lg text-text-muted">→</span>
-      <div className="w-20 h-14 rounded bg-[#f5f5f5] border border-border-subtle flex items-center justify-center">
-        <div className="w-16 h-3 bg-score-low rounded" />
-      </div>
-    </div>
-    <p className="text-xs text-score-low mt-3">⚠️ "Something changed"</p>
-  </div>
-);
-
-const ContentAnalysisVisual = () => (
-  <div className="rounded-lg border border-accent/30 p-4 bg-[#fafcff]">
-    <div className="text-xs font-medium text-accent mb-3">Content understanding</div>
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-score-high">●</span>
-        <span className="text-text-secondary">Headline changed: urgency removed</span>
-      </div>
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-score-mid">●</span>
-        <span className="text-text-secondary">CTA button text updated</span>
-      </div>
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-score-low">●</span>
-        <span className="text-text-secondary">Trust badge removed</span>
-      </div>
-    </div>
-    <p className="text-xs text-accent mt-3">✓ Explains what changed and why it matters</p>
-  </div>
 );
 
 // Comparison data
@@ -98,8 +60,8 @@ const COMPARISON_TABLE = [
   },
   {
     category: "Analysis",
-    feature: "Marketing framework scoring",
-    loupe: "PAS, JTBD, Cialdini analysis",
+    feature: "Conversion impact scoring",
+    loupe: "Scores what matters for conversions",
     visualping: "Not available",
     loupeWins: true,
   },
@@ -113,7 +75,7 @@ const COMPARISON_TABLE = [
   {
     category: "Integrations",
     feature: "Slack notifications",
-    loupe: "Coming Q1 2025",
+    loupe: "Coming soon",
     visualping: "Yes",
     loupeWins: false,
   },
@@ -168,8 +130,8 @@ const USE_CASES = [
     recommendation: "visualping",
   },
   {
-    title: "Catching vibe-coded mistakes",
-    loupe: "Built for this. When your AI coding tool accidentally removes social proof or changes a high-converting headline, Loupe explains what was lost.",
+    title: "Catching AI tool drift",
+    loupe: "Built for this. When Lovable, Cursor, or Bolt accidentally removes social proof or changes a high-converting headline, Loupe explains what was lost and why it matters.",
     visualping: "Will show something changed, but won't tell you if the CTA urgency was removed or why it matters.",
     recommendation: "loupe",
   },
@@ -232,17 +194,15 @@ export default function VisualpingAlternativePage() {
                 <span className="text-accent">Loupe tells you what&nbsp;and&nbsp;why.</span>
               </h1>
               <p className="text-lg text-text-secondary mb-8 max-w-xl">
-                Visualping is great for broad monitoring. But when you need to understand
-                if a deploy broke your conversion flow, you need content analysis — not
-                just screenshot comparisons.
+                Built for founders shipping with Lovable, Cursor, or Bolt.
+                Catch drift before it costs you conversions.
               </p>
               <FreeAuditForm />
             </div>
 
-            {/* Right column - Visual comparison */}
-            <div className="space-y-4">
-              <PixelDiffVisual />
-              <ContentAnalysisVisual />
+            {/* Right column - Visual */}
+            <div className="hidden lg:block">
+              <MockComparisonCard />
             </div>
           </div>
         </div>
@@ -266,11 +226,9 @@ export default function VisualpingAlternativePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Visualping approach */}
-            <div className="rounded-xl border border-border-subtle bg-white p-8">
+            <div className="glass-card p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-[#f5f5f5] flex items-center justify-center text-lg font-bold text-text-muted">
-                  V
-                </div>
+                <div className="w-5 h-5 rounded-full bg-[#1882ff] flex-shrink-0" />
                 <div>
                   <h3 className="font-bold text-text-primary">Visualping</h3>
                   <p className="text-sm text-text-muted">Pixel comparison</p>
@@ -303,7 +261,7 @@ export default function VisualpingAlternativePage() {
             </div>
 
             {/* Loupe approach */}
-            <div className="rounded-xl border-2 border-accent/30 bg-white p-8">
+            <div className="glass-card-elevated p-8 ring-2 ring-accent/20">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
                   <svg className="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -360,16 +318,17 @@ export default function VisualpingAlternativePage() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-border-subtle bg-white overflow-hidden">
+          {/* Desktop table */}
+          <div className="hidden md:block rounded-xl border border-border-subtle bg-white overflow-hidden">
             {/* Table header */}
-            <div className="grid grid-cols-[1fr,1fr,1fr] border-b border-border-subtle bg-[#fafafa]">
+            <div className="grid grid-cols-[1fr,1fr,1fr] border-b border-border-subtle bg-bg-inset">
               <div className="px-6 py-4 text-sm font-semibold text-text-muted uppercase tracking-wide">
                 Feature
               </div>
-              <div className="px-6 py-4 text-center text-sm font-bold text-accent border-l border-border-subtle">
+              <div className="px-6 py-4 text-center text-sm font-bold text-accent border-l border-border-subtle uppercase tracking-wide">
                 Loupe
               </div>
-              <div className="px-6 py-4 text-center text-sm font-semibold text-text-muted border-l border-border-subtle">
+              <div className="px-6 py-4 text-center text-sm font-semibold text-text-muted border-l border-border-subtle uppercase tracking-wide">
                 Visualping
               </div>
             </div>
@@ -378,7 +337,7 @@ export default function VisualpingAlternativePage() {
             {Object.entries(categories).map(([category, rows], catIdx) => (
               <div key={category}>
                 {/* Category header */}
-                <div className="px-6 py-3 bg-[#f5f5f5] border-b border-border-subtle">
+                <div className="px-6 py-3 bg-bg-inset border-b border-border-subtle">
                   <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">
                     {category}
                   </span>
@@ -414,6 +373,46 @@ export default function VisualpingAlternativePage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Mobile comparison cards */}
+          <div className="md:hidden space-y-4">
+            {Object.entries(categories).map(([category, rows]) => (
+              <div key={category} className="glass-card overflow-hidden">
+                <div className="px-4 py-3 bg-bg-inset border-b border-border-subtle">
+                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+                    {category}
+                  </span>
+                </div>
+                <div className="divide-y divide-border-subtle">
+                  {rows.map((row) => (
+                    <div key={row.feature} className="p-4">
+                      <p className="text-sm font-medium text-text-primary mb-3">{row.feature}</p>
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2">
+                          {row.loupeWins === true && <CheckMark />}
+                          {row.loupeWins === false && <PartialMark />}
+                          {row.loupeWins === null && <CheckMark />}
+                          <div>
+                            <p className="text-xs font-medium text-accent">Loupe</p>
+                            <p className="text-sm text-text-secondary">{row.loupe}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          {row.loupeWins === true && <PartialMark />}
+                          {row.loupeWins === false && <CheckMark />}
+                          {row.loupeWins === null && <CheckMark />}
+                          <div>
+                            <p className="text-xs font-medium text-text-muted">Visualping</p>
+                            <p className="text-sm text-text-muted">{row.visualping}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -470,27 +469,6 @@ export default function VisualpingAlternativePage() {
         </div>
       </section>
 
-      {/* Example Output */}
-      <section className="px-4 py-20">
-        <div className="w-full max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2
-              className="text-[clamp(1.5rem,3vw,2rem)] text-text-primary mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              See the difference in action
-            </h2>
-            <p className="text-text-secondary max-w-2xl mx-auto">
-              When your site changes, Loupe doesn't just highlight pixels — it tells you what matters
-            </p>
-          </div>
-
-          <div className="flex justify-center">
-            <MockComparisonCard />
-          </div>
-        </div>
-      </section>
-
       {/* FAQ */}
       <section className="px-4 py-20 bg-bg-inset border-y border-border-subtle">
         <div className="w-full max-w-3xl mx-auto">
@@ -499,15 +477,15 @@ export default function VisualpingAlternativePage() {
               className="text-[clamp(1.5rem,3vw,2rem)] text-text-primary"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
-              Common questions
+              Frequently asked questions
             </h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {FAQ_ITEMS.map((item, i) => (
-              <details key={i} className="faq-item group rounded-xl border border-border-subtle bg-white">
-                <summary className="px-6 py-4 cursor-pointer list-none flex items-center justify-between gap-4">
-                  <span className="font-medium text-text-primary">{item.question}</span>
+              <details key={i} className="glass-card group faq-item">
+                <summary className="p-5 cursor-pointer list-none flex items-center justify-between gap-4">
+                  <span className="font-semibold text-text-primary">{item.question}</span>
                   <svg
                     className="w-5 h-5 text-text-muted flex-shrink-0 transition-transform group-open:rotate-180"
                     fill="none"
@@ -520,7 +498,7 @@ export default function VisualpingAlternativePage() {
                 </summary>
                 <div className="faq-content">
                   <div className="overflow-hidden">
-                    <div className="px-6 pb-4 text-text-secondary leading-relaxed">
+                    <div className="px-5 pb-5 text-text-secondary leading-relaxed">
                       {item.answer}
                     </div>
                   </div>
