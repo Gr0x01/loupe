@@ -336,6 +336,22 @@ function getActionImpact(action: TopAction | string): string | null {
   return typeof action === "string" ? null : action.impact;
 }
 
+function getTopActionsHeader(score: number): { title: string; subtitle: string } | null {
+  if (score >= 95) return null;
+  if (score >= 85) return {
+    title: "A refinement worth making",
+    subtitle: "Your page is strong. This is polish, not rescue."
+  };
+  if (score >= 60) return {
+    title: "Where to tighten up",
+    subtitle: "Ranked by conversion impact. Start at the top."
+  };
+  return {
+    title: "Where you're losing visitors",
+    subtitle: "Ranked by conversion impact. Start at the top."
+  };
+}
+
 // --- Hooks ---
 
 function useCountUp(target: number, duration = 1000) {
@@ -358,6 +374,121 @@ function useCountUp(target: number, duration = 1000) {
 }
 
 // --- Components ---
+
+// Celebration state for excellent pages (95+)
+function CelebrationState({ score }: { score: number }) {
+  return (
+    <section className="result-section">
+      <div className="glass-card-elevated p-8 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[rgba(34,197,94,0.1)] mb-4">
+          <svg className="w-8 h-8 text-score-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="4 12 9 17 20 6" />
+          </svg>
+        </div>
+        <h2 className="text-3xl font-bold text-text-primary mb-2" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+          Your page is solid
+        </h2>
+        <p className="text-lg text-text-secondary max-w-md mx-auto">
+          Nothing here needs urgent attention. Keep shipping and we&apos;ll let you know if anything drifts.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// Expandable top actions for 4+ items
+function TopActionsExpandable({
+  actions,
+  score
+}: {
+  actions: (TopAction | string)[];
+  score: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const header = getTopActionsHeader(score);
+  const visibleCount = 5;
+  const visibleActions = expanded ? actions : actions.slice(0, visibleCount);
+  const hiddenCount = actions.length - visibleCount;
+
+  return (
+    <section className="result-section">
+      <div className="section-header">
+        <div>
+          <h2
+            className="text-4xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            {header?.title || "Where you're losing visitors"}
+          </h2>
+          <p className="text-sm text-text-muted mt-1">
+            {header?.subtitle || "Ranked by conversion impact. Start at the top."}
+          </p>
+        </div>
+      </div>
+
+      {/* Hero card for #1 */}
+      {actions[0] && (
+        <div className="glass-card p-6 flex items-start gap-5 mb-6">
+          <span
+            className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            1
+          </span>
+          <div className="pt-2">
+            <p className="text-xl text-text-primary font-semibold leading-relaxed">
+              {getActionText(actions[0])}
+            </p>
+            {getActionImpact(actions[0]) && (
+              <p className="text-sm text-text-muted mt-2">
+                {getActionImpact(actions[0])}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Grid of remaining actions */}
+      {actions.length > 1 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {visibleActions.slice(1).map((action, i) => (
+            <div key={i} className="flex items-start gap-4 p-4 glass-card">
+              <span
+                className="text-[2rem] leading-none font-bold text-[rgba(91,46,145,0.12)] flex-shrink-0"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                {i + 2}
+              </span>
+              <div className="min-w-0">
+                <p className="text-base text-text-primary leading-relaxed">
+                  {getActionText(action)}
+                </p>
+                {getActionImpact(action) && (
+                  <p className="text-xs text-text-muted mt-1">
+                    {getActionImpact(action)}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Show more button */}
+      {!expanded && hiddenCount > 0 && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="mt-4 text-sm text-accent hover:text-accent-dark transition-colors flex items-center gap-1.5"
+        >
+          <span>Show {hiddenCount} more</span>
+          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        </button>
+      )}
+    </section>
+  );
+}
 
 // Score arc — thick half-gauge
 function ScoreArc({ score, grade, className }: { score: number; grade: string; className?: string }) {
@@ -1496,7 +1627,7 @@ export default function AnalysisPage() {
 
         <hr className="section-divider" />
 
-        {/* Zone 2: Quick Diagnosis */}
+        {/* Zone 2: Quick Diagnosis - adaptive grid based on content */}
         {((s.whatsWorking?.length ?? 0) > 0 || (s.whatsNot?.length ?? 0) > 0) && (
           <>
             <section className="result-section">
@@ -1529,40 +1660,49 @@ export default function AnalysisPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Adaptive grid: 2 columns when both have content, single column when one is empty */}
+              <div className={`grid grid-cols-1 gap-6 ${
+                (s.whatsWorking?.length ?? 0) > 0 && (s.whatsNot?.length ?? 0) > 0
+                  ? "md:grid-cols-2"
+                  : ""
+              }`}>
                 {/* What's working */}
-                <div className="glass-card p-6">
-                  <p className="text-xs font-semibold text-score-high uppercase tracking-wide mb-5">
-                    Working
-                  </p>
-                  <ul className="space-y-5">
-                    {(s.whatsWorking || []).map((item, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-high" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="4 9.5 7.5 13 14 5" />
-                        </svg>
-                        <span className="text-lg text-text-primary leading-relaxed">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {/* Where you're leaking */}
-                <div className="glass-card p-6">
-                  <p className="text-xs font-semibold text-score-low uppercase tracking-wide mb-5">
-                    Where you&apos;re leaking
-                  </p>
-                  <ul className="space-y-5">
-                    {(s.whatsNot || []).map((item, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-low" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="5" y1="5" x2="13" y2="13" />
-                          <line x1="13" y1="5" x2="5" y2="13" />
-                        </svg>
-                        <span className="text-lg text-text-primary leading-relaxed">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {(s.whatsWorking?.length ?? 0) > 0 && (
+                  <div className="glass-card p-6">
+                    <p className="text-xs font-semibold text-score-high uppercase tracking-wide mb-5">
+                      Working
+                    </p>
+                    <ul className="space-y-5">
+                      {(s.whatsWorking || []).map((item, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-high" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="4 9.5 7.5 13 14 5" />
+                          </svg>
+                          <span className="text-lg text-text-primary leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {/* Leaking */}
+                {(s.whatsNot?.length ?? 0) > 0 && (
+                  <div className="glass-card p-6">
+                    <p className="text-xs font-semibold text-score-low uppercase tracking-wide mb-5">
+                      Leaking
+                    </p>
+                    <ul className="space-y-5">
+                      {(s.whatsNot || []).map((item, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-low" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="5" x2="13" y2="13" />
+                            <line x1="13" y1="5" x2="5" y2="13" />
+                          </svg>
+                          <span className="text-lg text-text-primary leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -1570,26 +1710,54 @@ export default function AnalysisPage() {
           </>
         )}
 
-        {/* Zone 3: Top Actions */}
-        {s.topActions.length > 0 && (
-          <>
-            <section className="result-section">
-              <div className="section-header">
-                <div>
-                  <h2
-                    className="text-4xl font-bold text-text-primary"
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    Where you&apos;re losing visitors
-                  </h2>
-                  <p className="text-sm text-text-muted mt-1">
-                    Ranked by conversion impact. Start at the top.
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
-                {/* #1 — left column, hero action in card */}
-                {s.topActions[0] && (
+        {/* Zone 3: Top Actions - variable layout based on count and score */}
+        {(() => {
+          const actionsCount = s.topActions.length;
+          const header = getTopActionsHeader(s.overallScore);
+
+          // Score 95+ with no actions → celebration state
+          if (actionsCount === 0 && s.overallScore >= 95) {
+            return (
+              <>
+                <CelebrationState score={s.overallScore} />
+                <hr className="section-divider" />
+              </>
+            );
+          }
+
+          // No actions and score < 95 → hide section entirely
+          if (actionsCount === 0) {
+            return null;
+          }
+
+          // 4+ actions → use expandable component
+          if (actionsCount >= 4) {
+            return (
+              <>
+                <TopActionsExpandable actions={s.topActions} score={s.overallScore} />
+                <hr className="section-divider" />
+              </>
+            );
+          }
+
+          // 1 action → single full-width hero card
+          if (actionsCount === 1) {
+            return (
+              <>
+                <section className="result-section">
+                  <div className="section-header">
+                    <div>
+                      <h2
+                        className="text-4xl font-bold text-text-primary"
+                        style={{ fontFamily: "var(--font-instrument-serif)" }}
+                      >
+                        {header?.title || "Where you're losing visitors"}
+                      </h2>
+                      <p className="text-sm text-text-muted mt-1">
+                        {header?.subtitle || "Ranked by conversion impact. Start at the top."}
+                      </p>
+                    </div>
+                  </div>
                   <div className="glass-card p-6 flex items-start gap-5">
                     <span
                       className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
@@ -1608,10 +1776,51 @@ export default function AnalysisPage() {
                       )}
                     </div>
                   </div>
-                )}
+                </section>
+                <hr className="section-divider" />
+              </>
+            );
+          }
 
-                {/* #2 and #3 — right column, stacked */}
-                {s.topActions.length > 1 && (
+          // 2-3 actions → standard hero left, stacked right layout
+          return (
+            <>
+              <section className="result-section">
+                <div className="section-header">
+                  <div>
+                    <h2
+                      className="text-4xl font-bold text-text-primary"
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    >
+                      {header?.title || "Where you're losing visitors"}
+                    </h2>
+                    <p className="text-sm text-text-muted mt-1">
+                      {header?.subtitle || "Ranked by conversion impact. Start at the top."}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
+                  {/* #1 — left column, hero action in card */}
+                  <div className="glass-card p-6 flex items-start gap-5">
+                    <span
+                      className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    >
+                      1
+                    </span>
+                    <div className="pt-2">
+                      <p className="text-xl text-text-primary font-semibold leading-relaxed">
+                        {getActionText(s.topActions[0])}
+                      </p>
+                      {getActionImpact(s.topActions[0]) && (
+                        <p className="text-sm text-text-muted mt-2">
+                          {getActionImpact(s.topActions[0])}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* #2 and #3 — right column, stacked */}
                   <div className="space-y-8">
                     {s.topActions.slice(1, 3).map((action, i) => (
                       <div key={i} className="flex items-start gap-4">
@@ -1627,13 +1836,12 @@ export default function AnalysisPage() {
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            </section>
-
-            <hr className="section-divider" />
-          </>
-        )}
+                </div>
+              </section>
+              <hr className="section-divider" />
+            </>
+          );
+        })()}
 
         {/* Headline Rewrite Spotlight */}
         {s.headlineRewrite && (

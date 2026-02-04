@@ -2,7 +2,7 @@ import { generateText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PageMetadata } from "@/lib/screenshot";
-import type { AnalyticsCredentials } from "@/lib/analytics/types";
+import type { AnalyticsCredentials, GA4Credentials } from "@/lib/analytics/types";
 import { createProvider } from "@/lib/analytics/provider";
 import { createAnalyticsTools } from "@/lib/analytics/tools";
 
@@ -77,6 +77,12 @@ export interface DeployContext {
 
 const SYSTEM_PROMPT = `You are an expert web marketing and design consultant. You analyze web pages using both a screenshot AND extracted page metadata (headings, meta tags, CTAs, link counts, etc.).
 
+## Score-Based Output Guidance
+- Pages 85+: Focus on refinements. whatsNot/topActions may be empty or minimal.
+- Pages 95+: Celebrate strengths. topActions should be empty or polish only.
+- Pages <60: Comprehensive issues (5-7 items typical).
+- Never pad arrays to hit a number. Quality over quantity.
+
 ## Core Marketing Principles (Apply Across All Categories)
 
 **Jobs-to-be-Done (JTBD)**: What job is the visitor hiring this product/service to do? Does the page speak to that job's functional, emotional, and social dimensions — or just list features?
@@ -118,9 +124,9 @@ CRITICAL RULES FOR SPECIFICITY:
 Respond with a JSON object matching this exact schema:
 {
   "overallScore": <1-100>,
-  "verdict": "<one-liner verdict specific to this page — what's the single most important takeaway? For strong pages, name what's working ('Your copy does the selling — the trust signals seal it'). For weak pages, name the biggest problem ('Visitors can't tell what you do in 5 seconds'). Never generic. Max 12 words.>",
-  "whatsWorking": ["<strength 1, one line>", "<strength 2, one line>", "<strength 3, one line>"],
-  "whatsNot": ["<weakness 1, one line>", "<weakness 2, one line>", "<weakness 3, one line>"],
+  "verdict": "<one-liner verdict specific to this page — what's the single most important takeaway? For strong pages, name what's working ('Your copy does the selling — the trust signals seal it'). For weak pages, name the biggest problem ('Visitors can't tell what you do in 5 seconds'). Never generic. Concise.>",
+  "whatsWorking": [],  // 0-5 genuine strengths. Empty if nothing notable.
+  "whatsNot": [],  // 0-5 genuine weaknesses. Empty if page is excellent.
   "headlineRewrite": {
     "current": "<the actual current headline text from the page>",
     "suggested": "<your rewritten version>",
@@ -144,11 +150,7 @@ Respond with a JSON object matching this exact schema:
     }
   ],
   "summary": "<2-3 sentence executive summary of the page's marketing effectiveness>",
-  "topActions": [
-    { "action": "<specific action referencing actual page elements>", "impact": "<estimated impact, e.g. '15-25% more signups'>" },
-    { "action": "<specific action>", "impact": "<estimated impact>" },
-    { "action": "<specific action>", "impact": "<estimated impact>" }
-  ]
+  "topActions": []  // 0-7 items ranked by impact. Empty for excellent pages (85+). Max 7.
 }
 
 Be direct. Be specific. Reference what you actually see on the page and in the metadata. Every finding must include a concrete fix.`;
@@ -408,9 +410,13 @@ export interface PostAnalysisContext {
   deployContext?: DeployContext | null;
 }
 
+export type AnalyticsCredentialsWithType =
+  | ({ type: "posthog" } & AnalyticsCredentials)
+  | ({ type: "ga4" } & GA4Credentials);
+
 export interface PostAnalysisOptions {
   supabase: SupabaseClient;
-  analyticsCredentials?: AnalyticsCredentials | null;
+  analyticsCredentials?: AnalyticsCredentialsWithType | null;
 }
 
 /**
@@ -501,16 +507,36 @@ export async function runPostAnalysisPipeline(
 
   if (analyticsCredentials) {
     try {
-      const provider = await createProvider("posthog", analyticsCredentials);
+      const providerType = analyticsCredentials.type;
+
+      // Create the appropriate provider based on type
+      let provider;
+      if (providerType === "posthog") {
+        provider = await createProvider("posthog", {
+          apiKey: analyticsCredentials.apiKey,
+          projectId: analyticsCredentials.projectId,
+          host: analyticsCredentials.host,
+        });
+      } else {
+        // GA4 - needs supabase for token refresh
+        provider = await createProvider("ga4", {
+          accessToken: analyticsCredentials.accessToken,
+          refreshToken: analyticsCredentials.refreshToken,
+          tokenExpiresAt: analyticsCredentials.tokenExpiresAt,
+          propertyId: analyticsCredentials.propertyId,
+          integrationId: analyticsCredentials.integrationId,
+        }, { supabase });
+      }
+
       tools = createAnalyticsTools({
         provider,
         supabase,
         analysisId: context.analysisId,
         userId: context.userId,
         pageUrl,
-        providerType: "posthog",
+        providerType,
       });
-      promptParts.push(`\n## Analytics Available\nYou have access to analytics tools. Use them to correlate changes with metrics.`);
+      promptParts.push(`\n## Analytics Available\nYou have access to ${providerType === "ga4" ? "Google Analytics 4" : "PostHog"} tools. Use them to correlate changes with metrics.`);
     } catch (err) {
       console.error("Failed to create analytics provider:", err);
       promptParts.push(`\n## Analytics\nAnalytics tools unavailable.`);
