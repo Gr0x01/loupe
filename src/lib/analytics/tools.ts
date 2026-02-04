@@ -245,6 +245,29 @@ export function createAnalyticsTools(ctx: ToolContext) {
         }
       },
     }),
+
+    get_experiments: tool({
+      description:
+        "Get active A/B tests and feature flag experiments with variant distribution. Shows which experiments are running, how traffic is split between variants, and participation counts. Useful for understanding if changes might be due to an experiment.",
+      inputSchema: z.object({
+        days: z
+          .number()
+          .min(1)
+          .max(90)
+          .default(30)
+          .describe("Number of days to look back for experiment activity (default: 30)"),
+      }),
+      execute: async ({ days }) => {
+        try {
+          const experiments = await ctx.provider.getExperiments(days);
+          await saveSnapshot(ctx, "get_experiments", { days }, experiments);
+          return { success: true, data: experiments };
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Unknown error";
+          return { success: false, error };
+        }
+      },
+    }),
   };
 }
 

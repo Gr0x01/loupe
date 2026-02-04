@@ -11,6 +11,8 @@ import type {
   FunnelStep,
   PeriodComparison,
   SchemaInfo,
+  ExperimentsResult,
+  ExperimentInfo,
 } from "./types";
 
 interface HogQLResponse {
@@ -501,6 +503,92 @@ export class PostHogAdapter implements AnalyticsProvider {
       previous_period: Math.round(previous * 10) / 10,
       change_percent: Math.round(changePercent * 10) / 10,
       direction: changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat",
+    };
+  }
+
+  async getExperiments(days: number): Promise<ExperimentsResult> {
+    const safeDays = this.clampDays(days);
+
+    // Query feature flag calls to find active experiments
+    // PostHog tracks these as $feature_flag_called events with $feature_flag and $feature_flag_response properties
+    const query = `
+      SELECT
+        properties.$feature_flag AS flag_name,
+        properties.$feature_flag_response AS variant,
+        count(DISTINCT person_id) AS participants,
+        min(timestamp) AS first_seen,
+        max(timestamp) AS last_seen
+      FROM events
+      WHERE event = '$feature_flag_called'
+        AND timestamp > now() - INTERVAL ${safeDays} DAY
+        AND properties.$feature_flag IS NOT NULL
+        AND properties.$feature_flag_response IS NOT NULL
+      GROUP BY flag_name, variant
+      ORDER BY flag_name, participants DESC
+      LIMIT 1000
+    `;
+
+    const result = await this.query(query);
+
+    // Group results by flag name
+    const flagMap = new Map<string, {
+      variants: Array<{ variant: string; participants: number }>;
+      first_seen: string;
+      last_seen: string;
+    }>();
+
+    for (const row of result.results || []) {
+      const flagName = String(row?.[0] ?? "");
+      const variant = String(row?.[1] ?? "");
+      const participants = Number(row?.[2]) || 0;
+      const firstSeen = String(row?.[3] ?? "");
+      const lastSeen = String(row?.[4] ?? "");
+
+      if (!flagName || !variant) continue;
+
+      if (!flagMap.has(flagName)) {
+        flagMap.set(flagName, {
+          variants: [],
+          first_seen: firstSeen,
+          last_seen: lastSeen,
+        });
+      }
+
+      const flag = flagMap.get(flagName)!;
+      flag.variants.push({ variant, participants });
+
+      // Update time bounds
+      if (firstSeen < flag.first_seen) flag.first_seen = firstSeen;
+      if (lastSeen > flag.last_seen) flag.last_seen = lastSeen;
+    }
+
+    // Convert to ExperimentInfo array with percentages
+    const experiments: ExperimentInfo[] = [];
+
+    for (const [flagName, data] of flagMap) {
+      const totalParticipants = data.variants.reduce((sum, v) => sum + v.participants, 0);
+
+      experiments.push({
+        flag_name: flagName,
+        variants: data.variants.map((v) => ({
+          variant: v.variant,
+          participants: v.participants,
+          percentage: totalParticipants > 0
+            ? Math.round((v.participants / totalParticipants) * 1000) / 10
+            : 0,
+        })),
+        total_participants: totalParticipants,
+        first_seen: data.first_seen,
+        last_seen: data.last_seen,
+      });
+    }
+
+    // Sort by total participants descending
+    experiments.sort((a, b) => b.total_participants - a.total_participants);
+
+    return {
+      experiments,
+      period_days: safeDays,
     };
   }
 }

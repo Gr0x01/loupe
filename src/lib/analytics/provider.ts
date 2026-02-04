@@ -10,6 +10,7 @@ import type {
   FunnelStep,
   PeriodComparison,
   SchemaInfo,
+  ExperimentsResult,
 } from "./types";
 
 export interface AnalyticsProvider {
@@ -48,6 +49,9 @@ export interface AnalyticsProvider {
     currentDays: number,
     previousDays: number
   ): Promise<PeriodComparison>;
+
+  /** Get active A/B tests/experiments with variant distribution */
+  getExperiments(days: number): Promise<ExperimentsResult>;
 }
 
 export type ProviderType = "posthog";

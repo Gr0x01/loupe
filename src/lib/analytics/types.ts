@@ -53,3 +53,22 @@ export interface ToolResult<T> {
   data?: T;
   error?: string;
 }
+
+export interface ExperimentVariant {
+  variant: string;
+  participants: number;
+  percentage: number;
+}
+
+export interface ExperimentInfo {
+  flag_name: string;
+  variants: ExperimentVariant[];
+  total_participants: number;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface ExperimentsResult {
+  experiments: ExperimentInfo[];
+  period_days: number;
+}
