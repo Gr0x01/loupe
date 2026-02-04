@@ -78,11 +78,6 @@ const jsonLd = {
         priceCurrency: "USD",
         description: "Free page audit, no signup required",
       },
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: "5",
-        ratingCount: "1",
-      },
     },
   ],
 };

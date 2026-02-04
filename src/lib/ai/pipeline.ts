@@ -262,7 +262,7 @@ export async function runAnalysisPipeline(
     null,
     text,
   ];
-  const jsonStr = jsonMatch[1]!.trim();
+  const jsonStr = (jsonMatch[1] ?? text).trim();
   let structured;
   try {
     structured = JSON.parse(jsonStr);
@@ -565,7 +565,7 @@ export async function runPostAnalysisPipeline(
 
   // Extract JSON from response
   const jsonMatch = result.text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, result.text];
-  const jsonStr = jsonMatch[1]!.trim();
+  const jsonStr = (jsonMatch[1] ?? result.text).trim();
 
   let parsed: ChangesSummary;
   try {
@@ -621,7 +621,7 @@ export async function runComparisonPipeline(
   });
 
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];
-  const jsonStr = jsonMatch[1]!.trim();
+  const jsonStr = (jsonMatch[1] ?? text).trim();
   try {
     return JSON.parse(jsonStr) as ChangesSummary;
   } catch {
