@@ -16,6 +16,7 @@ Monolith Next.js 16 app (App Router). Background jobs via Inngest. LLM calls via
 | @ai-sdk/google | 3.0.20 | Google provider (for evaluation) |
 | @ai-sdk/openai | 3.0.25 | OpenAI provider (for evaluation) |
 | Inngest | 3.50.0 | Background job processing |
+| Resend | latest | Transactional email |
 | Tailwind CSS | 4.x | Styling (config in CSS, no tailwind.config) |
 
 ## Core Architecture (Phase 1A)
@@ -127,6 +128,7 @@ profiles (
   email text,
   bonus_pages integer NOT NULL DEFAULT 0,  -- extra pages from sharing
   is_founding_50 boolean NOT NULL DEFAULT false,  -- founding member flag
+  email_notifications boolean NOT NULL DEFAULT true,  -- opt-out of scan emails
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 )
@@ -355,7 +357,8 @@ Analysis completes (structured findings)
 │    ├─ query_trend                           │
 │    ├─ query_custom_event                    │
 │    ├─ get_funnel                            │
-│    └─ compare_periods                       │
+│    ├─ compare_periods                       │
+│    └─ get_experiments (A/B tests)           │
 │              │                              │
 │              ▼                              │
 │    PostHogAdapter (HogQL queries)           │
@@ -426,6 +429,34 @@ PostHog: 120 queries/hour. Max 6 tool calls per analysis is well within limits.
 - `src/app/api/integrations/posthog/connect/route.ts` — Connect endpoint
 - `src/app/api/integrations/posthog/route.ts` — Disconnect endpoint
 
+## Email Notifications
+
+**Provider:** Resend (domain: getloupe.io)
+**Pattern:** Fire-and-forget (don't block scan pipeline on email delivery)
+
+### Email Types
+1. **Scan complete** — After scheduled (daily/weekly) scans. Dynamic subject based on score change.
+2. **Deploy scan complete** — After GitHub-triggered scans. Includes commit SHA and message.
+3. **Waitlist confirmation** — When someone joins waitlist.
+
+Manual re-scans do NOT trigger emails.
+
+### Features
+- Dynamic subject lines based on score delta (dropped/improved/stable)
+- Dynamic headlines and CTAs based on whether something changed
+- Twitter share link for viral growth
+- Referral hook in waitlist email
+- Email preference toggle in `/settings/integrations`
+
+### Key Files
+- `src/lib/email/resend.ts` — Resend client wrapper, `sendEmail()` helper
+- `src/lib/email/templates.ts` — HTML email templates (brand-consistent)
+- `src/app/api/profile/route.ts` — GET/PATCH profile preferences
+- `src/app/api/dev/email-preview/route.ts` — Dev-only template preview
+
+### Env Vars
+- `RESEND_API_KEY` — Resend API key
+
 ## Inngest
 
 **Client ID:** `loupe`
@@ -433,7 +464,7 @@ PostHog: 120 queries/hour. Max 6 tool calls per analysis is well within limits.
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion.
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion. Sends email notification for scheduled/deploy scans (not manual).
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
 - `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
 - `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans all user pages (simplified for MVP: 1 domain per user)
@@ -453,7 +484,7 @@ src/
 │   │   └── error/page.tsx          # Auth error page
 │   ├── analysis/[id]/page.tsx      # Results page (with page context + nav)
 │   ├── settings/
-│   │   └── integrations/page.tsx   # GitHub + PostHog connection UI
+│   │   └── integrations/page.tsx   # GitHub + PostHog + email preferences
 │   ├── api/
 │   │   ├── analyze/route.ts        # POST: create analysis
 │   │   ├── analysis/[id]/route.ts  # GET: poll results (includes page_context)
@@ -461,14 +492,16 @@ src/
 │   │   ├── pages/route.ts          # GET: list pages, POST: register page (with limits)
 │   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page (DELETE cascades to analyses)
 │   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
+│   │   ├── profile/route.ts        # GET/PATCH: user profile preferences
 │   │   ├── founding-status/route.ts # GET: founding 50 progress
 │   │   ├── share-credit/route.ts   # POST: claim bonus page from sharing
-│   │   ├── waitlist/route.ts       # POST: join waitlist
+│   │   ├── waitlist/route.ts       # POST: join waitlist (+ sends confirmation email)
 │   │   ├── integrations/           # GitHub + PostHog integration
 │   │   │   ├── route.ts            # GET: list integrations status
 │   │   │   ├── github/             # GitHub OAuth + repo management
 │   │   │   └── posthog/            # PostHog connect/disconnect
 │   │   ├── webhooks/github/route.ts # GitHub push webhook receiver
+│   │   ├── dev/email-preview/route.ts # Dev-only email template preview
 │   │   └── inngest/route.ts        # Inngest serve
 │   ├── globals.css
 │   └── layout.tsx
@@ -484,11 +517,14 @@ src/
 │   │   └── proxy.ts                # updateSession() for proxy
 │   ├── screenshot.ts               # Vultr service client + Supabase upload
 │   ├── posthog-api.ts              # PostHog HogQL client + metrics fetcher
+│   ├── email/
+│   │   ├── resend.ts               # Resend client wrapper
+│   │   └── templates.ts            # HTML email templates
 │   ├── ai/
 │   │   └── pipeline.ts             # LLM analysis (Gemini 3 Pro vision)
 │   └── inngest/
 │       ├── client.ts               # Inngest client
-│       └── functions.ts            # analysis/created handler
+│       └── functions.ts            # analysis/created handler + email notifications
 ```
 
 ## Dev Setup
