@@ -42,6 +42,51 @@ export const metadata: Metadata = {
   },
 };
 
+// JSON-LD structured data for rich snippets
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://getloupe.io/#organization",
+      name: "Loupe",
+      url: "https://getloupe.io",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://getloupe.io/logo-square.png",
+      },
+      sameAs: [],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://getloupe.io/#website",
+      url: "https://getloupe.io",
+      name: "Loupe",
+      publisher: { "@id": "https://getloupe.io/#organization" },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://getloupe.io/#app",
+      name: "Loupe",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description:
+        "Monitor your web pages for meaningful changes. Catch drift in headlines, CTAs, trust signals, and layout before it costs you conversions.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+        description: "Free page audit, no signup required",
+      },
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: "5",
+        ratingCount: "1",
+      },
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -49,6 +94,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body
         className={`${dmSans.variable} ${interTight.variable} ${geistMono.variable} font-sans antialiased min-h-screen flex flex-col`}
       >
