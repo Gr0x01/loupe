@@ -3,6 +3,11 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
 import { runAnalysisPipeline, runPostAnalysisPipeline } from "@/lib/ai/pipeline";
 import type { ChangesSummary, DeployContext } from "@/lib/ai/pipeline";
+import { sendEmail } from "@/lib/email/resend";
+import {
+  scanCompleteEmail,
+  deployScanCompleteEmail,
+} from "@/lib/email/templates";
 
 export const analyzeUrl = inngest.createFunction(
   {
@@ -164,6 +169,75 @@ export const analyzeUrl = inngest.createFunction(
           .update({ last_scan_id: analysisId })
           .eq("user_id", analysis.user_id)
           .eq("url", url);
+
+        // 7. Send email notification (for scheduled/deploy scans only)
+        const { data: fullAnalysis } = await supabase
+          .from("analyses")
+          .select("trigger_type, deploy_id")
+          .eq("id", analysisId)
+          .single();
+
+        const triggerType = fullAnalysis?.trigger_type;
+        if (triggerType && triggerType !== "manual") {
+          // Get user email + preferences
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email, email_notifications")
+            .eq("id", analysis.user_id)
+            .single();
+
+          if (profile?.email && profile.email_notifications) {
+            // Get previous score for delta
+            let previousScore: number | null = null;
+            if (parentAnalysisId) {
+              const { data: parent } = await supabase
+                .from("analyses")
+                .select("structured_output")
+                .eq("id", parentAnalysisId)
+                .single();
+              previousScore =
+                (parent?.structured_output as { overallScore?: number } | null)
+                  ?.overallScore ?? null;
+            }
+
+            const currentScore = structured?.overallScore ?? 0;
+
+            if (triggerType === "deploy" && fullAnalysis.deploy_id) {
+              // Deploy scan — include commit info
+              const { data: deploy } = await supabase
+                .from("deploys")
+                .select("commit_sha, commit_message")
+                .eq("id", fullAnalysis.deploy_id)
+                .single();
+
+              if (deploy) {
+                const { subject, html } = deployScanCompleteEmail({
+                  pageUrl: url,
+                  score: currentScore,
+                  previousScore,
+                  analysisId,
+                  commitSha: deploy.commit_sha,
+                  commitMessage: deploy.commit_message,
+                });
+                sendEmail({ to: profile.email, subject, html }).catch(
+                  console.error
+                );
+              }
+            } else if (triggerType === "daily" || triggerType === "weekly") {
+              // Scheduled scan
+              const { subject, html } = scanCompleteEmail({
+                pageUrl: url,
+                score: currentScore,
+                previousScore,
+                analysisId,
+                triggerType,
+              });
+              sendEmail({ to: profile.email, subject, html }).catch(
+                console.error
+              );
+            }
+          }
+        }
       }
 
       return { success: true, analysisId };

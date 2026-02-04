@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { sendEmail } from "@/lib/email/resend";
+import { waitlistConfirmationEmail } from "@/lib/email/templates";
 
 /**
  * POST /api/waitlist - Add email to waitlist
@@ -43,6 +45,11 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Send confirmation email (fire and forget)
+    const normalizedEmail = email.toLowerCase().trim();
+    const { subject, html } = waitlistConfirmationEmail({ email: normalizedEmail });
+    sendEmail({ to: normalizedEmail, subject, html }).catch(console.error);
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -80,6 +81,11 @@ function AddRepoModal({
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -105,13 +111,13 @@ function AddRepoModal({
     fetchRepos();
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const availableRepos = repos.filter((r) => !r.connected);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -177,7 +183,8 @@ function AddRepoModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -196,8 +203,13 @@ function PostHogConnectModal({
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,9 +239,9 @@ function PostHogConnectModal({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -337,7 +349,8 @@ function PostHogConnectModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -353,10 +366,24 @@ function IntegrationsContent() {
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [disconnectingGitHub, setDisconnectingGitHub] = useState(false);
   const [disconnectingPostHog, setDisconnectingPostHog] = useState(false);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [togglingEmail, setTogglingEmail] = useState(false);
 
   // Show success/error messages from OAuth callback
   const successParam = searchParams.get("success");
   const errorParam = searchParams.get("error");
+
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch("/api/profile");
+      if (res.ok) {
+        const data = await res.json();
+        setEmailNotifications(data.email_notifications ?? true);
+      }
+    } catch {
+      // Ignore profile fetch errors - default to enabled
+    }
+  };
 
   const fetchIntegrations = async () => {
     try {
@@ -380,7 +407,31 @@ function IntegrationsContent() {
 
   useEffect(() => {
     fetchIntegrations();
+    fetchProfile();
   }, []);
+
+  const handleToggleEmailNotifications = async () => {
+    setTogglingEmail(true);
+    const newValue = !emailNotifications;
+
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email_notifications: newValue }),
+      });
+
+      if (res.ok) {
+        setEmailNotifications(newValue);
+      } else {
+        setError("Failed to update email preferences");
+      }
+    } catch {
+      setError("Failed to update email preferences");
+    } finally {
+      setTogglingEmail(false);
+    }
+  };
 
   const handleConnectGitHub = () => {
     window.location.href = "/api/integrations/github/connect";
@@ -696,6 +747,52 @@ function IntegrationsContent() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Email Notifications */}
+        <section className="mb-8">
+          <div className="glass-card-elevated p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-text-primary">Email Notifications</h2>
+                  <p className="text-sm text-text-secondary">
+                    Get notified when scheduled scans complete
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleToggleEmailNotifications}
+                disabled={togglingEmail}
+                className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                  emailNotifications ? "bg-accent" : "bg-text-muted/30"
+                } disabled:opacity-50`}
+                role="switch"
+                aria-checked={emailNotifications}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                    emailNotifications ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-border-subtle">
+              <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                <p className="text-sm text-text-secondary">
+                  <span className="font-medium text-text-primary">What you'll get:</span>{" "}
+                  Emails when your daily or weekly scans complete, and after GitHub-triggered deploy scans.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
       </div>
