@@ -563,6 +563,17 @@ body > * {
   to { transform: rotate(360deg); }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ===== SCREENSHOT BROWSER CHROME ===== */
 .browser-chrome {
   background: rgba(255, 255, 255, 0.7);
@@ -1149,4 +1160,31 @@ body.modal-open .site-nav {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+
+/* ===== DARK SECTION ===== */
+.section-dark {
+  background: linear-gradient(180deg, #111118 0%, #1a1a2e 100%);
+  color: #F5F5F7;
+}
+
+.section-dark .text-text-primary {
+  color: #F5F5F7;
+}
+
+.section-dark .text-text-secondary {
+  color: rgba(245, 245, 247, 0.7);
+}
+
+.section-dark .text-text-muted {
+  color: rgba(245, 245, 247, 0.5);
+}
+
+.section-dark .text-accent {
+  color: #a78bfa;
+}
+
+/* Step numbers on dark - use accent glow */
+.section-dark .step-number {
+  color: rgba(167, 139, 250, 0.25);
 }
