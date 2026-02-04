@@ -26,11 +26,11 @@ export const toolPageData: Record<AITool, ToolPageData> = {
   lovable: {
     name: "Lovable",
     tagline: "Building with Lovable?",
-    headline: "Lovable rebuilt your page.\nDo you know what shipped?",
+    headline: "Lovable changed your site.\nDo you know what's different?",
     subheadline:
       "Your AI said 'Done!' — but did your pricing section survive? Your CTA? Your testimonials?",
     supportingText:
-      "Loupe watches your site after every prompt. We'll tell you what changed.",
+      "Loupe screenshots your site after every prompt. We'll show you exactly what's different.",
     painPoints: [
       {
         title: "Features vanish silently",
@@ -43,16 +43,16 @@ export const toolPageData: Record<AITool, ToolPageData> = {
           "Lovable loves to 'improve' your headlines. Sometimes that means losing what worked.",
       },
       {
-        title: "No version control",
+        title: "No way to compare",
         description:
-          "There's no git history, no rollback. Just before and... what happened?",
+          "There's no history, no screenshots. You can't even remember what it looked like yesterday.",
       },
     ],
     benefits: [
       {
-        title: "See what shipped",
+        title: "See what's live",
         description:
-          "After every change, we screenshot and analyze what's actually live.",
+          "After every prompt, we screenshot and analyze what's actually on your site.",
       },
       {
         title: "Know what changed",
@@ -86,9 +86,9 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Loupe for Lovable — See what your AI actually shipped",
+      title: "Lovable Website Monitoring — Track What Your AI Changes | Loupe",
       description:
-        "Building with Lovable? Loupe watches your site after every prompt. Know what changed before your users notice.",
+        "Monitor your Lovable landing page for drift. See what your AI changed, catch missing sections, and track copy changes before users notice. Free audit.",
     },
   },
 
@@ -97,9 +97,9 @@ export const toolPageData: Record<AITool, ToolPageData> = {
     tagline: "Building with Bolt?",
     headline: "Bolt 'fixed' your checkout.\nWhat else did it change?",
     subheadline:
-      "AI moves fast. Your site changes faster. Know what shipped before your customers complain.",
+      "AI moves fast. Your site changes faster. Know what's different before your customers complain.",
     supportingText:
-      "Loupe monitors your pages and tells you exactly what drifted.",
+      "Loupe monitors your pages and shows you exactly what drifted.",
     painPoints: [
       {
         title: "Changes cascade",
@@ -112,16 +112,16 @@ export const toolPageData: Record<AITool, ToolPageData> = {
           "Desktop looks fine. Mobile? That's where Bolt decided to experiment.",
       },
       {
-        title: "No audit trail",
+        title: "No way to compare",
         description:
-          "You can't diff what you can't see. Bolt doesn't show you what it touched.",
+          "You can't see what changed if you don't know what it looked like before.",
       },
     ],
     benefits: [
       {
         title: "Screenshot every change",
         description:
-          "We capture your pages after updates so you have proof of what shipped.",
+          "We capture your pages after updates so you have proof of what's live.",
       },
       {
         title: "Meaningful diff",
@@ -131,7 +131,7 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       {
         title: "Alert on drift",
         description:
-          "Email when something important moves. Weekly or on every deploy.",
+          "Email when something important moves. Weekly or after every update.",
       },
     ],
     mockChanges: [
@@ -155,9 +155,9 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Loupe for Bolt — Track what your AI changes",
+      title: "Bolt Website Monitoring — Track What Your AI Changes | Loupe",
       description:
-        "Building with Bolt? Loupe monitors your site after every AI change. Know what drifted before conversions drop.",
+        "Monitor your Bolt landing page for drift. See what your AI changed and catch broken layouts before customers notice. Free audit.",
     },
   },
 
@@ -224,9 +224,9 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Loupe for Cursor — Catch what your AI refactored",
+      title: "Cursor Website Monitoring — Track What Your AI Changed | Loupe",
       description:
-        "Shipping with Cursor? Loupe monitors your site after every deploy. See what your refactor actually changed.",
+        "Shipping with Cursor? Loupe monitors your site after every deploy. See what your refactor actually changed on the live site.",
     },
   },
 
@@ -293,25 +293,25 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Loupe for v0 — Check what your AI generated",
+      title: "v0 Website Monitoring — Check What Your AI Generated | Loupe",
       description:
-        "Generating UI with v0? Loupe analyzes your pages for conversion, not just design. See what shipped.",
+        "Generating UI with v0? Loupe monitors your pages for conversion, not just design. See what changed and catch placeholder copy before it goes live.",
     },
   },
 
   replit: {
     name: "Replit",
     tagline: "Building on Replit?",
-    headline: "Replit Agent shipped your site.\nWhat did it actually deploy?",
+    headline: "Replit Agent built your site.\nWhat did it actually change?",
     subheadline:
       "The AI said it's done. But your homepage, your pricing, your signup flow — did they survive?",
     supportingText:
-      "Loupe monitors your live site and tells you when something drifts.",
+      "Loupe monitors your live site and shows you when something drifts.",
     painPoints: [
       {
-        title: "Black box deploys",
+        title: "Black box updates",
         description:
-          "Replit Agent makes changes and deploys. You see 'success.' What changed?",
+          "Replit Agent makes changes and goes live. You see 'success.' What changed?",
       },
       {
         title: "Prompt confusion",
@@ -321,14 +321,14 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       {
         title: "No staging",
         description:
-          "It's live the moment it ships. Your users are your QA team.",
+          "It's live the moment it's done. Your users find the bugs.",
       },
     ],
     benefits: [
       {
         title: "Know before users do",
         description:
-          "We catch changes right after deploy, before anyone complains.",
+          "We catch changes right away, before anyone complains.",
       },
       {
         title: "Plain English changes",
@@ -362,9 +362,9 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Loupe for Replit — See what Replit Agent deployed",
+      title: "Replit Website Monitoring — See What Replit Agent Changed | Loupe",
       description:
-        "Building on Replit? Loupe monitors your site after every agent change. Know what shipped to production.",
+        "Building on Replit? Loupe monitors your site after every agent change. Know what's different before users notice.",
     },
   },
 
@@ -390,7 +390,7 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       {
         title: "Copy quality varies",
         description:
-          "Some generations nail it. Others ship 'Welcome to our platform.'",
+          "Some generations nail it. Others produce 'Welcome to our platform.'",
       },
     ],
     benefits: [
@@ -431,9 +431,9 @@ export const toolPageData: Record<AITool, ToolPageData> = {
       },
     ],
     metadata: {
-      title: "Loupe for Base44 — Track what your AI built",
+      title: "Base44 Website Monitoring — Track What Your AI Built | Loupe",
       description:
-        "Building with Base44? Loupe monitors your pages as you iterate. See what changed, keep what works.",
+        "Building with Base44? Loupe monitors your pages as you iterate. See what changed and keep what works.",
     },
   },
 };

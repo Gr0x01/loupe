@@ -132,7 +132,7 @@ export default async function ToolPage({ params }: PageProps) {
 
       {/* Benefits Section */}
       <BenefitGrid
-        headline="Loupe watches what your AI ships"
+        headline="Loupe watches what your AI changes"
         benefits={data.benefits.map((b, i) => ({
           title: b.title,
           description: b.description,
@@ -143,7 +143,7 @@ export default async function ToolPage({ params }: PageProps) {
 
       {/* CTA */}
       <CTASection
-        headline={`Ship with ${data.name}. We'll catch what it changes.`}
+        headline={`Build with ${data.name}. We'll show you what changed.`}
         ctaText="Get your free audit"
         trustSignals={["Free audit", "No signup", "See results instantly"]}
       />
