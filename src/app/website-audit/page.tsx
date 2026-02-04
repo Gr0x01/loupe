@@ -4,9 +4,9 @@ import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import CTASection from "@/components/seo/CTASection";
 
 export const metadata: Metadata = {
-  title: "Free Website Audit Tool — Instant Landing Page Analysis | Loupe",
+  title: "Free Website Audit Tool — Check if Your Landing Page Converts | Loupe",
   description:
-    "Get a free conversion-focused website audit in 30 seconds. We analyze your headlines, CTAs, trust signals, and visual hierarchy. No signup required.",
+    "Free website audit in 30 seconds. Built with Lovable, Cursor, or Bolt? Check if your landing page actually converts. We analyze headlines, CTAs, and trust signals. No signup required.",
 };
 
 // Category icons
@@ -51,43 +51,41 @@ const AUDIT_CATEGORIES = [
   {
     name: "Messaging & Copy",
     icon: <MessageIcon />,
-    description: "Does your headline communicate a specific outcome for a specific audience?",
+    description: "Does your headline actually say what you do? Would a stranger understand it in 5 seconds?",
     whatWeCheck: [
       "Headline clarity and specificity",
       "Value proposition strength",
-      "Problem-Agitate-Solve structure",
-      "Jobs-to-be-Done alignment",
-      'The "Only" test — could a competitor say the same thing?',
+      "Problem → solution flow",
+      'The "Only" test — could a competitor say the same?',
+      "Audience targeting",
     ],
-    framework: "PAS Framework, JTBD",
     exampleFinding: {
       type: "issue" as const,
-      title: "Headline fails the 'Only' test",
+      title: "Headline is too generic",
       detail: "\"We help businesses grow\" could describe any competitor. Try: \"SaaS founders: reduce churn 23% in 90 days.\"",
     },
   },
   {
     name: "Call to Action",
     icon: <ClickIcon />,
-    description: "Does your CTA reduce friction and match your visitor's awareness stage?",
+    description: "Is your button compelling? Does it match what visitors are ready to do?",
     whatWeCheck: [
       "CTA visibility and placement",
       "Button copy specificity",
-      "Risk reversal elements",
-      "Motivation + ability + trigger alignment",
-      "Awareness stage matching",
+      "Risk reversal (free trial, guarantee)",
+      "Friction reduction",
+      "Action clarity",
     ],
-    framework: "Fogg Behavior Model",
     exampleFinding: {
       type: "suggestion" as const,
-      title: "CTA doesn't match awareness stage",
-      detail: "\"Get Started\" assumes visitors understand your solution. Problem-aware visitors need \"See How It Works\" first.",
+      title: "CTA assumes too much",
+      detail: "\"Get Started\" assumes visitors understand your solution. Try \"See How It Works\" first.",
     },
   },
   {
     name: "Trust & Social Proof",
     icon: <TrustIcon />,
-    description: "Do your credibility signals address objections and build confidence?",
+    description: "Do visitors have a reason to trust you? Are objections being handled?",
     whatWeCheck: [
       "Testimonial specificity and relevance",
       "Customer logos and numbers",
@@ -95,7 +93,6 @@ const AUDIT_CATEGORIES = [
       "Authority signals",
       "Objection handling",
     ],
-    framework: "Cialdini's Principles",
     exampleFinding: {
       type: "issue" as const,
       title: "Testimonials don't address objections",
@@ -107,13 +104,12 @@ const AUDIT_CATEGORIES = [
     icon: <EyeIcon />,
     description: "Does the eye flow naturally to your most important content?",
     whatWeCheck: [
-      "F-pattern and Z-pattern alignment",
+      "Reading flow alignment",
       "Primary CTA prominence",
       "Content priority ordering",
       "Above-the-fold effectiveness",
       "Scan-ability for skimmers",
     ],
-    framework: "Gutenberg Diagram, F-Pattern",
     exampleFinding: {
       type: "issue" as const,
       title: "CTA buried below the fold",
@@ -123,15 +119,14 @@ const AUDIT_CATEGORIES = [
   {
     name: "Design Quality",
     icon: <PaletteIcon />,
-    description: "Is spacing consistent? Typography clean? Colors purposeful?",
+    description: "Is spacing consistent? Typography clean? Does it look professional?",
     whatWeCheck: [
-      "Spacing consistency (Gestalt proximity)",
+      "Spacing consistency",
       "Color contrast and accessibility",
       "Typography hierarchy",
       "Visual noise reduction",
       "Mobile responsiveness",
     ],
-    framework: "Gestalt Principles",
     exampleFinding: {
       type: "suggestion" as const,
       title: "Inconsistent spacing breaks grouping",
@@ -141,7 +136,7 @@ const AUDIT_CATEGORIES = [
   {
     name: "SEO & Metadata",
     icon: <SearchIcon />,
-    description: "Does your page metadata match searcher intent?",
+    description: "Will search engines understand your page? Will searchers click?",
     whatWeCheck: [
       "Title tag optimization",
       "Meta description click-worthiness",
@@ -149,11 +144,10 @@ const AUDIT_CATEGORIES = [
       "Image alt text",
       "Search intent matching",
     ],
-    framework: "Search Intent Matching",
     exampleFinding: {
       type: "issue" as const,
       title: "Meta description is generic",
-      detail: "\"Welcome to our website\" doesn't match search intent. Try: \"Free audit tool that checks your headlines, CTAs, and trust signals in 30 seconds.\"",
+      detail: "\"Welcome to our website\" doesn't entice clicks. Try: \"Free audit tool that checks your landing page in 30 seconds.\"",
     },
   },
 ];
@@ -162,12 +156,12 @@ const FAQ_ITEMS = [
   {
     question: "What exactly does the audit check?",
     answer:
-      "We analyze 6 key areas: messaging clarity, CTA effectiveness, trust signals, visual hierarchy, design quality, and SEO metadata. Each finding is grounded in proven marketing frameworks like PAS, Cialdini's principles, and the Fogg Behavior Model.",
+      "We check 6 things: whether your headline is clear, your buttons make people want to click, your page looks trustworthy, the layout guides the eye, the design looks professional, and your SEO basics are covered. You get specific fixes, not generic advice.",
   },
   {
     question: "How long does the audit take?",
     answer:
-      "About 30 seconds. We screenshot your page, extract the metadata (headings, buttons, links), and run it through our analysis model. You'll see results on screen — no email required.",
+      "About 30 seconds. We screenshot your page, extract the copy (headings, buttons, links), and analyze it. You'll see results on screen — no email required.",
   },
   {
     question: "Is this really free?",
@@ -175,9 +169,14 @@ const FAQ_ITEMS = [
       "Yes. The audit is free forever, no signup required. We offer paid monitoring if you want ongoing tracking after changes, but the one-time audit is completely free.",
   },
   {
+    question: "I built my site with Lovable / Cursor / Bolt. Will this work?",
+    answer:
+      "That's exactly who this is for. AI tools help you ship fast, but they don't know if what they built actually converts. We check if the page your AI made is doing its job.",
+  },
+  {
     question: "How is this different from PageSpeed or SEO tools?",
     answer:
-      "Those tools check technical performance. We check marketing effectiveness — whether your headlines convert, your CTAs compel action, and your trust signals build confidence. It's conversion optimization, not technical SEO.",
+      "Those tools check technical performance — page speed, meta tags, Core Web Vitals. We check if your page convinces visitors to take action. It's conversion optimization, not technical SEO.",
   },
   {
     question: "What kind of pages work best?",
@@ -213,19 +212,22 @@ export default function WebsiteAuditPage() {
       <section className="pt-16 lg:pt-24 px-4 pb-16">
         <div className="w-full max-w-4xl mx-auto text-center">
           <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-4">
-            Free Tool
+            Free Website Audit
           </p>
           <h1
             className="text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-text-primary mb-6"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
-            Is your landing page actually converting?
+            You shipped fast.
+            <br />
+            <span className="text-accent">Is your landing page doing its job?</span>
           </h1>
           <p className="text-xl text-text-secondary max-w-2xl mx-auto mb-4">
-            Paste your URL. Get a conversion-focused analysis of your headlines, CTAs, and trust signals in 30 seconds.
+            Built with Lovable, Cursor, or Bolt? We'll check if what shipped actually converts.
+            Paste your URL — get a website audit in 30&nbsp;seconds.
           </p>
           <p className="text-base text-text-muted mb-10">
-            No signup. No email. Just insights.
+            No signup. No email. No consultant-speak.
           </p>
 
           <div className="max-w-xl mx-auto">
@@ -242,10 +244,10 @@ export default function WebsiteAuditPage() {
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight mb-4"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
-              What we analyze
+              What we check
             </h2>
             <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-              Six categories grounded in proven marketing frameworks. Not vague suggestions — specific findings with concrete fixes.
+              Six areas that make or break conversions. Not vague suggestions — specific findings with stuff you can fix today.
             </p>
           </div>
 
@@ -256,10 +258,7 @@ export default function WebsiteAuditPage() {
                   <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
                     {cat.icon}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-text-primary">{cat.name}</h3>
-                    <p className="text-xs text-text-muted">{cat.framework}</p>
-                  </div>
+                  <h3 className="font-bold text-text-primary">{cat.name}</h3>
                 </div>
                 <p className="text-sm text-text-secondary mb-4">{cat.description}</p>
                 <ul className="space-y-1.5 mb-4">
@@ -465,10 +464,10 @@ export default function WebsiteAuditPage() {
 
       {/* CTA */}
       <CTASection
-        headline="Ready to see what's working (and&nbsp;what's&nbsp;not)?"
-        subheadline="30 seconds. No signup. Concrete fixes you can implement today."
+        headline="See what's working. Fix what's&nbsp;not."
+        subheadline="30 seconds. No signup. Stuff you can actually fix today."
         ctaText="Audit my page"
-        trustSignals={["Free audit", "No signup required", "Results in 30 seconds"]}
+        trustSignals={["Free forever", "No signup required", "Results in 30 seconds"]}
       />
     </div>
   );
