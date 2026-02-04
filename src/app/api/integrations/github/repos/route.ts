@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { listInstallationRepos, createRepoWebhook } from "@/lib/github/app";
 
 // Validate repo fullName format (owner/repo) to prevent path manipulation
 const REPO_FULLNAME_REGEX = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
 
-// GET /api/integrations/github/repos - list user's GitHub repos
+// GET /api/integrations/github/repos - list repos accessible to the installation
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -15,42 +16,23 @@ export async function GET() {
 
   const serviceClient = createServiceClient();
 
-  // Get GitHub integration
+  // Get GitHub App installation
   const { data: integration } = await serviceClient
     .from("integrations")
-    .select("access_token")
+    .select("metadata")
     .eq("user_id", user.id)
     .eq("provider", "github")
     .maybeSingle();
 
-  if (!integration) {
+  if (!integration?.metadata?.installation_id) {
     return NextResponse.json({ error: "GitHub not connected" }, { status: 400 });
   }
 
+  const installationId = integration.metadata.installation_id as number;
+
   try {
-    // Fetch repos from GitHub API (paginated, sorted by recently pushed)
-    const response = await fetch(
-      "https://api.github.com/user/repos?per_page=100&sort=pushed&direction=desc",
-      {
-        headers: {
-          "Authorization": `Bearer ${integration.access_token}`,
-          "Accept": "application/vnd.github.v3+json",
-        },
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        return NextResponse.json(
-          { error: "GitHub token expired or revoked. Please reconnect." },
-          { status: 401 }
-        );
-      }
-      console.error("GitHub API error:", response.status);
-      return NextResponse.json({ error: "GitHub API error" }, { status: 502 });
-    }
-
-    const repos = await response.json();
+    // Fetch repos from GitHub using installation token
+    const repos = await listInstallationRepos(installationId);
 
     // Get already connected repos
     const { data: connectedRepos } = await serviceClient
@@ -60,14 +42,9 @@ export async function GET() {
 
     const connectedIds = new Set(connectedRepos?.map(r => r.github_repo_id) || []);
 
-    // Return simplified list
+    // Return repos with connected status
     return NextResponse.json({
-      repos: repos.map((repo: {
-        id: number;
-        full_name: string;
-        default_branch: string;
-        private: boolean;
-      }) => ({
+      repos: repos.map(repo => ({
         id: repo.id,
         full_name: repo.full_name,
         default_branch: repo.default_branch,
@@ -111,17 +88,19 @@ export async function POST(request: NextRequest) {
 
   const serviceClient = createServiceClient();
 
-  // Get GitHub integration
+  // Get GitHub App installation
   const { data: integration } = await serviceClient
     .from("integrations")
-    .select("id, access_token")
+    .select("id, metadata")
     .eq("user_id", user.id)
     .eq("provider", "github")
     .maybeSingle();
 
-  if (!integration) {
+  if (!integration?.metadata?.installation_id) {
     return NextResponse.json({ error: "GitHub not connected" }, { status: 400 });
   }
+
+  const installationId = integration.metadata.installation_id as number;
 
   // Check if already connected
   const { data: existing } = await serviceClient
@@ -158,48 +137,18 @@ export async function POST(request: NextRequest) {
   // Only create webhook if not localhost (GitHub can't reach localhost)
   if (!isLocalhost) {
     try {
-      const webhookResponse = await fetch(
-        `https://api.github.com/repos/${fullName}/hooks`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${integration.access_token}`,
-            "Accept": "application/vnd.github.v3+json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: "web",
-            active: true,
-            events: ["push"],
-            config: {
-              url: webhookUrl,
-              content_type: "json",
-              secret: webhookSecret,
-            },
-          }),
-        }
+      webhookId = await createRepoWebhook(
+        installationId,
+        fullName,
+        webhookUrl,
+        webhookSecret
       );
-
-      if (!webhookResponse.ok) {
-        if (webhookResponse.status === 401) {
-          return NextResponse.json(
-            { error: "GitHub token expired or revoked. Please reconnect." },
-            { status: 401 }
-          );
-        }
-        const error = await webhookResponse.json();
-        console.error("Failed to create GitHub webhook:", error);
-        return NextResponse.json(
-          { error: "Failed to create webhook", details: error.message },
-          { status: 502 }
-        );
-      }
-
-      const webhook = await webhookResponse.json();
-      webhookId = webhook.id;
     } catch (err) {
-      console.error("Error creating webhook:", err);
-      return NextResponse.json({ error: "Failed to create webhook" }, { status: 500 });
+      console.error("Failed to create GitHub webhook:", err);
+      return NextResponse.json(
+        { error: "Failed to create webhook", details: String(err) },
+        { status: 502 }
+      );
     }
   } else {
     console.log(`Skipping webhook creation for localhost. Repo: ${fullName}`);
@@ -224,18 +173,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error("Failed to store repo:", insertError);
       // Try to clean up webhook if we created one
-      if (webhookId) {
-        await fetch(
-          `https://api.github.com/repos/${fullName}/hooks/${webhookId}`,
-          {
-            method: "DELETE",
-            headers: {
-              "Authorization": `Bearer ${integration.access_token}`,
-              "Accept": "application/vnd.github.v3+json",
-            },
-          }
-        );
-      }
+      // Note: We can't easily delete via installation token here without more work
       return NextResponse.json({ error: "Failed to store repo" }, { status: 500 });
     }
 

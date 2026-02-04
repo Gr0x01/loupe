@@ -11,12 +11,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  if (!clientId) {
-    console.error("GITHUB_CLIENT_ID not configured");
-    return NextResponse.redirect(new URL("/settings/integrations?error=config", request.url));
-  }
-
   // Generate state token for CSRF protection
   const state = crypto.randomUUID();
 
@@ -30,14 +24,11 @@ export async function GET(request: NextRequest) {
     path: "/",
   });
 
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/github/callback`;
-  const scope = "repo"; // Needed for webhook creation on private repos
+  // Redirect to GitHub App installation page
+  // The app slug is derived from the app name: "Loupe by getloupe.io" -> "loupe-by-getloupe-io"
+  const appSlug = "loupe-by-getloupe-io";
+  const installUrl = new URL(`https://github.com/apps/${appSlug}/installations/new`);
+  installUrl.searchParams.set("state", state);
 
-  const githubAuthUrl = new URL("https://github.com/login/oauth/authorize");
-  githubAuthUrl.searchParams.set("client_id", clientId);
-  githubAuthUrl.searchParams.set("redirect_uri", redirectUri);
-  githubAuthUrl.searchParams.set("scope", scope);
-  githubAuthUrl.searchParams.set("state", state);
-
-  return NextResponse.redirect(githubAuthUrl);
+  return NextResponse.redirect(installUrl);
 }
