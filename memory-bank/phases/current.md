@@ -20,8 +20,8 @@ Major repositioning from "website grader with scores" to "correlation layer with
 | 2.2 Initial Audit | Results page body sections | **DONE** |
 | 2.4-2.7 | Results page polish & conversion | **DONE** |
 | 3 Chronicle | N+1 experience | **DONE** |
-| 4. Dashboard | Activity stream | Not started |
-| 5. Emails | Update templates | Not started |
+| 4.1 Dashboard | Two-zone activity stream | **DONE** |
+| 5. Emails | Update templates | **DONE** |
 | 6. Landing Page | New positioning | Not started |
 
 ### Phase 1.1 Completed
@@ -117,9 +117,71 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] Created `POST /api/leads` endpoint for email capture
 - [x] Email is optional — graceful degradation if not provided
 
+### Phase 5 Completed (Email Templates Update)
+
+**5.1 New Context-Aware Templates:**
+- [x] `changeDetectedEmail()` — for when scheduled/deploy scans find changes
+  - Dynamic subject based on correlation: improved, regressed, or watching
+  - Shows primary change with before/after, additional changes count
+  - Correlation section when data is available
+  - Top suggestion section when available
+  - Deploy info section for deploy-triggered scans
+- [x] `allQuietEmail()` — for when scheduled scans find no changes
+  - Subject: "All quiet on {domain}"
+  - Shows last change date and top suggestion if available
+- [x] `correlationUnlockedEmail()` — for when watching items become validated
+  - Subject: "Your {element} change helped"
+  - Shows change details with before/after and metric improvement
+- [x] `weeklyDigestEmail()` — weekly summary for users with 3+ pages
+  - Subject: "Your weekly Loupe report"
+  - Lists all pages with status: changed (with helped indicator), stable, or suggestion
+
+**5.2 Email Selection Logic:**
+- [x] Updated `analyzeUrl` in functions.ts to use intelligent email selection
+- [x] Uses `changeDetectedEmail` when `changes_summary.changes.length > 0`
+- [x] Uses `allQuietEmail` when no changes detected
+- [x] Added `extractTopSuggestion()` helper to get top suggestion from Chronicle or initial audit
+- [x] Removed legacy templates (`scanCompleteEmail`, `deployScanCompleteEmail`) — no longer needed
+
+**5.3 Correlation Unlock Detection:**
+- [x] Added logic to detect when watching item becomes validated
+- [x] Compares previous `watchingItems` with current `validatedItems`
+- [x] Sends `correlationUnlockedEmail` when correlation is confirmed
+
+**5.4 Weekly Digest Function:**
+- [x] Added `weeklyDigest` Inngest function
+- [x] Runs Monday 10am UTC (1 hour after scheduled scans)
+- [x] Targets users with 3+ monitored pages
+- [x] Aggregates page statuses (changed/stable/suggestion)
+
+**5.5 Email Preview Route:**
+- [x] Extended `/api/dev/email-preview` with all new templates
+- [x] Multiple variations: change-detected (watching/improved/regressed/deploy), all-quiet (with/without suggestion), correlation-unlocked, weekly-digest
+
+**5.6 UI Designer Review:**
+- [x] Cleaner visual hierarchy — headline carries the verdict
+- [x] Removed heavy bordered sections, using spacing and subtle backgrounds
+- [x] Left-aligned CTAs for better scannability
+- [x] Simplified footer to just "Manage emails" link
+- [x] Added `textMuted` and `borderSubtle` color tokens
+
+### Phase 4.1 Completed (Two-Zone Dashboard)
+
+**Two-Zone Activity Stream:**
+- [x] Added `AttentionStatus` and `DashboardPageData` types to `src/lib/types/analysis.ts`
+- [x] Created `computeAttentionStatus()` function in `/api/pages` route
+- [x] Attention categorization priority: scan_failed → no_scans_yet → negative_correlation → recent_change → high_impact_suggestions → stable
+- [x] Built zone components in `src/components/dashboard/`:
+  - `AttentionZone.tsx` — Zone header + sorted AttentionCards (by severity then recency)
+  - `WatchingZone.tsx` — Zone header + WatchingCards + "Watch another page" button
+  - `AttentionCard.tsx` — Severity dot, domain, headline, subheadline, "See details →" link
+  - `WatchingCard.tsx` — Minimal line with name + "stable, last checked X ago"
+  - `EmptySuccessState.tsx` — "All quiet" message when no attention items
+  - `EmptyOnboardingState.tsx` — "Start watching your site" for new users
+- [x] Refactored dashboard page to split pages into attention vs watching arrays
+- [x] Added `.zone-header` and `.zone-count` CSS classes
+
 ### Key Changes (remaining)
-- Dashboard as activity stream (Phase 4)
-- Email templates update (Phase 5)
 - Landing page positioning (Phase 6)
 
 ---
@@ -326,6 +388,26 @@ Build after learning from first 50 users.
 5. Make "steps" actual user actions, not feature descriptions
 
 **Alternative:** Kill these pages and handle integration setup in-app or actual docs.
+
+---
+
+## Ideas to Explore
+
+### Supabase Direct Integration
+Connect directly to vibe coder's Supabase for metrics instead of requiring PostHog/GA4.
+
+**Why:** Every Lovable project has Supabase by default. 100% coverage for the vibe coder ICP. No "go set up analytics" friction.
+
+**How it would work:**
+1. User connects Supabase (read-only API key)
+2. We introspect schema (tables, columns, row counts)
+3. LLM analyzes schema: "This looks like a waitlist app. `signups` table is your conversion event."
+4. Daily snapshot of relevant table counts
+5. Correlate with page changes
+
+**Value:** Track actual business outcomes (signups, orders) not proxy metrics (bounce rate). Differentiator — nobody else does page→database correlation.
+
+**Status:** Idea. Not scheduled.
 
 ---
 

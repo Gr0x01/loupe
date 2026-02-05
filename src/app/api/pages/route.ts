@@ -1,8 +1,145 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { FOUNDING_50_CAP, BASE_PAGE_LIMIT } from "@/lib/constants";
+import type {
+  AttentionStatus,
+  ChangesSummary,
+  AnalysisResult,
+} from "@/lib/types/analysis";
 
 const MAX_URL_LENGTH = 2048;
+
+/**
+ * Compute attention status for a page based on its last scan data.
+ * Priority order:
+ * 1. scan_failed — high severity
+ * 2. no_scans_yet — low severity
+ * 3. negative_correlation — high severity
+ * 4. recent_change — medium severity
+ * 5. high_impact_suggestions — medium severity
+ * 6. Default: stable (no attention needed)
+ */
+function computeAttentionStatus(
+  lastScan: {
+    status: string;
+    created_at: string;
+    changes_summary: ChangesSummary | null;
+    structured_output: AnalysisResult["structured"] | null;
+    parent_analysis_id: string | null;
+  } | null
+): AttentionStatus {
+  // No scan data at all
+  if (!lastScan) {
+    return {
+      needs_attention: true,
+      reason: "no_scans_yet",
+      headline: "No scans yet",
+      subheadline: "Run your first audit to start tracking",
+      severity: "low",
+    };
+  }
+
+  // Scan failed
+  if (lastScan.status === "failed") {
+    return {
+      needs_attention: true,
+      reason: "scan_failed",
+      headline: "Last scan failed",
+      subheadline: "Check the page is accessible",
+      severity: "high",
+    };
+  }
+
+  // Still processing — don't flag as attention yet
+  if (lastScan.status === "processing" || lastScan.status === "pending") {
+    return {
+      needs_attention: false,
+      reason: null,
+      headline: null,
+      subheadline: null,
+      severity: null,
+    };
+  }
+
+  const changesSummary = lastScan.changes_summary;
+
+  // Check for N+1 scan with chronicle data
+  if (changesSummary && lastScan.parent_analysis_id) {
+    // Check for negative correlation (regressed metrics)
+    const correlation = changesSummary.correlation;
+    if (correlation?.hasEnoughData && correlation.metrics) {
+      const regressedMetric = correlation.metrics.find(
+        (m) => m.assessment === "regressed"
+      );
+      if (regressedMetric) {
+        const changeDate = new Date(lastScan.created_at);
+        const dayName = changeDate.toLocaleDateString("en-US", { weekday: "long" });
+        return {
+          needs_attention: true,
+          reason: "negative_correlation",
+          headline: `Change detected ${dayName}`,
+          subheadline: `${regressedMetric.friendlyName} ${regressedMetric.change}`,
+          severity: "high",
+        };
+      }
+    }
+
+    // Check for watching items (recent changes collecting data)
+    const progress = changesSummary.progress;
+    if (progress?.watching && progress.watching > 0 && changesSummary.changes?.length > 0) {
+      const firstChange = changesSummary.changes[0];
+      return {
+        needs_attention: true,
+        reason: "recent_change",
+        headline: firstChange?.element
+          ? `${firstChange.element} changed`
+          : "Change detected",
+        subheadline: `Watching for impact (${progress.watching} item${progress.watching > 1 ? "s" : ""})`,
+        severity: "medium",
+      };
+    }
+
+    // Check for open high-impact suggestions
+    const highImpactSuggestions = changesSummary.suggestions?.filter(
+      (s) => s.impact === "high"
+    );
+    if (highImpactSuggestions && highImpactSuggestions.length > 0) {
+      return {
+        needs_attention: true,
+        reason: "high_impact_suggestions",
+        headline: `${highImpactSuggestions.length} high-impact suggestion${highImpactSuggestions.length > 1 ? "s" : ""}`,
+        subheadline: highImpactSuggestions[0].title,
+        severity: "medium",
+      };
+    }
+  }
+
+  // Check initial audit for high-impact findings
+  const structuredOutput = lastScan.structured_output;
+  if (structuredOutput && !lastScan.parent_analysis_id) {
+    const highImpactFindings = structuredOutput.findings?.filter(
+      (f) => f.impact === "high"
+    );
+    if (highImpactFindings && highImpactFindings.length > 0) {
+      return {
+        needs_attention: true,
+        reason: "high_impact_suggestions",
+        headline: `${highImpactFindings.length} high-impact issue${highImpactFindings.length > 1 ? "s" : ""}`,
+        subheadline: highImpactFindings[0].title,
+        severity: "medium",
+      };
+    }
+  }
+
+  // Default: stable, no attention needed
+  return {
+    needs_attention: false,
+    reason: null,
+    headline: null,
+    subheadline: null,
+    severity: null,
+  };
+}
 
 /**
  * GET /api/pages - List user's monitored pages with latest scan info
@@ -18,7 +155,7 @@ export async function GET() {
 
     const supabase = createServiceClient();
 
-    // Get pages with their latest scan info
+    // Get pages with their latest scan info including changes_summary for attention status
     const { data: pages, error } = await supabase
       .from("pages")
       .select(`
@@ -32,6 +169,7 @@ export async function GET() {
           id,
           status,
           structured_output,
+          changes_summary,
           created_at,
           parent_analysis_id
         )
@@ -52,9 +190,12 @@ export async function GET() {
       id: string;
       status: string;
       created_at: string;
+      changes_summary: ChangesSummary | null;
+      structured_output: AnalysisResult["structured"] | null;
+      parent_analysis_id: string | null;
     } | null;
 
-    // Transform pages
+    // Transform pages with attention status
     const pagesFormatted = (pages || []).map((page) => {
       const lastScan = page.analyses as unknown as AnalysisJoin;
 
@@ -71,6 +212,7 @@ export async function GET() {
               created_at: lastScan.created_at,
             }
           : null,
+        attention_status: computeAttentionStatus(lastScan),
       };
     });
 

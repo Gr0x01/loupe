@@ -2,12 +2,53 @@ import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
 import { runAnalysisPipeline, runPostAnalysisPipeline } from "@/lib/ai/pipeline";
-import type { ChangesSummary, DeployContext } from "@/lib/ai/pipeline";
+import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import {
-  scanCompleteEmail,
-  deployScanCompleteEmail,
+  changeDetectedEmail,
+  allQuietEmail,
+  correlationUnlockedEmail,
+  weeklyDigestEmail,
 } from "@/lib/email/templates";
+import type { ChangesSummary, ChronicleSuggestion } from "@/lib/types/analysis";
+
+/**
+ * Extract top suggestion from changes_summary (Chronicle) or structured_output (initial audit)
+ */
+function extractTopSuggestion(
+  changesSummary: ChangesSummary | null,
+  structuredOutput: { findings?: Array<{ title?: string; element: string; prediction: { friendlyText: string; range: string } }> } | null
+): { title?: string; element: string; friendlyText: string; range: string } | null {
+  // First try Chronicle suggestions
+  if (changesSummary?.suggestions?.length) {
+    const topSuggestion = changesSummary.suggestions.reduce(
+      (best, current) => {
+        const impactOrder = { high: 0, medium: 1, low: 2 };
+        return impactOrder[current.impact] < impactOrder[best.impact] ? current : best;
+      },
+      changesSummary.suggestions[0]
+    );
+    return {
+      title: topSuggestion.title,
+      element: topSuggestion.element,
+      friendlyText: topSuggestion.prediction.friendlyText,
+      range: topSuggestion.prediction.range,
+    };
+  }
+
+  // Fallback to initial audit findings
+  if (structuredOutput?.findings?.length) {
+    const finding = structuredOutput.findings[0];
+    return {
+      title: finding.title,
+      element: finding.element,
+      friendlyText: finding.prediction.friendlyText,
+      range: finding.prediction.range,
+    };
+  }
+
+  return null;
+}
 
 export const analyzeUrl = inngest.createFunction(
   {
@@ -193,6 +234,68 @@ export const analyzeUrl = inngest.createFunction(
                 .update(updateData)
                 .eq("id", analysisId);
             }
+
+            // Check for correlation unlock: watching item became validated
+            if (parentAnalysisId && changesSummary?.progress?.validatedItems?.length) {
+              const { data: parent } = await supabase
+                .from("analyses")
+                .select("changes_summary")
+                .eq("id", parentAnalysisId)
+                .single();
+
+              const parentProgress = (parent?.changes_summary as ChangesSummary | null)?.progress;
+              if (parentProgress?.watchingItems?.length) {
+                // Find items that were watching and are now validated
+                const newlyValidated = changesSummary.progress.validatedItems.find((v) =>
+                  parentProgress.watchingItems?.some((w) => w.id === v.id)
+                );
+
+                if (newlyValidated) {
+                  // Find the corresponding change
+                  const relatedChange = changesSummary.changes.find(
+                    (c) => c.element.toLowerCase() === newlyValidated.element.toLowerCase()
+                  );
+
+                  // Get user email
+                  const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("email, email_notifications")
+                    .eq("id", analysis.user_id)
+                    .single();
+
+                  if (profile?.email && profile.email_notifications) {
+                    const topSuggestion = extractTopSuggestion(changesSummary, null);
+                    const { subject, html } = correlationUnlockedEmail({
+                      pageUrl: url,
+                      analysisId,
+                      change: {
+                        element: newlyValidated.element,
+                        before: relatedChange?.before ?? "",
+                        after: relatedChange?.after ?? "",
+                        changedAt: relatedChange?.detectedAt
+                          ? new Date(relatedChange.detectedAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "recently",
+                      },
+                      metric: {
+                        friendlyName: newlyValidated.friendlyText,
+                        change: newlyValidated.change,
+                      },
+                      topSuggestion: topSuggestion
+                        ? {
+                            element: topSuggestion.element,
+                            friendlyText: topSuggestion.friendlyText,
+                            range: topSuggestion.range,
+                          }
+                        : undefined,
+                    });
+                    sendEmail({ to: profile.email, subject, html }).catch(console.error);
+                  }
+                }
+              }
+            }
           } catch (postAnalysisErr) {
             console.error("Post-analysis pipeline failed (non-fatal):", postAnalysisErr);
           }
@@ -208,7 +311,7 @@ export const analyzeUrl = inngest.createFunction(
         // 7. Send email notification (for scheduled/deploy scans only)
         const { data: fullAnalysis } = await supabase
           .from("analyses")
-          .select("trigger_type, deploy_id")
+          .select("trigger_type, deploy_id, changes_summary, structured_output")
           .eq("id", analysisId)
           .single();
 
@@ -222,35 +325,102 @@ export const analyzeUrl = inngest.createFunction(
             .single();
 
           if (profile?.email && profile.email_notifications) {
-            if (triggerType === "deploy" && fullAnalysis.deploy_id) {
-              // Deploy scan — include commit info
+            const changesSummary = fullAnalysis?.changes_summary as ChangesSummary | null;
+            const structuredOutput = fullAnalysis?.structured_output as { findings?: Array<{ element: string; prediction: { friendlyText: string; range: string } }> } | null;
+            const hasChanges = changesSummary && changesSummary.changes.length > 0;
+
+            // Get deploy info if applicable
+            let deployInfo: { commitSha: string; commitMessage: string | null } | null = null;
+            if (fullAnalysis.deploy_id) {
               const { data: deploy } = await supabase
                 .from("deploys")
                 .select("commit_sha, commit_message")
                 .eq("id", fullAnalysis.deploy_id)
                 .single();
-
               if (deploy) {
-                const { subject, html } = deployScanCompleteEmail({
-                  pageUrl: url,
-                  analysisId,
+                deployInfo = {
                   commitSha: deploy.commit_sha,
                   commitMessage: deploy.commit_message,
-                });
-                sendEmail({ to: profile.email, subject, html }).catch(
-                  console.error
-                );
+                };
               }
-            } else if (triggerType === "daily" || triggerType === "weekly") {
-              // Scheduled scan
-              const { subject, html } = scanCompleteEmail({
-                pageUrl: url,
-                analysisId,
-                triggerType,
-              });
-              sendEmail({ to: profile.email, subject, html }).catch(
-                console.error
-              );
+            }
+
+            // Get last change date for "all quiet" emails
+            let lastChangeDate: string | null = null;
+            if (!hasChanges && parentAnalysisId) {
+              const { data: parentAnalysis } = await supabase
+                .from("analyses")
+                .select("changes_summary, created_at")
+                .eq("id", parentAnalysisId)
+                .single();
+              const parentChanges = parentAnalysis?.changes_summary as ChangesSummary | null;
+              if (parentChanges?.changes?.length && parentAnalysis) {
+                // Use parent's change date
+                lastChangeDate = new Date(parentAnalysis.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                });
+              }
+            }
+
+            // Extract top suggestion from changes_summary or structured_output
+            const topSuggestion = extractTopSuggestion(changesSummary, structuredOutput);
+
+            // Only send email if we have changes_summary (always true for scheduled/deploy scans)
+            if (changesSummary) {
+              if (hasChanges) {
+                // Send changeDetectedEmail
+                const primaryChange = changesSummary.changes[0];
+                const { subject, html } = changeDetectedEmail({
+                  pageUrl: url,
+                  analysisId,
+                  triggerType: triggerType as "daily" | "weekly" | "deploy",
+                  primaryChange: {
+                    element: primaryChange.element,
+                    before: primaryChange.before,
+                    after: primaryChange.after,
+                  },
+                  additionalChangesCount: changesSummary.changes.length - 1,
+                  correlation: changesSummary.correlation
+                    ? {
+                        hasEnoughData: changesSummary.correlation.hasEnoughData,
+                        primaryMetric: changesSummary.correlation.metrics?.[0]
+                          ? {
+                              friendlyName: changesSummary.correlation.metrics[0].friendlyName,
+                              change: changesSummary.correlation.metrics[0].change,
+                              assessment: changesSummary.correlation.metrics[0].assessment,
+                            }
+                          : undefined,
+                      }
+                    : undefined,
+                  topSuggestion: topSuggestion
+                    ? {
+                        element: topSuggestion.element,
+                        friendlyText: topSuggestion.friendlyText,
+                        range: topSuggestion.range,
+                      }
+                    : undefined,
+                  commitSha: deployInfo?.commitSha,
+                  commitMessage: deployInfo?.commitMessage ?? undefined,
+                });
+                sendEmail({ to: profile.email, subject, html }).catch(console.error);
+              } else {
+                // No changes — send allQuietEmail
+                const { subject, html } = allQuietEmail({
+                  pageUrl: url,
+                  analysisId,
+                  lastChangeDate,
+                  topSuggestion: topSuggestion
+                    ? {
+                        title: topSuggestion.title || topSuggestion.element,
+                        element: topSuggestion.element,
+                        friendlyText: topSuggestion.friendlyText,
+                        range: topSuggestion.range,
+                      }
+                    : undefined,
+                });
+                sendEmail({ to: profile.email, subject, html }).catch(console.error);
+              }
             }
           }
         }
@@ -546,5 +716,142 @@ export const deployDetected = inngest.createFunction(
     });
 
     return { scanned: results.length, deployId };
+  }
+);
+
+/**
+ * Weekly digest — sends summary email to users with 3+ monitored pages
+ * Runs Monday 10am UTC (1 hour after scheduled scans)
+ */
+export const weeklyDigest = inngest.createFunction(
+  {
+    id: "weekly-digest",
+    retries: 1,
+  },
+  { cron: "0 10 * * 1" }, // Monday 10am UTC
+  async ({ step }) => {
+    const supabase = createServiceClient();
+
+    // Find users with 3+ pages who have email notifications enabled
+    const eligibleUsers = await step.run("find-eligible-users", async () => {
+      const { data: users } = await supabase
+        .from("profiles")
+        .select("id, email, email_notifications")
+        .eq("email_notifications", true)
+        .not("email", "is", null);
+
+      if (!users) return [];
+
+      // Filter to users with 3+ pages
+      const usersWithPageCounts = await Promise.all(
+        users.map(async (user) => {
+          const { count } = await supabase
+            .from("pages")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id);
+          return { ...user, pageCount: count ?? 0 };
+        })
+      );
+
+      return usersWithPageCounts.filter((u) => u.pageCount >= 3);
+    });
+
+    if (eligibleUsers.length === 0) {
+      return { sent: 0 };
+    }
+
+    // Send digest to each eligible user
+    const results = await step.run("send-digests", async () => {
+      let sent = 0;
+
+      for (const user of eligibleUsers) {
+        // Get all pages for this user with their latest scan status
+        const { data: pages } = await supabase
+          .from("pages")
+          .select(`
+            id,
+            url,
+            last_scan_id
+          `)
+          .eq("user_id", user.id);
+
+        if (!pages || pages.length === 0) continue;
+
+        // Get latest analysis for each page
+        const pageStatuses: Array<{
+          url: string;
+          domain: string;
+          status: "changed" | "stable" | "suggestion";
+          changesCount?: number;
+          helped?: boolean;
+          suggestionTitle?: string;
+        }> = [];
+
+        for (const page of pages) {
+          if (!page.last_scan_id) {
+            pageStatuses.push({
+              url: page.url,
+              domain: new URL(page.url).hostname,
+              status: "stable",
+            });
+            continue;
+          }
+
+          const { data: analysis } = await supabase
+            .from("analyses")
+            .select("changes_summary, structured_output")
+            .eq("id", page.last_scan_id)
+            .single();
+
+          const changesSummary = analysis?.changes_summary as ChangesSummary | null;
+          const structuredOutput = analysis?.structured_output as { findings?: Array<{ title: string }> } | null;
+
+          if (changesSummary?.changes?.length) {
+            // Has changes
+            const hasImproved = changesSummary.correlation?.metrics?.some(
+              (m) => m.assessment === "improved"
+            );
+            pageStatuses.push({
+              url: page.url,
+              domain: new URL(page.url).hostname,
+              status: "changed",
+              changesCount: changesSummary.changes.length,
+              helped: hasImproved,
+            });
+          } else if (changesSummary?.suggestions?.length) {
+            // Has suggestions
+            pageStatuses.push({
+              url: page.url,
+              domain: new URL(page.url).hostname,
+              status: "suggestion",
+              suggestionTitle: changesSummary.suggestions[0]?.title,
+            });
+          } else if (structuredOutput?.findings?.length) {
+            // Initial audit with findings
+            pageStatuses.push({
+              url: page.url,
+              domain: new URL(page.url).hostname,
+              status: "suggestion",
+              suggestionTitle: structuredOutput.findings[0]?.title,
+            });
+          } else {
+            pageStatuses.push({
+              url: page.url,
+              domain: new URL(page.url).hostname,
+              status: "stable",
+            });
+          }
+        }
+
+        // Send the digest email
+        const { subject, html } = weeklyDigestEmail({ pages: pageStatuses });
+        await sendEmail({ to: user.email!, subject, html }).catch(console.error);
+        sent++;
+      }
+
+      return sent;
+    });
+
+    return { sent: results };
   }
 );

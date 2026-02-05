@@ -498,24 +498,42 @@ PostHog: 120 queries/hour. Max 6 tool calls per analysis is well within limits.
 **Provider:** Resend (domain: getloupe.io)
 **Pattern:** Fire-and-forget (don't block scan pipeline on email delivery)
 
-### Email Types
-1. **Scan complete** — After scheduled (daily/weekly) scans. Simple notification with link to results.
-2. **Deploy scan complete** — After GitHub-triggered scans. Includes commit SHA and message.
-3. **Waitlist confirmation** — When someone joins waitlist.
+### Email Types (Context-Aware)
+1. **Change detected** (`changeDetectedEmail`) — When scheduled/deploy scans find changes
+   - Dynamic subject based on correlation: "Your headline change helped" / "may need attention" / "changed"
+   - Shows before/after diff, correlation status, next suggestion
+2. **All quiet** (`allQuietEmail`) — When scheduled scans find no changes
+   - Subject: "All quiet on {domain}"
+   - Shows stability status and suggests next improvement
+3. **Correlation unlocked** (`correlationUnlockedEmail`) — When watching item becomes validated
+   - Subject: "Your {element} change helped"
+   - Celebrates confirmed positive correlation
+4. **Weekly digest** (`weeklyDigestEmail`) — For users with 3+ pages (Monday 10am UTC)
+   - Subject: "Your weekly Loupe report"
+   - Lists all pages with status: changed/helped/stable/suggestion
+5. **Waitlist confirmation** — When someone joins waitlist
 
 Manual re-scans do NOT trigger emails.
 
-### Features
-- Simple, clean email templates (scores removed in Phase 2A.1.1)
-- Twitter share link for viral growth
-- Referral hook in waitlist email
-- Email preference toggle in `/settings/integrations`
+### Email Selection Logic
+In `analyzeUrl` (Inngest function):
+1. Skip if `trigger_type === "manual"`
+2. Skip if `email_notifications === false`
+3. If `changes_summary.changes.length > 0` → `changeDetectedEmail()`
+4. If no changes → `allQuietEmail()`
+
+### Correlation Unlock Detection
+After storing `changes_summary`, compares previous `watchingItems` with current `validatedItems`. If an item transitioned from watching to validated, sends `correlationUnlockedEmail`.
+
+### Weekly Digest
+Inngest function `weeklyDigest` runs Monday 10am UTC (1 hour after scheduled scans). Finds users with 3+ pages and `email_notifications === true`, aggregates page statuses, sends digest.
 
 ### Key Files
 - `src/lib/email/resend.ts` — Resend client wrapper, `sendEmail()` helper
-- `src/lib/email/templates.ts` — HTML email templates (brand-consistent)
+- `src/lib/email/templates.ts` — HTML email templates (brand-consistent, ui-designer reviewed)
+- `src/lib/inngest/functions.ts` — Email selection logic, correlation unlock, weekly digest
 - `src/app/api/profile/route.ts` — GET/PATCH profile preferences
-- `src/app/api/dev/email-preview/route.ts` — Dev-only template preview
+- `src/app/api/dev/email-preview/route.ts` — Dev-only template preview (all variations)
 
 ### Env Vars
 - `RESEND_API_KEY` — Resend API key
@@ -527,10 +545,11 @@ Manual re-scans do NOT trigger emails.
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion. Sends email notification for scheduled/deploy scans (not manual).
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion. Sends context-aware email (changeDetected/allQuiet) for scheduled/deploy scans. Detects correlation unlocks.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
 - `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
 - `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans all user pages (simplified for MVP: 1 domain per user)
+- `weekly-digest` — weekly cron (Monday 10am UTC), sends digest email to users with 3+ monitored pages
 
 ## File Structure
 ```

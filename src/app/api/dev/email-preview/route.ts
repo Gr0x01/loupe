@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  scanCompleteEmail,
-  deployScanCompleteEmail,
+  changeDetectedEmail,
+  allQuietEmail,
+  correlationUnlockedEmail,
+  weeklyDigestEmail,
   waitlistConfirmationEmail,
 } from "@/lib/email/templates";
 
 /**
- * GET /api/dev/email-preview?template=scan|deploy|waitlist
+ * GET /api/dev/email-preview?template=scan|deploy|waitlist|change-detected|...
  *
  * Dev-only endpoint to preview email templates in browser.
  * Returns raw HTML that renders in the browser.
@@ -20,34 +22,166 @@ export async function GET(req: NextRequest) {
   const template = req.nextUrl.searchParams.get("template");
 
   const mockData = {
-    // Scheduled scans
-    "scan-daily": () =>
-      scanCompleteEmail({
-        pageUrl: "https://example.com/pricing",
+    // Change detected templates
+    "change-detected": () =>
+      changeDetectedEmail({
+        pageUrl: "https://acme.io/pricing",
         analysisId: "abc-123-def",
         triggerType: "daily",
+        primaryChange: {
+          element: "Your headline",
+          before: "Start free today",
+          after: "Get started in 60 seconds",
+        },
+        additionalChangesCount: 2,
+        correlation: {
+          hasEnoughData: false,
+        },
+        topSuggestion: {
+          element: "CTA Button",
+          friendlyText: "More people clicking",
+          range: "+10-15%",
+        },
       }),
-    "scan-weekly": () =>
-      scanCompleteEmail({
-        pageUrl: "https://example.com/pricing",
+    "change-detected-improved": () =>
+      changeDetectedEmail({
+        pageUrl: "https://acme.io/pricing",
         analysisId: "abc-123-def",
         triggerType: "weekly",
+        primaryChange: {
+          element: "Your headline",
+          before: "Start free today",
+          after: "Get started in 60 seconds",
+        },
+        additionalChangesCount: 0,
+        correlation: {
+          hasEnoughData: true,
+          primaryMetric: {
+            friendlyName: "More people sticking around",
+            change: "+8%",
+            assessment: "improved",
+          },
+        },
       }),
-    // Deploy scans
-    deploy: () =>
-      deployScanCompleteEmail({
-        pageUrl: "https://example.com/pricing",
+    "change-detected-regressed": () =>
+      changeDetectedEmail({
+        pageUrl: "https://acme.io/pricing",
         analysisId: "abc-123-def",
-        commitSha: "a1b2c3d4e5f6g7h8i9j0",
-        commitMessage: "refactor: Rebuild hero section with new component",
+        triggerType: "daily",
+        primaryChange: {
+          element: "Your CTA button",
+          before: "Start free trial",
+          after: "Sign up now",
+        },
+        additionalChangesCount: 1,
+        correlation: {
+          hasEnoughData: true,
+          primaryMetric: {
+            friendlyName: "Bounce rate",
+            change: "+12%",
+            assessment: "regressed",
+          },
+        },
+        topSuggestion: {
+          element: "CTA Button",
+          friendlyText: "Revert to previous CTA",
+          range: "-10-15% bounce rate",
+        },
       }),
-    "deploy-short": () =>
-      deployScanCompleteEmail({
-        pageUrl: "https://example.com/pricing",
+    "change-detected-deploy": () =>
+      changeDetectedEmail({
+        pageUrl: "https://acme.io",
         analysisId: "abc-123-def",
-        commitSha: "f9e8d7c6b5a4",
-        commitMessage: "fix: Update button colors",
+        triggerType: "deploy",
+        primaryChange: {
+          element: "Your hero image",
+          before: "Product screenshot",
+          after: "Team photo",
+        },
+        additionalChangesCount: 3,
+        commitSha: "a1b2c3d4e5f6g7h8",
+        commitMessage: "refactor: Update hero section with new visuals",
       }),
+
+    "all-quiet": () =>
+      allQuietEmail({
+        pageUrl: "https://acme.io/pricing",
+        analysisId: "abc-123-def",
+        lastChangeDate: "Jan 15",
+        topSuggestion: {
+          title: "Move CTA above fold",
+          element: "CTA Button",
+          friendlyText: "More people clicking",
+          range: "+10-15%",
+        },
+      }),
+    "all-quiet-no-suggestion": () =>
+      allQuietEmail({
+        pageUrl: "https://acme.io/pricing",
+        analysisId: "abc-123-def",
+        lastChangeDate: "Jan 15",
+      }),
+
+    "correlation-unlocked": () =>
+      correlationUnlockedEmail({
+        pageUrl: "https://acme.io",
+        analysisId: "abc-123-def",
+        change: {
+          element: "headline",
+          before: "Start free today",
+          after: "Get started in 60 seconds",
+          changedAt: "Jan 20",
+        },
+        metric: {
+          friendlyName: "More people sticking around",
+          change: "+8%",
+        },
+        topSuggestion: {
+          element: "CTA Button",
+          friendlyText: "Move CTA above fold",
+          range: "+10-15% clicks",
+        },
+      }),
+    "correlation-unlocked-no-suggestion": () =>
+      correlationUnlockedEmail({
+        pageUrl: "https://acme.io",
+        analysisId: "abc-123-def",
+        change: {
+          element: "CTA button",
+          before: "Sign up",
+          after: "Start free trial",
+          changedAt: "Jan 18",
+        },
+        metric: {
+          friendlyName: "More clicks",
+          change: "+15%",
+        },
+      }),
+
+    "weekly-digest": () =>
+      weeklyDigestEmail({
+        pages: [
+          {
+            url: "https://acme.io",
+            domain: "acme.io",
+            status: "changed",
+            changesCount: 1,
+            helped: true,
+          },
+          {
+            url: "https://acme.io/pricing",
+            domain: "acme.io/pricing",
+            status: "stable",
+          },
+          {
+            url: "https://acme.io/features",
+            domain: "acme.io/features",
+            status: "suggestion",
+            suggestionTitle: "Move CTA above fold",
+          },
+        ],
+      }),
+
     waitlist: () =>
       waitlistConfirmationEmail({
         email: "founder@startup.com",
@@ -62,20 +196,29 @@ export async function GET(req: NextRequest) {
         <body style="font-family: system-ui; padding: 40px; max-width: 600px; margin: 0 auto;">
           <h1>Email Templates</h1>
 
-          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Scheduled Scans</h2>
+          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Change Detected</h2>
           <ul style="line-height: 2;">
-            <li><a href="?template=scan-daily">Daily scan</a></li>
-            <li><a href="?template=scan-weekly">Weekly scan</a></li>
+            <li><a href="?template=change-detected">Watching for impact</a></li>
+            <li><a href="?template=change-detected-improved">Correlation improved</a></li>
+            <li><a href="?template=change-detected-regressed">Correlation regressed</a></li>
+            <li><a href="?template=change-detected-deploy">Deploy trigger</a></li>
           </ul>
 
-          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Deploy Scans</h2>
+          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">All Quiet</h2>
           <ul style="line-height: 2;">
-            <li><a href="?template=deploy">Deploy scan (long commit message)</a></li>
-            <li><a href="?template=deploy-short">Deploy scan (short message)</a></li>
+            <li><a href="?template=all-quiet">With suggestion</a></li>
+            <li><a href="?template=all-quiet-no-suggestion">No suggestion</a></li>
           </ul>
 
-          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Other</h2>
+          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Correlation Unlocked</h2>
           <ul style="line-height: 2;">
+            <li><a href="?template=correlation-unlocked">With suggestion</a></li>
+            <li><a href="?template=correlation-unlocked-no-suggestion">No suggestion</a></li>
+          </ul>
+
+          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Digest & Other</h2>
+          <ul style="line-height: 2;">
+            <li><a href="?template=weekly-digest">Weekly Digest</a></li>
             <li><a href="?template=waitlist">Waitlist Confirmation</a></li>
           </ul>
         </body>

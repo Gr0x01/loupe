@@ -1,142 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import ShareModal from "@/components/ShareModal";
-
-interface PageData {
-  id: string;
-  url: string;
-  name: string | null;
-  scan_frequency: string;
-  created_at: string;
-  last_scan: {
-    id: string;
-    status: string;
-    created_at: string;
-  } | null;
-}
+import type { DashboardPageData } from "@/lib/types/analysis";
+import { getDomain } from "@/lib/utils/url";
+import {
+  AttentionZone,
+  WatchingZone,
+  EmptySuccessState,
+  EmptyOnboardingState,
+} from "@/components/dashboard";
 
 interface UserLimits {
   current: number;
   max: number;
   bonusPages: number;
-}
-
-function getDomain(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  return `${weeks}w ago`;
-}
-
-function FrequencyBadge({ frequency }: { frequency: string }) {
-  const label = frequency === "daily" ? "Daily" : frequency === "weekly" ? "Weekly" : "Manual";
-  return (
-    <span className="text-xs font-medium text-text-muted bg-[rgba(0,0,0,0.03)] px-2 py-0.5 rounded-full">
-      {label}
-    </span>
-  );
-}
-
-function PageCard({ page, onDelete }: { page: PageData; onDelete: (id: string) => void }) {
-  const displayName = page.name || getDomain(page.url);
-
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onDelete(page.id);
-  };
-
-  return (
-    <Link
-      href={`/pages/${page.id}`}
-      className="glass-card p-5 block hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 group"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg font-semibold text-text-primary truncate">
-              {displayName}
-            </h3>
-            <FrequencyBadge frequency={page.scan_frequency} />
-          </div>
-          <p className="text-sm text-text-muted mt-1 truncate font-mono">
-            {getDomain(page.url)}
-          </p>
-          {page.last_scan && (
-            <p className="text-sm text-text-muted mt-2">
-              Last scan: {timeAgo(page.last_scan.created_at)}
-              {page.last_scan.status === "processing" && (
-                <span className="text-accent ml-2">Scanning...</span>
-              )}
-              {page.last_scan.status === "pending" && (
-                <span className="text-text-muted ml-2">Queued</span>
-              )}
-            </p>
-          )}
-          {!page.last_scan && (
-            <p className="text-sm text-text-muted mt-2">No scans yet</p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {page.last_scan?.status === "processing" && (
-            <div className="glass-spinner w-6 h-6" />
-          )}
-
-          {/* Delete button */}
-          <button
-            onClick={handleDeleteClick}
-            className="p-2 text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all duration-150"
-            title="Delete page"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="glass-card p-10 text-center">
-      <div className="max-w-md mx-auto">
-        <h3
-          className="text-2xl font-bold text-text-primary mb-3"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
-        >
-          No pages yet
-        </h3>
-        <p className="text-text-secondary mb-6">
-          Start monitoring your pages to track changes over time. Run a free audit first, then re-scan to add it to your dashboard.
-        </p>
-        <Link href="/" className="btn-primary inline-block">
-          Audit a page
-        </Link>
-      </div>
-    </div>
-  );
 }
 
 function AddPageModal({
@@ -297,17 +177,17 @@ function DeleteConfirmModal({
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [pages, setPages] = useState<PageData[]>([]);
+  const [pages, setPages] = useState<DashboardPageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [userLimits, setUserLimits] = useState<UserLimits>({ current: 0, max: 1, bonusPages: 0 });
-  const [deleteTarget, setDeleteTarget] = useState<PageData | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DashboardPageData | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchPages = async () => {
+  const fetchPages = useCallback(async () => {
     try {
       const res = await fetch("/api/pages");
       if (res.status === 401) {
@@ -328,11 +208,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     fetchPages();
-  }, []);
+  }, [fetchPages]);
 
   const handleAddPage = async (url: string, name: string) => {
     setAddLoading(true);
@@ -416,6 +296,11 @@ export default function DashboardPage() {
     }
   };
 
+  // Split pages into attention vs watching zones
+  const attentionPages = pages.filter((p) => p.attention_status.needs_attention);
+  const watchingPages = pages.filter((p) => !p.attention_status.needs_attention);
+  const isAtLimit = pages.length >= userLimits.max && userLimits.max > 0;
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center px-4">
@@ -451,7 +336,7 @@ export default function DashboardPage() {
     <>
       <div className="max-w-3xl mx-auto px-6 py-12">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-10">
           <div>
             <h1
               className="text-4xl font-bold text-text-primary"
@@ -464,29 +349,45 @@ export default function DashboardPage() {
                 {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
               </p>
               {userLimits.max > 0 && (
-                <span className="text-xs font-medium text-text-muted bg-[rgba(0,0,0,0.03)] px-2 py-0.5 rounded-full">
+                <span className="zone-count">
                   {pages.length}/{userLimits.max} slots
                 </span>
               )}
             </div>
           </div>
-          <button
-            onClick={handleAddClick}
-            className="btn-primary"
-          >
-            {pages.length >= userLimits.max && userLimits.max > 0 ? "Unlock more" : "Add page"}
-          </button>
+          {pages.length > 0 && (
+            <button
+              onClick={handleAddClick}
+              className="btn-primary"
+            >
+              {isAtLimit ? "Unlock more" : "Add page"}
+            </button>
+          )}
         </div>
 
-        {/* Pages list or empty state */}
+        {/* Content: Empty state or zones */}
         {pages.length === 0 ? (
-          <EmptyState />
+          <EmptyOnboardingState />
         ) : (
-          <div className="space-y-3">
-            {pages.map((page) => (
-              <PageCard key={page.id} page={page} onDelete={handleDeleteClick} />
-            ))}
-          </div>
+          <>
+            {/* Show success state if no attention items */}
+            {attentionPages.length === 0 && watchingPages.length > 0 && (
+              <EmptySuccessState />
+            )}
+
+            {/* Attention zone */}
+            {attentionPages.length > 0 && (
+              <AttentionZone pages={attentionPages} onDelete={handleDeleteClick} />
+            )}
+
+            {/* Watching zone */}
+            <WatchingZone
+              pages={watchingPages}
+              onDelete={handleDeleteClick}
+              onAddPage={handleAddClick}
+              isAtLimit={isAtLimit}
+            />
+          </>
         )}
       </div>
 

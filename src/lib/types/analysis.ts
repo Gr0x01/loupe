@@ -203,3 +203,36 @@ export interface ClaimStatus {
   claimed_by_current_user: boolean;
   claimed_page_id: string | null;
 }
+
+// ============================================
+// Dashboard zone types
+// ============================================
+
+export type AttentionReason =
+  | "negative_correlation" // Metric worsened after change
+  | "recent_change" // Change detected, watching for impact
+  | "high_impact_suggestions" // Open high-impact suggestions
+  | "no_scans_yet" // New page, no baseline
+  | "scan_failed"; // Last scan failed
+
+export interface AttentionStatus {
+  needs_attention: boolean;
+  reason: AttentionReason | null;
+  headline: string | null; // "Headline changed Tuesday"
+  subheadline: string | null; // "People leaving more (+8%)"
+  severity: "high" | "medium" | "low" | null;
+}
+
+export interface DashboardPageData {
+  id: string;
+  url: string;
+  name: string | null;
+  scan_frequency: string;
+  created_at: string;
+  last_scan: {
+    id: string;
+    status: string;
+    created_at: string;
+  } | null;
+  attention_status: AttentionStatus;
+}

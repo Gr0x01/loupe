@@ -1869,3 +1869,20 @@ body.modal-open .site-nav {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ===== DASHBOARD ZONE HEADERS ===== */
+.zone-header {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.zone-count {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 100px;
+  color: var(--text-muted);
+}
