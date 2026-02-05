@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { PageLoader } from "@/components/PageLoader";
 
 interface GitHubRepo {
   id: number;
@@ -956,14 +957,7 @@ function IntegrationsContent() {
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="glass-spinner mx-auto" />
-          <p className="text-text-secondary mt-4">Loading integrations...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

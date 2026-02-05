@@ -1886,3 +1886,175 @@ body.modal-open .site-nav {
   border-radius: 100px;
   color: var(--text-muted);
 }
+
+/* ===== FINDING FEEDBACK ===== */
+.finding-feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finding-feedback-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.finding-feedback-btn:active {
+  transform: scale(0.92);
+}
+
+.finding-feedback-btn-primary {
+  color: var(--text-secondary);
+}
+
+.finding-feedback-btn-primary:hover {
+  background: rgba(26, 140, 91, 0.08);
+  color: var(--score-high);
+}
+
+.finding-feedback-btn-more {
+  padding: 6px 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.finding-feedback-btn-more:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-secondary);
+}
+
+/* Dismiss popover */
+.finding-feedback-popover {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  min-width: 140px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.03);
+  padding: 4px;
+  z-index: 50;
+  animation: feedbackPopoverIn 150ms ease-out;
+}
+
+@keyframes feedbackPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.finding-feedback-popover-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: left;
+  transition: all 120ms ease;
+}
+
+.finding-feedback-popover-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+.finding-feedback-popover-item-danger:hover {
+  background: rgba(194, 59, 59, 0.08);
+  color: var(--score-low);
+}
+
+/* Confirmation text */
+.finding-feedback-confirmation {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  animation: feedbackConfirm 300ms ease-out;
+}
+
+@keyframes feedbackConfirm {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.finding-feedback-confirmation-positive {
+  color: var(--score-high);
+}
+
+.finding-feedback-confirmation-muted {
+  color: var(--text-muted);
+}
+
+/* Wrong input form */
+.finding-feedback-wrong-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: feedbackPopoverIn 150ms ease-out;
+}
+
+.finding-feedback-input {
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-primary);
+  width: 180px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.finding-feedback-input::placeholder {
+  color: var(--text-muted);
+}
+
+.finding-feedback-input:focus {
+  outline: none;
+  border-color: rgba(91, 46, 145, 0.3);
+  box-shadow: 0 0 0 3px rgba(91, 46, 145, 0.08);
+}
+
+.finding-feedback-submit {
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+  border-radius: 6px;
+  transition: all 150ms ease;
+}
+
+.finding-feedback-submit:hover {
+  background: rgba(91, 46, 145, 0.08);
+}
+
+/* Dimmed state for dismissed findings */
+.finding-card-dimmed {
+  opacity: 0.6;
+  transition: opacity 300ms ease;
+}

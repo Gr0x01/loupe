@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { PageLoader } from "@/components/PageLoader";
 
 interface PageInfo {
   id: string;
@@ -265,14 +266,7 @@ export default function PageTimelinePage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="glass-spinner mx-auto" />
-          <p className="text-text-secondary mt-4">Loading page history...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (error || !data) {

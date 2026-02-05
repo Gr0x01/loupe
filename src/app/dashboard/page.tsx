@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import ShareModal from "@/components/ShareModal";
+import { PageLoader } from "@/components/PageLoader";
 import type { DashboardPageData } from "@/lib/types/analysis";
 import { getDomain } from "@/lib/utils/url";
 import {
@@ -302,14 +303,7 @@ export default function DashboardPage() {
   const isAtLimit = pages.length >= userLimits.max && userLimits.max > 0;
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="glass-spinner mx-auto" />
-          <p className="text-text-secondary mt-4">Loading your pages...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (error) {

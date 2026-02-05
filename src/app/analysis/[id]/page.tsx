@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { PageLoader } from "@/components/PageLoader";
 import type {
   PageContext,
   DeployContextAPI,
@@ -497,6 +498,17 @@ function CollapsedFindingCard({
   );
 }
 
+// Feedback types for finding cards
+type FindingFeedbackType = 'will_fix' | 'already_done' | 'not_relevant' | 'wrong' | null;
+
+// Feedback confirmation text
+const FEEDBACK_CONFIRMATIONS: Record<Exclude<FindingFeedbackType, null>, string> = {
+  will_fix: "Tracking this",
+  already_done: "Got it",
+  not_relevant: "Noted",
+  wrong: "We'll improve",
+};
+
 // Expanded Finding Card - full-width with 2-column interior
 function ExpandedFindingCard({
   finding,
@@ -507,6 +519,39 @@ function ExpandedFindingCard({
 }) {
   const [suggestionCopied, setSuggestionCopied] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
+  const [feedback, setFeedback] = useState<FindingFeedbackType>(null);
+  const [showDismissMenu, setShowDismissMenu] = useState(false);
+  const [wrongText, setWrongText] = useState("");
+  const [showWrongInput, setShowWrongInput] = useState(false);
+  const dismissMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dismiss menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dismissMenuRef.current && !dismissMenuRef.current.contains(e.target as Node)) {
+        setShowDismissMenu(false);
+      }
+    }
+    if (showDismissMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showDismissMenu]);
+
+  const handleFeedback = (type: Exclude<FindingFeedbackType, null>) => {
+    if (type === 'wrong') {
+      setShowWrongInput(true);
+      setShowDismissMenu(false);
+    } else {
+      setFeedback(type);
+      setShowDismissMenu(false);
+    }
+  };
+
+  const handleWrongSubmit = () => {
+    setFeedback('wrong');
+    setShowWrongInput(false);
+  };
 
   const handleCopySuggestion = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -521,8 +566,11 @@ function ExpandedFindingCard({
     low: "LOW IMPACT",
   }[finding.impact];
 
+  // Determine if card should be dimmed (dismissed states)
+  const isDimmed = feedback === 'already_done' || feedback === 'not_relevant' || feedback === 'wrong';
+
   return (
-    <div className="new-finding-card-expanded">
+    <div className={`new-finding-card-expanded ${isDimmed ? 'finding-card-dimmed' : ''}`}>
       {/* Header row */}
       <div className="flex items-center justify-between mb-5">
         <span className={getImpactBadgeClass(finding.impact)}>
@@ -595,29 +643,125 @@ function ExpandedFindingCard({
         <span className="text-text-secondary">{finding.prediction.friendlyText}</span>
       </div>
 
-      {/* Why this matters - animated expandable */}
-      {finding.assumption && (
-        <div className="pt-4 border-t border-border-outer">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setWhyOpen(!whyOpen);
-            }}
-            className="new-finding-toggle-btn"
-            aria-expanded={whyOpen}
-          >
-            <svg
-              className={`w-3.5 h-3.5 transition-transform duration-200 ${whyOpen ? "rotate-180" : ""}`}
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+      {/* Footer: Why this matters + Feedback */}
+      <div className="pt-4 border-t border-border-outer">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: Why this matters toggle */}
+          {finding.assumption ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setWhyOpen(!whyOpen);
+              }}
+              className="new-finding-toggle-btn"
+              aria-expanded={whyOpen}
             >
-              <polyline points="4 6 8 10 12 6" />
-            </svg>
-            Why this matters
-          </button>
+              <svg
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${whyOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polyline points="4 6 8 10 12 6" />
+              </svg>
+              Why this matters
+            </button>
+          ) : (
+            <div /> /* Spacer */
+          )}
 
+          {/* Right: Feedback controls */}
+          <div className="finding-feedback">
+            {feedback ? (
+              /* Post-feedback confirmation */
+              <span className={`finding-feedback-confirmation ${feedback === 'will_fix' ? 'finding-feedback-confirmation-positive' : 'finding-feedback-confirmation-muted'}`}>
+                {FEEDBACK_CONFIRMATIONS[feedback]}
+              </span>
+            ) : showWrongInput ? (
+              /* Wrong input form */
+              <div className="finding-feedback-wrong-input">
+                <input
+                  type="text"
+                  placeholder="What did we get wrong?"
+                  value={wrongText}
+                  onChange={(e) => setWrongText(e.target.value)}
+                  className="finding-feedback-input"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleWrongSubmit();
+                    if (e.key === 'Escape') setShowWrongInput(false);
+                  }}
+                />
+                <button
+                  onClick={handleWrongSubmit}
+                  className="finding-feedback-submit"
+                >
+                  Send
+                </button>
+              </div>
+            ) : (
+              /* Default: feedback buttons */
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFeedback('will_fix');
+                  }}
+                  className="finding-feedback-btn finding-feedback-btn-primary"
+                >
+                  I'll fix this
+                </button>
+                <div className="relative" ref={dismissMenuRef}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDismissMenu(!showDismissMenu);
+                    }}
+                    className="finding-feedback-btn finding-feedback-btn-more"
+                    aria-label="More options"
+                  >
+                    ···
+                  </button>
+                  {showDismissMenu && (
+                    <div className="finding-feedback-popover">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFeedback('already_done');
+                        }}
+                        className="finding-feedback-popover-item"
+                      >
+                        Already done
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFeedback('not_relevant');
+                        }}
+                        className="finding-feedback-popover-item"
+                      >
+                        Doesn't apply
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFeedback('wrong');
+                        }}
+                        className="finding-feedback-popover-item finding-feedback-popover-item-danger"
+                      >
+                        Wrong
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Why this matters expandable content */}
+        {finding.assumption && (
           <div
             className="finding-expandable-content"
             data-open={whyOpen}
@@ -628,8 +772,8 @@ function ExpandedFindingCard({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -1115,6 +1259,7 @@ export default function AnalysisPage() {
     remaining: number;
     isFull: boolean;
   } | null>(null);
+  const [isInitialFetch, setIsInitialFetch] = useState(true);
 
   // Fetch founding status on mount
   useEffect(() => {
@@ -1165,13 +1310,16 @@ export default function AnalysisPage() {
       const res = await fetch(`/api/analysis/${id}`);
       if (!res.ok) {
         setError("Analysis not found");
+        setIsInitialFetch(false);
         return null;
       }
       const data: Analysis = await res.json();
       setAnalysis(data);
+      setIsInitialFetch(false);
       return data;
     } catch {
       setError("Failed to load analysis");
+      setIsInitialFetch(false);
       return null;
     }
   }, [id]);
@@ -1225,6 +1373,12 @@ export default function AnalysisPage() {
     );
   }
 
+  // Skeleton loader for initial content fetch (before we know the status)
+  if (isInitialFetch && !analysis) {
+    return <PageLoader />;
+  }
+
+  // Generating loader (analysis in progress)
   if (
     previewLoading ||
     !analysis ||
