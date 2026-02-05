@@ -75,6 +75,7 @@ Keep docs lean. Intent over implementation. Agents can generate code from descri
 - **ui-designer**: Visionary UI designer for rapid, implementable interfaces
 
 #### Growth & Marketing
+- **brand-guardian**: Brand strategy, positioning, and voice consistency (Loupe-specific)
 - **growth-hacker**: Strategic marketing combining positioning, brand, and growth tactics
 - **copywriter**: Direct-response copywriting for conversion
 
@@ -89,8 +90,9 @@ Use judgment — subagents are helpful but not mandatory for every tiny change:
 3. **backend-architect**: Use for major architectural decisions
 4. **frontend-developer**: Use for complex UI or performance issues
 5. **ui-designer**: **MANDATORY for new frontend features/elements**
-6. **copywriter**: Use for any customer-facing copy
-7. **legal-compliance-checker**: Use before launch or when handling user data
+6. **brand-guardian**: Use for brand positioning, voice, messaging decisions
+7. **copywriter**: Use for any customer-facing copy
+8. **legal-compliance-checker**: Use before launch or when handling user data
 
 ## SKILLS
 
