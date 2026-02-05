@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
 
 interface GitHubRepo {
@@ -546,7 +545,7 @@ function SupabaseConnectModal({
   const [projectUrl, setProjectUrl] = useState("");
   const [anonKey, setAnonKey] = useState("");
   const [serviceRoleKey, setServiceRoleKey] = useState("");
-  const [useServiceKey, setUseServiceKey] = useState(false);
+  const [useServiceKey, setUseServiceKey] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -562,7 +561,7 @@ function SupabaseConnectModal({
       setProjectUrl("");
       setAnonKey("");
       setServiceRoleKey("");
-      setUseServiceKey(false);
+      setUseServiceKey(true);
       setError("");
       setShowKey(false);
     }
@@ -637,32 +636,58 @@ function SupabaseConnectModal({
               </p>
             </div>
 
-            {/* Key type toggle */}
-            <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-text-primary">
-                  Key type
-                </span>
+            {/* Key type selection cards */}
+            <fieldset>
+              <legend className="block text-sm font-medium text-text-secondary mb-2">
+                Which key do you have?
+              </legend>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Service Role Key option */}
                 <button
                   type="button"
-                  onClick={() => setUseServiceKey(!useServiceKey)}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                    useServiceKey ? "bg-accent" : "bg-text-muted/30"
+                  onClick={() => setUseServiceKey(true)}
+                  className={`relative text-left p-3.5 rounded-xl border transition-all duration-150 active:scale-[0.98] ${
+                    useServiceKey
+                      ? "glass-card-active"
+                      : "glass-card"
                   }`}
+                  role="radio"
+                  aria-checked={useServiceKey}
                 >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                      useServiceKey ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
+                  <span className="inline-flex items-center gap-1.5 mb-2">
+                    <span className="text-sm font-semibold text-text-primary">
+                      Service Role
+                    </span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-score-high/10 text-score-high border border-score-high/15">
+                      Best
+                    </span>
+                  </span>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    Sees all your tables. We can track signups, orders, and&nbsp;more.
+                  </p>
+                </button>
+
+                {/* Anon Key option */}
+                <button
+                  type="button"
+                  onClick={() => setUseServiceKey(false)}
+                  className={`relative text-left p-3.5 rounded-xl border transition-all duration-150 active:scale-[0.98] ${
+                    !useServiceKey
+                      ? "glass-card-active"
+                      : "glass-card"
+                  }`}
+                  role="radio"
+                  aria-checked={!useServiceKey}
+                >
+                  <span className="block text-sm font-semibold text-text-primary mb-2">
+                    Public (Anon)
+                  </span>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    Limited access. Some tables may be hidden from us.
+                  </p>
                 </button>
               </div>
-              <p className="text-xs text-text-muted">
-                {useServiceKey
-                  ? "Service Role Key — full access to all tables (bypasses RLS)"
-                  : "Anon Key — respects Row Level Security (some tables may be hidden)"}
-              </p>
-            </div>
+            </fieldset>
 
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
@@ -671,7 +696,7 @@ function SupabaseConnectModal({
               <div className="relative">
                 <input
                   type={showKey ? "text" : "password"}
-                  placeholder={useServiceKey ? "eyJhbGciOi..." : "eyJhbGciOi..."}
+                  placeholder="eyJhbGciOi..."
                   value={useServiceKey ? serviceRoleKey : anonKey}
                   onChange={(e) =>
                     useServiceKey
@@ -701,8 +726,8 @@ function SupabaseConnectModal({
               </div>
               <p className="text-xs text-text-muted mt-1">
                 {useServiceKey
-                  ? "Found in Supabase → Settings → API → service_role (keep secret!)"
-                  : "Found in Supabase → Settings → API → anon public"}
+                  ? "Supabase → Settings → API → service_role key"
+                  : "Supabase → Settings → API → anon public key"}
               </p>
             </div>
           </div>
@@ -1345,15 +1370,15 @@ function IntegrationsContent() {
 
                 {!integrations.supabase.has_schema_access && (
                   <div className="glass-card p-4 bg-score-mid/5 border-l-4 border-score-mid mb-4">
-                    <p className="text-sm text-text-primary font-medium">Limited access</p>
+                    <p className="text-sm text-text-primary font-medium">We might be missing some tables</p>
                     <p className="text-sm text-text-secondary mt-1">
-                      Your tables may have Row Level Security enabled. Consider using a Service Role Key for full access.
+                      We can only see tables your app&apos;s frontend can access. If you have tables like orders or signups that need authentication, we can&apos;t see them yet.
                     </p>
                     <button
                       onClick={() => setShowSupabaseConnect(true)}
                       className="text-sm text-accent font-medium mt-2 hover:text-accent-hover transition-colors"
                     >
-                      Upgrade to Service Role Key
+                      Reconnect with full access
                     </button>
                   </div>
                 )}
