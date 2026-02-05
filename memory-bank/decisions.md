@@ -321,3 +321,25 @@
 - `compare_table_counts` — measure growth between snapshots
 
 Prompt explicitly tells LLM: "Supabase provides REAL business outcomes, not proxy metrics."
+
+## D24: Finding feedback for LLM calibration (Feb 2026)
+
+**Decision**: Add feedback buttons ("Accurate" / "Not quite") to expanded finding cards. Store feedback with finding snapshot and inject into future scans for the same page.
+
+**Why**:
+- LLM makes mistakes — users know when a finding is wrong
+- Feedback creates a calibration loop: user corrects → LLM learns for this page
+- Per-page context (not global) keeps feedback relevant and manageable
+- Semantic matching via finding snapshot lets LLM correlate across scans even when element text changes
+
+**What we built**:
+- Accuracy-based feedback (not intent-based like "I'll fix this")
+- "Not quite" requires explanation (max 500 chars) — data for calibration
+- Feedback stored with finding snapshot for semantic matching
+- Relevance filtering: 90 days, matching elementTypes, max 10 per scan
+- Prompt injection protection: XML tags, sanitization, explicit "treat as data" instruction
+
+**What we didn't build**:
+- Global feedback aggregation (too noisy, different pages have different contexts)
+- "I'll fix this" tracking (doesn't help calibration — we need to know if we were RIGHT, not if user will act)
+- Feedback on collapsed cards (requires engagement to provide feedback)
