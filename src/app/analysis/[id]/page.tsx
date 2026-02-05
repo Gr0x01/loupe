@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useId, useMemo } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type {
-  FindingEvaluation,
   PageContext,
   DeployContextAPI,
   MetricsSnapshot,
@@ -16,17 +15,6 @@ import type {
   ElementType,
 } from "@/lib/types/analysis";
 import { ChronicleLayout } from "@/components/chronicle";
-
-// Type guard for new analysis format (Phase 2.1+)
-function isNewAnalysisFormat(s: unknown): s is AnalysisResult["structured"] {
-  return (
-    typeof s === "object" &&
-    s !== null &&
-    "findingsCount" in s &&
-    "verdict" in s &&
-    "projectedImpactRange" in s
-  );
-}
 
 // Type guard for Chronicle format (N+1 scans with new ChangesSummary)
 function isChronicleFormat(summary: unknown): summary is ChangesSummary {
@@ -43,47 +31,17 @@ function isChronicleFormat(summary: unknown): summary is ChangesSummary {
 
 // --- Types ---
 
-// Legacy structured output format (pre-Phase 2.1)
-interface LegacyStructuredOutput {
-  overallScore?: number;
-  whatsWorking?: string[];
-  whatsNot?: string[];
-  topActions?: Array<{ title: string; description: string; tag?: string }>;
-  categories?: Array<{
-    name: string;
-    score: number;
-    findings: Array<{
-      type: "issue" | "suggestion" | "strength";
-      title: string;
-      description: string;
-      fix?: string;
-      element?: string;
-      methodology?: string;
-    }>;
-  }>;
-  headlineRewrite?: {
-    current: string;
-    suggested: string;
-    reasoning?: string;
-    currentAnnotation?: string;
-    suggestedAnnotation?: string;
-  };
-}
-
-// Combined type for structured output (supports both old and new formats)
-type StructuredOutput = AnalysisResult["structured"] | LegacyStructuredOutput;
-
 interface Analysis {
   id: string;
   url: string;
   status: "pending" | "processing" | "complete" | "failed";
   screenshot_url: string | null;
-  structured_output: StructuredOutput | null;
+  structured_output: AnalysisResult["structured"] | null;
   error_message: string | null;
   created_at: string;
   parent_analysis_id: string | null;
   changes_summary: ChangesSummary | null;
-  parent_structured_output: StructuredOutput | null;
+  parent_structured_output: AnalysisResult["structured"] | null;
   page_context: PageContext | null;
   metrics_snapshot: MetricsSnapshot | null;
   deploy_context: DeployContextAPI | null;
@@ -110,97 +68,6 @@ const DRIFT_EXAMPLES = [
   "Conversions dropped 23% the same week your social proof disappeared",
   "Your CTA says 'Submit' instead of 'Get My Plan' — changed 3 deploys ago",
 ];
-
-const CATEGORY_EXPLAINERS: Record<string, string> = {
-  "Messaging & Copy":
-    "Visitors decide in seconds whether this page is for them. Unclear or generic copy makes that decision easy — they leave.",
-  "Call to Action":
-    "Every page needs one clear next step. When CTAs compete, hide, or ask too much too soon, conversions drop.",
-  "Trust & Social Proof":
-    "People look for reasons to say no. Testimonials, logos, and specifics give them reasons to say yes instead.",
-  "Visual Hierarchy":
-    "If visitors can't find what matters in a glance, they won't dig for it. Hierarchy controls what gets seen first.",
-  "Design Quality":
-    "Design signals credibility before a single word gets read. Rough edges make people question everything else.",
-  "SEO & Metadata":
-    "Search engines and social shares depend on your meta tags, heading structure, and alt text. Missing metadata means missed traffic.",
-};
-
-const ACTION_TAGS = ["HIGH IMPACT", "QUICK WIN", "LEAKING"] as const;
-
-// Evaluation status configuration for the 5 states
-const EVALUATION_CONFIG = {
-  resolved: {
-    label: "Resolved",
-    iconClass: "evaluation-icon-resolved",
-    badgeClass: "evaluation-badge-resolved",
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-      </svg>
-    ),
-    color: "var(--score-high)",
-  },
-  improved: {
-    label: "Improved",
-    iconClass: "evaluation-icon-improved",
-    badgeClass: "evaluation-badge-improved",
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 12l4-4 4-4" />
-        <path d="M4 12h8" />
-      </svg>
-    ),
-    color: "var(--score-mid)",
-  },
-  unchanged: {
-    label: "Unchanged",
-    iconClass: "evaluation-icon-unchanged",
-    badgeClass: "evaluation-badge-unchanged",
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="3" y1="8" x2="13" y2="8" />
-      </svg>
-    ),
-    color: "#8E8EA0",
-  },
-  regressed: {
-    label: "Regressed",
-    iconClass: "evaluation-icon-regressed",
-    badgeClass: "evaluation-badge-regressed",
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 4l-4 4-4 4" />
-        <path d="M12 4H4" />
-      </svg>
-    ),
-    color: "var(--score-low)",
-  },
-  new: {
-    label: "New",
-    iconClass: "evaluation-icon-new",
-    badgeClass: "evaluation-badge-new",
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="8" y1="3" x2="8" y2="13" />
-        <line x1="3" y1="8" x2="13" y2="8" />
-      </svg>
-    ),
-    color: "var(--score-low)",
-  },
-  // Legacy status mapping
-  persists: {
-    label: "Unchanged",
-    iconClass: "evaluation-icon-unchanged",
-    badgeClass: "evaluation-badge-unchanged",
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="3" y1="8" x2="13" y2="8" />
-      </svg>
-    ),
-    color: "#8E8EA0",
-  },
-} as const;
 
 // Element type icons for new finding cards
 const ELEMENT_ICONS: Record<ElementType, React.ReactNode> = {
@@ -269,77 +136,6 @@ function getImpactBadgeClass(impact: "high" | "medium" | "low"): string {
 
 // --- Helpers ---
 
-// Legacy format helpers
-type LegacyAction = { title: string; description: string; tag?: string };
-
-function getTopActionsHeader(score: number): { title: string; subtitle: string } | null {
-  if (score >= 80) return { title: "Fine-tuning opportunities", subtitle: "Small tweaks for marginal gains." };
-  if (score >= 60) return { title: "Where you're losing visitors", subtitle: "Ranked by conversion impact. Start at the top." };
-  return { title: "Critical issues to fix", subtitle: "These problems are likely costing you conversions." };
-}
-
-function getActionText(action: LegacyAction | undefined): string {
-  if (!action) return "";
-  return action.title || action.description;
-}
-
-function getActionImpact(action: LegacyAction | undefined): string | null {
-  if (!action?.tag) return null;
-  return action.tag;
-}
-
-function CelebrationState({ score }: { score: number }) {
-  return (
-    <section className="result-section text-center">
-      <h2 className="text-3xl font-bold text-text-primary mb-4" style={{ fontFamily: "var(--font-instrument-serif)" }}>
-        Excellent work!
-      </h2>
-      <p className="text-lg text-text-secondary">
-        Your page scored {score}. There are no major issues to address.
-      </p>
-    </section>
-  );
-}
-
-function TopActionsExpandable({ actions, score }: { actions: LegacyAction[]; score: number }) {
-  const header = getTopActionsHeader(score);
-  return (
-    <section className="result-section">
-      <div className="section-header">
-        <div>
-          <h2 className="text-4xl font-bold text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
-            {header?.title || "Actions to take"}
-          </h2>
-          <p className="text-sm text-text-muted mt-1">{header?.subtitle}</p>
-        </div>
-      </div>
-      <ul className="space-y-4">
-        {actions.map((action, i) => (
-          <li key={i} className="glass-card p-4 flex items-start gap-4">
-            <span className="text-2xl font-bold text-[rgba(91,46,145,0.2)]" style={{ fontFamily: "var(--font-instrument-serif)" }}>{i + 1}</span>
-            <div>
-              <p className="text-lg text-text-primary font-semibold">{action.title}</p>
-              {action.description && <p className="text-sm text-text-secondary mt-1">{action.description}</p>}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function scoreColor(score: number): string {
-  if (score >= 80) return "text-score-high";
-  if (score >= 60) return "text-score-mid";
-  return "text-score-low";
-}
-
-function scoreCssColor(score: number): string {
-  if (score >= 80) return "var(--score-high)";
-  if (score >= 60) return "var(--score-mid)";
-  return "var(--score-low)";
-}
-
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -351,23 +147,12 @@ function timeAgo(dateStr: string) {
   return `${days}d ago`;
 }
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 function getDomain(url: string) {
   try {
     return new URL(url).hostname;
   } catch {
     return url;
   }
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
 }
 
 // --- Hooks ---
@@ -472,7 +257,7 @@ function DomainBadge({ domain }: { domain: string }) {
 }
 
 interface NewHeroSectionProps {
-  structured: StructuredOutput;
+  structured: AnalysisResult["structured"];
   domain: string;
   claimStatus?: ClaimStatus;
   onShareLink: () => void;
@@ -500,44 +285,22 @@ function NewHeroSection({
   claimError,
   claimedPageId,
 }: NewHeroSectionProps) {
-  // Check if we have the new analysis format
-  const isNew = isNewAnalysisFormat(structured);
-
   return (
     <section className="py-8 lg:py-12">
       <div className="glass-card-elevated mx-auto overflow-hidden">
         {/* Main content — centered vertical stack */}
         <div className="px-8 py-10 space-y-8 flex flex-col items-center">
-          {isNew ? (
-            <>
-              {/* Verdict — the star */}
-              <VerdictDisplay
-                verdict={structured.verdict}
-                verdictContext={structured.verdictContext}
-              />
+          {/* Verdict — the star */}
+          <VerdictDisplay
+            verdict={structured.verdict}
+            verdictContext={structured.verdictContext}
+          />
 
-              {/* Impact bar */}
-              <ImpactBar projectedImpactRange={structured.projectedImpactRange} />
+          {/* Impact bar */}
+          <ImpactBar projectedImpactRange={structured.projectedImpactRange} />
 
-              {/* Opportunity count */}
-              <OpportunityCount count={structured.findingsCount} />
-            </>
-          ) : (
-            /* Legacy hero for old analyses */
-            <div className="text-center">
-              <h1
-                className="text-3xl md:text-4xl font-bold text-text-primary mb-4"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                Audit Complete
-              </h1>
-              {(structured as LegacyStructuredOutput).overallScore !== undefined && (
-                <p className="text-6xl font-black text-accent">
-                  {(structured as LegacyStructuredOutput).overallScore}
-                </p>
-              )}
-            </div>
-          )}
+          {/* Opportunity count */}
+          <OpportunityCount count={structured.findingsCount} />
 
           {/* Domain badge */}
           <DomainBadge domain={domain} />
@@ -900,164 +663,6 @@ function FindingsSection({ findings }: { findings: Finding[] }) {
   );
 }
 
-// Evaluation Card for the "What Changed" section
-function EvaluationCard({
-  evaluation,
-  expanded,
-  onToggle,
-  deployContext,
-}: {
-  evaluation: FindingEvaluation;
-  expanded: boolean;
-  onToggle: () => void;
-  deployContext?: DeployContextAPI | null;
-}) {
-  const config = EVALUATION_CONFIG[evaluation.evaluation];
-
-  // Check if any changed files might correlate with this finding's element
-  const correlatedFile = deployContext?.changed_files.find(file => {
-    const element = evaluation.element.toLowerCase();
-    const fileName = file.toLowerCase();
-    // Simple heuristic: check if the element name appears in the file path
-    return fileName.includes(element.replace(/\s+/g, '')) ||
-           element.includes(fileName.split('/').pop()?.replace(/\.(tsx?|jsx?)$/, '') || '');
-  });
-
-  return (
-    <div
-      className="evaluation-card group"
-      onClick={onToggle}
-    >
-      {/* Header — always visible */}
-      <div className="flex items-start gap-3 p-4">
-        <span className={`evaluation-icon ${config.iconClass}`}>
-          {config.icon}
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p
-              className="text-[1.0625rem] font-semibold text-text-primary leading-snug"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              {evaluation.title}
-            </p>
-            <span className={`evaluation-badge ${config.badgeClass}`}>
-              {config.label}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="element-badge">{evaluation.element}</span>
-            {correlatedFile && (
-              <span className="element-badge text-accent border-accent-border">
-                {correlatedFile.split('/').pop()}
-              </span>
-            )}
-          </div>
-        </div>
-        {/* Chevron */}
-        <svg
-          className={`w-5 h-5 text-text-muted transition-transform duration-200 flex-shrink-0 ${expanded ? "rotate-180" : ""}`}
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="5 8 10 13 15 8" />
-        </svg>
-      </div>
-
-      {/* Expandable content */}
-      <div
-        className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border-outer mt-2">
-          {/* Quality assessment — the key insight */}
-          {evaluation.quality_assessment && (
-            <div className="pt-3">
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-                Assessment
-              </p>
-              <p
-                className="text-[0.9375rem] text-text-primary leading-relaxed"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                {evaluation.quality_assessment}
-              </p>
-            </div>
-          )}
-          {/* Detail */}
-          {evaluation.detail && (
-            <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-                Detail
-              </p>
-              <p className="text-[0.875rem] text-text-secondary leading-relaxed">
-                {evaluation.detail}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Segmented Progress Bar component
-function SegmentedProgressBar({
-  progress,
-}: {
-  progress: ChangesSummary["progress"];
-}) {
-  const total = (progress.validated || 0) + (progress.watching || 0) + (progress.open || 0) || 1;
-
-  // Calculate percentages for each segment
-  const validated = progress.validated || 0;
-  const watching = progress.watching || 0;
-  const open = progress.open || 0;
-
-  const validatedPct = (validated / total) * 100;
-  const watchingPct = (watching / total) * 100;
-  const openPct = (open / total) * 100;
-
-  // Build segments array (only include non-zero segments)
-  const segments: { color: string; pct: number; label: string; count: number }[] = [];
-  if (validated > 0) segments.push({ color: "var(--score-high)", pct: validatedPct, label: "validated", count: validated });
-  if (watching > 0) segments.push({ color: "var(--score-mid)", pct: watchingPct, label: "watching", count: watching });
-  if (open > 0) segments.push({ color: "#8E8EA0", pct: openPct, label: "open", count: open });
-
-  return (
-    <div>
-      {/* Segmented bar */}
-      <div className="progress-segmented">
-        {segments.map((seg) => (
-          <div
-            key={seg.label}
-            className="progress-segment"
-            style={{
-              width: `${seg.pct}%`,
-              backgroundColor: seg.color,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Legend */}
-      <div className="progress-legend">
-        {segments.map((seg) => (
-          <span key={seg.label} className="progress-legend-item">
-            <span className="progress-legend-dot" style={{ backgroundColor: seg.color }} />
-            <span className="font-semibold">{seg.count}</span> {seg.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function ScreenshotModal({
   url,
   pageUrl,
@@ -1128,7 +733,6 @@ function ScreenshotModal({
 
 export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const previewLoading = searchParams.get("preview") === "loading";
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -1141,63 +745,12 @@ export default function AnalysisPage() {
   const [claimError, setClaimError] = useState("");
   const [deployExpanded, setDeployExpanded] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
-  const [expandedEvaluations, setExpandedEvaluations] = useState<Set<number>>(new Set());
   const [foundingStatus, setFoundingStatus] = useState<{
     claimed: number;
     total: number;
     remaining: number;
     isFull: boolean;
   } | null>(null);
-
-  // Set default active category when analysis loads (legacy format)
-  useEffect(() => {
-    if (analysis?.structured_output && !activeCategory) {
-      const legacy = analysis.structured_output as LegacyStructuredOutput;
-      if (legacy.categories && legacy.categories.length > 0) {
-        setActiveCategory(legacy.categories[0].name);
-      }
-    }
-  }, [analysis, activeCategory]);
-
-  // Toggle functions for legacy findings and evaluations
-  const toggleFinding = useCallback((findingId: string) => {
-    setExpandedFindings((prev) => {
-      const next = new Set(prev);
-      if (next.has(findingId)) {
-        next.delete(findingId);
-      } else {
-        next.add(findingId);
-      }
-      return next;
-    });
-  }, []);
-
-  const toggleEvaluation = useCallback((index: number) => {
-    setExpandedEvaluations((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  }, []);
-
-  // Derive active category findings for legacy format
-  const activeCatFindings = useMemo(() => {
-    if (!analysis?.structured_output || !activeCategory) return [];
-    const legacy = analysis.structured_output as LegacyStructuredOutput;
-    const cat = legacy.categories?.find((c) => c.name === activeCategory);
-    if (!cat) return [];
-    // Sort findings by type priority (issues first, then suggestions, then strengths)
-    return [...cat.findings].sort((a, b) => {
-      const priority = { issue: 0, suggestion: 1, strength: 2 };
-      return (priority[a.type] ?? 3) - (priority[b.type] ?? 3);
-    });
-  }, [analysis, activeCategory]);
 
   // Fetch founding status on mount
   useEffect(() => {
@@ -1261,15 +814,18 @@ export default function AnalysisPage() {
 
   // Poll for results
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
+    let stopped = false;
     async function poll() {
       const data = await fetchAnalysis();
       if (data && (data.status === "complete" || data.status === "failed")) {
-        clearInterval(interval);
+        stopped = true;
       }
     }
     poll();
-    interval = setInterval(poll, 3000);
+    const interval = setInterval(() => {
+      if (!stopped) poll();
+      else clearInterval(interval);
+    }, 3000);
     return () => clearInterval(interval);
   }, [fetchAnalysis]);
 
@@ -1491,9 +1047,6 @@ export default function AnalysisPage() {
 
   const s = analysis.structured_output;
   const isChronicle = analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
-  // Boolean check without type narrowing (to preserve legacy s type in !isNewFormat branches)
-  const isNewFormat = Boolean(s && "findingsCount" in s && "verdict" in s && "projectedImpactRange" in s);
-
   const pageCtx = analysis.page_context;
 
   return (
@@ -1648,146 +1201,12 @@ export default function AnalysisPage() {
         <hr className="section-divider" />
 
         {/* Findings Section */}
-        {isNewAnalysisFormat(s) && s.findings && s.findings.length > 0 && (
+        {s.findings && s.findings.length > 0 && (
           <>
             <FindingsSection findings={s.findings} />
             <hr className="section-divider" />
           </>
         )}
-
-        {/* ZONE3_REMOVE_START */}
-        {false && (() => {
-          const legacy = s as LegacyStructuredOutput;
-          const actionsCount = legacy.topActions?.length ?? 0;
-          const header = getTopActionsHeader(legacy.overallScore ?? 0);
-
-          // Score 95+ with no actions → celebration state
-          if (actionsCount === 0 && (legacy.overallScore ?? 0) >= 95) {
-            return (
-              <>
-                <CelebrationState score={legacy.overallScore ?? 0} />
-                <hr className="section-divider" />
-              </>
-            );
-          }
-
-          // No actions and score < 95 → hide section entirely
-          if (actionsCount === 0) {
-            return null;
-          }
-
-          // 4+ actions → use expandable component
-          if (actionsCount >= 4) {
-            return (
-              <>
-                <TopActionsExpandable actions={legacy.topActions ?? []} score={legacy.overallScore ?? 0} />
-                <hr className="section-divider" />
-              </>
-            );
-          }
-
-          // 1 action → single full-width hero card
-          if (actionsCount === 1) {
-            return (
-              <>
-                <section className="result-section">
-                  <div className="section-header">
-                    <div>
-                      <h2
-                        className="text-4xl font-bold text-text-primary"
-                        style={{ fontFamily: "var(--font-instrument-serif)" }}
-                      >
-                        {header?.title || "Where you're losing visitors"}
-                      </h2>
-                      <p className="text-sm text-text-muted mt-1">
-                        {header?.subtitle || "Ranked by conversion impact. Start at the top."}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="glass-card p-6 flex items-start gap-5">
-                    <span
-                      className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
-                    >
-                      1
-                    </span>
-                    <div className="pt-2">
-                      <p className="text-xl text-text-primary font-semibold leading-relaxed">
-                        {getActionText(legacy.topActions?.[0])}
-                      </p>
-                      {getActionImpact(legacy.topActions?.[0]) && (
-                        <p className="text-sm text-text-muted mt-2">
-                          {getActionImpact(legacy.topActions?.[0])}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </section>
-                <hr className="section-divider" />
-              </>
-            );
-          }
-
-          // 2-3 actions → standard hero left, stacked right layout
-          return (
-            <>
-              <section className="result-section">
-                <div className="section-header">
-                  <div>
-                    <h2
-                      className="text-4xl font-bold text-text-primary"
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
-                    >
-                      {header?.title || "Where you're losing visitors"}
-                    </h2>
-                    <p className="text-sm text-text-muted mt-1">
-                      {header?.subtitle || "Ranked by conversion impact. Start at the top."}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
-                  {/* #1 — left column, hero action in card */}
-                  <div className="glass-card p-6 flex items-start gap-5">
-                    <span
-                      className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
-                    >
-                      1
-                    </span>
-                    <div className="pt-2">
-                      <p className="text-xl text-text-primary font-semibold leading-relaxed">
-                        {getActionText(legacy.topActions?.[0])}
-                      </p>
-                      {getActionImpact(legacy.topActions?.[0]) && (
-                        <p className="text-sm text-text-muted mt-2">
-                          {getActionImpact(legacy.topActions?.[0])}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* #2 and #3 — right column, stacked */}
-                  <div className="space-y-8">
-                    {(legacy.topActions ?? []).slice(1, 3).map((action, i) => (
-                      <div key={i} className="flex items-start gap-4">
-                        <span
-                          className="text-[2.5rem] leading-none font-bold text-[rgba(91,46,145,0.12)] flex-shrink-0 -mt-1"
-                          style={{ fontFamily: "var(--font-instrument-serif)" }}
-                        >
-                          {i + 2}
-                        </span>
-                        <p className="text-lg text-text-primary leading-relaxed pt-1">
-                          {getActionText(action)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-              <hr className="section-divider" />
-            </>
-          );
-        })()}
 
         {/* Headline Rewrite Spotlight */}
         {s.headlineRewrite && (
@@ -1873,7 +1292,7 @@ export default function AnalysisPage() {
         )}
 
         {/* Summary Section */}
-        {isNewAnalysisFormat(s) && s.summary && (
+        {s.summary && (
           <>
             <section className="result-section">
               <div className="section-header">
@@ -1897,258 +1316,6 @@ export default function AnalysisPage() {
             </section>
 
             <hr className="section-divider" />
-          </>
-        )}
-
-        {/* ZONE4_REMOVE_START */}
-        {false && (s as LegacyStructuredOutput).categories && (
-          <section className="result-section">
-            <div className="section-header">
-              <h2
-                className="text-4xl font-bold text-text-primary"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                The full picture
-              </h2>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {((s as LegacyStructuredOutput).categories ?? []).map((cat) => {
-              const isActive = activeCategory === cat.name;
-              const issueCount = cat.findings.filter(
-                (f) => f.type === "issue"
-              ).length;
-              const strengthCount = cat.findings.filter(
-                (f) => f.type === "strength"
-              ).length;
-
-              return (
-                <button
-                  key={cat.name}
-                  onClick={() => {
-                    setActiveCategory(cat.name);
-                    document
-                      .getElementById("findings")
-                      ?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  className={`relative text-left p-5 cursor-pointer transition-all duration-150 active:scale-[0.98] ${
-                    isActive ? "glass-card-active" : "glass-card"
-                  }`}
-                >
-                  {/* Attention dot for low scores */}
-                  {cat.score < 60 && !isActive && (
-                    <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-score-low opacity-80" />
-                  )}
-
-                  <p className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                    {cat.name}
-                  </p>
-
-                  {/* Score with subtle glow */}
-                  <div className="relative inline-block mb-3">
-                    <p
-                      className={`text-4xl font-black ${scoreColor(cat.score)}`}
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
-                    >
-                      {cat.score}
-                    </p>
-                    <div
-                      className="absolute inset-0 -z-10 blur-xl opacity-20 rounded-full scale-[2]"
-                      style={{ backgroundColor: scoreCssColor(cat.score) }}
-                    />
-                  </div>
-
-                  <div className="progress-track mb-3">
-                    <div
-                      className="progress-fill"
-                      style={{
-                        width: `${cat.score}%`,
-                        backgroundColor: scoreCssColor(cat.score),
-                        "--fill-glow": cat.score >= 80
-                          ? "rgba(26,140,91,0.25)"
-                          : cat.score >= 60
-                            ? "rgba(160,107,0,0.25)"
-                            : "rgba(194,59,59,0.25)",
-                      } as React.CSSProperties}
-                    />
-                  </div>
-
-                  {/* Semantic finding badges */}
-                  <div className="flex items-center gap-3">
-                    {issueCount > 0 && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-score-low">
-                        <span className="w-1.5 h-1.5 rounded-full bg-score-low" />
-                        {issueCount}
-                      </span>
-                    )}
-                    {strengthCount > 0 && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-score-high">
-                        <span className="w-1.5 h-1.5 rounded-full bg-score-high" />
-                        {strengthCount}
-                      </span>
-                    )}
-                    {issueCount === 0 && strengthCount === 0 && (
-                      <span className="text-xs text-text-muted">
-                        {cat.findings.length} finding{cat.findings.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* ZONE5_REMOVE_START */}
-        {false && (s as LegacyStructuredOutput).categories && (
-          <>
-            <hr className="section-divider" />
-
-            {/* Zone 5: Findings Panel (legacy format only) */}
-            <section className="result-section" id="findings">
-              <div className="section-header">
-                <h2
-                  className="text-4xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  What we found
-                </h2>
-              </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left sidebar: category nav */}
-            <div className="lg:col-span-3 lg:sticky lg:top-6 lg:self-start">
-              <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-                {((s as LegacyStructuredOutput).categories ?? []).map((cat) => {
-                  const issueCount = cat.findings.filter((f) => f.type === "issue").length;
-                  const suggestionCount = cat.findings.filter((f) => f.type === "suggestion").length;
-                  const strengthCount = cat.findings.filter((f) => f.type === "strength").length;
-                  const total = issueCount + suggestionCount + strengthCount || 1;
-                  const issuePct = (issueCount / total) * 100;
-                  const suggestionPct = (suggestionCount / total) * 100;
-                  const strengthPct = (strengthCount / total) * 100;
-
-                  return (
-                    <button
-                      key={cat.name}
-                      onClick={() => setActiveCategory(cat.name)}
-                      className={`sidebar-nav-item whitespace-nowrap text-left text-sm ${
-                        activeCategory === cat.name ? "sidebar-nav-item-active" : ""
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span>{cat.name}</span>
-                        <span className={`font-bold ${scoreColor(cat.score)}`}>
-                          {cat.score}
-                        </span>
-                      </div>
-                      {/* Mini bar — issues (red), suggestions (amber), strengths (green) */}
-                      <div className="sidebar-mini-bar">
-                        {issueCount > 0 && (
-                          <div
-                            className="sidebar-mini-bar-segment"
-                            style={{
-                              width: `${issuePct}%`,
-                              backgroundColor: "var(--score-low)",
-                            }}
-                          />
-                        )}
-                        {suggestionCount > 0 && (
-                          <div
-                            className="sidebar-mini-bar-segment"
-                            style={{
-                              width: `${suggestionPct}%`,
-                              backgroundColor: "var(--score-mid)",
-                            }}
-                          />
-                        )}
-                        {strengthCount > 0 && (
-                          <div
-                            className="sidebar-mini-bar-segment"
-                            style={{
-                              width: `${strengthPct}%`,
-                              backgroundColor: "var(--score-high)",
-                            }}
-                          />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </nav>
-              {activeCategory && CATEGORY_EXPLAINERS[activeCategory as keyof typeof CATEGORY_EXPLAINERS] && (
-                <div className="hidden lg:block mt-4 explainer-card">
-                  <p className="text-sm text-text-secondary leading-relaxed">
-                    {CATEGORY_EXPLAINERS[activeCategory as keyof typeof CATEGORY_EXPLAINERS]}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Right: findings for active category */}
-            <div className="lg:col-span-9 space-y-2">
-              {activeCatFindings.length > 0 ? (
-                activeCatFindings.map((finding, i) => {
-                  const findingId = `finding-${(activeCategory ?? "").replace(/\s+/g, "-").toLowerCase()}-${i}`;
-                  const typeColors = {
-                    issue: "border-l-score-low bg-[rgba(194,59,59,0.03)]",
-                    suggestion: "border-l-accent bg-[rgba(91,46,145,0.03)]",
-                    strength: "border-l-score-high bg-[rgba(26,140,91,0.03)]",
-                  };
-                  const typeLabels = { issue: "Issue", suggestion: "Suggestion", strength: "Strength" };
-                  const isExpanded = expandedFindings.has(findingId);
-                  return (
-                    <div
-                      key={findingId}
-                      id={findingId}
-                      className={`glass-card border-l-4 ${typeColors[finding.type]} p-5 transition-all duration-150`}
-                    >
-                      <button
-                        onClick={() => toggleFinding(findingId)}
-                        className="w-full text-left flex items-start justify-between gap-4"
-                      >
-                        <div className="flex-1">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            {typeLabels[finding.type]}
-                          </span>
-                          <p className="text-lg text-text-primary font-semibold mt-1">{finding.title}</p>
-                        </div>
-                        <svg
-                          className={`w-5 h-5 text-text-muted transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                          viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"
-                        >
-                          <path d="M5 7l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      {isExpanded && (
-                        <div className="mt-4 space-y-4">
-                          <p className="text-base text-text-secondary">{finding.description}</p>
-                          {finding.fix && (
-                            <div className="bg-[rgba(91,46,145,0.04)] border border-[rgba(91,46,145,0.15)] rounded-lg p-4">
-                              <p className="text-sm font-semibold text-accent mb-1">Fix:</p>
-                              <p className="text-base text-text-primary">{finding.fix}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-text-muted text-base">
-                    Select a category to view findings.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-            <p className="bridge-text mt-6">
-              This is your page today. After your next deploy, it won&apos;t be.
-            </p>
-          </section>
-
-          <hr className="section-divider" />
           </>
         )}
           </>
