@@ -85,8 +85,8 @@ analyses (
   trigger_type text,                -- 'manual' | 'daily' | 'weekly' | 'deploy' | null (initial audit)
   screenshot_url text,
   output text,                    -- formatted markdown report
-  structured_output jsonb,        -- { overallScore, categories[], summary, topActions[] }
-  changes_summary jsonb,          -- post-analysis results (findings_evaluations, score_delta, progress, analytics_insights)
+  structured_output jsonb,        -- { verdict, findings[], suggestions[], summary } — see LLM Layer for schema
+  changes_summary jsonb,          -- post-analysis results (changes, suggestions, correlation, progress)
   metrics_snapshot jsonb,         -- deprecated: PostHog metrics (now in changes_summary)
   analytics_correlation jsonb,    -- post-analysis results when analytics connected
   status text NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
@@ -116,12 +116,11 @@ pages (
   scan_frequency text NOT NULL DEFAULT 'weekly',  -- weekly | daily | manual
   last_scan_id uuid FK analyses ON DELETE SET NULL,
   repo_id uuid FK repos ON DELETE SET NULL,  -- link to GitHub repo for auto-scan
-  hide_from_leaderboard boolean NOT NULL DEFAULT false,  -- opt-out from public leaderboard
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, url)
 )
 -- RLS: user can only access own pages (auth.uid() = user_id)
--- Index: idx_analyses_leaderboard ON analyses (created_at DESC) WHERE status = 'complete'
+-- Note: hide_from_leaderboard column removed (leaderboard feature deleted in Phase 2A.1.1)
 
 profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
@@ -228,15 +227,52 @@ deploys (
 
 ## LLM Layer
 
-**Main analysis:** Single Gemini 3 Pro call with vision input. Screenshot as base64 image + system prompt requesting structured JSON output. Switched from Sonnet 4 after eval — Gemini 3 Pro gave more specific/opinionated feedback at ~25% lower cost and same speed.
+**Philosophy:** One smart LLM call per scan. Value at every touch. No penny-pinching at MVP scale.
 
-**Post-analysis:** Gemini 3 Pro with optional tools. Evaluates change quality (not just diff), correlates with analytics. Max 6 steps for tool calls. Receives deploy context when scan is deploy-triggered.
+**Model:** Gemini 3 Pro (or Sonnet 4) with vision. Smart model every time — the product being great matters more than saving $0.02 per scan.
+
+### Pipeline: One Call Per Scan
+
+Every scan (initial or scheduled) runs a single smart LLM call that sees everything and outputs everything:
+
+**Initial Audit:**
+```
+Input:
+- Screenshot (base64)
+- Page content/metadata
+
+Output:
+- Verdict (biggest opportunity)
+- Findings (observational, with predictions)
+- Suggestions (what to change, expected impact)
+- Headline rewrite (copy-paste value)
+```
+
+**Scheduled Scan:**
+```
+Input:
+- Previous screenshot/analysis
+- Current screenshot
+- Metrics history (if available)
+- Domain context (company, ICP, voice — future)
+
+Output:
+- What changed (if anything)
+- Suggestions (always, based on current state)
+- Correlation insights (when data supports it)
+```
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
-- `runAnalysisPipeline(screenshotBase64, url, metadata)` — Main audit with vision. Returns `{ output, structured }`.
-- `runPostAnalysisPipeline(context, options)` — Unified comparison + correlation. Receives `deployContext` with commit info. Returns `ChangesSummary` with evaluations and analytics insights.
+- `runAnalysisPipeline(screenshotBase64, url, metadata)` — Main audit with vision
+- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation
 
 Model: `gemini-3-pro-preview` (will update ID when it exits preview).
+
+### Brand Voice (in prompts)
+- **Identity:** "Observant analyst" — like a friend who notices what you missed
+- **Emotional register:** Verdicts trigger Ouch (painful truth), Aha (clarity), or Huh (curiosity)
+- **Anti-patterns:** No hedging, no buzzwords, no scores
+- **FriendlyText:** Predictions use emotional stakes ("Your button is invisible", "You're losing signups")
 
 ### Marketing Frameworks (in prompts)
 - **PAS** (Problem-Agitate-Solve) — messaging structure
@@ -249,75 +285,102 @@ Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 - **Awareness Stages (Schwartz)** — problem-aware vs solution-aware messaging
 - **Risk Reversal** — how page addresses objections
 
-### Structured output schema (main audit)
+### Structured output schema
+
+**Canonical types:** `src/lib/types/analysis.ts`
+
+The codebase now has canonical types with legacy types for backward compatibility during the Phase 2A transition.
+
+**Initial audit (AnalysisResult.structured):**
 ```typescript
 {
-  overallScore: number,        // 1-100
-  verdict: string,             // one-liner takeaway
-  whatsWorking: string[],      // 3 strengths
-  whatsNot: string[],          // 3 weaknesses
-  headlineRewrite: { current, suggested, reasoning } | null,
-  categories: [{
-    name: string,              // e.g. "Messaging & Copy"
-    score: number,             // 1-100
-    findings: [{
-      type: "strength" | "issue" | "suggestion",
-      title: string,
-      detail: string,
-      impact: "high" | "medium" | "low",
-      fix: string,             // concrete fix with actual copy rewrites
-      methodology: string,     // framework used (e.g. "Fogg Behavior Model")
-      element: string          // page element (e.g. "hero headline")
-    }]
+  verdict: string,                    // 60-80 chars, triggers Ouch/Aha/Huh
+  verdictContext: string,             // Brief explanation for the verdict
+  findingsCount: number,
+  projectedImpactRange: string,       // "15-30%"
+  headlineRewrite: {
+    current: string,
+    suggested: string,
+    currentAnnotation: string,        // "Generic. Says nothing about what you do."
+    suggestedAnnotation: string       // "Specific outcome + time contrast = curiosity"
+  } | null,
+  findings: [{
+    id: string,                       // Unique identifier for tracking
+    title: string,
+    element: string,                  // Display-ready: "Your Headline", "Your CTA Button"
+    elementType: ElementType,         // For icon selection
+    currentValue: string,             // The actual text/element on page
+    suggestion: string,               // Copy-paste ready, NO "Try:" prefix
+    prediction: {
+      metric: MetricType,             // "bounce_rate", "conversion_rate", etc.
+      direction: "up" | "down",
+      range: string,                  // "8-15%"
+      friendlyText: string            // "Visitors actually stick around" (emotional stakes)
+    },
+    assumption: string,               // Why this matters (expandable)
+    methodology: string,              // Framework used (expandable)
+    impact: "high" | "medium" | "low"
   }],
-  summary: string,
-  topActions: [{ action: string, impact: string }]
+  summary: string
 }
 ```
 
-### Post-analysis output schema (re-scans)
+**Scheduled scan / N+1 (ChangesSummary):**
 ```typescript
 {
-  findings_evaluations: [{
+  verdict: string,                    // e.g. "You made 2 changes. One helped."
+  changes: [{
+    element: string,
+    description: string,
+    before: string,
+    after: string,
+    detectedAt: string
+  }],
+  suggestions: [{
     title: string,
     element: string,
-    previous_status: "issue" | "suggestion",
-    evaluation: "resolved" | "improved" | "unchanged" | "regressed" | "new",
-    quality_assessment: string,  // WHY this evaluation (nuanced quality judgment)
-    detail: string
+    observation: string,
+    prediction: Prediction,
+    suggestedFix: string,
+    impact: "high" | "medium" | "low"
   }],
-  score_delta: number,
-  category_deltas: [{ name, previous, current, delta }],
-  running_summary: string,
+  correlation: {
+    hasEnoughData: boolean,
+    insights: string,
+    metrics: [{
+      name: string,
+      friendlyName: string,
+      before: number,
+      after: number,
+      change: string,                 // "+12%" or "-8%"
+      assessment: "improved" | "regressed" | "neutral"
+    }]
+  } | null,
   progress: {
-    total_original: number,
-    resolved: number,
-    improved: number,
-    unchanged: number,
-    regressed: number,
-    new_issues: number
+    validated: number,                // Confirmed positive impact
+    watching: number,                 // Collecting data
+    open: number                      // Not yet addressed
   },
-  analytics_insights?: string,  // correlation with metrics (when PostHog connected)
-  metrics_summary?: { pageviews_7d, unique_visitors_7d, bounce_rate_7d }
+  running_summary: string
 }
 ```
 
-### Categories evaluated
+**Note:** Legacy types (`LegacyStructuredOutput`, `LegacyChangesSummary`) exist for the UI during transition. UI update in Phase 2.
+
+### Correlation Logic
+- Adaptive window based on traffic volume
+- High traffic (1000+/day): 2-3 days sufficient
+- Medium traffic (100-500/day): 7 days
+- Low traffic (<100/day): Directional guidance with industry benchmarks
+- LLM decides confidence level based on data available
+
+### Areas evaluated
 1. Messaging & Copy
 2. Call to Action
 3. Trust & Social Proof
 4. Visual Hierarchy
 5. Design Quality
 6. SEO & Metadata
-
-### Evaluation results (completed)
-Tested configs A-E against inkdex.io:
-- **A**: 1 Sonnet 4 call — 78/100, ~$0.04, 31s
-- **B**: 3 Sonnet calls (specialists + orchestrator) — 72/100, ~$0.12, 53s
-- **C**: Sonnet + Haiku formatter — 68/100, ~$0.04, 49s (generic output)
-- **D**: Gemini 3 Pro — **84/100, ~$0.03, 33s** ← winner
-- **E**: Opus 4 — 72/100, ~$0.15, 45s
-Winner: **Gemini 3 Pro** — best quality, lowest cost, fast
 
 ## PostHog Analytics (Site Tracking)
 
@@ -436,15 +499,14 @@ PostHog: 120 queries/hour. Max 6 tool calls per analysis is well within limits.
 **Pattern:** Fire-and-forget (don't block scan pipeline on email delivery)
 
 ### Email Types
-1. **Scan complete** — After scheduled (daily/weekly) scans. Dynamic subject based on score change.
+1. **Scan complete** — After scheduled (daily/weekly) scans. Simple notification with link to results.
 2. **Deploy scan complete** — After GitHub-triggered scans. Includes commit SHA and message.
 3. **Waitlist confirmation** — When someone joins waitlist.
 
 Manual re-scans do NOT trigger emails.
 
 ### Features
-- Dynamic subject lines based on score delta (dropped/improved/stable)
-- Dynamic headlines and CTAs based on whether something changed
+- Simple, clean email templates (scores removed in Phase 2A.1.1)
 - Twitter share link for viral growth
 - Referral hook in waitlist email
 - Email preference toggle in `/settings/integrations`
@@ -518,6 +580,8 @@ src/
 │   │   └── proxy.ts                # updateSession() for proxy
 │   ├── screenshot.ts               # Vultr service client + Supabase upload
 │   ├── posthog-api.ts              # PostHog HogQL client + metrics fetcher
+│   ├── types/
+│   │   └── analysis.ts             # Canonical type definitions (Finding, Prediction, etc.)
 │   ├── email/
 │   │   ├── resend.ts               # Resend client wrapper
 │   │   └── templates.ts            # HTML email templates

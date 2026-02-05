@@ -1,7 +1,55 @@
 # Current Phase: MVP Build
 
+---
+
+## Phase 2A — Vision Pivot: Predictions Not Grades (IN PROGRESS)
+
+Major repositioning from "website grader with scores" to "correlation layer with predictions."
+
+**Full implementation plan:** `phases/vision-pivot.md`
+**Vision details:** `vision.md`
+**Decision rationale:** `decisions.md` D21
+
+### Summary
+
+| Phase | What | Status |
+|-------|------|--------|
+| 1.1 Foundation | Schema migration (types) | **DONE** |
+| 1.2 Foundation | LLM prompts update | **DONE** |
+| 2. Initial Audit | Results page redesign | Not started |
+| 3. Chronicle | N+1 experience | Not started |
+| 4. Dashboard | Activity stream | Not started |
+| 5. Emails | Update templates | Not started |
+| 6. Landing Page | New positioning | Not started |
+
+### Phase 1.1 Completed
+- [x] Created canonical types file (`src/lib/types/analysis.ts`)
+- [x] Removed score display from dashboard and page timeline
+- [x] Deleted leaderboard feature entirely (routes, pages, nav links, sitemap)
+- [x] Removed score fields from API responses
+- [x] Simplified email templates (removed score display)
+- [x] Removed `hide_from_leaderboard` dead code
+- [x] Legacy types kept for UI (will be updated in Phase 2)
+
+### Phase 1.2 Completed
+- [x] Rewrote SYSTEM_PROMPT: predictions not scores, brand voice, FriendlyText
+- [x] Rewrote POST_ANALYSIS_PROMPT: Chronicle format (verdict, changes, suggestions, correlation)
+- [x] New Finding type: id, elementType, prediction with friendlyText
+- [x] New ChangesSummary type: verdict, changes[], suggestions[], correlation, progress
+- [x] MetricType enum for type-safe predictions
+- [x] Renamed: opportunityCount → findingsCount, expectedImpactRange → projectedImpactRange
+- [x] Brand voice: "observant analyst" with Ouch/Aha/Huh emotional register
+- [x] FriendlyText phrases with stakes ("Your button is invisible", "You're losing signups")
+
+### Key Changes (remaining)
+- Chronicle experience for N+1 (Phase 3)
+- Dashboard as activity stream (Phase 4)
+- Results page UI update for new types (Phase 2)
+
+---
+
 ## Phase 1A — Free Audit (DONE)
-The lead magnet. Paste URL → get scored audit.
+The lead magnet. Paste URL → get findings with predictions.
 
 - [x] Next.js app scaffolding (Supabase, Vercel AI SDK, Tailwind)
 - [x] Supabase schema (`analyses` table + `screenshots` storage bucket)
@@ -29,8 +77,9 @@ The activation moment. User fixes their page → re-scans → sees progress.
 - [x] Wire up "Re-scan" button on results page (auth-gated)
 - [x] Magic link endpoint (`POST /api/auth/magic-link`) with origin-validated redirects
 - [x] Auth callback handles `?rescan=` param → auto-creates re-scan after login
-- [x] Before/after comparison view on results page (score delta, finding statuses, category deltas)
+- [x] Before/after comparison view on results page (finding statuses, category deltas)
 - [x] Progress tracking: "2 of 5 issues fixed" with progress bar
+- [x] **UPDATED (Phase 1.1):** Scores removed from UI. Predictions coming in Phase 1.2.
 - [x] Audit prompt upgraded with methodology grounding (PAS, Fogg, Cialdini, Gestalt, etc.)
 - [x] Findings now include `methodology` and `element` fields for trackability
 - [ ] Shareable results card (OG image generation) — carried from 1A
@@ -50,8 +99,9 @@ Foundation for integrations. Users can track pages over time.
 - [x] Auto-update `pages.last_scan_id` when analysis completes
 - [x] Auto-register page on re-scan (bridges 1B → 1C naturally)
 - [x] Scheduled scans — Inngest cron: weekly (Monday 9am UTC) + daily (9am UTC) re-scans
-- [x] Dashboard page (`/dashboard`) — list of monitored pages with scores/deltas
-- [x] Page timeline page (`/pages/[id]`) — all scans, score trend chart, re-scan button, frequency selector
+- [x] Dashboard page (`/dashboard`) — list of monitored pages
+- [x] Page timeline page (`/pages/[id]`) — all scans, re-scan button, frequency selector
+- [ ] **NEEDS UPDATE:** Redesign as activity stream (Phase 2A.4)
 - [x] Results page context — shows "Scan #N of domain.com" with prev/next navigation
 - [x] Email notifications — scan complete emails via Resend (daily/weekly/deploy scans, not manual)
 
@@ -164,20 +214,14 @@ Build after learning from first 50 users.
 
 **Done when:** Someone can pay and use the pro tier.
 
-## Phase 1C-4 — Leaderboard (DONE)
-Public leaderboard showing top-scoring sites with backlinks.
+## Phase 1C-4 — Leaderboard (DELETED)
+~~Public leaderboard showing top-scoring sites with backlinks.~~
 
-- [x] `hide_from_leaderboard` column on `pages` table (opt-out, default: visible)
-- [x] `GET /api/leaderboard` endpoint (top_scores, most_improved categories; month, all_time periods)
-- [x] `/leaderboard` page with tabs and rank badges
-- [x] Leaderboard toggle in `/pages/[id]` settings
-- [x] Links to leaderboard from landing page and dashboard
-
-**Status:** Complete. Public leaderboard with opt-out model.
+**Status:** Deleted in Phase 2A vision pivot. Score-based leaderboard doesn't fit the new predictions model. Code removed: routes, pages, nav links, sitemap entry, `hide_from_leaderboard` column references.
 
 ---
 
-## Phase 1E — SEO Landing Pages (IN PROGRESS)
+## Phase 1E — SEO Landing Pages (PAUSED)
 
 12 SEO landing pages to capture traffic from AI coding tool users.
 
