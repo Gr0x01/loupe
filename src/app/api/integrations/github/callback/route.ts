@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { safeEncrypt } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
         user_id: user.id,
         provider: "github",
         provider_account_id: String(githubUser.id),
-        access_token,
+        access_token: safeEncrypt(access_token),
         scope,
         metadata: {
           username: githubUser.login,

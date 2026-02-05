@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
+import { safeEncrypt } from "@/lib/crypto";
 
 /**
  * POST /api/integrations/supabase/connect
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
 
     const integrationData = {
       provider_account_id: projectRef,
-      access_token: keyToUse,
+      access_token: safeEncrypt(keyToUse),
       metadata: {
         project_url: normalizedUrl,
         key_type: keyType,

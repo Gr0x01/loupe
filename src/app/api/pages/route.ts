@@ -6,6 +6,7 @@ import type {
   ChangesSummary,
   AnalysisResult,
 } from "@/lib/types/analysis";
+import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -236,6 +237,22 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(
+      rateLimitKey(user.id, "pages"),
+      RATE_LIMITS.pages
+    );
+    if (!rateLimit.allowed) {
+      const retryAfter = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfter) },
+        }
+      );
     }
 
     const { url, name, scan_frequency } = await req.json();

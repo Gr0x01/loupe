@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForTokens, getGoogleUserInfo } from "@/lib/google-oauth";
+import { safeEncrypt } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -65,9 +66,9 @@ export async function GET(request: NextRequest) {
         user_id: user.id,
         provider: "ga4",
         provider_account_id: userInfo.id,
-        access_token: tokens.access_token,
+        access_token: safeEncrypt(tokens.access_token),
         metadata: {
-          refresh_token: tokens.refresh_token,
+          refresh_token: tokens.refresh_token ? safeEncrypt(tokens.refresh_token) : null,
           token_expires_at: tokenExpiresAt,
           property_id: null, // Will be set when user selects property
           property_name: null,

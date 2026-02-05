@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * POST /api/feedback
@@ -7,6 +10,30 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function POST(req: NextRequest) {
   try {
+    // Require authentication
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(
+      rateLimitKey(user.id, "feedback"),
+      RATE_LIMITS.feedback
+    );
+    if (!rateLimit.allowed) {
+      const retryAfter = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfter) },
+        }
+      );
+    }
+
     const body = await req.json();
     const { analysisId, findingId, feedbackType, feedbackText } = body;
 
@@ -14,6 +41,22 @@ export async function POST(req: NextRequest) {
     if (!analysisId || !findingId || !feedbackType) {
       return NextResponse.json(
         { error: "analysisId, findingId, and feedbackType are required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate UUID format to prevent injection
+    if (!UUID_RE.test(analysisId)) {
+      return NextResponse.json(
+        { error: "Invalid analysisId format" },
+        { status: 400 }
+      );
+    }
+
+    // Validate findingId format (findings use UUIDs)
+    if (typeof findingId !== "string" || !UUID_RE.test(findingId)) {
+      return NextResponse.json(
+        { error: "Invalid findingId format" },
         { status: 400 }
       );
     }
@@ -42,16 +85,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
-    // Fetch the analysis to get page_id and the finding snapshot
+    // Fetch the analysis and verify ownership
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")
-      .select("id, page_id, structured_output")
+      .select("id, page_id, user_id, structured_output")
       .eq("id", analysisId)
       .single();
 
+    // Check for database error first (don't mask operational errors)
     if (analysisError || !analysis) {
+      if (analysisError) {
+        console.error("Feedback analysis lookup error:", analysisError);
+      }
+      return NextResponse.json(
+        { error: "Analysis not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify user owns this analysis
+    if (!analysis.user_id || analysis.user_id !== user.id) {
       return NextResponse.json(
         { error: "Analysis not found" },
         { status: 404 }

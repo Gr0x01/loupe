@@ -181,6 +181,17 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] Refactored dashboard page to split pages into attention vs watching arrays
 - [x] Added `.zone-header` and `.zone-count` CSS classes
 
+### Security Audit Completed (Feb 2026)
+
+Full security review with fixes:
+- [x] SSRF protection in screenshot service (IPv4 + IPv6 + encoding bypasses)
+- [x] Auth + ownership checks on feedback, analysis, rescan routes
+- [x] Credential encryption (AES-256-GCM) for all integrations
+- [x] Rate limiting on authenticated routes (pages, rescan, feedback)
+- [x] Prompt injection sanitization hardening
+
+See `architecture.md` Security section for details.
+
 ### Key Changes (remaining)
 - Landing page positioning (Phase 6)
 

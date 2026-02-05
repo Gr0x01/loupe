@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshGoogleToken, isTokenExpired } from "@/lib/google-oauth";
+import { safeEncrypt } from "@/lib/crypto";
 
 const GA4_DATA_API_URL = "https://analyticsdata.googleapis.com/v1beta";
 const REQUEST_TIMEOUT_MS = 15000;
@@ -83,13 +84,14 @@ export class GA4Adapter implements AnalyticsProvider {
         .single();
 
       // Update stored tokens in database, preserving existing metadata
+      // Encrypt new tokens before storage
       await this.supabase
         .from("integrations")
         .update({
-          access_token: newTokens.access_token,
+          access_token: safeEncrypt(newTokens.access_token),
           metadata: {
             ...current?.metadata,
-            refresh_token: newTokens.refresh_token || this.credentials.refreshToken,
+            refresh_token: safeEncrypt(newTokens.refresh_token || this.credentials.refreshToken),
             token_expires_at: newExpiresAt,
           },
           updated_at: new Date().toISOString(),

@@ -782,3 +782,56 @@ Note: Post-analysis only runs on re-scans or when analytics connected. First ano
 | Pro (10 pages, weekly + on-demand) | ~$3-5 |
 
 Pro at $19/mo = healthy margins.
+
+---
+
+## Security
+
+### SSRF Protection
+All user-provided URLs are validated before being passed to external services:
+- **Screenshot service** (`src/lib/screenshot.ts`) — `validateUrl()` blocks:
+  - IPv6 addresses (::1, ::ffff: mapped, fe80: link-local, fc/fd unique-local)
+  - IPv4 private networks (127.x, 10.x, 192.168.x, 172.16-31.x)
+  - AWS metadata endpoint (169.254.169.254)
+  - Local domains (*.local, *.internal)
+  - Decimal/hex/octal IP encodings
+- **API routes** (`/api/analyze`, `/api/pages`, `/api/wayback`) — Same validation inline
+- **Note:** DNS rebinding remains a theoretical risk; screenshot service should also enforce at network level
+
+### Credential Encryption
+Integration credentials (API keys, OAuth tokens) are encrypted at rest:
+- **Utility:** `src/lib/crypto.ts` — AES-256-GCM encryption
+- **Format:** `enc:<base64>` prefix for reliable detection
+- **Env var:** `ENCRYPTION_KEY` (64 hex chars / 32 bytes)
+- **Migration:** `safeEncrypt`/`safeDecrypt` handle plaintext→encrypted transition
+- **Affected routes:** supabase/connect, posthog/connect, ga4/callback, github/callback
+- **Decryption:** inngest/functions.ts, analytics/ga4-adapter.ts
+
+### Authentication & Authorization
+- **Feedback route** (`/api/feedback`) — Requires auth + ownership verification
+- **Analysis route** (`/api/analysis/[id]`) — Private analyses (with user_id) only visible to owner
+- **Rescan route** (`/api/rescan`) — Verifies user owns parent analysis
+- **Pages route** (`/api/pages`) — RLS enforces user_id scoping
+
+### Rate Limiting
+- **Anonymous routes** (`/api/analyze`) — IP-based via Supabase RPC (5/hour)
+- **Authenticated routes** — User-based in-memory limiter (`src/lib/rate-limit.ts`):
+  - `/api/pages POST` — 20/hour
+  - `/api/rescan POST` — 30/hour
+  - `/api/feedback POST` — 60/hour
+- **Note:** In-memory limiter is per-instance; not persistent across serverless cold starts
+
+### Prompt Injection Protection
+User feedback is sanitized before injection into LLM prompts:
+- **Utility:** `sanitizeUserInput()` in `src/lib/ai/pipeline.ts`
+- **Filters:** Control chars, XML/HTML tags, backticks, injection phrases ("ignore previous", "system:")
+- **Boundaries:** `<user_feedback_data>` XML tags with explicit "treat as data" instruction
+- **Limits:** 500 char max per field, 10 feedbacks max per scan
+
+### Other Protections
+- **OAuth CSRF** — State tokens in httpOnly cookies for GA4/GitHub
+- **Webhook verification** — GitHub webhooks validated via HMAC-SHA256
+- **SQL injection** — Supabase SDK parameterizes; table names validated via regex
+- **XSS** — React escaping; no dangerouslySetInnerHTML with user input
+- **Open redirect** — Magic link validates redirect against allowed origins
+- **UUID validation** — All ID params validated before queries

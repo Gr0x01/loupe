@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Validate UUID format
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json(
+      { error: "Invalid analysis ID" },
+      { status: 400 }
+    );
+  }
+
   const supabase = createServiceClient();
 
   const { data, error } = await supabase
@@ -15,6 +26,25 @@ export async function GET(
     .single();
 
   if (error || !data) {
+    return NextResponse.json(
+      { error: "Analysis not found" },
+      { status: 404 }
+    );
+  }
+
+  // Get current user (if logged in)
+  let currentUserId: string | null = null;
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    currentUserId = user?.id ?? null;
+  } catch {
+    // Not logged in
+  }
+
+  // Privacy check: If analysis has a user_id, only that user can view it
+  // Analyses without user_id (anonymous/free audits) remain public
+  if (data.user_id && data.user_id !== currentUserId) {
     return NextResponse.json(
       { error: "Analysis not found" },
       { status: 404 }
@@ -50,16 +80,6 @@ export async function GET(
         changed_files: deploy.changed_files || [],
       };
     }
-  }
-
-  // Get current user (if logged in)
-  let currentUserId: string | null = null;
-  try {
-    const authClient = await createClient();
-    const { data: { user } } = await authClient.auth.getUser();
-    currentUserId = user?.id ?? null;
-  } catch {
-    // Not logged in
   }
 
   // Check if this URL is claimed by anyone (for showing/hiding claim form)

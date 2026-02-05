@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
+import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +13,22 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(
+      rateLimitKey(user.id, "rescan"),
+      RATE_LIMITS.rescan
+    );
+    if (!rateLimit.allowed) {
+      const retryAfter = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfter) },
+        }
+      );
     }
 
     const { parentAnalysisId } = await req.json();
@@ -26,14 +43,22 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Validate parent exists and is complete
+    // Validate parent exists, belongs to user, and is complete
     const { data: parent, error: parentError } = await supabase
       .from("analyses")
-      .select("id, url, status")
+      .select("id, url, status, user_id")
       .eq("id", parentAnalysisId)
       .single();
 
     if (parentError || !parent) {
+      return NextResponse.json(
+        { error: "Parent analysis not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify ownership - user can only rescan their own analyses
+    if (parent.user_id && parent.user_id !== user.id) {
       return NextResponse.json(
         { error: "Parent analysis not found" },
         { status: 404 }

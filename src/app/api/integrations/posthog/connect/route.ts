@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { validateCredentials } from "@/lib/posthog-api";
+import { safeEncrypt } from "@/lib/crypto";
 
 /**
  * POST /api/integrations/posthog/connect
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
         .from("integrations")
         .update({
           provider_account_id: projectId,
-          access_token: apiKey,
+          access_token: safeEncrypt(apiKey),
           metadata: { host: host || "https://us.i.posthog.com" },
           updated_at: new Date().toISOString(),
         })
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
           user_id: user.id,
           provider: "posthog",
           provider_account_id: projectId,
-          access_token: apiKey,
+          access_token: safeEncrypt(apiKey),
           metadata: { host: host || "https://us.i.posthog.com" },
         });
 

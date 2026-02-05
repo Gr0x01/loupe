@@ -11,6 +11,7 @@ import {
   weeklyDigestEmail,
 } from "@/lib/email/templates";
 import type { ChangesSummary, ChronicleSuggestion } from "@/lib/types/analysis";
+import { safeDecrypt } from "@/lib/crypto";
 
 /**
  * Extract top suggestion from changes_summary (Chronicle) or structured_output (initial audit)
@@ -170,7 +171,7 @@ export const analyzeUrl = inngest.createFunction(
         if (posthogIntegration) {
           analyticsCredentials = {
             type: "posthog",
-            apiKey: posthogIntegration.access_token,
+            apiKey: safeDecrypt(posthogIntegration.access_token),
             projectId: posthogIntegration.provider_account_id,
             host: posthogIntegration.metadata?.host,
           };
@@ -188,8 +189,8 @@ export const analyzeUrl = inngest.createFunction(
           if (ga4Integration?.metadata?.property_id) {
             analyticsCredentials = {
               type: "ga4",
-              accessToken: ga4Integration.access_token,
-              refreshToken: ga4Integration.metadata.refresh_token,
+              accessToken: safeDecrypt(ga4Integration.access_token),
+              refreshToken: safeDecrypt(ga4Integration.metadata.refresh_token),
               tokenExpiresAt: ga4Integration.metadata.token_expires_at,
               propertyId: ga4Integration.metadata.property_id,
               integrationId: ga4Integration.id,
@@ -216,7 +217,7 @@ export const analyzeUrl = inngest.createFunction(
           databaseCredentials = {
             type: "supabase",
             projectUrl: supabaseIntegration.metadata.project_url,
-            accessToken: supabaseIntegration.access_token,
+            accessToken: safeDecrypt(supabaseIntegration.access_token),
             keyType: supabaseIntegration.metadata.key_type || "anon",
           };
         }
