@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -963,63 +964,65 @@ function PdfDownloadButton({
         Download PDF
       </button>
 
-      {/* Email capture modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={() => setShowModal(false)}
-        >
+      {/* Email capture modal - rendered via portal to escape stacking contexts */}
+      {showModal && typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="glass-card-elevated p-6 max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowModal(false)}
           >
-            <h3
-              className="text-xl font-bold text-text-primary mb-2"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+            <div
+              className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
             >
-              Download your audit
-            </h3>
-            <p className="text-sm text-text-secondary mb-4">
-              Get a PDF copy of this audit to share with your team.
-            </p>
+              <h3
+                className="text-xl font-bold text-text-primary mb-2"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                Download your audit
+              </h3>
+              <p className="text-sm text-text-secondary mb-4">
+                Get a PDF copy of this audit to share with your team.
+              </p>
 
-            <form onSubmit={handleDownload} className="space-y-3">
-              <div>
-                <label htmlFor="pdf-email" className="text-xs text-text-muted block mb-1">
-                  Email (optional — for follow-up tips)
-                </label>
-                <input
-                  id="pdf-email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input-glass w-full"
-                />
-              </div>
+              <form onSubmit={handleDownload} className="space-y-3">
+                <div>
+                  <label htmlFor="pdf-email" className="text-xs text-text-muted block mb-1">
+                    Email (optional — for follow-up tips)
+                  </label>
+                  <input
+                    id="pdf-email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="input-glass w-full"
+                  />
+                </div>
 
-              {error && <p className="text-xs text-score-low">{error}</p>}
+                {error && <p className="text-xs text-score-low">{error}</p>}
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="btn-secondary flex-1"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn-primary flex-1"
-                >
-                  {loading ? "Generating..." : "Download"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn-primary flex-1"
+                  >
+                    {loading ? "Generating..." : "Download"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
@@ -1831,42 +1834,26 @@ export default function AnalysisPage() {
             )}
           </div>
 
-          {/* Footer links with social share */}
-          <div className="flex items-center justify-center gap-4 text-sm text-text-muted mt-6 flex-wrap">
+          {/* Footer actions */}
+          <div className="flex items-center justify-center gap-3 text-sm text-text-muted mt-6">
             <button
               onClick={handleShareLink}
-              className="hover:text-accent transition-colors flex items-center gap-1.5"
+              className="hover:text-accent transition-colors"
             >
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M6 10l4-4m0 0H7m3 0v3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M14 8v5a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1h5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
               {linkCopied ? "Copied!" : "Copy link"}
             </button>
+            <span className="text-border-subtle">·</span>
             <a
               href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                `"${s.verdict}"\n\nGot this from my @getloupe audit. Free page analysis:`
+                `"${s.verdict}"\n\nGot this from my @getloupe audit:`
               )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-accent transition-colors flex items-center gap-1.5"
+              className="hover:text-accent transition-colors"
             >
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M9.52 6.775l4.898-5.695h-1.16L9.01 5.9 6.05 1.08H1.78l5.14 7.48-5.14 5.96h1.16l4.49-5.22 3.59 5.22h4.27L9.52 6.775zm-1.59 1.848l-.52-.745-4.14-5.92h1.78l3.34 4.78.52.745 4.34 6.21h-1.78l-3.54-5.07z"/>
-              </svg>
-              Share on X
+              Post on X
             </a>
-            <a
-              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-accent transition-colors flex items-center gap-1.5"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/>
-              </svg>
-              LinkedIn
-            </a>
+            <span className="text-border-subtle">·</span>
             <PdfDownloadButton
               analysis={{
                 id: analysis.id,
@@ -1875,15 +1862,11 @@ export default function AnalysisPage() {
                 structured_output: s,
               }}
             />
+            <span className="text-border-subtle">·</span>
             <Link href="/" className="hover:text-accent transition-colors">
-              Audit another page
+              New audit
             </Link>
           </div>
-
-          {/* Timestamp */}
-          <p className="text-xs text-text-muted text-center mt-4">
-            Snapshot from {new Date(analysis.created_at).toLocaleDateString()}
-          </p>
         </section>
       </div>
 
