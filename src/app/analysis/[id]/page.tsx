@@ -427,14 +427,70 @@ function NewHeroSection({
   );
 }
 
-// Finding Card for prediction-based format
-function FindingCard({
+// Collapsed Finding Card - compact for 2-column grid
+function CollapsedFindingCard({
   finding,
-  expanded,
   onToggle,
 }: {
   finding: Finding;
-  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggle();
+    }
+  };
+
+  return (
+    <div
+      className="finding-card-collapsed group"
+      onClick={onToggle}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-expanded={false}
+      aria-label={`${finding.title}. ${finding.impact} impact. Click to expand.`}
+    >
+      {/* Top row: Impact badge + expand hint */}
+      <div className="flex items-center justify-between mb-3">
+        <span className={getImpactBadgeClass(finding.impact)}>
+          {finding.impact.toUpperCase()}
+        </span>
+        <span className="text-xs text-text-muted opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+          View fix
+          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </div>
+
+      {/* Title */}
+      <h3
+        className="text-lg font-bold text-text-primary leading-snug line-clamp-2 mb-3 group-hover:text-accent transition-colors"
+        style={{ fontFamily: "var(--font-instrument-serif)" }}
+      >
+        {finding.title}
+      </h3>
+
+      {/* Prediction - just the uplift number, clean */}
+      <div className="mt-auto flex items-center gap-2 text-score-high">
+        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="2 12 6 8 9 11 14 4" />
+          <polyline points="10 4 14 4 14 8" />
+        </svg>
+        <span className="font-semibold">+{finding.prediction.range}</span>
+      </div>
+    </div>
+  );
+}
+
+// Expanded Finding Card - full-width with 2-column interior
+function ExpandedFindingCard({
+  finding,
+  onToggle,
+}: {
+  finding: Finding;
   onToggle: () => void;
 }) {
   const [suggestionCopied, setSuggestionCopied] = useState(false);
@@ -448,13 +504,6 @@ function FindingCard({
     setTimeout(() => setSuggestionCopied(false), 2000);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onToggle();
-    }
-  };
-
   const impactLabel = {
     high: "HIGH IMPACT",
     medium: "MEDIUM IMPACT",
@@ -463,131 +512,77 @@ function FindingCard({
 
   const elementIcon = ELEMENT_ICONS[finding.elementType] || ELEMENT_ICONS.other;
 
-  // Collapsed view shows title + prediction
-  if (!expanded) {
-    return (
-      <div
-        className="new-finding-card new-finding-card-collapsed group cursor-pointer"
-        onClick={onToggle}
-        onKeyDown={handleKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-expanded={false}
-        aria-label={`${finding.title}. ${finding.impact} impact. Click to expand.`}
-      >
-        <div className="flex items-center gap-3">
-          <span className={getImpactBadgeClass(finding.impact)}>
-            {finding.impact.toUpperCase()}
-          </span>
-          <p
-            className="flex-1 text-base font-semibold text-text-primary leading-snug"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
-            {finding.title}
-          </p>
-          <div className="prediction-badge-mini">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="2 12 6 8 9 11 14 4" />
-              <polyline points="10 4 14 4 14 8" />
-            </svg>
-            <span>+{finding.prediction.range}</span>
-          </div>
-          <svg
-            className="w-5 h-5 text-text-muted transition-transform"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="5 8 10 13 15 8" />
-          </svg>
-        </div>
-      </div>
-    );
-  }
-
-  // Expanded view
   return (
     <div className="new-finding-card new-finding-card-expanded">
-      {/* Header with impact badge */}
-      <div
-        className="flex items-center justify-between mb-4 cursor-pointer"
-        onClick={onToggle}
-        onKeyDown={handleKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-expanded={true}
-        aria-label="Click to collapse finding"
-      >
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-5">
         <span className={getImpactBadgeClass(finding.impact)}>
           {impactLabel}
         </span>
-        <svg
-          className="w-5 h-5 text-text-muted rotate-180 transition-transform"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <button
+          onClick={onToggle}
+          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-[rgba(0,0,0,0.04)] transition-colors"
+          aria-label="Close"
         >
-          <polyline points="5 8 10 13 15 8" />
-        </svg>
+          <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 6l8 8M14 6l-8 8" />
+          </svg>
+        </button>
       </div>
 
       {/* Title */}
       <h3
-        className="text-xl font-bold text-text-primary mb-5"
+        className="text-2xl font-bold text-text-primary mb-6"
         style={{ fontFamily: "var(--font-instrument-serif)" }}
       >
         {finding.title}
       </h3>
 
-      {/* Current value block */}
-      <div className="new-finding-current mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="new-finding-element-icon">{elementIcon}</span>
-          <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Current</span>
+      {/* Two-column content: Current | Suggestion */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+        {/* Left: Current */}
+        <div className="new-finding-current">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="new-finding-element-icon">{elementIcon}</span>
+            <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Current</span>
+          </div>
+          <p className="text-base text-text-secondary leading-relaxed">
+            &ldquo;{finding.currentValue}&rdquo;
+          </p>
         </div>
-        <p className="text-base text-text-secondary leading-relaxed">
-          &ldquo;{finding.currentValue}&rdquo;
-        </p>
-      </div>
 
-      {/* Suggestion block */}
-      <div className="new-finding-suggestion mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-accent uppercase tracking-wide">Suggestion</span>
-          <button
-            onClick={handleCopySuggestion}
-            className="new-finding-copy-btn"
-            title={suggestionCopied ? "Copied!" : "Copy suggestion"}
-            aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion to clipboard"}
+        {/* Right: Suggestion */}
+        <div className="new-finding-suggestion">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-accent uppercase tracking-wide">Suggestion</span>
+            <button
+              onClick={handleCopySuggestion}
+              className="new-finding-copy-btn"
+              title={suggestionCopied ? "Copied!" : "Copy suggestion"}
+              aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion to clipboard"}
+            >
+              {suggestionCopied ? (
+                <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                  <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <p
+            className="text-base font-semibold text-text-primary leading-relaxed"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
-            {suggestionCopied ? (
-              <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-              </svg>
-            )}
-          </button>
+            &ldquo;{finding.suggestion}&rdquo;
+          </p>
         </div>
-        <p
-          className="text-base font-semibold text-text-primary leading-relaxed"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
-        >
-          &ldquo;{finding.suggestion}&rdquo;
-        </p>
       </div>
 
-      {/* Prediction line */}
+      {/* Prediction line - full width */}
       <div className="prediction-badge mb-5">
         <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="2 12 6 8 9 11 14 4" />
@@ -598,7 +593,7 @@ function FindingCard({
       </div>
 
       {/* Expandable sections */}
-      <div className="flex items-center gap-3 pt-3 border-t border-border-outer">
+      <div className="flex items-center gap-3 pt-4 border-t border-border-outer">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -639,14 +634,14 @@ function FindingCard({
 
       {/* Assumption expanded content */}
       {assumptionOpen && (
-        <div className="mt-3 p-3 bg-[rgba(0,0,0,0.02)] rounded-lg">
+        <div className="mt-3 p-4 bg-[rgba(0,0,0,0.02)] rounded-lg">
           <p className="text-sm text-text-secondary leading-relaxed">{finding.assumption}</p>
         </div>
       )}
 
       {/* Methodology expanded content */}
       {methodologyOpen && (
-        <div className="mt-3 p-3 bg-[rgba(0,0,0,0.02)] rounded-lg">
+        <div className="mt-3 p-4 bg-[rgba(0,0,0,0.02)] rounded-lg">
           <p className="text-sm text-text-secondary leading-relaxed">{finding.methodology}</p>
         </div>
       )}
@@ -654,23 +649,12 @@ function FindingCard({
   );
 }
 
-// Findings Section for new format
+// Findings Section for new format - 2-column grid layout
 function FindingsSection({ findings }: { findings: Finding[] }) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    // First finding expanded by default
-    new Set(findings[0] ? [findings[0].id] : [])
-  );
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const toggleFinding = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+    setExpandedId((prev) => (prev === id ? null : id));
   };
 
   if (findings.length === 0) return null;
@@ -691,15 +675,28 @@ function FindingsSection({ findings }: { findings: Finding[] }) {
         </div>
       </div>
 
-      <div className="space-y-3">
-        {findings.map((finding) => (
-          <FindingCard
-            key={finding.id}
-            finding={finding}
-            expanded={expandedIds.has(finding.id)}
-            onToggle={() => toggleFinding(finding.id)}
-          />
-        ))}
+      <div className="findings-grid">
+        {findings.map((finding) => {
+          const isExpanded = expandedId === finding.id;
+          return (
+            <div
+              key={finding.id}
+              className={isExpanded ? "findings-grid-item-expanded" : ""}
+            >
+              {isExpanded ? (
+                <ExpandedFindingCard
+                  finding={finding}
+                  onToggle={() => toggleFinding(finding.id)}
+                />
+              ) : (
+                <CollapsedFindingCard
+                  finding={finding}
+                  onToggle={() => toggleFinding(finding.id)}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
