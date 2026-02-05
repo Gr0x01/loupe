@@ -686,7 +686,7 @@ function FindingsSection({ findings }: { findings: Finding[] }) {
   );
 }
 
-// Wayback Preview — shows historical snapshots to demonstrate tracking value
+// Bottom Line Section — merged Summary + Wayback value bridge
 interface WaybackSnapshot {
   timestamp: string;
   original: string;
@@ -695,7 +695,7 @@ interface WaybackSnapshot {
   date: string;
 }
 
-function WaybackPreview({ url }: { url: string }) {
+function BottomLineSection({ url, summary, screenshotUrl }: { url: string; summary?: string; screenshotUrl?: string | null }) {
   const [snapshots, setSnapshots] = useState<WaybackSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -727,30 +727,65 @@ function WaybackPreview({ url }: { url: string }) {
     return () => controller.abort();
   }, [url]);
 
+  // Shared header with summary lead-in
+  const renderHeader = () => (
+    <div className="text-center max-w-2xl mx-auto mb-8">
+      <p className="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-4">
+        The bottom line
+      </p>
+      {summary && (
+        <blockquote className="relative mb-8">
+          <span
+            className="absolute -top-2 left-1/2 -translate-x-1/2 text-5xl text-accent opacity-10 select-none leading-none pointer-events-none"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            aria-hidden="true"
+          >
+            "
+          </span>
+          <p
+            className="text-xl lg:text-2xl text-text-primary leading-relaxed pt-4"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            {summary}
+          </p>
+        </blockquote>
+      )}
+    </div>
+  );
+
   // Show mock timeline if no Wayback history
   if (error || (!loading && snapshots.length === 0)) {
     return (
       <section className="result-section">
-        <div className="section-header">
+        {renderHeader()}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-start">
+          {/* Today's screenshot first */}
           <div>
-            <h2
-              className="text-4xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              Your page, tracked over time
-            </h2>
-            <p className="text-sm text-text-muted mt-1">
-              This is what Loupe does — but with metrics attached
-            </p>
+            <div className="aspect-[4/3] rounded-lg bg-bg-inset border-2 border-accent overflow-hidden">
+              {screenshotUrl ? (
+                <img
+                  src={screenshotUrl}
+                  alt="Today's snapshot"
+                  className="w-full h-full object-cover object-top"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-accent text-center mt-2 font-medium">Today</p>
           </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {["6 months ago", "3 months ago", "1 month ago", "Today"].map((label, i) => (
-            <div key={i} className="relative">
-              <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
+          {/* Placeholder past snapshots */}
+          {["1 month from now", "3 months", "6 months"].map((label, i) => (
+            <div key={i}>
+              <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden relative">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-border-subtle/60 animate-pulse" />
+                  <div className="w-10 h-10 rounded-full bg-border-subtle/50" />
                 </div>
               </div>
               <p className="text-xs text-text-muted text-center mt-2">{label}</p>
@@ -758,7 +793,9 @@ function WaybackPreview({ url }: { url: string }) {
           ))}
         </div>
         <p className="text-sm text-text-secondary text-center mt-6">
-          When you make changes, we&apos;ll show you what improved — and what didn&apos;t.
+          <a href="#claim-cta" className="text-accent hover:underline font-medium">Track this page</a>
+          <span className="mx-1">—</span>
+          we&apos;ll show you what moved.
         </p>
       </section>
     );
@@ -767,16 +804,7 @@ function WaybackPreview({ url }: { url: string }) {
   if (loading) {
     return (
       <section className="result-section">
-        <div className="section-header">
-          <div>
-            <h2
-              className="text-4xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              Your page over time
-            </h2>
-          </div>
-        </div>
+        {renderHeader()}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="aspect-[4/3] rounded-lg bg-bg-inset animate-pulse" />
@@ -786,41 +814,47 @@ function WaybackPreview({ url }: { url: string }) {
     );
   }
 
+  // Show Today first, then 3 Wayback snapshots (going back in time)
+  const displaySnapshots = snapshots.slice(0, 3);
+
   return (
     <section className="result-section">
-      <div className="section-header">
+      {renderHeader()}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-start">
+        {/* Today's screenshot first */}
         <div>
-          <h2
-            className="text-4xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
-            Your page over time
-          </h2>
-          <p className="text-sm text-text-muted mt-1">
-            Here&apos;s how it looked before. Imagine knowing which changes helped.
-          </p>
+          <div className="aspect-[4/3] rounded-lg bg-bg-inset border-2 border-accent overflow-hidden">
+            {screenshotUrl ? (
+              <img
+                src={screenshotUrl}
+                alt="Today's snapshot"
+                className="w-full h-full object-cover object-top"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-accent text-center mt-2 font-medium">Today</p>
         </div>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {snapshots.map((snapshot, i) => (
+        {/* Historical snapshots */}
+        {displaySnapshots.map((snapshot, i) => (
           <a
             key={i}
             href={snapshot.snapshotUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative block"
+            className="group block"
           >
             <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden transition-all group-hover:border-accent group-hover:shadow-lg">
               {failedImages.has(snapshot.timestamp) ? (
                 <div className="w-full h-full flex items-center justify-center bg-bg-inset">
-                  <div className="text-center">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-border-subtle/60 flex items-center justify-center">
-                      <svg className="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <p className="text-xs text-text-muted">Preview unavailable</p>
-                  </div>
+                  <div className="w-10 h-10 rounded-full bg-border-subtle/50" />
                 </div>
               ) : (
                 <img
@@ -833,7 +867,6 @@ function WaybackPreview({ url }: { url: string }) {
                   }}
                 />
               )}
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30 group-hover:to-black/40 transition-colors" />
             </div>
             <p className="text-xs text-text-muted text-center mt-2 group-hover:text-accent transition-colors">
               {snapshot.date}
@@ -842,7 +875,9 @@ function WaybackPreview({ url }: { url: string }) {
         ))}
       </div>
       <p className="text-sm text-text-secondary text-center mt-6">
-        This is what Loupe does — but we track the <span className="font-semibold">metrics</span> too.
+        <a href="#claim-cta" className="text-accent hover:underline font-medium">Track this page</a>
+        <span className="mx-1">—</span>
+        we&apos;ll show you what moved.
       </p>
     </section>
   );
@@ -1631,38 +1666,10 @@ export default function AnalysisPage() {
           </>
         )}
 
-        {/* Summary Section */}
-        {s.summary && (
-          <>
-            <section className="result-section">
-              <div className="section-header">
-                <div>
-                  <h2
-                    className="text-4xl font-bold text-text-primary"
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    Summary
-                  </h2>
-                </div>
-              </div>
-              <div className="pull-quote-card">
-                <p
-                  className="text-lg text-text-primary leading-relaxed"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  {s.summary}
-                </p>
-              </div>
-            </section>
-
-            <hr className="section-divider" />
-          </>
-        )}
-
-        {/* Wayback Preview — value bridge before signup (only for unclaimed initial audits) */}
+        {/* Bottom Line — merged Summary + Wayback value bridge (only for unclaimed initial audits) */}
         {!analysis.claim_status?.claimed_by_current_user && !analysis.claim_status?.is_claimed && (
           <>
-            <WaybackPreview url={analysis.url} />
+            <BottomLineSection url={analysis.url} summary={s.summary} screenshotUrl={analysis.screenshot_url} />
             <hr className="section-divider" />
           </>
         )}
