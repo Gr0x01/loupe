@@ -20,3 +20,10 @@ npm-debug.log*
 # temp
 /tmp
 /tmp/*   
+# Test artifacts
+playwright-report/
+test-results/
+_screenshot.cjs
+
+# Dev scripts
+scripts/
