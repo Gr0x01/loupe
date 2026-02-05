@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageLoader } from "@/components/PageLoader";
+import { createClient } from "@/lib/supabase/client";
 
 interface GitHubRepo {
   id: number;
@@ -760,9 +761,10 @@ function SupabaseConnectModal({
   );
 }
 
-function IntegrationsContent() {
+function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
   const [integrations, setIntegrations] = useState<IntegrationsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -778,6 +780,8 @@ function IntegrationsContent() {
   const [disconnectingSupabase, setDisconnectingSupabase] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [togglingEmail, setTogglingEmail] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Show success/error messages from OAuth callback
   const successParam = searchParams.get("success");
@@ -816,9 +820,15 @@ function IntegrationsContent() {
     }
   };
 
+  const fetchUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setUserEmail(user?.email ?? null);
+  };
+
   useEffect(() => {
     fetchIntegrations();
     fetchProfile();
+    fetchUser();
   }, []);
 
   // Open property selection modal if pending=ga4 in URL (after OAuth)
@@ -981,6 +991,12 @@ function IntegrationsContent() {
     }
   };
 
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
   if (loading) {
     return <PageLoader />;
   }
@@ -988,17 +1004,14 @@ function IntegrationsContent() {
   return (
     <>
       <div className="max-w-2xl mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="mb-8">
+        {/* Page Header */}
+        <div className="mb-10">
           <h1
             className="text-4xl font-bold text-text-primary"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
-            Integrations
+            Settings
           </h1>
-          <p className="text-text-secondary mt-1">
-            Connect your tools to auto-scan after deploys
-          </p>
         </div>
 
         {/* Success/Error messages */}
@@ -1034,434 +1047,495 @@ function IntegrationsContent() {
           </div>
         )}
 
-        {/* GitHub Integration */}
-        <section className="mb-8">
-          <div className="glass-card-elevated p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#24292e] flex items-center justify-center flex-shrink-0">
-                  <GitHubIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+        {/* ===== INTEGRATIONS SECTION ===== */}
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-6">
+            <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+              Integrations
+            </h2>
+          </div>
+
+          {/* GitHub Integration */}
+          <section className="mb-4">
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#24292e] flex items-center justify-center flex-shrink-0">
+                    <GitHubIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-semibold text-text-primary">GitHub</h3>
+                    <p className="text-sm text-text-secondary">
+                      Auto-scan pages when you push to main
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">GitHub</h2>
-                  <p className="text-sm text-text-secondary">
-                    Auto-scan pages when you push to main
-                  </p>
-                </div>
+
+                {!integrations?.github ? (
+                  <button onClick={handleConnectGitHub} className="btn-primary w-full sm:w-auto">
+                    Connect
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDisconnectGitHub}
+                    disabled={disconnectingGitHub}
+                    className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
+                  >
+                    {disconnectingGitHub ? "Disconnecting..." : "Disconnect"}
+                  </button>
+                )}
               </div>
 
-              {!integrations?.github ? (
-                <button onClick={handleConnectGitHub} className="btn-primary w-full sm:w-auto">
-                  Connect
-                </button>
-              ) : (
-                <button
-                  onClick={handleDisconnectGitHub}
-                  disabled={disconnectingGitHub}
-                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
-                >
-                  {disconnectingGitHub ? "Disconnecting..." : "Disconnect"}
-                </button>
-              )}
-            </div>
-
-            {integrations?.github && (
-              <div className="mt-6 pt-6 border-t border-border-subtle">
-                {/* Connected account */}
-                <div className="flex items-center gap-3 mb-6">
-                  {integrations.github.avatar_url && (
-                    <img
-                      src={integrations.github.avatar_url}
-                      alt=""
-                      className="w-8 h-8 rounded-full"
-                    />
-                  )}
-                  <div>
-                    <p className="font-medium text-text-primary">
-                      @{integrations.github.username}
-                    </p>
-                    <p className="text-xs text-text-muted">Connected</p>
-                  </div>
-                </div>
-
-                {/* Connected repos */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
-                      Watching {integrations.github.repos.length}/1 repo
-                    </h3>
-                    {integrations.github.repos.length < 1 && (
-                      <button
-                        onClick={() => setShowAddRepo(true)}
-                        className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
-                      >
-                        + Add repo
-                      </button>
+              {integrations?.github && (
+                <div className="mt-6 pt-6 border-t border-border-subtle">
+                  {/* Connected account */}
+                  <div className="flex items-center gap-3 mb-6">
+                    {integrations.github.avatar_url && (
+                      <img
+                        src={integrations.github.avatar_url}
+                        alt=""
+                        className="w-8 h-8 rounded-full"
+                      />
                     )}
-                  </div>
-
-                  {integrations.github.repos.length === 0 ? (
-                    <div className="glass-card p-6 text-center">
-                      <p className="text-text-secondary mb-4">
-                        No repos connected yet. Add one to start auto-scanning.
+                    <div>
+                      <p className="font-medium text-text-primary">
+                        @{integrations.github.username}
                       </p>
-                      <button
-                        onClick={() => setShowAddRepo(true)}
-                        className="btn-secondary"
-                      >
-                        Add a repository
-                      </button>
+                      <p className="text-xs text-text-muted">Connected</p>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {integrations.github.repos.map((repo) => (
-                        <RepoCard
-                          key={repo.id}
-                          repo={repo}
-                          onDisconnect={handleDisconnectRepo}
-                          disconnecting={disconnecting === repo.id}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* How it works */}
-                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
-                  <p className="text-sm text-text-secondary">
-                    <span className="font-medium text-text-primary">How it works:</span>{" "}
-                    When you push to the default branch, we wait 45 seconds for your deploy to finish, then scan all pages linked to the repo.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* PostHog Integration */}
-        <section className="mb-8">
-          <div className="glass-card-elevated p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
-                  <svg className="w-8 h-5" viewBox="0 0 50 30" fill="none">
-                    <path d="M10.8914 17.2057c-.3685.7371-1.42031.7371-1.78884 0L8.2212 15.443c-.14077-.2815-.14077-.6129 0-.8944l.88136-1.7627c.36853-.7371 1.42034-.7371 1.78884 0l.8814 1.7627c.1407.2815.1407.6129 0 .8944l-.8814 1.7627zM10.8914 27.2028c-.3685.737-1.42031.737-1.78884 0L8.2212 25.44c-.14077-.2815-.14077-.6129 0-.8944l.88136-1.7627c.36853-.7371 1.42034-.7371 1.78884 0l.8814 1.7627c.1407.2815.1407.6129 0 .8944l-.8814 1.7628z" fill="#1D4AFF"/>
-                    <path d="M0 23.4082c0-.8909 1.07714-1.3371 1.70711-.7071l4.58338 4.5834c.62997.63.1838 1.7071-.7071 1.7071H.999999c-.552284 0-.999999-.4477-.999999-1v-4.5834zm0-4.8278c0 .2652.105357.5196.292893.7071l9.411217 9.4112c.18753.1875.44189.2929.70709.2929h5.1692c.8909 0 1.3371-1.0771.7071-1.7071L1.70711 12.7041C1.07714 12.0741 0 12.5203 0 13.4112v5.1692zm0-9.99701c0 .26521.105357.51957.292893.7071L19.7011 28.6987c.1875.1875.4419.2929.7071.2929h5.1692c.8909 0 1.3371-1.0771.7071-1.7071L1.70711 2.70711C1.07715 2.07715 0 2.52331 0 3.41421v5.16918zm9.997 0c0 .26521.1054.51957.2929.7071l17.994 17.99401c.63.63 1.7071.1838 1.7071-.7071v-5.1692c0-.2652-.1054-.5196-.2929-.7071l-17.994-17.994c-.63-.62996-1.7071-.18379-1.7071.70711v5.16918zm11.7041-5.87628c-.63-.62997-1.7071-.1838-1.7071.7071v5.16918c0 .26521.1054.51957.2929.7071l7.997 7.99701c.63.63 1.7071.1838 1.7071-.7071v-5.1692c0-.2652-.1054-.5196-.2929-.7071l-7.997-7.99699z" fill="#F9BD2B"/>
-                    <path d="M42.5248 23.5308l-9.4127-9.4127c-.63-.63-1.7071-.1838-1.7071.7071v13.1664c0 .5523.4477 1 1 1h14.5806c.5523 0 1-.4477 1-1v-1.199c0-.5523-.4496-.9934-.9973-1.0647-1.6807-.2188-3.2528-.9864-4.4635-2.1971zm-6.3213 2.2618c-.8829 0-1.5995-.7166-1.5995-1.5996 0-.8829.7166-1.5995 1.5995-1.5995.883 0 1.5996.7166 1.5996 1.5995 0 .883-.7166 1.5996-1.5996 1.5996z" fill="#000"/>
-                    <path d="M0 27.9916c0 .5523.447715 1 1 1h4.58339c.8909 0 1.33707-1.0771.70711-1.7071l-4.58339-4.5834C1.07714 22.0711 0 22.5173 0 23.4082v4.5834zM9.997 10.997L1.70711 2.70711C1.07714 2.07714 0 2.52331 0 3.41421v5.16918c0 .26521.105357.51957.292893.7071L9.997 18.9946V10.997zM1.70711 12.7041C1.07714 12.0741 0 12.5203 0 13.4112v5.1692c0 .2652.105357.5196.292893.7071L9.997 28.9916V20.994l-8.28989-8.2899z" fill="#1D4AFF"/>
-                    <path d="M19.994 11.4112c0-.2652-.1053-.5196-.2929-.7071l-7.997-7.99699c-.6299-.62997-1.70709-.1838-1.70709.7071v5.16918c0 .26521.10539.51957.29289.7071l9.7041 9.70411v-7.5834zM9.99701 28.9916h5.58339c.8909 0 1.3371-1.0771.7071-1.7071L9.99701 20.994v7.9976zM9.99701 10.997v7.5834c0 .2652.10539.5196.29289.7071l9.7041 9.7041v-7.5834c0-.2652-.1053-.5196-.2929-.7071L9.99701 10.997z" fill="#F54E00"/>
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">PostHog</h2>
-                  <p className="text-sm text-text-secondary">
-                    See pageviews and bounce rate with each scan
-                  </p>
-                </div>
-              </div>
-
-              {!integrations?.posthog ? (
-                <button
-                  onClick={() => setShowPostHogConnect(true)}
-                  className="btn-primary w-full sm:w-auto"
-                >
-                  Connect
-                </button>
-              ) : (
-                <button
-                  onClick={handleDisconnectPostHog}
-                  disabled={disconnectingPostHog}
-                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
-                >
-                  {disconnectingPostHog ? "Disconnecting..." : "Disconnect"}
-                </button>
-              )}
-            </div>
-
-            {integrations?.posthog && (
-              <div className="mt-6 pt-6 border-t border-border-subtle">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-[#1d4aff] flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">P</span>
                   </div>
-                  <div>
-                    <p className="font-medium text-text-primary">
-                      Project {integrations.posthog.project_id}
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      {integrations.posthog.host.replace("https://", "")}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
-                  <p className="text-sm text-text-secondary">
-                    <span className="font-medium text-text-primary">How it works:</span>{" "}
-                    We'll pull your analytics so you can see if changes actually moved the&nbsp;needle.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Google Analytics 4 Integration */}
-        <section className="mb-8">
-          <div className="glass-card-elevated p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
-                  <svg className="w-6 h-6" viewBox="0 0 55.273 64" fill="none">
-                    <g transform="matrix(.363638 0 0 .363636 -7.272763 -2.909091)">
-                      <path d="M130 29v132c0 14.77 10.2 23 21 23 10 0 21-7 21-23V30c0-13.54-10-22-21-22s-21 9.33-21 21z" fill="#f9ab00"/>
-                      <g fill="#e37400">
-                        <path d="M75 96v65c0 14.77 10.2 23 21 23 10 0 21-7 21-23V97c0-13.54-10-22-21-22s-21 9.33-21 21z"/>
-                        <circle cx="41" cy="163" r="21"/>
-                      </g>
-                    </g>
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">Google Analytics 4</h2>
-                  <p className="text-sm text-text-secondary">
-                    See pageviews and bounce rate with each scan
-                  </p>
-                </div>
-              </div>
-
-              {!integrations?.ga4 ? (
-                <button onClick={handleConnectGA4} className="btn-primary w-full sm:w-auto">
-                  Connect
-                </button>
-              ) : (
-                <button
-                  onClick={handleDisconnectGA4}
-                  disabled={disconnectingGA4}
-                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
-                >
-                  {disconnectingGA4 ? "Disconnecting..." : "Disconnect"}
-                </button>
-              )}
-            </div>
-
-            {integrations?.ga4 && (
-              <div className="mt-6 pt-6 border-t border-border-subtle">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-[#EA4335] flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">G</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {integrations.ga4.property_id ? (
-                      <>
-                        <p className="font-medium text-text-primary truncate">
-                          {integrations.ga4.property_name || `Property ${integrations.ga4.property_id}`}
-                        </p>
-                        <p className="text-xs text-text-muted">
-                          {integrations.ga4.email}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-medium text-text-primary">
-                          Property not selected
-                        </p>
-                        <p className="text-xs text-text-muted">
-                          {integrations.ga4.email}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                  {integrations.ga4.pending_property_selection && (
-                    <button
-                      onClick={() => setShowGA4PropertySelect(true)}
-                      className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
-                    >
-                      Select property
-                    </button>
-                  )}
-                </div>
-
-                {integrations.ga4.pending_property_selection && (
-                  <div className="glass-card p-4 bg-score-low/5 border-l-4 border-score-low mb-4">
-                    <p className="text-sm text-text-primary font-medium">Action required</p>
-                    <p className="text-sm text-text-secondary mt-1">
-                      Select a GA4 property to start pulling analytics data.
-                    </p>
-                  </div>
-                )}
-
-                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
-                  <p className="text-sm text-text-secondary">
-                    <span className="font-medium text-text-primary">How it works:</span>{" "}
-                    We'll pull your analytics so you can see if changes actually moved the&nbsp;needle.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Supabase Integration */}
-        <section className="mb-8">
-          <div className="glass-card-elevated p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#1C1C1C] flex items-center justify-center flex-shrink-0">
-                  <svg className="w-6 h-6" viewBox="0 0 109 113" fill="none">
-                    <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint0_linear)"/>
-                    <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint1_linear)" fillOpacity="0.2"/>
-                    <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
-                    <defs>
-                      <linearGradient id="paint0_linear" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse">
-                        <stop stopColor="#249361"/>
-                        <stop offset="1" stopColor="#3ECF8E"/>
-                      </linearGradient>
-                      <linearGradient id="paint1_linear" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse">
-                        <stop/>
-                        <stop offset="1" stopOpacity="0"/>
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">Supabase</h2>
-                  <p className="text-sm text-text-secondary">
-                    Track signups and orders from your database
-                  </p>
-                </div>
-              </div>
-
-              {!integrations?.supabase ? (
-                <button
-                  onClick={() => setShowSupabaseConnect(true)}
-                  className="btn-primary w-full sm:w-auto"
-                >
-                  Connect
-                </button>
-              ) : (
-                <button
-                  onClick={handleDisconnectSupabase}
-                  disabled={disconnectingSupabase}
-                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
-                >
-                  {disconnectingSupabase ? "Disconnecting..." : "Disconnect"}
-                </button>
-              )}
-            </div>
-
-            {integrations?.supabase && (
-              <div className="mt-6 pt-6 border-t border-border-subtle">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-[#3ECF8E] flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">S</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-text-primary truncate">
-                      {integrations.supabase.project_ref}.supabase.co
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      {integrations.supabase.key_type === "service_role"
-                        ? "Service Role Key"
-                        : "Anon Key"}{" "}
-                      · {integrations.supabase.tables.length} tables found
-                    </p>
-                  </div>
-                </div>
-
-                {!integrations.supabase.has_schema_access && (
-                  <div className="glass-card p-4 bg-score-mid/5 border-l-4 border-score-mid mb-4">
-                    <p className="text-sm text-text-primary font-medium">We might be missing some tables</p>
-                    <p className="text-sm text-text-secondary mt-1">
-                      We can only see tables your app&apos;s frontend can access. If you have tables like orders or signups that need authentication, we can&apos;t see them yet.
-                    </p>
-                    <button
-                      onClick={() => setShowSupabaseConnect(true)}
-                      className="text-sm text-accent font-medium mt-2 hover:text-accent-hover transition-colors"
-                    >
-                      Reconnect with full access
-                    </button>
-                  </div>
-                )}
-
-                {integrations.supabase.tables.length > 0 && (
-                  <div className="glass-card p-4 mb-4">
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
-                      Tables detected
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {integrations.supabase.tables.slice(0, 8).map((table) => (
-                        <span
-                          key={table}
-                          className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-mono bg-bg-inset text-text-secondary"
+                  {/* Connected repos */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
+                        Watching {integrations.github.repos.length}/1 repo
+                      </h3>
+                      {integrations.github.repos.length < 1 && (
+                        <button
+                          onClick={() => setShowAddRepo(true)}
+                          className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
                         >
-                          {table}
-                        </span>
-                      ))}
-                      {integrations.supabase.tables.length > 8 && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm text-text-muted">
-                          +{integrations.supabase.tables.length - 8} more
-                        </span>
+                          + Add repo
+                        </button>
                       )}
                     </div>
-                  </div>
-                )}
 
+                    {integrations.github.repos.length === 0 ? (
+                      <div className="glass-card p-6 text-center">
+                        <p className="text-text-secondary mb-4">
+                          No repos connected yet. Add one to start auto-scanning.
+                        </p>
+                        <button
+                          onClick={() => setShowAddRepo(true)}
+                          className="btn-secondary"
+                        >
+                          Add a repository
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {integrations.github.repos.map((repo) => (
+                          <RepoCard
+                            key={repo.id}
+                            repo={repo}
+                            onDisconnect={handleDisconnectRepo}
+                            disconnecting={disconnecting === repo.id}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* How it works */}
+                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                    <p className="text-sm text-text-secondary">
+                      <span className="font-medium text-text-primary">How it works:</span>{" "}
+                      When you push to the default branch, we wait 45 seconds for your deploy to finish, then scan all pages linked to the repo.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* PostHog Integration */}
+          <section className="mb-4">
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
+                    <svg className="w-8 h-5" viewBox="0 0 50 30" fill="none">
+                      <path d="M10.8914 17.2057c-.3685.7371-1.42031.7371-1.78884 0L8.2212 15.443c-.14077-.2815-.14077-.6129 0-.8944l.88136-1.7627c.36853-.7371 1.42034-.7371 1.78884 0l.8814 1.7627c.1407.2815.1407.6129 0 .8944l-.8814 1.7627zM10.8914 27.2028c-.3685.737-1.42031.737-1.78884 0L8.2212 25.44c-.14077-.2815-.14077-.6129 0-.8944l.88136-1.7627c.36853-.7371 1.42034-.7371 1.78884 0l.8814 1.7627c.1407.2815.1407.6129 0 .8944l-.8814 1.7628z" fill="#1D4AFF"/>
+                      <path d="M0 23.4082c0-.8909 1.07714-1.3371 1.70711-.7071l4.58338 4.5834c.62997.63.1838 1.7071-.7071 1.7071H.999999c-.552284 0-.999999-.4477-.999999-1v-4.5834zm0-4.8278c0 .2652.105357.5196.292893.7071l9.411217 9.4112c.18753.1875.44189.2929.70709.2929h5.1692c.8909 0 1.3371-1.0771.7071-1.7071L1.70711 12.7041C1.07714 12.0741 0 12.5203 0 13.4112v5.1692zm0-9.99701c0 .26521.105357.51957.292893.7071L19.7011 28.6987c.1875.1875.4419.2929.7071.2929h5.1692c.8909 0 1.3371-1.0771.7071-1.7071L1.70711 2.70711C1.07715 2.07715 0 2.52331 0 3.41421v5.16918zm9.997 0c0 .26521.1054.51957.2929.7071l17.994 17.99401c.63.63 1.7071.1838 1.7071-.7071v-5.1692c0-.2652-.1054-.5196-.2929-.7071l-17.994-17.994c-.63-.62996-1.7071-.18379-1.7071.70711v5.16918zm11.7041-5.87628c-.63-.62997-1.7071-.1838-1.7071.7071v5.16918c0 .26521.1054.51957.2929.7071l7.997 7.99701c.63.63 1.7071.1838 1.7071-.7071v-5.1692c0-.2652-.1054-.5196-.2929-.7071l-7.997-7.99699z" fill="#F9BD2B"/>
+                      <path d="M42.5248 23.5308l-9.4127-9.4127c-.63-.63-1.7071-.1838-1.7071.7071v13.1664c0 .5523.4477 1 1 1h14.5806c.5523 0 1-.4477 1-1v-1.199c0-.5523-.4496-.9934-.9973-1.0647-1.6807-.2188-3.2528-.9864-4.4635-2.1971zm-6.3213 2.2618c-.8829 0-1.5995-.7166-1.5995-1.5996 0-.8829.7166-1.5995 1.5995-1.5995.883 0 1.5996.7166 1.5996 1.5995 0 .883-.7166 1.5996-1.5996 1.5996z" fill="#000"/>
+                      <path d="M0 27.9916c0 .5523.447715 1 1 1h4.58339c.8909 0 1.33707-1.0771.70711-1.7071l-4.58339-4.5834C1.07714 22.0711 0 22.5173 0 23.4082v4.5834zM9.997 10.997L1.70711 2.70711C1.07714 2.07714 0 2.52331 0 3.41421v5.16918c0 .26521.105357.51957.292893.7071L9.997 18.9946V10.997zM1.70711 12.7041C1.07714 12.0741 0 12.5203 0 13.4112v5.1692c0 .2652.105357.5196.292893.7071L9.997 28.9916V20.994l-8.28989-8.2899z" fill="#1D4AFF"/>
+                      <path d="M19.994 11.4112c0-.2652-.1053-.5196-.2929-.7071l-7.997-7.99699c-.6299-.62997-1.70709-.1838-1.70709.7071v5.16918c0 .26521.10539.51957.29289.7071l9.7041 9.70411v-7.5834zM9.99701 28.9916h5.58339c.8909 0 1.3371-1.0771.7071-1.7071L9.99701 20.994v7.9976zM9.99701 10.997v7.5834c0 .2652.10539.5196.29289.7071l9.7041 9.7041v-7.5834c0-.2652-.1053-.5196-.2929-.7071L9.99701 10.997z" fill="#F54E00"/>
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-semibold text-text-primary">PostHog</h3>
+                    <p className="text-sm text-text-secondary">
+                      See pageviews and bounce rate with each scan
+                    </p>
+                  </div>
+                </div>
+
+                {!integrations?.posthog ? (
+                  <button
+                    onClick={() => setShowPostHogConnect(true)}
+                    className="btn-primary w-full sm:w-auto"
+                  >
+                    Connect
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDisconnectPostHog}
+                    disabled={disconnectingPostHog}
+                    className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
+                  >
+                    {disconnectingPostHog ? "Disconnecting..." : "Disconnect"}
+                  </button>
+                )}
+              </div>
+
+              {integrations?.posthog && (
+                <div className="mt-6 pt-6 border-t border-border-subtle">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-[#1d4aff] flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">P</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-text-primary">
+                        Project {integrations.posthog.project_id}
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        {integrations.posthog.host.replace("https://", "")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                    <p className="text-sm text-text-secondary">
+                      <span className="font-medium text-text-primary">How it works:</span>{" "}
+                      We&apos;ll pull your analytics so you can see if changes actually moved the&nbsp;needle.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Google Analytics 4 Integration */}
+          <section className="mb-4">
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6" viewBox="0 0 55.273 64" fill="none">
+                      <g transform="matrix(.363638 0 0 .363636 -7.272763 -2.909091)">
+                        <path d="M130 29v132c0 14.77 10.2 23 21 23 10 0 21-7 21-23V30c0-13.54-10-22-21-22s-21 9.33-21 21z" fill="#f9ab00"/>
+                        <g fill="#e37400">
+                          <path d="M75 96v65c0 14.77 10.2 23 21 23 10 0 21-7 21-23V97c0-13.54-10-22-21-22s-21 9.33-21 21z"/>
+                          <circle cx="41" cy="163" r="21"/>
+                        </g>
+                      </g>
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-semibold text-text-primary">Google Analytics 4</h3>
+                    <p className="text-sm text-text-secondary">
+                      See pageviews and bounce rate with each scan
+                    </p>
+                  </div>
+                </div>
+
+                {!integrations?.ga4 ? (
+                  <button onClick={handleConnectGA4} className="btn-primary w-full sm:w-auto">
+                    Connect
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDisconnectGA4}
+                    disabled={disconnectingGA4}
+                    className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
+                  >
+                    {disconnectingGA4 ? "Disconnecting..." : "Disconnect"}
+                  </button>
+                )}
+              </div>
+
+              {integrations?.ga4 && (
+                <div className="mt-6 pt-6 border-t border-border-subtle">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-[#EA4335] flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">G</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {integrations.ga4.property_id ? (
+                        <>
+                          <p className="font-medium text-text-primary truncate">
+                            {integrations.ga4.property_name || `Property ${integrations.ga4.property_id}`}
+                          </p>
+                          <p className="text-xs text-text-muted">
+                            {integrations.ga4.email}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium text-text-primary">
+                            Property not selected
+                          </p>
+                          <p className="text-xs text-text-muted">
+                            {integrations.ga4.email}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    {integrations.ga4.pending_property_selection && (
+                      <button
+                        onClick={() => setShowGA4PropertySelect(true)}
+                        className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
+                      >
+                        Select property
+                      </button>
+                    )}
+                  </div>
+
+                  {integrations.ga4.pending_property_selection && (
+                    <div className="glass-card p-4 bg-score-low/5 border-l-4 border-score-low mb-4">
+                      <p className="text-sm text-text-primary font-medium">Action required</p>
+                      <p className="text-sm text-text-secondary mt-1">
+                        Select a GA4 property to start pulling analytics data.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                    <p className="text-sm text-text-secondary">
+                      <span className="font-medium text-text-primary">How it works:</span>{" "}
+                      We&apos;ll pull your analytics so you can see if changes actually moved the&nbsp;needle.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Supabase Integration */}
+          <section className="mb-4">
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#1C1C1C] flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6" viewBox="0 0 109 113" fill="none">
+                      <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint0_linear)"/>
+                      <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint1_linear)" fillOpacity="0.2"/>
+                      <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
+                      <defs>
+                        <linearGradient id="paint0_linear" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse">
+                          <stop stopColor="#249361"/>
+                          <stop offset="1" stopColor="#3ECF8E"/>
+                        </linearGradient>
+                        <linearGradient id="paint1_linear" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse">
+                          <stop/>
+                          <stop offset="1" stopOpacity="0"/>
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-semibold text-text-primary">Supabase</h3>
+                    <p className="text-sm text-text-secondary">
+                      Track signups and orders from your database
+                    </p>
+                  </div>
+                </div>
+
+                {!integrations?.supabase ? (
+                  <button
+                    onClick={() => setShowSupabaseConnect(true)}
+                    className="btn-primary w-full sm:w-auto"
+                  >
+                    Connect
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDisconnectSupabase}
+                    disabled={disconnectingSupabase}
+                    className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
+                  >
+                    {disconnectingSupabase ? "Disconnecting..." : "Disconnect"}
+                  </button>
+                )}
+              </div>
+
+              {integrations?.supabase && (
+                <div className="mt-6 pt-6 border-t border-border-subtle">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-[#3ECF8E] flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">S</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate">
+                        {integrations.supabase.project_ref}.supabase.co
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        {integrations.supabase.key_type === "service_role"
+                          ? "Service Role Key"
+                          : "Anon Key"}{" "}
+                        · {integrations.supabase.tables.length} tables found
+                      </p>
+                    </div>
+                  </div>
+
+                  {!integrations.supabase.has_schema_access && (
+                    <div className="glass-card p-4 bg-score-mid/5 border-l-4 border-score-mid mb-4">
+                      <p className="text-sm text-text-primary font-medium">We might be missing some tables</p>
+                      <p className="text-sm text-text-secondary mt-1">
+                        We can only see tables your app&apos;s frontend can access. If you have tables like orders or signups that need authentication, we can&apos;t see them yet.
+                      </p>
+                      <button
+                        onClick={() => setShowSupabaseConnect(true)}
+                        className="text-sm text-accent font-medium mt-2 hover:text-accent-hover transition-colors"
+                      >
+                        Reconnect with full access
+                      </button>
+                    </div>
+                  )}
+
+                  {integrations.supabase.tables.length > 0 && (
+                    <div className="glass-card p-4 mb-4">
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
+                        Tables detected
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {integrations.supabase.tables.slice(0, 8).map((table) => (
+                          <span
+                            key={table}
+                            className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-mono bg-bg-inset text-text-secondary"
+                          >
+                            {table}
+                          </span>
+                        ))}
+                        {integrations.supabase.tables.length > 8 && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm text-text-muted">
+                            +{integrations.supabase.tables.length - 8} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                    <p className="text-sm text-text-secondary">
+                      <span className="font-medium text-text-primary">How it works:</span>{" "}
+                      We track row counts in tables like signups, orders, and waitlist to correlate page changes with real business outcomes.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Email Notifications */}
+          <section>
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-semibold text-text-primary">Email Notifications</h3>
+                    <p className="text-sm text-text-secondary">
+                      Get notified when scans complete
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleToggleEmailNotifications}
+                  disabled={togglingEmail}
+                  className={`relative w-11 h-6 sm:w-12 sm:h-7 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    emailNotifications ? "bg-accent" : "bg-text-muted/30"
+                  } disabled:opacity-50`}
+                  role="switch"
+                  aria-checked={emailNotifications}
+                >
+                  <span
+                    className={`absolute top-0.5 sm:top-1 left-0.5 sm:left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                      emailNotifications ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-border-subtle">
                 <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
                   <p className="text-sm text-text-secondary">
-                    <span className="font-medium text-text-primary">How it works:</span>{" "}
-                    We track row counts in tables like signups, orders, and waitlist to correlate page changes with real business outcomes.
+                    <span className="font-medium text-text-primary">What you&apos;ll get:</span>{" "}
+                    Emails when your daily or weekly scans complete, and after GitHub-triggered deploy scans.
                   </p>
                 </div>
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          </section>
+        </div>
 
-        {/* Email Notifications */}
-        <section className="mb-8">
-          <div className="glass-card-elevated p-5 sm:p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
+        {/* ===== ACCOUNT SECTION ===== */}
+        <div>
+          <div className="flex items-center gap-2 mb-6">
+            <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+              Account
+            </h2>
+          </div>
+
+          <section>
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
                   <svg className="w-5 h-5 sm:w-6 sm:h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                   </svg>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">Email Notifications</h2>
-                  <p className="text-sm text-text-secondary">
-                    Get notified when scans complete
-                  </p>
+                  {userEmail ? (
+                    <>
+                      <p className="font-medium text-text-primary truncate">
+                        {userEmail}
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        Signed in via magic link
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-text-primary">
+                        Your account
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        Signed in
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
-              <button
-                onClick={handleToggleEmailNotifications}
-                disabled={togglingEmail}
-                className={`relative w-11 h-6 sm:w-12 sm:h-7 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                  emailNotifications ? "bg-accent" : "bg-text-muted/30"
-                } disabled:opacity-50`}
-                role="switch"
-                aria-checked={emailNotifications}
-              >
-                <span
-                  className={`absolute top-0.5 sm:top-1 left-0.5 sm:left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                    emailNotifications ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-border-subtle">
-              <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
-                <p className="text-sm text-text-secondary">
-                  <span className="font-medium text-text-primary">What you'll get:</span>{" "}
-                  Emails when your daily or weekly scans complete, and after GitHub-triggered deploy scans.
-                </p>
+              <div className="mt-6 pt-6 border-t border-border-subtle">
+                <button
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
+                >
+                  {signingOut ? "Signing out..." : "Sign out"}
+                </button>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
 
       <AddRepoModal
@@ -1492,19 +1566,19 @@ function IntegrationsContent() {
   );
 }
 
-export default function IntegrationsPage() {
+export default function SettingsPage() {
   return (
     <Suspense
       fallback={
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="text-center">
             <div className="glass-spinner mx-auto" />
-            <p className="text-text-secondary mt-4">Loading integrations...</p>
+            <p className="text-text-secondary mt-4">Loading settings...</p>
           </div>
         </div>
       }
     >
-      <IntegrationsContent />
+      <SettingsContent />
     </Suspense>
   );
 }

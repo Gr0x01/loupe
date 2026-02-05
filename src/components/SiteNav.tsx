@@ -55,7 +55,11 @@ export default function SiteNav() {
     if (!authChecked) return;
 
     const updateUnderline = () => {
-      const activeLink = linksRef.current.get(pathname);
+      // Check for settings paths - the nav link is "/settings/integrations" but
+      // we want it active for any /settings/* path
+      const settingsPath = "/settings/integrations";
+      const activeLink = linksRef.current.get(pathname) ||
+        (pathname.startsWith("/settings") ? linksRef.current.get(settingsPath) : null);
       const nav = navRef.current;
 
       if (activeLink && nav) {
@@ -90,6 +94,7 @@ export default function SiteNav() {
   }, [pathname, isAuthenticated, authChecked, hasInitialized]);
 
   const isActive = (href: string) => pathname === href;
+  const isSettingsActive = pathname.startsWith("/settings");
 
   return (
     <header className="site-nav fixed top-0 left-0 right-0 z-50">
@@ -122,7 +127,7 @@ export default function SiteNav() {
               <Link
                 ref={(el) => setLinkRef("/settings/integrations", el)}
                 href="/settings/integrations"
-                className={`nav-link ${isActive("/settings/integrations") ? "nav-link-active" : ""}`}
+                className={`nav-link ${isSettingsActive ? "nav-link-active" : ""}`}
               >
                 Settings
               </Link>
@@ -217,7 +222,7 @@ export default function SiteNav() {
                 <Link
                   href="/settings/integrations"
                   className={`text-base font-medium px-3 py-2 rounded-lg transition-colors ${
-                    isActive("/settings/integrations")
+                    isSettingsActive
                       ? "text-accent bg-[rgba(91,46,145,0.06)]"
                       : "text-text-secondary hover:text-accent hover:bg-[rgba(91,46,145,0.06)]"
                   }`}
