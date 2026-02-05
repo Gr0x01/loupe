@@ -57,8 +57,8 @@ export interface AnalysisResult {
   structured: {
     verdict: string; // Specific, quotable ("Your CTA is buried below 4 screens")
     verdictContext: string; // Brief explanation for the verdict
-    opportunityCount: number;
-    expectedImpactRange: string; // "15-30%"
+    findingsCount: number;
+    projectedImpactRange: string; // "15-30%"
     headlineRewrite: HeadlineRewrite | null;
     findings: Finding[];
     summary: string;
