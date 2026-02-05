@@ -188,15 +188,15 @@ function VerdictDisplay({
   verdictContext: string;
 }) {
   return (
-    <div className="text-center">
+    <div className="text-left">
       <h1
-        className="hero-reveal-verdict-new text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-text-primary max-w-2xl mx-auto"
+        className="hero-reveal-verdict-new text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight text-text-primary max-w-2xl lg:max-w-none tracking-tight"
         style={{ fontFamily: "var(--font-instrument-serif)" }}
       >
         {verdict}
       </h1>
       {verdictContext && (
-        <p className="hero-reveal-context text-base sm:text-lg text-text-secondary mt-4 max-w-xl mx-auto leading-relaxed">
+        <p className="hero-reveal-context text-base lg:text-lg text-text-secondary mt-3 max-w-xl lg:max-w-none leading-relaxed">
           {verdictContext}
         </p>
       )}
@@ -204,54 +204,60 @@ function VerdictDisplay({
   );
 }
 
-function ImpactBar({ projectedImpactRange }: { projectedImpactRange: string }) {
-  // Parse "15-30%" to get min/max values
-  const match = projectedImpactRange.match(/(\d+)-?(\d+)?%?/);
-  const minImpact = match ? parseInt(match[1], 10) : 15;
-  const maxImpact = match && match[2] ? parseInt(match[2], 10) : minImpact + 15;
+// ImpactBar, AnimatedCount, DomainBadge removed — consolidated into hero footer
 
-  // Calculate visual fill percentages (current = 100 - maxImpact, potential = range)
-  const currentFill = Math.max(30, 100 - maxImpact); // At least 30% fill for visual balance
-  const potentialFill = maxImpact - minImpact + minImpact; // Full potential range
-
+// Hero Screenshot - floats in corner as visual proof
+function HeroScreenshot({
+  url,
+  pageUrl,
+  domain,
+  createdAt,
+  onClick,
+}: {
+  url: string;
+  pageUrl: string;
+  domain: string;
+  createdAt: string;
+  onClick: () => void;
+}) {
   return (
-    <div className="hero-reveal-impact w-full max-w-md mx-auto">
-      <div className="impact-bar-track flex">
-        <div
-          className="impact-bar-fill"
-          style={{ width: `${currentFill}%` }}
-        />
-        <div
-          className="impact-bar-potential"
-          style={{ width: `${potentialFill}%` }}
-        />
+    <div className="w-[260px]">
+      <div
+        className="hero-screenshot-wrapper cursor-pointer group"
+        onClick={onClick}
+      >
+        <div className="hero-screenshot">
+          {/* Browser chrome */}
+          <div className="browser-chrome flex items-center gap-1.5 rounded-t-lg py-2 px-3">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
+              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
+              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
+            </div>
+            <span className="text-[10px] text-text-muted font-mono ml-1.5 truncate">
+              {getDomain(pageUrl)}
+            </span>
+          </div>
+          {/* Screenshot */}
+          <div className="relative overflow-hidden rounded-b-lg">
+            <img
+              src={url}
+              alt={`Screenshot of ${pageUrl}`}
+              className="w-full h-auto max-h-[180px] object-cover object-top"
+            />
+            {/* Hover overlay */}
+            <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm">
+                View full
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="flex justify-between mt-2 text-sm">
-        <span className="text-text-muted">You now</span>
-        <span className="text-accent font-semibold">
-          Potential +{projectedImpactRange}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function OpportunityCount({ count }: { count: number }) {
-  const displayCount = useCountUp(count);
-  return (
-    <p className="hero-reveal-count text-lg text-text-secondary">
-      <span className="font-bold text-text-primary tabular-nums">{displayCount}</span>
-      {" "}change{count !== 1 ? "s" : ""} to close the gap
-    </p>
-  );
-}
-
-function DomainBadge({ domain }: { domain: string }) {
-  return (
-    <div className="hero-reveal-badge flex items-center justify-center gap-2 text-sm text-text-muted">
-      <span className="url-badge py-1.5 px-3">{domain}</span>
-      <span className="text-text-muted">·</span>
-      <span className="text-xs font-semibold uppercase tracking-widest">Audited by Loupe</span>
+      {/* Caption */}
+      <p className="text-[11px] text-text-muted text-center mt-2">
+        {domain} · {new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+      </p>
     </div>
   );
 }
@@ -259,6 +265,9 @@ function DomainBadge({ domain }: { domain: string }) {
 interface NewHeroSectionProps {
   structured: AnalysisResult["structured"];
   domain: string;
+  createdAt: string;
+  screenshotUrl: string | null;
+  onScreenshotClick: () => void;
   claimStatus?: ClaimStatus;
   onShareLink: () => void;
   linkCopied: boolean;
@@ -269,11 +278,15 @@ interface NewHeroSectionProps {
   onClaimEmail: (e: React.FormEvent) => void;
   claimError: string;
   claimedPageId?: string | null;
+  pageUrl: string;
 }
 
 function NewHeroSection({
   structured,
   domain,
+  createdAt,
+  screenshotUrl,
+  onScreenshotClick,
   claimStatus,
   onShareLink,
   linkCopied,
@@ -284,100 +297,129 @@ function NewHeroSection({
   onClaimEmail,
   claimError,
   claimedPageId,
+  pageUrl,
 }: NewHeroSectionProps) {
   return (
     <section className="py-8 lg:py-12">
       <div className="glass-card-elevated mx-auto overflow-hidden">
-        {/* Main content — centered vertical stack */}
-        <div className="px-8 py-10 space-y-8 flex flex-col items-center">
-          {/* Verdict — the star */}
-          <VerdictDisplay
-            verdict={structured.verdict}
-            verdictContext={structured.verdictContext}
-          />
+        {/* Main content */}
+        <div className="px-6 sm:px-8 py-8 lg:py-10 relative">
+          {/* Screenshot floats in top-right on desktop */}
+          {screenshotUrl && (
+            <div className="hidden lg:block float-right ml-8 mb-4">
+              <HeroScreenshot
+                url={screenshotUrl}
+                pageUrl={pageUrl}
+                domain={domain}
+                createdAt={createdAt}
+                onClick={onScreenshotClick}
+              />
+            </div>
+          )}
 
-          {/* Impact bar */}
-          <ImpactBar projectedImpactRange={structured.projectedImpactRange} />
+          <div className="space-y-5 flex flex-col items-start">
+            {/* Verdict — the star */}
+            <VerdictDisplay
+              verdict={structured.verdict}
+              verdictContext={structured.verdictContext}
+            />
 
-          {/* Opportunity count */}
-          <OpportunityCount count={structured.findingsCount} />
+            {/* Metrics summary line — consolidated */}
+            <p className="hero-reveal-impact text-base text-text-primary">
+              <span className="text-accent font-semibold">+{structured.projectedImpactRange}</span>
+              {" "}potential
+              <span className="text-text-muted mx-2">·</span>
+              <span className="font-bold">{structured.findingsCount}</span>
+              {" "}opportunit{structured.findingsCount !== 1 ? "ies" : "y"} below
+            </p>
 
-          {/* Domain badge */}
-          <DomainBadge domain={domain} />
+            {/* Domain + date — mobile only (desktop shows under screenshot) */}
+            <p className="lg:hidden text-xs text-text-muted">
+              {domain} · {new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </p>
+          </div>
         </div>
 
-        {/* Card footer — email capture (reused from legacy) */}
-        <div className="hero-reveal-actions border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
+        {/* Card footer — email capture */}
+        <div className="hero-reveal-actions border-t border-border-outer px-6 sm:px-8 py-5 bg-[rgba(0,0,0,0.015)]">
           {claimStatus?.claimed_by_current_user ? (
             /* Current user already watching */
             <div className="flex items-center justify-between">
-              <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
-                {linkCopied ? "Copied!" : "Share"}
-              </button>
               <Link
                 href={`/pages/${claimedPageId}`}
-                className="text-sm text-accent hover:underline"
+                className="text-sm text-accent hover:underline font-medium"
               >
-                You&apos;re already watching this → View page
+                You&apos;re tracking this → View history
               </Link>
+              <button
+                onClick={onShareLink}
+                className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
+              >
+                {linkCopied ? "Copied!" : "Share"}
+              </button>
             </div>
           ) : claimStatus?.is_claimed ? (
             /* Domain claimed by someone else */
             <div className="flex items-center justify-between">
-              <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+              <span className="text-sm text-text-muted">Already being monitored by someone else</span>
+              <button
+                onClick={onShareLink}
+                className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
+              >
                 {linkCopied ? "Copied!" : "Share"}
               </button>
-              <span className="text-sm text-text-muted">Already being monitored by someone else</span>
             </div>
           ) : claimEmailSent ? (
             /* Success state */
             <div className="flex items-center justify-between">
-              <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
-                {linkCopied ? "Copied!" : "Share"}
-              </button>
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
                 </svg>
-                <span className="text-sm text-text-primary">You&apos;re in — check your inbox</span>
+                <span className="text-sm text-text-primary font-medium">Check your inbox — you&apos;re in</span>
               </div>
+              <button
+                onClick={onShareLink}
+                className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
+              >
+                {linkCopied ? "Copied!" : "Share"}
+              </button>
             </div>
           ) : (
-            /* Default state */
-            <>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                {/* Left: Share */}
-                <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors order-2 sm:order-1">
+            /* Default state — form first */
+            <div className="space-y-3 lg:space-y-0 lg:flex lg:items-center lg:justify-between lg:gap-4">
+              {/* Form — stacks on mobile, inline on desktop */}
+              <form onSubmit={onClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-2">
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  value={claimEmail}
+                  onChange={(e) => setClaimEmail(e.target.value)}
+                  className="input-glass text-sm py-2.5 flex-1 sm:flex-none sm:w-48"
+                  aria-label="Email address"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={claimLoading}
+                  className="btn-primary text-sm py-2.5 px-5 whitespace-nowrap"
+                >
+                  {claimLoading ? "..." : "Track this page"}
+                </button>
+              </form>
+              {claimError && <p className="text-xs text-score-low lg:hidden">{claimError}</p>}
+
+              {/* Trust line + share */}
+              <div className="flex items-center justify-between lg:justify-end gap-4 text-xs">
+                <span className="text-text-muted">Free — we rescan when you make&nbsp;changes</span>
+                <button
+                  onClick={onShareLink}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
+                >
                   {linkCopied ? "Copied!" : "Share"}
                 </button>
-
-                {/* Right: hook + form */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 order-1 sm:order-2">
-                  <p className="text-sm text-text-secondary">
-                    Track this page →
-                  </p>
-                  <form onSubmit={onClaimEmail} className="flex items-stretch gap-2">
-                    <input
-                      type="email"
-                      placeholder="you@company.com"
-                      value={claimEmail}
-                      onChange={(e) => setClaimEmail(e.target.value)}
-                      className="input-glass text-sm py-2 w-44"
-                      aria-label="Email address"
-                      required
-                    />
-                    <button
-                      type="submit"
-                      disabled={claimLoading}
-                      className="btn-primary text-sm py-2 px-4 whitespace-nowrap"
-                    >
-                      {claimLoading ? "..." : "Track"}
-                    </button>
-                  </form>
-                </div>
               </div>
-              {claimError && <p className="text-xs text-score-low mt-2 text-right">{claimError}</p>}
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -676,23 +718,32 @@ function WaybackPreview({ url }: { url: string }) {
   const [snapshots, setSnapshots] = useState<WaybackSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    const controller = new AbortController();
+
     async function fetchSnapshots() {
       try {
-        const res = await fetch(`/api/wayback?url=${encodeURIComponent(url)}`);
+        const res = await fetch(`/api/wayback?url=${encodeURIComponent(url)}`, {
+          signal: controller.signal,
+        });
         const data = await res.json();
         if (data.snapshots && data.snapshots.length > 0) {
           setSnapshots(data.snapshots.slice(0, 4)); // Max 4 snapshots
         } else {
           setError(true);
         }
-      } catch {
+      } catch (err) {
+        // Don't set error state if aborted
+        if (err instanceof Error && err.name === "AbortError") return;
         setError(true);
       }
       setLoading(false);
     }
     fetchSnapshots();
+
+    return () => controller.abort();
   }, [url]);
 
   // Show mock timeline if no Wayback history
@@ -779,16 +830,28 @@ function WaybackPreview({ url }: { url: string }) {
             className="group relative block"
           >
             <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden transition-all group-hover:border-accent group-hover:shadow-lg">
-              <img
-                src={snapshot.thumbnailUrl}
-                alt={`Snapshot from ${snapshot.date}`}
-                className="w-full h-full object-cover object-top"
-                loading="lazy"
-                onError={(e) => {
-                  // Hide broken images
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
+              {failedImages.has(snapshot.timestamp) ? (
+                <div className="w-full h-full flex items-center justify-center bg-bg-inset">
+                  <div className="text-center">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-border-subtle/60 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-xs text-text-muted">Preview unavailable</p>
+                  </div>
+                </div>
+              ) : (
+                <img
+                  src={snapshot.thumbnailUrl}
+                  alt={`Snapshot from ${snapshot.date}`}
+                  className="w-full h-full object-cover object-top"
+                  loading="lazy"
+                  onError={() => {
+                    setFailedImages((prev) => new Set(prev).add(snapshot.timestamp));
+                  }}
+                />
+              )}
               <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30 group-hover:to-black/40 transition-colors" />
             </div>
             <p className="text-xs text-text-muted text-center mt-2 group-hover:text-accent transition-colors">
@@ -1468,6 +1531,9 @@ export default function AnalysisPage() {
         <NewHeroSection
           structured={s}
           domain={getDomain(analysis.url)}
+          createdAt={analysis.created_at}
+          screenshotUrl={analysis.screenshot_url}
+          onScreenshotClick={() => setShowScreenshot(true)}
           claimStatus={analysis.claim_status}
           onShareLink={handleShareLink}
           linkCopied={linkCopied}
@@ -1478,6 +1544,7 @@ export default function AnalysisPage() {
           onClaimEmail={handleClaimEmail}
           claimError={claimError}
           claimedPageId={analysis.claim_status?.claimed_page_id}
+          pageUrl={analysis.url}
         />
 
         <hr className="section-divider" />

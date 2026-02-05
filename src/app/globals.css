@@ -921,6 +921,34 @@ body > *:not(.fixed) {
   transition: width 1s ease-out 0.3s;
 }
 
+/* ===== HERO SCREENSHOT (two-column hero) ===== */
+.hero-screenshot-wrapper {
+  perspective: 800px;
+}
+
+.hero-screenshot {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.06);
+  transform: rotateY(-2deg) rotateX(1deg);
+  transition: transform 300ms ease, box-shadow 300ms ease;
+}
+
+.hero-screenshot-wrapper:hover .hero-screenshot {
+  transform: rotateY(0deg) rotateX(0deg);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 12px 32px rgba(0, 0, 0, 0.08);
+}
+
+.hero-screenshot .browser-chrome {
+  border-radius: 10px 10px 0 0;
+}
+
 /* ===== PERCENTILE BAR ===== */
 .percentile-track {
   height: 4px;
