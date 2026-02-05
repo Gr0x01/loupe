@@ -334,17 +334,17 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="max-w-3xl mx-auto px-6 py-12">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* Header */}
-        <div className="flex items-center justify-between mb-10">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
           <div>
             <h1
-              className="text-4xl font-bold text-text-primary"
+              className="text-3xl sm:text-4xl font-bold text-text-primary"
               style={{ fontFamily: "var(--font-instrument-serif)" }}
             >
               Your pages
             </h1>
-            <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
               <p className="text-text-secondary">
                 {pages.length} page{pages.length !== 1 ? "s" : ""} monitored
               </p>
@@ -358,7 +358,7 @@ export default function DashboardPage() {
           {pages.length > 0 && (
             <button
               onClick={handleAddClick}
-              className="btn-primary"
+              className="btn-primary w-full sm:w-auto"
             >
               {isAtLimit ? "Unlock more" : "Add page"}
             </button>

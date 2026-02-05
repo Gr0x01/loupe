@@ -384,11 +384,11 @@ Similar to initial audit finding cards, but:
 
 ---
 
-## Phase 4: Dashboard
+## Phase 4: Dashboard ✅ COMPLETE
 
 The home for tracked pages. Two zones, not infinite scroll.
 
-### 4.1 Two-Zone Dashboard
+### 4.1 Two-Zone Dashboard ✅ COMPLETE
 
 **Current:** Page list with scores
 **New:** Two prioritized zones — attention required vs. watching quietly
@@ -414,185 +414,128 @@ yoursite.com/features — stable, last checked 2h ago
 [+ Watch another page]
 ```
 
-**Components:**
-- `AttentionZone` — Items requiring action (changes with negative correlation, new suggestions)
-- `WatchingZone` — Stable pages, no action needed
-- `AttentionCard` — Full detail: problem + correlation + action link
-- `WatchingCard` — Minimal: domain + "stable" + last checked
+**Components built:**
+- `AttentionZone` — Zone header + sorted AttentionCards (by severity then recency)
+- `WatchingZone` — Zone header + WatchingCards + "Add another page" CTA
+- `AttentionCard` — Severity dot, domain, headline, subheadline, "See details" link
+- `WatchingCard` — Minimal line: name + "stable, last checked X ago"
+
+**API changes:**
+- Added `AttentionStatus`, `AttentionReason`, `DashboardPageData` types
+- Added `computeAttentionStatus()` function to `/api/pages` route
+- Attention categorization priority: scan_failed (high) → no_scans_yet (low) → negative_correlation (high) → recent_change (medium) → high_impact_suggestions (medium) → stable
 
 **Tasks:**
-- [ ] Build AttentionZone component with zone header
-- [ ] Build WatchingZone component with zone header
-- [ ] Build AttentionCard (problem + correlation + action)
-- [ ] Build WatchingCard (minimal status line)
-- [ ] Zone headers show item counts
-- [ ] Attention zone first, watching zone second
-- [ ] Sort attention items by severity/recency
+- [x] Build AttentionZone component with zone header
+- [x] Build WatchingZone component with zone header
+- [x] Build AttentionCard (severity dot + headline + subheadline + action)
+- [x] Build WatchingCard (minimal status line)
+- [x] Zone headers show item counts
+- [x] Attention zone first, watching zone second
+- [x] Sort attention items by severity/recency
+- [x] Responsive layout (stacks on mobile)
 
-### 4.2 Empty Success States
+### 4.2 Empty Success States ✅ COMPLETE
 
 **Principle:** Empty = success. "All quiet" is the win state.
 
 **No attention items (ideal state):**
 ```
-LOUPE
-
 All quiet.
 
-Your 2 pages are stable.
-Last checked: 2 hours ago
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-No changes this week.
-Your site is holding steady.
-
-[+ Watch another page]
+Your pages are stable. We'll let you know if anything needs your attention.
 ```
 
 **No pages yet:**
 ```
-LOUPE
-
 Start watching your site.
 
-Paste a URL to get your first audit.
-We'll track changes and tell you what worked.
+Run a free audit to see what's working and what's not.
+Then track changes over time to see how your updates affect conversions.
 
 [Audit a page →]
 ```
 
+**Empty watching zone (pages in attention):**
+```
+Pages move here when there's nothing left to fix.
+Right now, your pages have findings worth addressing.
+```
+
 **Tasks:**
-- [ ] Build EmptySuccessState component ("All quiet")
-- [ ] Build EmptyOnboardingState component (no pages)
-- [ ] Include: page count, last check time, reassurance message
-- [ ] Frame as success, not absence
-- [ ] Apply to both dashboard and chronicle views
+- [x] Build EmptySuccessState component ("All quiet")
+- [x] Build EmptyOnboardingState component (no pages)
+- [x] Empty watching zone explains relationship to attention zone
+- [x] Frame as success, not absence
+- [x] "Add another page" CTA with card-style button when at limit
 
 ---
 
-## Phase 5: Emails
+## Phase 5: Emails ✅ COMPLETE
 
-Update notifications to match new framing. Three email types, not two.
+Update notifications to match new framing. Four email types with smart selection.
 
-### 5.1 Change Detected Email
+### 5.1 Change Detected Email ✅ COMPLETE
 
 **When:** Page changed, correlation available or watching
 
-**Subject:** "Your homepage changed — here's what we found"
-**Alt subjects:**
-- "Your headline change helped (more people sticking around)"
-- "Your CTA moved — watching for impact"
+**Subject Logic:**
+- Correlation improved: "Your headline change helped (more people sticking around)"
+- Correlation regressed: "Your headline change may need attention"
+- Still watching/deploy: "Your domain changed — watching for impact"
+- Default: "Your domain changed — here's what we found"
 
-**Content:**
-```
-Your homepage changed Tuesday.
-
-WHAT CHANGED
-Your headline: "Start free" → "Get started in 60 seconds"
-
-WHAT IT DID
-More people are sticking around (+8%)
-✓ This change helped.
-
-WHAT TO DO NEXT
-→ Move CTA above fold
-  Expected: More people clicking (+10-15%)
-
-[See full report]
-```
+**Content structure:** What changed → What it did (if correlation) → What to do next (if suggestion)
 
 **Tasks:**
-- [ ] Rewrite change detected email template
-- [ ] Use friendlyText for metrics
-- [ ] Include correlation verdict when available
-- [ ] Include next suggestion
-- [ ] Remove all score references
+- [x] Rewrite change detected email template
+- [x] Use friendlyText for metrics
+- [x] Include correlation verdict when available
+- [x] Include next suggestion
+- [x] Remove all score references
 
-### 5.2 All Quiet Email (Critical for Retention)
+### 5.2 All Quiet Email ✅ COMPLETE
 
 **When:** Scheduled scan, no changes detected
-**Purpose:** This is NOT a throwaway email. It's reassurance + proactive value.
+**Purpose:** Reassurance + proactive value.
 
 **Subject:** "All quiet on yoursite.com"
 
-**Content:**
-```
-Your homepage hasn't changed this week.
-
-YOUR PAGE IS HOLDING STEADY
-Last checked: Today at 9am
-No changes detected since Jan 15.
-
-WHILE YOU'RE HERE
-Here's what we'd still improve:
-
-→ Move CTA above fold
-  Expected: More people clicking (+10-15%)
-  Based on 847 similar pages we've tracked.
-
-[See suggestion details]
-```
-
-**Why this matters:**
-1. Reassurance (value: peace of mind)
-2. Proactive suggestion (value: always actionable)
-3. Keeps Loupe top of mind
+**Content structure:** Holding steady message → Proactive suggestion (if available)
 
 **Tasks:**
-- [ ] Build "all quiet" email template
-- [ ] Include one proactive suggestion from open items
-- [ ] Include credibility marker ("Based on X pages")
-- [ ] Track open rate (target: >40%)
+- [x] Build "all quiet" email template
+- [x] Include one proactive suggestion from open items
+- [x] Clean visual hierarchy (headline-first, left-aligned CTAs)
+- [ ] Track open rate (target: >40%) — post-launch
 
-### 5.3 Correlation Unlocked Email
+### 5.3 Correlation Unlocked Email ✅ COMPLETE
 
-**When:** Enough data collected to confirm correlation
+**When:** Watching item becomes validated (enough data collected)
 
 **Subject:** "Your headline change helped"
 
-**Content:**
-```
-Remember when you changed your headline on Jan 20?
-
-WE NOW HAVE ENOUGH DATA
-More people are sticking around (+8%)
-
-Your change from "Start free" to "Get started in 60 seconds" worked.
-
-WHAT TO DO NEXT
-→ Move CTA above fold (expected: +10-15% clicks)
-
-[See what worked]
-```
+**Content structure:** Reference the change → Show the result → Next suggestion
 
 **Tasks:**
-- [ ] Build correlation unlocked email template
-- [ ] Reference the specific change
-- [ ] Show metric improvement in friendly language
-- [ ] Include next suggestion
+- [x] Build correlation unlocked email template
+- [x] Reference the specific change
+- [x] Show metric improvement in friendly language
+- [x] Include next suggestion
 
-### 5.4 Weekly Digest (Multi-Page Users)
+### 5.4 Weekly Digest ✅ COMPLETE
 
-**When:** User monitors 3+ pages, weekly summary
+**When:** User monitors 3+ pages, Monday 10am UTC
 
 **Subject:** "Your weekly Loupe report"
 
-**Content:**
-```
-LOUPE WEEKLY
-
-yoursite.com — 1 change, helped ✓
-yoursite.com/pricing — stable
-yoursite.com/features — 1 suggestion
-
-[View dashboard]
-```
+**Content:** Per-page status summary (changed/stable/suggestion)
 
 **Tasks:**
-- [ ] Build weekly digest template
-- [ ] Aggregate by page
-- [ ] Show status summary per page
-- [ ] Prevents email fatigue from multiple single-page emails
+- [x] Build weekly digest template
+- [x] Aggregate by page
+- [x] Show status summary per page
+- [x] Inngest cron function (Monday 10am UTC)
 
 ---
 
@@ -657,13 +600,13 @@ Week 3: Value Bridge + Chronicle ✅ COMPLETE
 ├── ✅ Progress tracker with symbols + expandable sections
 └── ✅ Suggestions section (reuse collapsible cards)
 
-Week 4: Dashboard + Emails
-├── Two-zone dashboard (AttentionZone + WatchingZone)
-├── Empty success states ("All quiet")
-├── Change detected email
-├── All quiet email with proactive suggestions
-├── Correlation unlocked email
-└── Weekly digest for multi-page users
+Week 4: Dashboard + Emails ✅ COMPLETE
+├── ✅ Two-zone dashboard (AttentionZone + WatchingZone)
+├── ✅ Empty success states ("All quiet")
+├── ✅ Change detected email (dynamic subject based on correlation)
+├── ✅ All quiet email with proactive suggestions
+├── ✅ Correlation unlocked email
+└── ✅ Weekly digest for multi-page users (Inngest cron)
 
 Week 5: Landing Page + Polish
 ├── Hero: "Did that change work?"
@@ -689,8 +632,8 @@ Week 5: Landing Page + Polish
 - [x] Finding cards are action-first (suggestion visible before reasoning)
 - [x] N+1 feels different from initial (chronicle with timeline, not report card)
 - [x] Timeline shows correlation lines connecting changes to metrics
-- [ ] Dashboard uses two-zone structure (attention vs. watching) — Phase 4
-- [ ] "Nothing changed" feels like success, not emptiness — Phase 4
+- [x] Dashboard uses two-zone structure (attention vs. watching) — Phase 4
+- [x] "Nothing changed" feels like success, not emptiness — Phase 4
 - [x] Vibe coder language used throughout (friendlyText in predictions)
 
 **Shareability:**
@@ -706,8 +649,8 @@ Week 5: Landing Page + Polish
 **Positioning:**
 - [ ] Landing page headline: "Did that change work?" — Phase 6
 - [x] CTA is "Track this page" not "Re-scan"
-- [ ] Emails focus on changes + insights, not scores — Phase 5
-- [ ] "All quiet" emails include proactive suggestions — Phase 5
+- [x] Emails focus on changes + insights, not scores — Phase 5
+- [x] "All quiet" emails include proactive suggestions — Phase 5
 
 **Growth Metrics (targets):**
 - [ ] Audit share rate > 5%
