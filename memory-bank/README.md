@@ -2,61 +2,85 @@
 
 **Founder**: Rashaad
 
-## The Product
+## What Loupe Does
 
-**Ship fast. Catch drift.**
+**When metrics move, know why.**
 
-Loupe monitors your web pages for meaningful changes — the subtle shifts that slip through when you're shipping fast. Copy that got reworded, hero images that shifted, CTAs that disappeared, trust signals that broke. We screenshot your pages on a schedule, detect meaningful changes, and tell you what shifted and what to do about it. Not error monitoring — that's what Sentry is for. This is the stuff founders miss.
+Loupe connects page changes to business outcomes. We track what changes on your site and show you whether it helped or hurt.
 
-### Target Audience
-Solo founders and small teams (1-5 devs) shipping web products who don't have a dedicated marketing or design person watching their site. They deploy frequently, use coding agents, and rarely notice when something customer-facing drifts off.
+Not this: "Your site changed!" (that's VisualPing)
+This: "Your headline changed Jan 28. Since then, bounce rate is up 12%."
+
+The value isn't catching changes fast. It's understanding what caused what — a week later, a month later.
+
+### Who It's For
+
+**Vibe coders** — Non-technical founders using AI-first tools (Lovable, Bolt, Base44). No version control mental model. Most vulnerable to changes, least equipped to notice them.
+
+**Technical solo founders** — Developers shipping fast ($500-$10k MRR). Could build this themselves but won't maintain it. Too busy with features to watch the marketing layer.
+
+Both ship constantly. Both notice conversions dropped without knowing why. Loupe connects the dots.
 
 ### The Problem
-Sites change constantly — deploys, AI-assisted code changes, dependency updates, third-party scripts. Nobody's watching the marketing and design layer. Your headline changes, your social proof disappears, your CTA gets buried. You don't notice until conversions tank and you're guessing what went wrong.
 
-### The Solution (Layered)
+Sites change constantly. Nobody tracks:
+- What actually changed on the page
+- Whether changes helped or hurt
+- What caused the metric movement they're seeing
 
-**Core (zero setup):** Enter URLs + email. We watch your pages.
-1. **Monitor** — Screenshot pages on a schedule, detect visual/content changes
-2. **Analyze** — LLM-powered review of what changed and whether it matters (copy, layout, trust signals, calls to action)
-3. **Alert** — Email when something meaningful shifts: "Your homepage hero text changed"
-4. **Suggest** — Plain-language recommendations: what changed, why it matters, what to do
+### The Solution
 
-**Power-up (connect your stuff):**
-5. **Track deploys** — Connect GitHub, tie changes to specific commits
-6. **Correlate** — Connect PostHog/GA4, see metric movements after changes
+Loupe builds a **timeline of your site** — what changed and when — and overlays it with your metrics.
 
-### Product Evolution
-- **v1 (MVP)**: Page monitoring + analysis + suggestions + email alerts (URL + email, that's it)
-- **v2**: Deploy tracking (GitHub integration) + analytics correlation
-- **v3**: Historical trends, deeper pattern recognition across pages
-- **Future**: Boost integration (closed-loop marketing optimization)
+When metrics move, look back and see what changed.
+When you ship a change, look forward and see what happened.
 
-### Adjacent Product: Boost (aboo.st)
-Same founder, same LLM analysis muscle. Boost tells you "what to do," Loupe tells you "if what you did worked." Together they create a closed-loop marketing system for indie founders.
+### Two Experiences
+
+**Audit 1: Findings + Predictions (Lead Magnet)**
+- Paste URL, get findings with expected impact
+- Each finding has a prediction: "If you fix this, expect bounce rate down 8-15%"
+- No signup required
+- Purpose: Get them in the door, plant the seed for validation
+
+**Audit N+1: Chronicle (The Product)**
+- Not another audit — a progress report
+- Three sections: What changed, What to do next, Progress tracker
+- Verdict-first: "You made 2 changes. One helped. Here's what to do next."
+- Purpose: Ongoing value, always something actionable
+
+### The Value Loop
+
+```
+AUDIT -> SUGGEST -> CHANGE -> WATCH -> CORRELATE -> SUGGEST AGAIN
+```
+
+Suggestions get smarter over time because we know what actually moved the needle.
 
 **Domain**: getloupe.io
 
-## Tech Stack (Planned)
+## Tech Stack
 
 | Service | Purpose |
 |---------|---------|
 | **Next.js** | App framework |
 | **Supabase** | DB + Auth |
-| **Vercel AI SDK** | Model-agnostic LLM calls (swap providers freely) |
+| **Vercel AI SDK** | Model-agnostic LLM calls |
 | **Playwright / Screenshot API** | Page screenshots |
-| **Inngest** | Scheduled monitoring jobs + background processing |
+| **Inngest** | Scheduled jobs + background processing |
 | **PostHog / GA4 API** | Analytics data (v2) |
 | **GitHub Webhooks** | Deploy detection (v2) |
 | **Stripe** | Billing |
 
 ### LLM Model Strategy
-Tiered by task complexity, swappable via Vercel AI SDK:
+
+Tiered by task, swappable via Vercel AI SDK:
 - **Detection** (did something change?): Haiku / Gemini Flash — cheap, fast
 - **Description** (what changed?): Sonnet — good vision + clear language
 - **Suggestions** (what to do about it): Opus / Sonnet — marketing + design awareness
 
 ## Commands
+
 ```bash
 npm run dev          # local dev at localhost:3002
 npm run build        # production build
@@ -71,3 +95,5 @@ npm run build        # production build
 | `architecture.md` | Building backend/infra |
 | `decisions.md` | You need to understand "why" |
 | `icp.md` | Writing copy, designing UI, or marketing work |
+| `vision.md` | Understanding the full product direction |
+| `phases/vision-pivot.md` | Implementation details for the pivot |
