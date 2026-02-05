@@ -442,6 +442,11 @@ function CollapsedFindingCard({
     }
   };
 
+  // Truncate currentValue for preview
+  const problemPreview = finding.currentValue.length > 45
+    ? finding.currentValue.slice(0, 45).trim() + "…"
+    : finding.currentValue;
+
   return (
     <div
       className="finding-card-collapsed group"
@@ -453,7 +458,7 @@ function CollapsedFindingCard({
       aria-label={`${finding.title}. ${finding.impact} impact. Click to expand.`}
     >
       {/* Top row: Impact badge + expand hint */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <span className={getImpactBadgeClass(finding.impact)}>
           {finding.impact.toUpperCase()}
         </span>
@@ -467,19 +472,25 @@ function CollapsedFindingCard({
 
       {/* Title */}
       <h3
-        className="text-lg font-bold text-text-primary leading-snug line-clamp-2 mb-3 group-hover:text-accent transition-colors"
+        className="text-lg font-bold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors"
         style={{ fontFamily: "var(--font-instrument-serif)" }}
       >
         {finding.title}
       </h3>
 
-      {/* Prediction - just the uplift number, clean */}
-      <div className="mt-auto flex items-center gap-2 text-score-high">
-        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* Problem preview - what's wrong on their page */}
+      <p className="finding-problem-preview">
+        &ldquo;{problemPreview}&rdquo;
+      </p>
+
+      {/* Prediction with friendly text */}
+      <div className="mt-auto pt-2 flex items-center gap-1.5 text-score-high">
+        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="2 12 6 8 9 11 14 4" />
           <polyline points="10 4 14 4 14 8" />
         </svg>
         <span className="font-semibold">+{finding.prediction.range}</span>
+        <span className="text-text-muted font-normal text-sm truncate">{finding.prediction.friendlyText}</span>
       </div>
     </div>
   );
@@ -494,8 +505,7 @@ function ExpandedFindingCard({
   onToggle: () => void;
 }) {
   const [suggestionCopied, setSuggestionCopied] = useState(false);
-  const [assumptionOpen, setAssumptionOpen] = useState(false);
-  const [methodologyOpen, setMethodologyOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
 
   const handleCopySuggestion = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -510,10 +520,8 @@ function ExpandedFindingCard({
     low: "LOW IMPACT",
   }[finding.impact];
 
-  const elementIcon = ELEMENT_ICONS[finding.elementType] || ELEMENT_ICONS.other;
-
   return (
-    <div className="new-finding-card new-finding-card-expanded">
+    <div className="new-finding-card-expanded">
       {/* Header row */}
       <div className="flex items-center justify-between mb-5">
         <span className={getImpactBadgeClass(finding.impact)}>
@@ -538,28 +546,25 @@ function ExpandedFindingCard({
         {finding.title}
       </h3>
 
-      {/* Two-column content: Current | Suggestion */}
+      {/* Two-column content: Current | Suggestion — matching structure */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
         {/* Left: Current */}
-        <div className="new-finding-current">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="new-finding-element-icon">{elementIcon}</span>
-            <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Current</span>
-          </div>
-          <p className="text-base text-text-secondary leading-relaxed">
+        <div className="finding-content-box finding-content-current">
+          <span className="finding-content-label">Current</span>
+          <p className="finding-content-text">
             &ldquo;{finding.currentValue}&rdquo;
           </p>
         </div>
 
         {/* Right: Suggestion */}
-        <div className="new-finding-suggestion">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-accent uppercase tracking-wide">Suggestion</span>
+        <div className="finding-content-box finding-content-suggestion">
+          <div className="flex items-center justify-between">
+            <span className="finding-content-label finding-content-label-accent">Suggestion</span>
             <button
               onClick={handleCopySuggestion}
               className="new-finding-copy-btn"
-              title={suggestionCopied ? "Copied!" : "Copy suggestion"}
-              aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion to clipboard"}
+              title={suggestionCopied ? "Copied!" : "Copy"}
+              aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion"}
             >
               {suggestionCopied ? (
                 <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -573,10 +578,7 @@ function ExpandedFindingCard({
               )}
             </button>
           </div>
-          <p
-            className="text-base font-semibold text-text-primary leading-relaxed"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
+          <p className="finding-content-text finding-content-text-bold">
             &ldquo;{finding.suggestion}&rdquo;
           </p>
         </div>
@@ -592,57 +594,39 @@ function ExpandedFindingCard({
         <span className="text-text-secondary">{finding.prediction.friendlyText}</span>
       </div>
 
-      {/* Expandable sections */}
-      <div className="flex items-center gap-3 pt-4 border-t border-border-outer">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setAssumptionOpen(!assumptionOpen);
-          }}
-          className="new-finding-toggle-btn"
-        >
-          <svg
-            className={`w-3.5 h-3.5 transition-transform ${assumptionOpen ? "rotate-180" : ""}`}
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+      {/* Why this matters - animated expandable */}
+      {finding.assumption && (
+        <div className="pt-4 border-t border-border-outer">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setWhyOpen(!whyOpen);
+            }}
+            className="new-finding-toggle-btn"
+            aria-expanded={whyOpen}
           >
-            <polyline points="4 6 8 10 12 6" />
-          </svg>
-          Why this matters
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setMethodologyOpen(!methodologyOpen);
-          }}
-          className="new-finding-toggle-btn"
-        >
-          <svg
-            className={`w-3.5 h-3.5 transition-transform ${methodologyOpen ? "rotate-180" : ""}`}
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${whyOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <polyline points="4 6 8 10 12 6" />
+            </svg>
+            Why this matters
+          </button>
+
+          <div
+            className="finding-expandable-content"
+            data-open={whyOpen}
           >
-            <polyline points="4 6 8 10 12 6" />
-          </svg>
-          Methodology
-        </button>
-      </div>
-
-      {/* Assumption expanded content */}
-      {assumptionOpen && (
-        <div className="mt-3 p-4 bg-[rgba(0,0,0,0.02)] rounded-lg">
-          <p className="text-sm text-text-secondary leading-relaxed">{finding.assumption}</p>
-        </div>
-      )}
-
-      {/* Methodology expanded content */}
-      {methodologyOpen && (
-        <div className="mt-3 p-4 bg-[rgba(0,0,0,0.02)] rounded-lg">
-          <p className="text-sm text-text-secondary leading-relaxed">{finding.methodology}</p>
+            <div className="finding-expandable-inner">
+              <div className="mt-3 p-4 bg-[rgba(0,0,0,0.02)] rounded-lg">
+                <p className="text-sm text-text-secondary leading-relaxed">{finding.assumption}</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
