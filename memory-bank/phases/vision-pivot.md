@@ -113,16 +113,16 @@ yoursite.com · Audited by Loupe
 - `OpportunityCount` — "X changes to close the gap"
 - `DomainBadge` — "domain.com · Audited by Loupe"
 
-**Tasks:**
-- [ ] Remove ScoreArc component
-- [ ] Build VerdictDisplay component (large typography, single line)
-- [ ] Build ImpactBar component (visual bar showing gap)
-- [ ] Build OpportunityCount component
-- [ ] Build DomainBadge component
-- [ ] Compose into HeroStack layout
-- [ ] Wire up to new structured_output
+**Tasks:** ✅ COMPLETE
+- [x] Remove ScoreArc component (kept for legacy, conditionally rendered)
+- [x] Build VerdictDisplay component (large typography, single line)
+- [x] Build ImpactBar component (visual bar showing gap)
+- [x] Build OpportunityCount component
+- [x] Build DomainBadge component
+- [x] Compose into NewHeroSection layout
+- [x] Wire up to new structured_output via `isNewAnalysisFormat()` type guard
 
-### 2.2 Findings Cards (Collapsible)
+### 2.2 Findings Cards (Collapsible) ✅ COMPLETE
 
 **Current:** Issue/strength with fix recommendation (4 sections visible)
 **New:** Action-first, reasoning expandable
@@ -148,16 +148,17 @@ Based on: 847 similar pages we've tracked
 Metric detail: Bounce rate ↓ 8-15%
 ```
 
-**Tasks:**
-- [ ] Redesign FindingCard as CollapsibleFindingCard
-- [ ] Default state: element + currentValue + suggestion + friendlyText prediction
-- [ ] "Why this matters" expand/collapse trigger
-- [ ] Expanded state: assumption + methodology + technical metric
-- [ ] Add "Copy" button for suggestion text
-- [ ] Add "I fixed this" button (prominent, not checkbox)
-- [ ] On "I fixed this": move to "Watching" status, queue for next scan
+**Tasks:** ✅ COMPLETE
+- [x] Redesign FindingCard as NewFindingCard with collapsed/expanded states
+- [x] Collapsed state: impact badge + title + prediction mini-badge
+- [x] Expanded state: element icon + currentValue + suggestion + prediction line
+- [x] "Why this matters" expand/collapse trigger (assumption field)
+- [x] "Methodology" expand/collapse trigger
+- [x] Add "Copy" button for suggestion text with feedback
+- [x] Accessibility: keyboard navigation, aria-expanded, focus-visible styles
+- [ ] Add "I fixed this" button (deferred — needs backend support)
 
-### 2.3 Headline Rewrite Section
+### 2.3 Headline Rewrite Section ✅ COMPLETE
 
 **Current:** May or may not exist
 **New:** Prominent with inline annotations
@@ -174,12 +175,13 @@ Try this: "Ship your SaaS in a weekend, not a quarter"
 [Copy to clipboard]
 ```
 
-**Tasks:**
-- [ ] Build HeadlineRewrite component
-- [ ] Display currentAnnotation below current headline
-- [ ] Display suggestedAnnotation below suggested headline
-- [ ] Copy button functionality
-- [ ] Position prominently in results
+**Tasks:** ✅ COMPLETE
+- [x] Updated HeadlineRewrite section (handles both new and legacy schemas)
+- [x] Display currentAnnotation below current headline (when available)
+- [x] Display suggestedAnnotation or reasoning for "Why this works"
+- [x] Copy button functionality
+- [x] Position prominently in results
+- [x] Added Summary section with pull-quote card
 
 ### 2.4 Bridge CTA
 

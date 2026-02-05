@@ -1,27 +1,77 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useId } from "react";
+import { useEffect, useState, useCallback, useRef, useId, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type {
   FindingEvaluation,
-  LegacyStructuredOutput,
-  LegacyChangesSummary,
-  LegacyFinding,
   PageContext,
   DeployContextAPI,
   MetricsSnapshot,
   ClaimStatus,
+  AnalysisResult,
+  ChangesSummary,
+  Finding,
+  ElementType,
 } from "@/lib/types/analysis";
+import { ChronicleLayout } from "@/components/chronicle";
+
+// Type guard for new analysis format (Phase 2.1+)
+function isNewAnalysisFormat(s: unknown): s is AnalysisResult["structured"] {
+  return (
+    typeof s === "object" &&
+    s !== null &&
+    "findingsCount" in s &&
+    "verdict" in s &&
+    "projectedImpactRange" in s
+  );
+}
+
+// Type guard for Chronicle format (N+1 scans with new ChangesSummary)
+function isChronicleFormat(summary: unknown): summary is ChangesSummary {
+  return (
+    typeof summary === "object" &&
+    summary !== null &&
+    "verdict" in summary &&
+    "changes" in summary &&
+    Array.isArray((summary as ChangesSummary).changes) &&
+    "progress" in summary &&
+    typeof (summary as ChangesSummary).progress?.validated === "number"
+  );
+}
 
 // --- Types ---
-// Use legacy types during Phase 1.1 transition (LLM still outputs old format)
-type StructuredOutput = LegacyStructuredOutput;
-type ChangesSummary = LegacyChangesSummary;
-type DeployContext = DeployContextAPI;
-type Finding = LegacyFinding;
-type TopAction = LegacyStructuredOutput["topActions"][number];
+
+// Legacy structured output format (pre-Phase 2.1)
+interface LegacyStructuredOutput {
+  overallScore?: number;
+  whatsWorking?: string[];
+  whatsNot?: string[];
+  topActions?: Array<{ title: string; description: string; tag?: string }>;
+  categories?: Array<{
+    name: string;
+    score: number;
+    findings: Array<{
+      type: "issue" | "suggestion" | "strength";
+      title: string;
+      description: string;
+      fix?: string;
+      element?: string;
+      methodology?: string;
+    }>;
+  }>;
+  headlineRewrite?: {
+    current: string;
+    suggested: string;
+    reasoning?: string;
+    currentAnnotation?: string;
+    suggestedAnnotation?: string;
+  };
+}
+
+// Combined type for structured output (supports both old and new formats)
+type StructuredOutput = AnalysisResult["structured"] | LegacyStructuredOutput;
 
 interface Analysis {
   id: string;
@@ -36,7 +86,7 @@ interface Analysis {
   parent_structured_output: StructuredOutput | null;
   page_context: PageContext | null;
   metrics_snapshot: MetricsSnapshot | null;
-  deploy_context: DeployContext | null;
+  deploy_context: DeployContextAPI | null;
   trigger_type: "manual" | "daily" | "weekly" | "deploy" | null;
   claim_status?: ClaimStatus;
 }
@@ -152,62 +202,142 @@ const EVALUATION_CONFIG = {
   },
 } as const;
 
+// Element type icons for new finding cards
+const ELEMENT_ICONS: Record<ElementType, React.ReactNode> = {
+  headline: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4h12M2 8h8M2 12h10" />
+    </svg>
+  ),
+  cta: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="12" height="8" rx="2" />
+      <path d="M5 8h6" />
+    </svg>
+  ),
+  copy: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4h12M2 7h10M2 10h8M2 13h6" />
+    </svg>
+  ),
+  layout: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="12" height="12" rx="1" />
+      <path d="M2 6h12M6 6v8" />
+    </svg>
+  ),
+  "social-proof": (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2l1.5 4.5H14l-3.5 3 1.5 4.5L8 11l-4 3 1.5-4.5L2 6.5h4.5z" />
+    </svg>
+  ),
+  form: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="12" height="3" rx="0.5" />
+      <rect x="2" y="8" width="12" height="3" rx="0.5" />
+      <rect x="5" y="13" width="6" height="2" rx="0.5" />
+    </svg>
+  ),
+  image: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="12" height="12" rx="1" />
+      <circle cx="5.5" cy="5.5" r="1.5" />
+      <path d="M14 10l-3-3-5 5-2-2-2 2" />
+    </svg>
+  ),
+  navigation: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4h12M2 8h12M2 12h12" />
+    </svg>
+  ),
+  pricing: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2v12M5 4.5c0-1.5 1.5-2 3-2s3 .5 3 2-1.5 2-3 2.5-3 1-3 2.5 1.5 2 3 2 3-.5 3-2" />
+    </svg>
+  ),
+  other: (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6" />
+    </svg>
+  ),
+};
+
+// Impact badge class helper for new findings
+function getImpactBadgeClass(impact: "high" | "medium" | "low"): string {
+  return `new-finding-impact new-finding-impact-${impact}`;
+}
+
 // --- Helpers ---
 
-function scoreColor(score: number) {
+// Legacy format helpers
+type LegacyAction = { title: string; description: string; tag?: string };
+
+function getTopActionsHeader(score: number): { title: string; subtitle: string } | null {
+  if (score >= 80) return { title: "Fine-tuning opportunities", subtitle: "Small tweaks for marginal gains." };
+  if (score >= 60) return { title: "Where you're losing visitors", subtitle: "Ranked by conversion impact. Start at the top." };
+  return { title: "Critical issues to fix", subtitle: "These problems are likely costing you conversions." };
+}
+
+function getActionText(action: LegacyAction | undefined): string {
+  if (!action) return "";
+  return action.title || action.description;
+}
+
+function getActionImpact(action: LegacyAction | undefined): string | null {
+  if (!action?.tag) return null;
+  return action.tag;
+}
+
+function CelebrationState({ score }: { score: number }) {
+  return (
+    <section className="result-section text-center">
+      <h2 className="text-3xl font-bold text-text-primary mb-4" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+        Excellent work!
+      </h2>
+      <p className="text-lg text-text-secondary">
+        Your page scored {score}. There are no major issues to address.
+      </p>
+    </section>
+  );
+}
+
+function TopActionsExpandable({ actions, score }: { actions: LegacyAction[]; score: number }) {
+  const header = getTopActionsHeader(score);
+  return (
+    <section className="result-section">
+      <div className="section-header">
+        <div>
+          <h2 className="text-4xl font-bold text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+            {header?.title || "Actions to take"}
+          </h2>
+          <p className="text-sm text-text-muted mt-1">{header?.subtitle}</p>
+        </div>
+      </div>
+      <ul className="space-y-4">
+        {actions.map((action, i) => (
+          <li key={i} className="glass-card p-4 flex items-start gap-4">
+            <span className="text-2xl font-bold text-[rgba(91,46,145,0.2)]" style={{ fontFamily: "var(--font-instrument-serif)" }}>{i + 1}</span>
+            <div>
+              <p className="text-lg text-text-primary font-semibold">{action.title}</p>
+              {action.description && <p className="text-sm text-text-secondary mt-1">{action.description}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function scoreColor(score: number): string {
   if (score >= 80) return "text-score-high";
   if (score >= 60) return "text-score-mid";
   return "text-score-low";
 }
 
-function scoreCssColor(score: number) {
+function scoreCssColor(score: number): string {
   if (score >= 80) return "var(--score-high)";
   if (score >= 60) return "var(--score-mid)";
   return "var(--score-low)";
-}
-
-function scoreGlowClass(score: number) {
-  if (score >= 80) return "score-ring-glow-green";
-  if (score >= 60) return "score-ring-glow-amber";
-  return "score-ring-glow-red";
-}
-
-function scoreVerdict(score: number) {
-  if (score >= 85)
-    return "This page is doing the fundamentals right. The fixes below are refinements, not rescues.";
-  if (score >= 60)
-    return "Solid foundation, but there's friction costing you conversions. The top actions below are where to start.";
-  return "This page is working against you in several places. The good news: the highest-impact fixes are straightforward.";
-}
-
-function verdictLabel(score: number) {
-  if (score >= 85) return "Your page is dialed in";
-  if (score >= 60) return "Your page is leaking conversions";
-  return "Your page is working against you";
-}
-
-function letterGrade(score: number): string {
-  if (score >= 93) return "A+";
-  if (score >= 85) return "A";
-  if (score >= 78) return "B+";
-  if (score >= 70) return "B";
-  if (score >= 63) return "C+";
-  if (score >= 55) return "C";
-  if (score >= 45) return "D";
-  return "F";
-}
-
-function derivePercentile(score: number): number {
-  // Deterministic pseudo-random offset from score
-  const seed = ((score * 7 + 13) % 17) - 8; // range roughly -8 to +8
-  const raw = score * 0.8 + seed;
-  return Math.min(95, Math.max(5, Math.round(raw)));
-}
-
-function typePriority(type: Finding["type"]) {
-  if (type === "issue") return 0;
-  if (type === "suggestion") return 1;
-  return 2;
 }
 
 function timeAgo(dateStr: string) {
@@ -240,30 +370,6 @@ function formatNumber(n: number): string {
   return n.toString();
 }
 
-function getActionText(action: TopAction | string): string {
-  return typeof action === "string" ? action : action.action;
-}
-
-function getActionImpact(action: TopAction | string): string | null {
-  return typeof action === "string" ? null : action.impact;
-}
-
-function getTopActionsHeader(score: number): { title: string; subtitle: string } | null {
-  if (score >= 95) return null;
-  if (score >= 85) return {
-    title: "A refinement worth making",
-    subtitle: "Your page is strong. This is polish, not rescue."
-  };
-  if (score >= 60) return {
-    title: "Where to tighten up",
-    subtitle: "Ranked by conversion impact. Start at the top."
-  };
-  return {
-    title: "Where you're losing visitors",
-    subtitle: "Ranked by conversion impact. Start at the top."
-  };
-}
-
 // --- Hooks ---
 
 function useCountUp(target: number, duration = 1000) {
@@ -287,292 +393,335 @@ function useCountUp(target: number, duration = 1000) {
 
 // --- Components ---
 
-// Celebration state for excellent pages (95+)
-function CelebrationState({ score }: { score: number }) {
-  return (
-    <section className="result-section">
-      <div className="glass-card-elevated p-8 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[rgba(34,197,94,0.1)] mb-4">
-          <svg className="w-8 h-8 text-score-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="4 12 9 17 20 6" />
-          </svg>
-        </div>
-        <h2 className="text-3xl font-bold text-text-primary mb-2" style={{ fontFamily: "var(--font-instrument-serif)" }}>
-          Your page is solid
-        </h2>
-        <p className="text-lg text-text-secondary max-w-md mx-auto">
-          Nothing here needs urgent attention. Keep shipping and we&apos;ll let you know if anything drifts.
-        </p>
-      </div>
-    </section>
-  );
-}
+// --- Hero Components ---
 
-// Expandable top actions for 4+ items
-function TopActionsExpandable({
-  actions,
-  score
+function VerdictDisplay({
+  verdict,
+  verdictContext,
 }: {
-  actions: (TopAction | string)[];
-  score: number;
+  verdict: string;
+  verdictContext: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const header = getTopActionsHeader(score);
-  const visibleCount = 5;
-  const visibleActions = expanded ? actions : actions.slice(0, visibleCount);
-  const hiddenCount = actions.length - visibleCount;
-
   return (
-    <section className="result-section">
-      <div className="section-header">
-        <div>
-          <h2
-            className="text-4xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
-            {header?.title || "Where you're losing visitors"}
-          </h2>
-          <p className="text-sm text-text-muted mt-1">
-            {header?.subtitle || "Ranked by conversion impact. Start at the top."}
-          </p>
-        </div>
-      </div>
-
-      {/* Hero card for #1 */}
-      {actions[0] && (
-        <div className="glass-card p-6 flex items-start gap-5 mb-6">
-          <span
-            className="text-[4.5rem] leading-none font-bold text-[rgba(91,46,145,0.18)] flex-shrink-0 -mt-2"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
-          >
-            1
-          </span>
-          <div className="pt-2">
-            <p className="text-xl text-text-primary font-semibold leading-relaxed">
-              {getActionText(actions[0])}
-            </p>
-            {getActionImpact(actions[0]) && (
-              <p className="text-sm text-text-muted mt-2">
-                {getActionImpact(actions[0])}
-              </p>
-            )}
-          </div>
-        </div>
+    <div className="text-center">
+      <h1
+        className="hero-reveal-verdict-new text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-text-primary max-w-2xl mx-auto"
+        style={{ fontFamily: "var(--font-instrument-serif)" }}
+      >
+        {verdict}
+      </h1>
+      {verdictContext && (
+        <p className="hero-reveal-context text-base sm:text-lg text-text-secondary mt-4 max-w-xl mx-auto leading-relaxed">
+          {verdictContext}
+        </p>
       )}
-
-      {/* Grid of remaining actions */}
-      {actions.length > 1 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {visibleActions.slice(1).map((action, i) => (
-            <div key={i} className="flex items-start gap-4 p-4 glass-card">
-              <span
-                className="text-[2rem] leading-none font-bold text-[rgba(91,46,145,0.12)] flex-shrink-0"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                {i + 2}
-              </span>
-              <div className="min-w-0">
-                <p className="text-base text-text-primary leading-relaxed">
-                  {getActionText(action)}
-                </p>
-                {getActionImpact(action) && (
-                  <p className="text-xs text-text-muted mt-1">
-                    {getActionImpact(action)}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Show more button */}
-      {!expanded && hiddenCount > 0 && (
-        <button
-          onClick={() => setExpanded(true)}
-          className="mt-4 text-sm text-accent hover:text-accent-dark transition-colors flex items-center gap-1.5"
-        >
-          <span>Show {hiddenCount} more</span>
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M4 6l4 4 4-4" />
-          </svg>
-        </button>
-      )}
-    </section>
+    </div>
   );
 }
 
-// Score arc — thick half-gauge
-function ScoreArc({ score, grade, className }: { score: number; grade: string; className?: string }) {
-  const displayScore = useCountUp(score);
-  const color = scoreCssColor(score);
-  const arcId = useId();
+function ImpactBar({ projectedImpactRange }: { projectedImpactRange: string }) {
+  // Parse "15-30%" to get min/max values
+  const match = projectedImpactRange.match(/(\d+)-?(\d+)?%?/);
+  const minImpact = match ? parseInt(match[1], 10) : 15;
+  const maxImpact = match && match[2] ? parseInt(match[2], 10) : minImpact + 15;
 
-  const cx = 150;
-  const cy = 130;
-  const r = 90;
-  const strokeW = 26;
-  const halfCirc = Math.PI * r;
-  const filled = (displayScore / 100) * halfCirc;
-
-  const shadowR = r;
+  // Calculate visual fill percentages (current = 100 - maxImpact, potential = range)
+  const currentFill = Math.max(30, 100 - maxImpact); // At least 30% fill for visual balance
+  const potentialFill = maxImpact - minImpact + minImpact; // Full potential range
 
   return (
-    <div className={`relative flex-shrink-0 ${className || "w-56 h-48"}`}>
-      <svg className="w-full h-full" viewBox="0 0 300 195" overflow="visible">
-        <defs>
-          {/* Filled arc gradient */}
-          <linearGradient id={`${arcId}-arc`} x1="0%" y1="50%" x2="100%" y2="50%">
-            <stop offset="0%" stopColor="#7B3FA0" />
-            <stop offset="50%" stopColor="#6366B8" />
-            <stop offset="100%" stopColor="#7BA4D4" />
-          </linearGradient>
-          {/* Shadow gradient — same hues but transparent */}
-          <linearGradient id={`${arcId}-shadow`} x1="0%" y1="50%" x2="100%" y2="50%">
-            <stop offset="0%" stopColor="rgba(123,63,160,0.4)" />
-            <stop offset="50%" stopColor="rgba(99,102,184,0.35)" />
-            <stop offset="100%" stopColor="rgba(123,164,212,0.3)" />
-          </linearGradient>
-          {/* Blur filter for the shadow arc */}
-          <filter id={`${arcId}-blur`} x="-20%" y="-20%" width="140%" height="160%">
-            <feGaussianBlur stdDeviation="6" />
-          </filter>
-          {/* Inset shadow for the track — dark on inner top edge */}
-          <filter id={`${arcId}-inset`} x="-20%" y="-30%" width="140%" height="160%">
-            <feComponentTransfer in="SourceAlpha">
-              <feFuncA type="table" tableValues="1 0" />
-            </feComponentTransfer>
-            <feGaussianBlur stdDeviation="2.5" />
-            <feOffset dx="0" dy="2" />
-            <feFlood floodColor="rgba(0,0,0,0.12)" />
-            <feComposite in2="SourceAlpha" operator="in" />
-            <feMerge>
-              <feMergeNode in="SourceGraphic" />
-              <feMergeNode />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {/* Track — light lavender with inset shadow */}
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke="#E4E3EF" strokeWidth={strokeW} strokeLinecap="round"
-          filter={`url(#${arcId}-inset)`}
+    <div className="hero-reveal-impact w-full max-w-md mx-auto">
+      <div className="impact-bar-track flex">
+        <div
+          className="impact-bar-fill"
+          style={{ width: `${currentFill}%` }}
         />
-
-        {/* Color-matched blurred shadow arc — offset down */}
-        <path
-          d={`M ${cx - shadowR} ${cy + 6} A ${shadowR} ${shadowR} 0 0 1 ${cx + shadowR} ${cy + 6}`}
-          fill="none" stroke={`url(#${arcId}-shadow)`} strokeWidth={strokeW}
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${halfCirc}`}
-          filter={`url(#${arcId}-blur)`}
-          className="transition-all duration-1000 ease-out"
+        <div
+          className="impact-bar-potential"
+          style={{ width: `${potentialFill}%` }}
         />
-
-        {/* Filled arc — solid gradient, no white overlay */}
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke={`url(#${arcId}-arc)`} strokeWidth={strokeW} strokeLinecap="round"
-          strokeDasharray={`${filled} ${halfCirc}`}
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-
-      {/* Score text */}
-      <div className="absolute inset-0 flex items-end justify-center" style={{ paddingBottom: "10%" }}>
-        <div className="flex flex-col items-center">
-          <span className="text-5xl font-black leading-none" style={{ fontFamily: "var(--font-instrument-serif)", color }}>
-            {grade}
-          </span>
-          <span className="text-sm text-text-muted tabular-nums font-semibold mt-0.5">{displayScore}/100</span>
-        </div>
+      </div>
+      <div className="flex justify-between mt-2 text-sm">
+        <span className="text-text-muted">You now</span>
+        <span className="text-accent font-semibold">
+          Potential +{projectedImpactRange}
+        </span>
       </div>
     </div>
   );
 }
 
+function OpportunityCount({ count }: { count: number }) {
+  const displayCount = useCountUp(count);
+  return (
+    <p className="hero-reveal-count text-lg text-text-secondary">
+      <span className="font-bold text-text-primary tabular-nums">{displayCount}</span>
+      {" "}change{count !== 1 ? "s" : ""} to close the gap
+    </p>
+  );
+}
+
+function DomainBadge({ domain }: { domain: string }) {
+  return (
+    <div className="hero-reveal-badge flex items-center justify-center gap-2 text-sm text-text-muted">
+      <span className="url-badge py-1.5 px-3">{domain}</span>
+      <span className="text-text-muted">·</span>
+      <span className="text-xs font-semibold uppercase tracking-widest">Audited by Loupe</span>
+    </div>
+  );
+}
+
+interface NewHeroSectionProps {
+  structured: StructuredOutput;
+  domain: string;
+  claimStatus?: ClaimStatus;
+  onShareLink: () => void;
+  linkCopied: boolean;
+  claimEmailSent: boolean;
+  claimEmail: string;
+  setClaimEmail: (email: string) => void;
+  claimLoading: boolean;
+  onClaimEmail: (e: React.FormEvent) => void;
+  claimError: string;
+  claimedPageId?: string | null;
+}
+
+function NewHeroSection({
+  structured,
+  domain,
+  claimStatus,
+  onShareLink,
+  linkCopied,
+  claimEmailSent,
+  claimEmail,
+  setClaimEmail,
+  claimLoading,
+  onClaimEmail,
+  claimError,
+  claimedPageId,
+}: NewHeroSectionProps) {
+  // Check if we have the new analysis format
+  const isNew = isNewAnalysisFormat(structured);
+
+  return (
+    <section className="py-8 lg:py-12">
+      <div className="glass-card-elevated mx-auto overflow-hidden">
+        {/* Main content — centered vertical stack */}
+        <div className="px-8 py-10 space-y-8 flex flex-col items-center">
+          {isNew ? (
+            <>
+              {/* Verdict — the star */}
+              <VerdictDisplay
+                verdict={structured.verdict}
+                verdictContext={structured.verdictContext}
+              />
+
+              {/* Impact bar */}
+              <ImpactBar projectedImpactRange={structured.projectedImpactRange} />
+
+              {/* Opportunity count */}
+              <OpportunityCount count={structured.findingsCount} />
+            </>
+          ) : (
+            /* Legacy hero for old analyses */
+            <div className="text-center">
+              <h1
+                className="text-3xl md:text-4xl font-bold text-text-primary mb-4"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                Audit Complete
+              </h1>
+              {(structured as LegacyStructuredOutput).overallScore !== undefined && (
+                <p className="text-6xl font-black text-accent">
+                  {(structured as LegacyStructuredOutput).overallScore}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Domain badge */}
+          <DomainBadge domain={domain} />
+        </div>
+
+        {/* Card footer — email capture (reused from legacy) */}
+        <div className="hero-reveal-actions border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
+          {claimStatus?.claimed_by_current_user ? (
+            /* Current user already watching */
+            <div className="flex items-center justify-between">
+              <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+                {linkCopied ? "Copied!" : "Share"}
+              </button>
+              <Link
+                href={`/pages/${claimedPageId}`}
+                className="text-sm text-accent hover:underline"
+              >
+                You&apos;re already watching this → View page
+              </Link>
+            </div>
+          ) : claimStatus?.is_claimed ? (
+            /* Domain claimed by someone else */
+            <div className="flex items-center justify-between">
+              <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+                {linkCopied ? "Copied!" : "Share"}
+              </button>
+              <span className="text-sm text-text-muted">Already being monitored by someone else</span>
+            </div>
+          ) : claimEmailSent ? (
+            /* Success state */
+            <div className="flex items-center justify-between">
+              <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
+                {linkCopied ? "Copied!" : "Share"}
+              </button>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                </svg>
+                <span className="text-sm text-text-primary">You&apos;re in — check your inbox</span>
+              </div>
+            </div>
+          ) : (
+            /* Default state */
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                {/* Left: Share */}
+                <button onClick={onShareLink} className="text-sm text-text-muted hover:text-accent transition-colors order-2 sm:order-1">
+                  {linkCopied ? "Copied!" : "Share"}
+                </button>
+
+                {/* Right: hook + form */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 order-1 sm:order-2">
+                  <p className="text-sm text-text-secondary">
+                    We&apos;ll watch for changes →
+                  </p>
+                  <form onSubmit={onClaimEmail} className="flex items-stretch gap-2">
+                    <input
+                      type="email"
+                      placeholder="you@company.com"
+                      value={claimEmail}
+                      onChange={(e) => setClaimEmail(e.target.value)}
+                      className="input-glass text-sm py-2 w-44"
+                      aria-label="Email address"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={claimLoading}
+                      className="btn-primary text-sm py-2 px-4 whitespace-nowrap"
+                    >
+                      {claimLoading ? "..." : "Watch"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+              {claimError && <p className="text-xs text-score-low mt-2 text-right">{claimError}</p>}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Finding Card for prediction-based format
 function FindingCard({
   finding,
   expanded,
   onToggle,
-  shareId,
 }: {
   finding: Finding;
   expanded: boolean;
   onToggle: () => void;
-  shareId: string;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [fixCopied, setFixCopied] = useState(false);
+  const [suggestionCopied, setSuggestionCopied] = useState(false);
+  const [assumptionOpen, setAssumptionOpen] = useState(false);
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
 
-  const cardClass = {
-    issue: "finding-issue",
-    suggestion: "finding-suggestion",
-    strength: "finding-strength",
-  }[finding.type];
-
-  const impactBadgeClass = finding.impact
-    ? `impact-badge impact-badge-${finding.impact}`
-    : null;
-
-  const handleShare = (e: React.MouseEvent) => {
+  const handleCopySuggestion = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}${window.location.pathname}#${shareId}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard.writeText(finding.suggestion);
+    setSuggestionCopied(true);
+    setTimeout(() => setSuggestionCopied(false), 2000);
   };
 
-  const handleCopyFix = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (finding.fix) {
-      navigator.clipboard.writeText(finding.fix);
-      setFixCopied(true);
-      setTimeout(() => setFixCopied(false), 2000);
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggle();
     }
   };
 
-  return (
-    <div
-      id={shareId}
-      className={`${cardClass} group transition-all duration-150 cursor-pointer`}
-      onClick={onToggle}
-    >
-      {/* Collapsed header — always visible */}
-      <div className="flex items-center gap-3 p-4">
-        <p
-          className="flex-1 text-lg font-semibold text-text-primary leading-snug"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
-        >
-          {finding.title}
-        </p>
-        {impactBadgeClass && (
-          <span className={impactBadgeClass}>
-            {finding.impact}
+  const impactLabel = {
+    high: "HIGH IMPACT",
+    medium: "MEDIUM IMPACT",
+    low: "LOW IMPACT",
+  }[finding.impact];
+
+  const elementIcon = ELEMENT_ICONS[finding.elementType] || ELEMENT_ICONS.other;
+
+  // Collapsed view shows title + prediction
+  if (!expanded) {
+    return (
+      <div
+        className="new-finding-card new-finding-card-collapsed group cursor-pointer"
+        onClick={onToggle}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={false}
+        aria-label={`${finding.title}. ${finding.impact} impact. Click to expand.`}
+      >
+        <div className="flex items-center gap-3">
+          <span className={getImpactBadgeClass(finding.impact)}>
+            {finding.impact.toUpperCase()}
           </span>
-        )}
-        {/* Share button — hover reveal */}
-        <button
-          onClick={handleShare}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-text-muted hover:text-accent hover:bg-[rgba(91,46,145,0.08)]"
-          title={copied ? "Copied!" : "Copy link"}
-        >
-          {copied ? (
-            <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+          <p
+            className="flex-1 text-base font-semibold text-text-primary leading-snug"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            {finding.title}
+          </p>
+          <div className="prediction-badge-mini">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="2 12 6 8 9 11 14 4" />
+              <polyline points="10 4 14 4 14 8" />
             </svg>
-          ) : (
-            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 8v5a1 1 0 001 1h6a1 1 0 001-1V8" />
-              <polyline points="11 4 8 1 5 4" />
-              <line x1="8" y1="1" x2="8" y2="10" />
-            </svg>
-          )}
-        </button>
-        {/* Chevron */}
+            <span>+{finding.prediction.range}</span>
+          </div>
+          <svg
+            className="w-5 h-5 text-text-muted transition-transform"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="5 8 10 13 15 8" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  // Expanded view
+  return (
+    <div className="new-finding-card new-finding-card-expanded">
+      {/* Header with impact badge */}
+      <div
+        className="flex items-center justify-between mb-4 cursor-pointer"
+        onClick={onToggle}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={true}
+        aria-label="Click to collapse finding"
+      >
+        <span className={getImpactBadgeClass(finding.impact)}>
+          {impactLabel}
+        </span>
         <svg
-          className={`w-5 h-5 text-text-muted transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          className="w-5 h-5 text-text-muted rotate-180 transition-transform"
           viewBox="0 0 20 20"
           fill="none"
           stroke="currentColor"
@@ -584,46 +733,170 @@ function FindingCard({
         </svg>
       </div>
 
-      {/* Expandable content */}
-      <div
-        className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
-        }`}
+      {/* Title */}
+      <h3
+        className="text-xl font-bold text-text-primary mb-5"
+        style={{ fontFamily: "var(--font-instrument-serif)" }}
       >
-        <div className="px-4 pb-4 pt-1 space-y-4">
-          {/* Detail text */}
-          <p className="text-[0.9375rem] text-text-primary leading-relaxed">
-            {finding.detail}
-          </p>
+        {finding.title}
+      </h3>
 
-          {/* Fix block */}
-          {finding.fix && (
-            <div className="fix-block">
-              <div className="fix-block-header">
-                <span className="fix-block-label">How to fix</span>
-                <button
-                  onClick={handleCopyFix}
-                  className="fix-block-copy"
-                  title={fixCopied ? "Copied!" : "Copy"}
-                >
-                  {fixCopied ? (
-                    <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                      <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              <p className="fix-block-text">{finding.fix}</p>
-            </div>
-          )}
+      {/* Current value block */}
+      <div className="new-finding-current mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="new-finding-element-icon">{elementIcon}</span>
+          <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Current</span>
+        </div>
+        <p className="text-base text-text-secondary leading-relaxed">
+          &ldquo;{finding.currentValue}&rdquo;
+        </p>
+      </div>
+
+      {/* Suggestion block */}
+      <div className="new-finding-suggestion mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-accent uppercase tracking-wide">Suggestion</span>
+          <button
+            onClick={handleCopySuggestion}
+            className="new-finding-copy-btn"
+            title={suggestionCopied ? "Copied!" : "Copy suggestion"}
+            aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion to clipboard"}
+          >
+            {suggestionCopied ? (
+              <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+              </svg>
+            )}
+          </button>
+        </div>
+        <p
+          className="text-base font-semibold text-text-primary leading-relaxed"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          &ldquo;{finding.suggestion}&rdquo;
+        </p>
+      </div>
+
+      {/* Prediction line */}
+      <div className="prediction-badge mb-5">
+        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="2 12 6 8 9 11 14 4" />
+          <polyline points="10 4 14 4 14 8" />
+        </svg>
+        <span className="font-bold">+{finding.prediction.range}</span>
+        <span className="text-text-secondary">{finding.prediction.friendlyText}</span>
+      </div>
+
+      {/* Expandable sections */}
+      <div className="flex items-center gap-3 pt-3 border-t border-border-outer">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setAssumptionOpen(!assumptionOpen);
+          }}
+          className="new-finding-toggle-btn"
+        >
+          <svg
+            className={`w-3.5 h-3.5 transition-transform ${assumptionOpen ? "rotate-180" : ""}`}
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <polyline points="4 6 8 10 12 6" />
+          </svg>
+          Why this matters
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setMethodologyOpen(!methodologyOpen);
+          }}
+          className="new-finding-toggle-btn"
+        >
+          <svg
+            className={`w-3.5 h-3.5 transition-transform ${methodologyOpen ? "rotate-180" : ""}`}
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <polyline points="4 6 8 10 12 6" />
+          </svg>
+          Methodology
+        </button>
+      </div>
+
+      {/* Assumption expanded content */}
+      {assumptionOpen && (
+        <div className="mt-3 p-3 bg-[rgba(0,0,0,0.02)] rounded-lg">
+          <p className="text-sm text-text-secondary leading-relaxed">{finding.assumption}</p>
+        </div>
+      )}
+
+      {/* Methodology expanded content */}
+      {methodologyOpen && (
+        <div className="mt-3 p-3 bg-[rgba(0,0,0,0.02)] rounded-lg">
+          <p className="text-sm text-text-secondary leading-relaxed">{finding.methodology}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Findings Section for new format
+function FindingsSection({ findings }: { findings: Finding[] }) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+    // First finding expanded by default
+    new Set(findings[0] ? [findings[0].id] : [])
+  );
+
+  const toggleFinding = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  if (findings.length === 0) return null;
+
+  return (
+    <section className="result-section">
+      <div className="section-header">
+        <div>
+          <h2
+            className="text-4xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            What to fix
+          </h2>
+          <p className="text-sm text-text-muted mt-1">
+            Ranked by conversion impact. Start at the top.
+          </p>
         </div>
       </div>
-    </div>
+
+      <div className="space-y-3">
+        {findings.map((finding) => (
+          <FindingCard
+            key={finding.id}
+            finding={finding}
+            expanded={expandedIds.has(finding.id)}
+            onToggle={() => toggleFinding(finding.id)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -637,7 +910,7 @@ function EvaluationCard({
   evaluation: FindingEvaluation;
   expanded: boolean;
   onToggle: () => void;
-  deployContext?: DeployContext | null;
+  deployContext?: DeployContextAPI | null;
 }) {
   const config = EVALUATION_CONFIG[evaluation.evaluation];
 
@@ -739,31 +1012,28 @@ function SegmentedProgressBar({
 }: {
   progress: ChangesSummary["progress"];
 }) {
-  const total = progress.total_original || 1;
+  const total = (progress.validated || 0) + (progress.watching || 0) + (progress.open || 0) || 1;
 
   // Calculate percentages for each segment
-  const resolved = progress.resolved || 0;
-  const improved = progress.improved || 0;
-  const unchanged = progress.unchanged || progress.persisting || 0;
-  const regressed = progress.regressed || 0;
+  const validated = progress.validated || 0;
+  const watching = progress.watching || 0;
+  const open = progress.open || 0;
 
-  const resolvedPct = (resolved / total) * 100;
-  const improvedPct = (improved / total) * 100;
-  const unchangedPct = (unchanged / total) * 100;
-  const regressedPct = (regressed / total) * 100;
+  const validatedPct = (validated / total) * 100;
+  const watchingPct = (watching / total) * 100;
+  const openPct = (open / total) * 100;
 
   // Build segments array (only include non-zero segments)
   const segments: { color: string; pct: number; label: string; count: number }[] = [];
-  if (resolved > 0) segments.push({ color: "var(--score-high)", pct: resolvedPct, label: "resolved", count: resolved });
-  if (improved > 0) segments.push({ color: "var(--score-mid)", pct: improvedPct, label: "improved", count: improved });
-  if (unchanged > 0) segments.push({ color: "#8E8EA0", pct: unchangedPct, label: "unchanged", count: unchanged });
-  if (regressed > 0) segments.push({ color: "var(--score-low)", pct: regressedPct, label: "regressed", count: regressed });
+  if (validated > 0) segments.push({ color: "var(--score-high)", pct: validatedPct, label: "validated", count: validated });
+  if (watching > 0) segments.push({ color: "var(--score-mid)", pct: watchingPct, label: "watching", count: watching });
+  if (open > 0) segments.push({ color: "#8E8EA0", pct: openPct, label: "open", count: open });
 
   return (
     <div>
       {/* Segmented bar */}
       <div className="progress-segmented">
-        {segments.map((seg, i) => (
+        {segments.map((seg) => (
           <div
             key={seg.label}
             className="progress-segment"
@@ -783,12 +1053,6 @@ function SegmentedProgressBar({
             <span className="font-semibold">{seg.count}</span> {seg.label}
           </span>
         ))}
-        {progress.new_issues > 0 && (
-          <span className="progress-legend-item">
-            <span className="progress-legend-dot" style={{ backgroundColor: "var(--score-low)" }} />
-            <span className="font-semibold">{progress.new_issues}</span> new
-          </span>
-        )}
       </div>
     </div>
   );
@@ -870,16 +1134,16 @@ export default function AnalysisPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>("");
   const [showScreenshot, setShowScreenshot] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimEmail, setClaimEmail] = useState("");
   const [claimEmailSent, setClaimEmailSent] = useState(false);
   const [claimError, setClaimError] = useState("");
-  const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
-  const [expandedEvaluations, setExpandedEvaluations] = useState<Set<number>>(new Set());
   const [deployExpanded, setDeployExpanded] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
+  const [expandedEvaluations, setExpandedEvaluations] = useState<Set<number>>(new Set());
   const [foundingStatus, setFoundingStatus] = useState<{
     claimed: number;
     total: number;
@@ -887,20 +1151,17 @@ export default function AnalysisPage() {
     isFull: boolean;
   } | null>(null);
 
-  // Auto-expand first finding when category changes
+  // Set default active category when analysis loads (legacy format)
   useEffect(() => {
-    if (activeCategory && analysis?.structured_output) {
-      const cat = analysis.structured_output.categories.find((c) => c.name === activeCategory);
-      if (cat && cat.findings.length > 0) {
-        const sortedFindings = [...cat.findings].sort(
-          (a, b) => typePriority(a.type) - typePriority(b.type)
-        );
-        const firstFindingId = `finding-${activeCategory.replace(/\s+/g, "-").toLowerCase()}-0`;
-        setExpandedFindings(new Set([firstFindingId]));
+    if (analysis?.structured_output && !activeCategory) {
+      const legacy = analysis.structured_output as LegacyStructuredOutput;
+      if (legacy.categories && legacy.categories.length > 0) {
+        setActiveCategory(legacy.categories[0].name);
       }
     }
-  }, [activeCategory, analysis?.structured_output]);
+  }, [analysis, activeCategory]);
 
+  // Toggle functions for legacy findings and evaluations
   const toggleFinding = useCallback((findingId: string) => {
     setExpandedFindings((prev) => {
       const next = new Set(prev);
@@ -924,6 +1185,19 @@ export default function AnalysisPage() {
       return next;
     });
   }, []);
+
+  // Derive active category findings for legacy format
+  const activeCatFindings = useMemo(() => {
+    if (!analysis?.structured_output || !activeCategory) return [];
+    const legacy = analysis.structured_output as LegacyStructuredOutput;
+    const cat = legacy.categories?.find((c) => c.name === activeCategory);
+    if (!cat) return [];
+    // Sort findings by type priority (issues first, then suggestions, then strengths)
+    return [...cat.findings].sort((a, b) => {
+      const priority = { issue: 0, suggestion: 1, strength: 2 };
+      return (priority[a.type] ?? 3) - (priority[b.type] ?? 3);
+    });
+  }, [analysis, activeCategory]);
 
   // Fetch founding status on mount
   useEffect(() => {
@@ -992,12 +1266,6 @@ export default function AnalysisPage() {
       const data = await fetchAnalysis();
       if (data && (data.status === "complete" || data.status === "failed")) {
         clearInterval(interval);
-        if (data.structured_output) {
-          const lowest = [...data.structured_output.categories].sort(
-            (a, b) => a.score - b.score
-          )[0];
-          if (lowest) setActiveCategory(lowest.name);
-        }
       }
     }
     poll();
@@ -1222,29 +1490,11 @@ export default function AnalysisPage() {
   }
 
   const s = analysis.structured_output;
-  const activeCat = s.categories.find((c) => c.name === activeCategory);
-  const activeCatFindings = activeCat
-    ? [...activeCat.findings].sort(
-        (a, b) => typePriority(a.type) - typePriority(b.type)
-      )
-    : [];
-
-  const grade = letterGrade(s.overallScore);
-  const percentile = derivePercentile(s.overallScore);
-  const hexColor = scoreCssColor(s.overallScore);
+  const isChronicle = analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
+  // Boolean check without type narrowing (to preserve legacy s type in !isNewFormat branches)
+  const isNewFormat = Boolean(s && "findingsCount" in s && "verdict" in s && "projectedImpactRange" in s);
 
   const pageCtx = analysis.page_context;
-
-  // Get findings evaluations (new schema) or convert from legacy
-  const findingsEvaluations: FindingEvaluation[] = analysis.changes_summary?.findings_evaluations ||
-    (analysis.changes_summary?.findings_status?.map(f => ({
-      title: f.title,
-      element: f.element,
-      previous_status: f.previous_status as "issue" | "suggestion",
-      evaluation: (f.current_status === "persists" ? "unchanged" : f.current_status) as FindingEvaluation["evaluation"],
-      quality_assessment: "",
-      detail: f.detail,
-    })) || []);
 
   return (
     <main className="min-h-screen text-text-primary">
@@ -1376,262 +1626,46 @@ export default function AnalysisPage() {
           </div>
         )}
 
-{/* Zone 1: Hero Scorecard */}
-        <section className="py-8 lg:py-12">
-          <div className="glass-card-elevated mx-auto overflow-hidden">
-            {/* Card header — domain + timestamp + metrics */}
-            <div className="flex items-center justify-between px-8 pt-7 pb-0">
-              <div className="flex items-center gap-3">
-                <span className="url-badge">{getDomain(analysis.url)}</span>
-                <span className="text-sm text-text-muted">{timeAgo(analysis.created_at)}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                {/* PostHog metrics pill */}
-                {analysis.metrics_snapshot && (
-                  <div className="flex items-center gap-3 text-xs text-text-muted">
-                    <span title="Pageviews (last 7 days)">
-                      <span className="font-semibold text-text-secondary">{formatNumber(analysis.metrics_snapshot.pageviews)}</span> views
-                    </span>
-                    <span className="text-[rgba(0,0,0,0.1)]">|</span>
-                    <span title="Unique visitors (last 7 days)">
-                      <span className="font-semibold text-text-secondary">{formatNumber(analysis.metrics_snapshot.unique_visitors)}</span> visitors
-                    </span>
-                    <span className="text-[rgba(0,0,0,0.1)]">|</span>
-                    <span title="Bounce rate (last 7 days)">
-                      <span className="font-semibold text-text-secondary">{analysis.metrics_snapshot.bounce_rate}%</span> bounce
-                    </span>
-                  </div>
-                )}
-                <span className="text-xs font-semibold text-text-muted uppercase tracking-widest">Loupe Audit</span>
-              </div>
-            </div>
-
-            {/* Card body — 3-column on desktop: ring | verdict | categories */}
-            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 lg:gap-8 px-8 py-8">
-              {/* Score gauge */}
-              <ScoreArc score={s.overallScore} grade={grade} className="w-48 h-44 flex-shrink-0" />
-
-              {/* Verdict + percentile */}
-              <div className="flex-1 text-center lg:text-left min-w-0">
-                <p
-                  className="hero-reveal-verdict text-2xl sm:text-3xl font-bold leading-tight text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  {s.verdict || verdictLabel(s.overallScore)}
-                </p>
-
-                {/* Percentile */}
-                <div className="hero-reveal-percentile mt-5">
-                  <p className="text-sm text-text-muted mb-1.5">
-                    Scores higher than {percentile}% of pages audited
-                  </p>
-                  <div className="percentile-track">
-                    <div
-                      className="percentile-fill"
-                      style={{ width: `${percentile}%`, backgroundColor: hexColor }}
-                    >
-                      <div className="percentile-dot" style={{ backgroundColor: hexColor }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Category breakdown — right column on desktop, below on mobile */}
-              <div className="w-full lg:w-[240px] flex-shrink-0 lg:border-l lg:border-border-outer lg:pl-8 border-t lg:border-t-0 border-border-outer pt-5 lg:pt-0">
-                <div className="space-y-3">
-                  {s.categories.map((cat) => (
-                    <div key={cat.name}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide truncate">{cat.name}</span>
-                        <span className={`text-sm font-bold tabular-nums ml-2 ${scoreColor(cat.score)}`}>{cat.score}</span>
-                      </div>
-                      <div className="progress-track !h-[3px]">
-                        <div
-                          className="progress-fill"
-                          style={{
-                            width: `${cat.score}%`,
-                            backgroundColor: scoreCssColor(cat.score),
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Card footer — email capture */}
-            <div className="hero-reveal-actions border-t border-border-outer px-8 py-4 bg-[rgba(0,0,0,0.015)]">
-              {analysis.claim_status?.claimed_by_current_user ? (
-                /* Current user already watching */
-                <div className="flex items-center justify-between">
-                  <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
-                    {linkCopied ? "Copied!" : "Share"}
-                  </button>
-                  <Link
-                    href={`/pages/${analysis.claim_status.claimed_page_id}`}
-                    className="text-sm text-accent hover:underline"
-                  >
-                    You&apos;re already watching this → View page
-                  </Link>
-                </div>
-              ) : analysis.claim_status?.is_claimed ? (
-                /* Domain claimed by someone else */
-                <div className="flex items-center justify-between">
-                  <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
-                    {linkCopied ? "Copied!" : "Share"}
-                  </button>
-                  <span className="text-sm text-text-muted">Already being monitored by someone else</span>
-                </div>
-              ) : claimEmailSent ? (
-                /* Success state */
-                <div className="flex items-center justify-between">
-                  <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors">
-                    {linkCopied ? "Copied!" : "Share"}
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                    </svg>
-                    <span className="text-sm text-text-primary">You&apos;re in — check your inbox</span>
-                  </div>
-                </div>
-              ) : (
-                /* Default state */
-                <>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    {/* Left: Share */}
-                    <button onClick={handleShareLink} className="text-sm text-text-muted hover:text-accent transition-colors order-2 sm:order-1">
-                      {linkCopied ? "Copied!" : "Share"}
-                    </button>
-
-                    {/* Right: hook + form */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 order-1 sm:order-2">
-                      <p className="text-sm text-text-secondary">
-                        We&apos;ll watch for changes →
-                      </p>
-                      <form onSubmit={handleClaimEmail} className="flex items-stretch gap-2">
-                        <input
-                          type="email"
-                          placeholder="you@company.com"
-                          value={claimEmail}
-                          onChange={(e) => setClaimEmail(e.target.value)}
-                          className="input-glass text-sm py-2 w-44"
-                          aria-label="Email address"
-                          required
-                        />
-                        <button
-                          type="submit"
-                          disabled={claimLoading}
-                          className="btn-primary text-sm py-2 px-4 whitespace-nowrap"
-                        >
-                          {claimLoading ? "..." : "Watch"}
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                  {claimError && <p className="text-xs text-score-low mt-2 text-right">{claimError}</p>}
-                </>
-              )}
-            </div>
-          </div>
-        </section>
+{/* Initial Audit Layout — hidden for Chronicle scans */}
+        {!isChronicle && (
+          <>
+        {/* Hero Section */}
+        <NewHeroSection
+          structured={s}
+          domain={getDomain(analysis.url)}
+          claimStatus={analysis.claim_status}
+          onShareLink={handleShareLink}
+          linkCopied={linkCopied}
+          claimEmailSent={claimEmailSent}
+          claimEmail={claimEmail}
+          setClaimEmail={setClaimEmail}
+          claimLoading={claimLoading}
+          onClaimEmail={handleClaimEmail}
+          claimError={claimError}
+          claimedPageId={analysis.claim_status?.claimed_page_id}
+        />
 
         <hr className="section-divider" />
 
-        {/* Zone 2: Quick Diagnosis - adaptive grid based on content */}
-        {((s.whatsWorking?.length ?? 0) > 0 || (s.whatsNot?.length ?? 0) > 0) && (
+        {/* Findings Section */}
+        {isNewAnalysisFormat(s) && s.findings && s.findings.length > 0 && (
           <>
-            <section className="result-section">
-              <div className="section-header">
-                <div>
-                  <h2
-                    className="text-4xl font-bold text-text-primary"
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    Quick diagnosis
-                  </h2>
-                  <p className="text-sm text-text-muted mt-1">
-                    What&apos;s helping conversions, what&apos;s hurting them.
-                  </p>
-                </div>
-                {/* Screenshot thumbnail — far right */}
-                {analysis.screenshot_url && (
-                  <button
-                    onClick={() => setShowScreenshot(true)}
-                    className="hidden md:block ml-auto flex-shrink-0 w-[100px] rounded-lg overflow-hidden border border-[rgba(0,0,0,0.08)]
-                               hover:border-[rgba(91,46,145,0.3)] transition-colors cursor-pointer"
-                  >
-                    <img
-                      src={analysis.screenshot_url}
-                      alt="Page screenshot"
-                      loading="lazy"
-                      className="w-full h-[60px] object-cover object-top"
-                    />
-                  </button>
-                )}
-              </div>
-
-              {/* Adaptive grid: 2 columns when both have content, single column when one is empty */}
-              <div className={`grid grid-cols-1 gap-6 ${
-                (s.whatsWorking?.length ?? 0) > 0 && (s.whatsNot?.length ?? 0) > 0
-                  ? "md:grid-cols-2"
-                  : ""
-              }`}>
-                {/* What's working */}
-                {(s.whatsWorking?.length ?? 0) > 0 && (
-                  <div className="glass-card p-6">
-                    <p className="text-xs font-semibold text-score-high uppercase tracking-wide mb-5">
-                      Working
-                    </p>
-                    <ul className="space-y-5">
-                      {(s.whatsWorking || []).map((item, i) => (
-                        <li key={i} className="flex items-start gap-3">
-                          <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-high" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="4 9.5 7.5 13 14 5" />
-                          </svg>
-                          <span className="text-lg text-text-primary leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {/* Leaking */}
-                {(s.whatsNot?.length ?? 0) > 0 && (
-                  <div className="glass-card p-6">
-                    <p className="text-xs font-semibold text-score-low uppercase tracking-wide mb-5">
-                      Leaking
-                    </p>
-                    <ul className="space-y-5">
-                      {(s.whatsNot || []).map((item, i) => (
-                        <li key={i} className="flex items-start gap-3">
-                          <svg className="w-[18px] h-[18px] mt-1 flex-shrink-0 text-score-low" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="5" y1="5" x2="13" y2="13" />
-                            <line x1="13" y1="5" x2="5" y2="13" />
-                          </svg>
-                          <span className="text-lg text-text-primary leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </section>
-
+            <FindingsSection findings={s.findings} />
             <hr className="section-divider" />
           </>
         )}
 
-        {/* Zone 3: Top Actions - variable layout based on count and score */}
-        {(() => {
-          const actionsCount = s.topActions.length;
-          const header = getTopActionsHeader(s.overallScore);
+        {/* ZONE3_REMOVE_START */}
+        {false && (() => {
+          const legacy = s as LegacyStructuredOutput;
+          const actionsCount = legacy.topActions?.length ?? 0;
+          const header = getTopActionsHeader(legacy.overallScore ?? 0);
 
           // Score 95+ with no actions → celebration state
-          if (actionsCount === 0 && s.overallScore >= 95) {
+          if (actionsCount === 0 && (legacy.overallScore ?? 0) >= 95) {
             return (
               <>
-                <CelebrationState score={s.overallScore} />
+                <CelebrationState score={legacy.overallScore ?? 0} />
                 <hr className="section-divider" />
               </>
             );
@@ -1646,7 +1680,7 @@ export default function AnalysisPage() {
           if (actionsCount >= 4) {
             return (
               <>
-                <TopActionsExpandable actions={s.topActions} score={s.overallScore} />
+                <TopActionsExpandable actions={legacy.topActions ?? []} score={legacy.overallScore ?? 0} />
                 <hr className="section-divider" />
               </>
             );
@@ -1679,11 +1713,11 @@ export default function AnalysisPage() {
                     </span>
                     <div className="pt-2">
                       <p className="text-xl text-text-primary font-semibold leading-relaxed">
-                        {getActionText(s.topActions[0])}
+                        {getActionText(legacy.topActions?.[0])}
                       </p>
-                      {getActionImpact(s.topActions[0]) && (
+                      {getActionImpact(legacy.topActions?.[0]) && (
                         <p className="text-sm text-text-muted mt-2">
-                          {getActionImpact(s.topActions[0])}
+                          {getActionImpact(legacy.topActions?.[0])}
                         </p>
                       )}
                     </div>
@@ -1722,11 +1756,11 @@ export default function AnalysisPage() {
                     </span>
                     <div className="pt-2">
                       <p className="text-xl text-text-primary font-semibold leading-relaxed">
-                        {getActionText(s.topActions[0])}
+                        {getActionText(legacy.topActions?.[0])}
                       </p>
-                      {getActionImpact(s.topActions[0]) && (
+                      {getActionImpact(legacy.topActions?.[0]) && (
                         <p className="text-sm text-text-muted mt-2">
-                          {getActionImpact(s.topActions[0])}
+                          {getActionImpact(legacy.topActions?.[0])}
                         </p>
                       )}
                     </div>
@@ -1734,7 +1768,7 @@ export default function AnalysisPage() {
 
                   {/* #2 and #3 — right column, stacked */}
                   <div className="space-y-8">
-                    {s.topActions.slice(1, 3).map((action, i) => (
+                    {(legacy.topActions ?? []).slice(1, 3).map((action, i) => (
                       <div key={i} className="flex items-start gap-4">
                         <span
                           className="text-[2.5rem] leading-none font-bold text-[rgba(91,46,145,0.12)] flex-shrink-0 -mt-1"
@@ -1772,42 +1806,93 @@ export default function AnalysisPage() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
-                {/* Left: the rewrite card */}
-                <div className="glass-card-elevated p-6">
-                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">Current</p>
-                  <p className="headline-rewrite-current text-base leading-relaxed mb-4">
-                    {s.headlineRewrite.current}
-                  </p>
-                  <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-1.5">Suggested</p>
-                  <div className="headline-rewrite-suggested relative">
-                    <p
-                      className="text-base font-bold leading-relaxed pr-8"
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
-                    >
-                      {s.headlineRewrite.suggested}
-                    </p>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(s.headlineRewrite!.suggested)}
-                      className="absolute top-3 right-3 text-text-muted hover:text-accent transition-colors p-1 rounded-md
-                                 hover:bg-[rgba(91,46,145,0.08)] active:scale-[0.95]"
-                      title="Copy headline"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                        <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+              {(() => {
+                // Type-safe headline rewrite handling
+                const headlineRewrite = s.headlineRewrite as {
+                  current: string;
+                  suggested: string;
+                  currentAnnotation?: string;
+                  suggestedAnnotation?: string;
+                  reasoning?: string;
+                };
+                const annotation = headlineRewrite.currentAnnotation;
+                const explanation = headlineRewrite.suggestedAnnotation || headlineRewrite.reasoning || "";
 
-                {/* Right: reasoning */}
-                <div className="lg:pt-6">
-                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
-                  <p className="text-lg text-text-primary leading-relaxed">
-                    {s.headlineRewrite.reasoning}
-                  </p>
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
+                    {/* Left: the rewrite card */}
+                    <div className="glass-card-elevated p-6">
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">Current</p>
+                      <p className="headline-rewrite-current text-base leading-relaxed mb-2">
+                        {headlineRewrite.current}
+                      </p>
+                      {/* New format: show currentAnnotation */}
+                      {annotation && (
+                        <p className="text-sm text-text-muted mb-4 italic">
+                          {annotation}
+                        </p>
+                      )}
+                      {!annotation && <div className="mb-2" />}
+
+                      <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-1.5">Suggested</p>
+                      <div className="headline-rewrite-suggested relative">
+                        <p
+                          className="text-base font-bold leading-relaxed pr-8"
+                          style={{ fontFamily: "var(--font-instrument-serif)" }}
+                        >
+                          {headlineRewrite.suggested}
+                        </p>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(headlineRewrite.suggested)}
+                          className="absolute top-3 right-3 text-text-muted hover:text-accent transition-colors p-1 rounded-md
+                                     hover:bg-[rgba(91,46,145,0.08)] active:scale-[0.95]"
+                          title="Copy headline"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                            <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right: reasoning/annotation */}
+                    <div className="lg:pt-6">
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
+                      <p className="text-lg text-text-primary leading-relaxed">
+                        {explanation}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </section>
+
+            <hr className="section-divider" />
+          </>
+        )}
+
+        {/* Summary Section */}
+        {isNewAnalysisFormat(s) && s.summary && (
+          <>
+            <section className="result-section">
+              <div className="section-header">
+                <div>
+                  <h2
+                    className="text-4xl font-bold text-text-primary"
+                    style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  >
+                    Summary
+                  </h2>
                 </div>
+              </div>
+              <div className="pull-quote-card">
+                <p
+                  className="text-lg text-text-primary leading-relaxed"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  {s.summary}
+                </p>
               </div>
             </section>
 
@@ -1815,18 +1900,19 @@ export default function AnalysisPage() {
           </>
         )}
 
-        {/* Zone 4: Category Grid */}
-        <section className="result-section">
-          <div className="section-header">
-            <h2
-              className="text-4xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              The full picture
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {s.categories.map((cat) => {
+        {/* ZONE4_REMOVE_START */}
+        {false && (s as LegacyStructuredOutput).categories && (
+          <section className="result-section">
+            <div className="section-header">
+              <h2
+                className="text-4xl font-bold text-text-primary"
+                style={{ fontFamily: "var(--font-instrument-serif)" }}
+              >
+                The full picture
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {((s as LegacyStructuredOutput).categories ?? []).map((cat) => {
               const isActive = activeCategory === cat.name;
               const issueCount = cat.findings.filter(
                 (f) => f.type === "issue"
@@ -1908,27 +1994,31 @@ export default function AnalysisPage() {
                   </div>
                 </button>
               );
-            })}
-          </div>
-        </section>
+              })}
+            </div>
+          </section>
+        )}
 
-        <hr className="section-divider" />
+        {/* ZONE5_REMOVE_START */}
+        {false && (s as LegacyStructuredOutput).categories && (
+          <>
+            <hr className="section-divider" />
 
-        {/* Zone 5: Findings Panel */}
-        <section className="result-section" id="findings">
-          <div className="section-header">
-            <h2
-              className="text-4xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
-            >
-              What we found
-            </h2>
-          </div>
+            {/* Zone 5: Findings Panel (legacy format only) */}
+            <section className="result-section" id="findings">
+              <div className="section-header">
+                <h2
+                  className="text-4xl font-bold text-text-primary"
+                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                >
+                  What we found
+                </h2>
+              </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left sidebar: category nav */}
             <div className="lg:col-span-3 lg:sticky lg:top-6 lg:self-start">
               <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-                {s.categories.map((cat) => {
+                {((s as LegacyStructuredOutput).categories ?? []).map((cat) => {
                   const issueCount = cat.findings.filter((f) => f.type === "issue").length;
                   const suggestionCount = cat.findings.filter((f) => f.type === "suggestion").length;
                   const strengthCount = cat.findings.filter((f) => f.type === "strength").length;
@@ -1985,10 +2075,10 @@ export default function AnalysisPage() {
                   );
                 })}
               </nav>
-              {activeCategory && CATEGORY_EXPLAINERS[activeCategory] && (
+              {activeCategory && CATEGORY_EXPLAINERS[activeCategory as keyof typeof CATEGORY_EXPLAINERS] && (
                 <div className="hidden lg:block mt-4 explainer-card">
                   <p className="text-sm text-text-secondary leading-relaxed">
-                    {CATEGORY_EXPLAINERS[activeCategory]}
+                    {CATEGORY_EXPLAINERS[activeCategory as keyof typeof CATEGORY_EXPLAINERS]}
                   </p>
                 </div>
               )}
@@ -1998,15 +2088,49 @@ export default function AnalysisPage() {
             <div className="lg:col-span-9 space-y-2">
               {activeCatFindings.length > 0 ? (
                 activeCatFindings.map((finding, i) => {
-                  const findingId = `finding-${activeCategory.replace(/\s+/g, "-").toLowerCase()}-${i}`;
+                  const findingId = `finding-${(activeCategory ?? "").replace(/\s+/g, "-").toLowerCase()}-${i}`;
+                  const typeColors = {
+                    issue: "border-l-score-low bg-[rgba(194,59,59,0.03)]",
+                    suggestion: "border-l-accent bg-[rgba(91,46,145,0.03)]",
+                    strength: "border-l-score-high bg-[rgba(26,140,91,0.03)]",
+                  };
+                  const typeLabels = { issue: "Issue", suggestion: "Suggestion", strength: "Strength" };
+                  const isExpanded = expandedFindings.has(findingId);
                   return (
-                    <FindingCard
+                    <div
                       key={findingId}
-                      finding={finding}
-                      expanded={expandedFindings.has(findingId)}
-                      onToggle={() => toggleFinding(findingId)}
-                      shareId={findingId}
-                    />
+                      id={findingId}
+                      className={`glass-card border-l-4 ${typeColors[finding.type]} p-5 transition-all duration-150`}
+                    >
+                      <button
+                        onClick={() => toggleFinding(findingId)}
+                        className="w-full text-left flex items-start justify-between gap-4"
+                      >
+                        <div className="flex-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                            {typeLabels[finding.type]}
+                          </span>
+                          <p className="text-lg text-text-primary font-semibold mt-1">{finding.title}</p>
+                        </div>
+                        <svg
+                          className={`w-5 h-5 text-text-muted transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"
+                        >
+                          <path d="M5 7l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      {isExpanded && (
+                        <div className="mt-4 space-y-4">
+                          <p className="text-base text-text-secondary">{finding.description}</p>
+                          {finding.fix && (
+                            <div className="bg-[rgba(91,46,145,0.04)] border border-[rgba(91,46,145,0.15)] rounded-lg p-4">
+                              <p className="text-sm font-semibold text-accent mb-1">Fix:</p>
+                              <p className="text-base text-text-primary">{finding.fix}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })
               ) : (
@@ -2019,152 +2143,25 @@ export default function AnalysisPage() {
             </div>
           </div>
 
-          <p className="bridge-text mt-6">
-            This is your page today. After your next deploy, it won&apos;t be.
-          </p>
-        </section>
+            <p className="bridge-text mt-6">
+              This is your page today. After your next deploy, it won&apos;t be.
+            </p>
+          </section>
 
-        <hr className="section-divider" />
-
-        {/* Comparison View — REDESIGNED "What Changed" section */}
-        {analysis.changes_summary && (
-          <>
-            <section className="result-section">
-              {/* Section Header with running summary */}
-              <div className="section-header flex-col !items-start gap-2">
-                <h2
-                  className="text-4xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  What changed
-                </h2>
-                {analysis.changes_summary.running_summary && (
-                  <p className="text-base text-text-secondary mt-1">
-                    {analysis.changes_summary.running_summary}
-                  </p>
-                )}
-              </div>
-
-              {/* Deploy Context Banner (if deploy-triggered and in changes section) */}
-              {analysis.trigger_type === "deploy" && analysis.deploy_context && (
-                <div className="deploy-context-banner flex items-center gap-4 mb-6">
-                  <div className="evaluation-icon evaluation-icon-improved">
-                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="8" cy="8" r="3" />
-                      <path d="M8 1v4M8 11v4M1 8h4M11 8h4" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">
-                      &ldquo;{analysis.deploy_context.commit_message}&rdquo;
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      <span className="font-mono">{analysis.deploy_context.commit_sha.slice(0, 7)}</span>
-                      {" by "}{analysis.deploy_context.commit_author}
-                      {" "}
-                      {timeAgo(analysis.deploy_context.commit_timestamp)}
-                    </p>
-                  </div>
-                  {analysis.deploy_context.changed_files.length > 0 && (
-                    <div className="hidden sm:block text-right flex-shrink-0">
-                      <p className="text-xs text-text-muted mb-0.5">Changed</p>
-                      <p className="text-xs font-mono text-text-secondary">
-                        {analysis.deploy_context.changed_files.slice(0, 2).map(f => f.split('/').pop()).join(', ')}
-                        {analysis.deploy_context.changed_files.length > 2 && ` +${analysis.deploy_context.changed_files.length - 2}`}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Analytics Insights Callout (if present) */}
-              {analysis.changes_summary.analytics_insights && (
-                <div className="analytics-insight-card mb-6">
-                  <div className="flex items-start gap-4">
-                    <div className="evaluation-icon evaluation-icon-improved flex-shrink-0">
-                      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="2 12 6 8 9 11 14 4" />
-                        <polyline points="10 4 14 4 14 8" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-                        Analytics correlation
-                      </p>
-                      <p
-                        className="text-lg text-text-primary leading-relaxed"
-                        style={{ fontFamily: "var(--font-instrument-serif)" }}
-                      >
-                        {analysis.changes_summary.analytics_insights}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Score + Progress Hero Card */}
-              <div className="glass-card-elevated p-6 md:p-8 mb-6">
-                <div className="flex flex-col sm:flex-row items-start gap-8">
-                  {/* Score change */}
-                  <div className="flex-shrink-0">
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Score</p>
-                    <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-instrument-serif)" }}>
-                      <span className="text-text-muted">{analysis.parent_structured_output?.overallScore ?? "?"}</span>
-                      <span className="text-text-muted font-normal text-xl mx-2">&rarr;</span>
-                      <span className={scoreColor(s.overallScore)}>{s.overallScore}</span>
-                      {analysis.changes_summary.score_delta !== 0 && (
-                        <span className={`text-lg ml-2 ${analysis.changes_summary.score_delta > 0 ? "text-score-high" : "text-score-low"}`}>
-                          {analysis.changes_summary.score_delta > 0 ? "+" : ""}{analysis.changes_summary.score_delta}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Segmented Progress bar */}
-                  <div className="flex-1 w-full">
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Progress</p>
-                    <SegmentedProgressBar progress={analysis.changes_summary.progress} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Finding Evaluations List */}
-              <div className="space-y-2">
-                {findingsEvaluations.map((evaluation, i) => (
-                  <EvaluationCard
-                    key={i}
-                    evaluation={evaluation}
-                    expanded={expandedEvaluations.has(i)}
-                    onToggle={() => toggleEvaluation(i)}
-                    deployContext={analysis.deploy_context}
-                  />
-                ))}
-              </div>
-
-              {/* Category deltas */}
-              {analysis.changes_summary.category_deltas.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-6">
-                  {analysis.changes_summary.category_deltas.map((cd) => (
-                    <div key={cd.name} className="glass-card p-4">
-                      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">{cd.name}</p>
-                      <p className="text-lg font-bold">
-                        <span className="text-text-muted">{cd.previous}</span>
-                        <span className="text-text-muted mx-1">&rarr;</span>
-                        <span className={scoreColor(cd.current)}>{cd.current}</span>
-                        {cd.delta !== 0 && (
-                          <span className={`text-sm ml-1.5 ${cd.delta > 0 ? "text-score-high" : "text-score-low"}`}>
-                            {cd.delta > 0 ? "+" : ""}{cd.delta}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <hr className="section-divider" />
+          <hr className="section-divider" />
           </>
+        )}
+          </>
+        )}
+
+        {/* Chronicle Layout for new format N+1 scans */}
+        {analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
+          <ChronicleLayout
+            url={analysis.url}
+            changesSummary={analysis.changes_summary}
+            deployContext={analysis.deploy_context}
+            baselineDate={analysis.parent_structured_output ? analysis.created_at : undefined}
+          />
         )}
 
         {/* Zone 6: Claim CTA */}

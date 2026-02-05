@@ -20,43 +20,47 @@ No other tool does this. The closest analogy is Facebook Ad suggestions — "thi
 ## Core User Flow
 
 ### Free: Audit (lead magnet)
-1. Paste a URL → get a full CRO audit in 30 seconds (score, findings, specific recommendations)
+1. Paste a URL → get findings with predicted impact in 30 seconds
 2. No signup. Shareable. Unlimited URLs.
-3. Each finding is actionable: "Your CTA is below the fold. Move it above the hero."
+3. Each finding is observational + actionable: "Your CTA is below the fold. Expected: moving it up could improve clicks by 10-15%."
+4. Headline rewrite with copy-paste value
 
-### Free → Signed in: Re-scan
-4. User fixes something based on the audit
-5. Clicks "Re-scan" (email required → magic link → signed in)
-6. Loupe runs the audit again, compares against baseline
-7. Shows progress: "2 of 5 issues fixed. Score: 62 → 78."
-8. Each original finding tracked: resolved / persists / regressed / new
-9. **This is the activation moment** — user sees the tool working over time
+### Free → Signed in: Track
+5. User wants to know if their changes worked
+6. Clicks "Track this page" (email required → magic link → signed in)
+7. Loupe starts watching: screenshots, metrics, changes
+8. **This is the activation moment** — user enters the value loop
 
-### Signed in → Pro: Connect data
-10. "You improved your page. Want to know if it moved conversions?"
-11. Connect GitHub (webhook on push to main → auto-scan after deploy)
-12. Connect PostHog (API key → pull metrics)
-13. Loupe now runs automatically: deploy → screenshot → audit → correlate with metrics
-14. "Your hero headline change in commit abc123 correlated with a 12% drop in bounce rate"
-15. Ongoing suggestions: "Your social proof section has been missing for 3 deploys. Pages with social proof convert 2x better."
+### Signed in → Ongoing: The Value Loop
+9. Daily/weekly scans detect changes
+10. Smart LLM analyzes: What changed? What should they do next? Any correlations?
+11. If metrics connected: "Your headline change correlated with -8% bounce rate. Looks like it helped."
+12. If not enough data: "Watching metrics. We'll update when we know more."
+13. Always suggestions: "Here's what to do next based on current state."
+
+### With Integrations: Full Correlation
+14. Connect GitHub → changes linked to specific commits
+15. Connect PostHog/GA4 → real metric correlation
+16. "Your hero headline change in commit abc123 correlated with a 12% drop in bounce rate"
 
 ## The Data Model
 
-Every scan produces a full audit. Scans chain together via `parent_analysis_id`:
+Scans chain together via `parent_analysis_id`:
 
 ```
-Scan 1 (baseline, Jan 15, score 62)
-  └→ Scan 2 (re-scan, Jan 16, score 78) — "Fixed CTA placement, social proof still missing"
-      └→ Scan 3 (auto, deploy abc123, Jan 20, score 75) — "Headline changed, slightly weaker"
-          └→ Scan 4 (auto, deploy def456, Jan 25, score 82) — "Added testimonials, big improvement"
+Scan 1 (baseline, Jan 15)
+  └→ Scan 2 (re-scan, Jan 16) — "Headline changed, CTA moved"
+      └→ Scan 3 (auto, deploy abc123, Jan 20) — "Social proof added"
+          └→ Scan 4 (scheduled, Jan 27) — "No changes. Metrics stable."
 ```
 
 Each scan tracks:
-- Full audit (score, findings, screenshot)
-- Structured finding status against originals (resolved/persists/regressed/new)
+- Screenshot
+- Findings with predictions
+- Suggestions (what to do next)
+- Changes since last scan
+- Correlation insights (when data available)
 - Running summary (compressed narrative of the page's evolution)
-- Deploy context (if triggered by GitHub webhook)
-- Metric correlation (if PostHog connected)
 
 ## Three Trigger Types
 
@@ -64,39 +68,72 @@ Each scan tracks:
 |---------|------|-----|
 | Manual audit | User pastes URL | Anyone (free) |
 | Re-scan | User clicks "Re-scan" | Signed-in user |
-| Auto-scan | Push to main (GitHub webhook) | Pro user |
-
-Weekly scheduled scans are a fallback for users without GitHub connected.
+| Scheduled scan | Daily/weekly cron | Tracked pages |
+| Deploy scan | Push to main (GitHub webhook) | GitHub-connected users |
 
 ## Key Screens
 
-1. **Landing / Audit Tool** — Paste URL, get instant audit (lead magnet)
-2. **Results Page** — Full audit + re-scan CTA + progress tracking
-3. **Page Timeline** (Pro) — Chronological view of all scans, score trend, deploy markers, metric overlay
-4. **Dashboard** (Pro) — All monitored pages, status, last change, metric summary
-5. **Settings** — Connected integrations (GitHub, PostHog), email preferences
+### 1. Landing / Audit Tool
+- Paste URL, get instant analysis
+- Findings with predicted impact
+- Headline rewrite
+- Bridge CTA: "Track this page"
 
-## Pricing
+### 2. Audit Results (Initial)
+- **Hero:** Verdict + impact bar + findingsCount + domain badge (no scores — see vision.md)
+- **Findings Section ("What to fix"):** NewFindingCard components with:
+  - Impact badge (HIGH/MEDIUM/LOW)
+  - Current value with element icon
+  - Suggestion block with copy button
+  - Prediction line (+X-Y% metric with friendlyText)
+  - Expandable "Why this matters" (assumption) and "Methodology" sections
+  - First finding expanded by default, others collapsed
+- **Headline rewrite:** Copy-paste ready with currentAnnotation + suggestedAnnotation
+- **Summary:** Pull-quote card with overall assessment
+- **CTA:** "Track this page to see if changes help"
 
-| | Free | Pro $19/mo |
-|---|---|---|
-| Audits | Unlimited | Unlimited |
-| Re-scans | 1 page | Multiple pages |
-| Auto-scan on deploy | - | GitHub webhook |
-| Analytics correlation | - | PostHog integration |
-| Suggestions | Basic (from audit) | Contextual (based on history + metrics) |
-| Page timeline | - | Full history + trends |
+### 3. Audit Results (N+1 / Chronicle)
+- **Hero:** Verdict ("You made 2 changes. One helped.")
+- **What changed:** Timeline of changes with correlation
+- **What to do next:** Updated suggestions
+- **Progress:** Validated / Watching / Open
+
+### 4. Dashboard
+- Activity stream (not page list)
+- What happened + what to do next
+- Per-page: last change, suggestions count
+- Empty state: "All quiet. Your homepage is being watched."
+
+### 5. Settings
+- Connected integrations (GitHub, PostHog, GA4)
+- Email preferences
+- Domain context (company, ICP, brand voice) — future
+
+## Progressive Value
+
+| Without integrations | With integrations |
+|---------------------|-------------------|
+| "Your headline changed Tuesday" | "Your headline changed Tuesday → bounce rate up 12%" |
+| Expected impact (industry benchmarks) | Actual impact (their data) |
+| Timeline of changes | Timeline + metric correlation |
+| "We predict this will help" | "Here's what actually happened" |
+
+Most users won't connect PostHog/GA4. The product must be valuable anyway.
+
+## Pricing (Deferred)
+
+Building for Founding 50 first. Pricing TBD based on user feedback.
+
+Candidates: $9, $15, $19, or $29/mo — will learn from early users.
 
 ## Conversion Flywheel
 
 Free → Paid is driven by demonstrated value, not trial expiration:
 
-1. **Free audit** shows the tool works (30 seconds to value)
-2. **Re-scan** proves changes are tracked (minutes to value)
-3. **"Connect GitHub + PostHog"** unlocks the full loop
-4. Upgrade prompts at moments of curiosity:
-   - "You improved your score. Want to know if it moved conversions?"
-   - "We detected 3 deploys this week. See what changed and what it did to your metrics."
+1. **Free audit** shows the analysis is good (30 seconds to value)
+2. **Track this page** enters them into the value loop
+3. **First correlation** proves the product works ("Your change helped!")
+4. **Upgrade prompts** at moments of demonstrated value
 
 ## Target Audience
 
@@ -109,44 +146,21 @@ Solo founders and small teams (1-5 devs) shipping web products. They:
 
 ## Positioning
 
-"Like Facebook Ad suggestions, but for your landing page."
+"When metrics move, know why."
 
-You change your page constantly — deploys, CMS updates, AI-generated code. Loupe watches every change, tracks the impact on your actual metrics, and tells you what worked and what didn't. No manual A/B testing, no spreadsheets, no guessing.
+You change your page constantly — deploys, CMS updates, AI-generated code. Loupe watches every change, correlates with your metrics, and tells you what worked and what didn't. No manual A/B testing, no spreadsheets, no guessing.
 
 ## What Loupe Catches
 
-- **Visual changes** — layout/design shifted (deploys, coding agents, dependency updates)
-- **Copy changes** — messaging went off-brand (AI rewrites, team edits)
-- **Marketing fit drift** — page no longer matches conversion best practices
-- **Performance changes** — things that affect load times, mobile experience
-- **Metric movements** — conversion, bounce rate, session duration shifts after changes
+- **Content changes** — copy/messaging shifted
+- **Layout changes** — elements moved, sections added/removed
+- **Trust signal changes** — social proof appeared/disappeared
+- **CTA changes** — button text, placement, visibility
+- **Metric movements** — correlation with page changes
 
-## Build Order
+## See Also
 
-### Phase 1A — Free Audit (DONE)
-The lead magnet. Paste URL → get scored audit.
-
-### Phase 1B — Re-scan + Structured Tracking (DONE)
-- Re-scan with finding-level tracking (resolved/persists/regressed/new)
-- Progress view ("2 of 5 issues fixed") with comparison UI
-- Magic link auth gate on re-scan
-- `parent_analysis_id` chain for scan history
-- Methodology-grounded findings (PAS, Fogg, Cialdini, Gestalt)
-
-### Phase 1C — GitHub + PostHog Integration (IN PROGRESS)
-- GitHub webhook on push to main → auto-scan ✓
-- PostHog API → pull metrics ✓ (basic: pageviews, visitors, bounce rate)
-- Metrics displayed in audit results ✓
-- Correlation engine: LLM with tool calling connects deploys → page changes → metric movements (deferred)
-- Page timeline view (not started)
-
-### Phase 1D — Dashboard + Billing
-- Dashboard showing all monitored pages
-- Stripe integration ($19/mo Pro)
-- Settings page (integrations, preferences)
-
-### Future
-- Multi-page monitoring
-- Embedded findings for trend analysis
-- Team tier
-- Deploy previews (scan staging before merge)
+- `vision.md` — Full product vision with LLM pipeline details
+- `architecture.md` — Technical implementation
+- `icp.md` — Ideal customer profile and messaging
+- `src/lib/types/analysis.ts` — Canonical TypeScript types for analysis data

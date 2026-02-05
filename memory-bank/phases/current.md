@@ -16,7 +16,8 @@ Major repositioning from "website grader with scores" to "correlation layer with
 |-------|------|--------|
 | 1.1 Foundation | Schema migration (types) | **DONE** |
 | 1.2 Foundation | LLM prompts update | **DONE** |
-| 2. Initial Audit | Results page redesign | Not started |
+| 2.1 Initial Audit | Results page hero redesign | **DONE** |
+| 2.2 Initial Audit | Results page body sections | **DONE** |
 | 3. Chronicle | N+1 experience | Not started |
 | 4. Dashboard | Activity stream | Not started |
 | 5. Emails | Update templates | Not started |
@@ -41,10 +42,32 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] Brand voice: "observant analyst" with Ouch/Aha/Huh emotional register
 - [x] FriendlyText phrases with stakes ("Your button is invisible", "You're losing signups")
 
+### Phase 2.1 Completed (Hero Redesign)
+- [x] Added CSS animation classes for new hero reveal sequence
+- [x] Added ImpactBar component styles (gradient fill + striped potential)
+- [x] Added `isNewAnalysisFormat()` type guard for detecting new LLM output
+- [x] Built new hero components: VerdictDisplay, ImpactBar, OpportunityCount, DomainBadge
+- [x] Built NewHeroSection composing all verdict-first components
+- [x] Conditional rendering: new hero for new format, legacy ScoreArc hero for old analyses
+- [x] Legacy code (ScoreArc, score helpers) preserved for backward compatibility
+
+### Phase 2.2 Completed (Body Sections)
+- [x] Added `ELEMENT_ICONS` mapping for all ElementType values (headline, cta, copy, layout, social-proof, form, image, navigation, pricing, other)
+- [x] Built `NewFindingCard` component with collapsed/expanded states:
+  - Collapsed: impact badge + title + prediction mini-badge
+  - Expanded: current value block, suggestion block with copy button, prediction line with friendlyText, expandable "Why this matters" and "Methodology" sections
+- [x] Built `FindingsSection` with "What to fix" header, expand/collapse state management
+- [x] Updated HeadlineRewrite section to handle both schemas:
+  - New: `currentAnnotation` + `suggestedAnnotation`
+  - Legacy: `reasoning` field
+- [x] Added Summary section for new format (displays `s.summary` in pull-quote card)
+- [x] Added CSS: `.new-finding-card`, `.prediction-badge`, `.new-finding-current`, `.new-finding-suggestion`, etc.
+- [x] Accessibility: keyboard navigation (Enter/Space), aria-expanded, aria-label, focus-visible styles
+- [x] Backward compatible: new sections only render for `isNewAnalysisFormat(s)` analyses
+
 ### Key Changes (remaining)
 - Chronicle experience for N+1 (Phase 3)
 - Dashboard as activity stream (Phase 4)
-- Results page UI update for new types (Phase 2)
 
 ---
 
