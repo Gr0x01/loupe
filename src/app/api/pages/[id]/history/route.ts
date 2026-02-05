@@ -29,7 +29,7 @@ export async function GET(
     // Get the page to verify ownership and get URL
     const { data: page, error: pageError } = await supabase
       .from("pages")
-      .select("id, url, name, scan_frequency, repo_id, hide_from_leaderboard, created_at, last_scan_id")
+      .select("id, url, name, scan_frequency, repo_id, created_at, last_scan_id")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -44,8 +44,7 @@ export async function GET(
       id: string;
       url: string;
       status: string;
-      structured_output: { overallScore?: number } | null;
-      changes_summary: { score_delta?: number; progress?: unknown } | null;
+      changes_summary: { progress?: unknown } | null;
       created_at: string;
       parent_analysis_id: string | null;
     }> = [];
@@ -63,7 +62,6 @@ export async function GET(
           id,
           url,
           status,
-          structured_output,
           changes_summary,
           created_at,
           parent_analysis_id
@@ -81,13 +79,11 @@ export async function GET(
 
     console.log("[history] Found", analyses.length, "analyses via last_scan_id chain");
 
-    // Format the history with score, status, and changes preview
+    // Format the history with status and changes preview
     const history = analyses.map((analysis, index) => ({
       id: analysis.id,
       scan_number: (analyses?.length || 0) - index,
       status: analysis.status,
-      score: analysis.structured_output?.overallScore ?? null,
-      score_delta: analysis.changes_summary?.score_delta ?? null,
       progress: analysis.changes_summary?.progress ?? null,
       created_at: analysis.created_at,
       is_baseline: !analysis.parent_analysis_id,

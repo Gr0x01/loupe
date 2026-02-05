@@ -222,21 +222,6 @@ export const analyzeUrl = inngest.createFunction(
             .single();
 
           if (profile?.email && profile.email_notifications) {
-            // Get previous score for delta
-            let previousScore: number | null = null;
-            if (parentAnalysisId) {
-              const { data: parent } = await supabase
-                .from("analyses")
-                .select("structured_output")
-                .eq("id", parentAnalysisId)
-                .single();
-              previousScore =
-                (parent?.structured_output as { overallScore?: number } | null)
-                  ?.overallScore ?? null;
-            }
-
-            const currentScore = structured?.overallScore ?? 0;
-
             if (triggerType === "deploy" && fullAnalysis.deploy_id) {
               // Deploy scan — include commit info
               const { data: deploy } = await supabase
@@ -248,8 +233,6 @@ export const analyzeUrl = inngest.createFunction(
               if (deploy) {
                 const { subject, html } = deployScanCompleteEmail({
                   pageUrl: url,
-                  score: currentScore,
-                  previousScore,
                   analysisId,
                   commitSha: deploy.commit_sha,
                   commitMessage: deploy.commit_message,
@@ -262,8 +245,6 @@ export const analyzeUrl = inngest.createFunction(
               // Scheduled scan
               const { subject, html } = scanCompleteEmail({
                 pageUrl: url,
-                score: currentScore,
-                previousScore,
                 analysisId,
                 triggerType,
               });

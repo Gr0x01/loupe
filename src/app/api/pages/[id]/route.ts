@@ -34,7 +34,6 @@ export async function GET(
         name,
         scan_frequency,
         repo_id,
-        hide_from_leaderboard,
         last_scan_id,
         created_at,
         analyses:last_scan_id (
@@ -83,7 +82,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, scan_frequency, repo_id, hide_from_leaderboard } = await req.json();
+    const { name, scan_frequency, repo_id } = await req.json();
 
     const supabase = createServiceClient();
 
@@ -104,7 +103,6 @@ export async function PATCH(
       name?: string | null;
       scan_frequency?: string;
       repo_id?: string | null;
-      hide_from_leaderboard?: boolean;
     } = {};
 
     if (name !== undefined) {
@@ -119,9 +117,6 @@ export async function PATCH(
     if (repo_id !== undefined) {
       updates.repo_id = repo_id || null;
     }
-    if (typeof hide_from_leaderboard === "boolean") {
-      updates.hide_from_leaderboard = hide_from_leaderboard;
-    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid updates provided" }, { status: 400 });
@@ -131,7 +126,7 @@ export async function PATCH(
       .from("pages")
       .update(updates)
       .eq("id", id)
-      .select("id, url, name, scan_frequency, repo_id, hide_from_leaderboard, last_scan_id, created_at")
+      .select("id, url, name, scan_frequency, repo_id, last_scan_id, created_at")
       .single();
 
     if (error) {

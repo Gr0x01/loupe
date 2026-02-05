@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useId } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -10,7 +10,6 @@ interface PageInfo {
   name: string | null;
   scan_frequency: string;
   repo_id: string | null;
-  hide_from_leaderboard: boolean;
   created_at: string;
 }
 
@@ -18,13 +17,15 @@ interface ScanHistory {
   id: string;
   scan_number: number;
   status: string;
-  score: number | null;
-  score_delta: number | null;
   progress: {
-    total_original: number;
-    resolved: number;
-    persisting: number;
-    new_issues: number;
+    validated?: number;
+    watching?: number;
+    open?: number;
+    // Legacy fields for compatibility
+    total_original?: number;
+    resolved?: number;
+    persisting?: number;
+    new_issues?: number;
   } | null;
   created_at: string;
   is_baseline: boolean;
@@ -63,115 +64,14 @@ function timeAgo(dateStr: string): string {
   return `${weeks}w ago`;
 }
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "text-score-high";
-  if (score >= 60) return "text-score-mid";
-  return "text-score-low";
-}
-
-function scoreCssColor(score: number): string {
-  if (score >= 80) return "var(--score-high)";
-  if (score >= 60) return "var(--score-mid)";
-  return "var(--score-low)";
-}
-
-// Simple SVG line chart for score trend
-function ScoreTrendChart({ history }: { history: ScanHistory[] }) {
-  const chartId = useId();
-  const completedScans = history
-    .filter((s) => s.status === "complete" && s.score !== null)
-    .slice(0, 10) // Last 10 scans
-    .reverse(); // Oldest first
-
-  // Don't render anything if < 2 scans - parent will show inline text
-  if (completedScans.length < 2) {
-    return null;
-  }
-
-  const scores = completedScans.map((s) => s.score!);
-  const minScore = Math.max(0, Math.min(...scores) - 10);
-  const maxScore = Math.min(100, Math.max(...scores) + 10);
-  const range = maxScore - minScore || 1;
-
-  const width = 300;
-  const height = 120;
-  const padding = { top: 10, right: 20, bottom: 30, left: 10 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-
-  const points = completedScans.map((scan, i) => {
-    const x = padding.left + (i / (completedScans.length - 1)) * chartWidth;
-    const y = padding.top + chartHeight - ((scan.score! - minScore) / range) * chartHeight;
-    return { x, y, scan };
-  });
-
-  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-
-  // Gradient fill area
-  const areaD = `${pathD} L ${points[points.length - 1].x} ${padding.top + chartHeight} L ${points[0].x} ${padding.top + chartHeight} Z`;
-
-  const latestScore = scores[scores.length - 1];
-  const color = scoreCssColor(latestScore);
-
-  return (
-    <div className="glass-card p-4">
-      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">
-        Score trend
-      </p>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-[360px]">
-        <defs>
-          <linearGradient id={`${chartId}-gradient`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {/* Area fill */}
-        <path d={areaD} fill={`url(#${chartId}-gradient)`} />
-
-        {/* Line */}
-        <path
-          d={pathD}
-          fill="none"
-          stroke={color}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Dots */}
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r="4"
-            fill="white"
-            stroke={color}
-            strokeWidth="2"
-          />
-        ))}
-
-        {/* Date labels */}
-        {points.map((p, i) => (
-          <text
-            key={`label-${i}`}
-            x={p.x}
-            y={height - 5}
-            textAnchor="middle"
-            className="text-[0.625rem] fill-text-muted"
-          >
-            {formatDate(p.scan.created_at)}
-          </text>
-        ))}
-      </svg>
-    </div>
-  );
-}
 
 function ScanCard({ scan }: { scan: ScanHistory }) {
   const isComplete = scan.status === "complete";
   const isPending = scan.status === "pending" || scan.status === "processing";
+
+  // Get progress values (support both new and legacy formats)
+  const validated = scan.progress?.validated ?? scan.progress?.resolved ?? 0;
+  const open = scan.progress?.open ?? scan.progress?.new_issues ?? 0;
 
   return (
     <Link
@@ -181,37 +81,6 @@ function ScanCard({ scan }: { scan: ScanHistory }) {
       } group`}
     >
       <div className="flex items-center gap-5">
-        {/* Score block - the anchor */}
-        {isComplete && scan.score !== null && (
-          <>
-            <div className="flex-shrink-0 w-14 text-center">
-              <p
-                className={`text-3xl font-normal ${scoreColor(scan.score)}`}
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                {scan.score}
-              </p>
-              {scan.score_delta !== null && scan.score_delta !== 0 && (
-                <div className={`flex items-center justify-center gap-0.5 mt-0.5 ${
-                  scan.score_delta > 0 ? "text-score-high" : "text-score-low"
-                }`}>
-                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
-                    {scan.score_delta > 0 ? (
-                      <path d="M6 2L10 7H2L6 2Z" />
-                    ) : (
-                      <path d="M6 10L2 5H10L6 10Z" />
-                    )}
-                  </svg>
-                  <span className="text-sm font-semibold">{Math.abs(scan.score_delta)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Vertical divider */}
-            <div className="w-px h-10 bg-border-subtle flex-shrink-0" />
-          </>
-        )}
-
         {/* Content block */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -229,16 +98,16 @@ function ScanCard({ scan }: { scan: ScanHistory }) {
           </div>
 
           {/* Progress info */}
-          {scan.progress && (scan.progress.resolved > 0 || scan.progress.new_issues > 0) && (
+          {scan.progress && (validated > 0 || open > 0) && (
             <div className="mt-2 flex items-center gap-3 text-sm">
-              {scan.progress.resolved > 0 && (
+              {validated > 0 && (
                 <span className="text-score-high font-medium">
-                  {scan.progress.resolved} fixed
+                  {validated} validated
                 </span>
               )}
-              {scan.progress.new_issues > 0 && (
+              {open > 0 && (
                 <span className="text-score-low font-medium">
-                  {scan.progress.new_issues} new
+                  {open} open
                 </span>
               )}
             </div>
@@ -285,7 +154,6 @@ export default function PageTimelinePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rescanLoading, setRescanLoading] = useState(false);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [integrations, setIntegrations] = useState<IntegrationsState>({
     github: { connected: false },
     posthog: { connected: false },
@@ -396,34 +264,6 @@ export default function PageTimelinePage() {
     }
   };
 
-  const handleLeaderboardToggle = async (hideFromLeaderboard: boolean) => {
-    if (!data) return;
-
-    setLeaderboardLoading(true);
-    try {
-      const res = await fetch(`/api/pages/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hide_from_leaderboard: hideFromLeaderboard }),
-      });
-
-      if (res.ok) {
-        setData((prev) =>
-          prev
-            ? {
-                ...prev,
-                page: { ...prev.page, hide_from_leaderboard: hideFromLeaderboard },
-              }
-            : null
-        );
-      }
-    } catch (err) {
-      console.error("Failed to toggle leaderboard:", err);
-    } finally {
-      setLeaderboardLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center px-4">
@@ -453,9 +293,7 @@ export default function PageTimelinePage() {
   const hasPendingScan = history.some(
     (s) => s.status === "pending" || s.status === "processing"
   );
-  const latestComplete = history.find((s) => s.status === "complete" && s.score !== null);
-  const completedScansCount = history.filter((s) => s.status === "complete" && s.score !== null).length;
-  const showTrendChart = completedScansCount >= 2;
+  const latestComplete = history.find((s) => s.status === "complete");
 
   return (
     <div className="max-w-3xl mx-auto px-4 pt-4 pb-8">
@@ -470,32 +308,11 @@ export default function PageTimelinePage() {
         Dashboard
       </Link>
 
-      {/* Page Info Card with Score */}
+      {/* Page Info Card */}
       <div className="glass-card p-4 sm:p-5 mb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
-          {/* Score + Page info row */}
+          {/* Page info row */}
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            {/* Score badge - links to latest analysis */}
-            {latestComplete && (
-              <Link
-                href={`/analysis/${latestComplete.id}`}
-                className="flex-shrink-0 w-14 h-14 rounded-xl bg-[rgba(255,255,255,0.5)] flex items-center justify-center border border-border-subtle hover:border-accent hover:bg-[rgba(255,255,255,0.7)] transition-colors"
-                title="View latest scan"
-              >
-                <span
-                  className={`text-2xl sm:text-3xl font-normal ${scoreColor(latestComplete.score!)}`}
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  {latestComplete.score}
-                </span>
-              </Link>
-            )}
-
-            {/* Divider - desktop only */}
-            {latestComplete && (
-              <div className="hidden sm:block w-px h-12 bg-border-subtle flex-shrink-0" />
-            )}
-
             {/* Page info */}
             <div className="min-w-0 flex-1">
               <h1
@@ -561,31 +378,8 @@ export default function PageTimelinePage() {
             )}
           </div>
 
-          {/* Leaderboard toggle */}
-          <button
-            onClick={() => handleLeaderboardToggle(!page.hide_from_leaderboard)}
-            disabled={leaderboardLoading}
-            className="flex items-center gap-2 text-xs sm:text-sm text-text-secondary flex-shrink-0"
-          >
-            <span className="hidden sm:inline">Show on leaderboard</span>
-            <span className="sm:hidden">Public</span>
-            <span className={`relative w-7 sm:w-8 h-4 sm:h-5 rounded-full transition-colors duration-200 ${page.hide_from_leaderboard ? "bg-[rgba(0,0,0,0.1)]" : "bg-accent"}`}>
-              <span className={`absolute top-0.5 left-0.5 w-3 sm:w-4 h-3 sm:h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${page.hide_from_leaderboard ? "translate-x-0" : "translate-x-3"}`} />
-            </span>
-          </button>
         </div>
       </div>
-
-      {/* Score trend chart or inline prompt */}
-      {showTrendChart ? (
-        <div className="mb-8">
-          <ScoreTrendChart history={history} />
-        </div>
-      ) : completedScansCount === 1 ? (
-        <p className="text-sm text-text-muted mb-8 text-center">
-          One more scan and you&apos;ll see the trend.
-        </p>
-      ) : null}
 
       {/* Scan history */}
       <div className="space-y-2">

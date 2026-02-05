@@ -99,66 +99,17 @@ function emailWrapper(content: string): string {
 `.trim();
 }
 
-/**
- * Get score color based on value
- */
-function getScoreColor(score: number): string {
-  if (score >= 70) return colors.scoreHigh;
-  if (score >= 40) return colors.scoreMid;
-  return colors.scoreLow;
-}
-
-/**
- * Format score delta with arrow and color
- */
-function formatScoreDelta(current: number, previous: number | null): string {
-  if (previous === null) return "";
-  const delta = current - previous;
-  if (delta === 0)
-    return `<span style="color: ${colors.textSecondary};">no change</span>`;
-  const arrow = delta > 0 ? "+" : "";
-  const color = delta > 0 ? colors.scoreHigh : colors.scoreLow;
-  return `<span style="color: ${color}; font-weight: 600;">${arrow}${delta} points</span>`;
-}
-
 interface ScanCompleteParams {
   pageUrl: string;
-  score: number;
-  previousScore: number | null;
   analysisId: string;
   triggerType: "daily" | "weekly";
 }
 
 /**
- * Generate dynamic subject line based on score change
- */
-function getSubjectLine(
-  score: number,
-  previousScore: number | null,
-  prefix: string
-): string {
-  if (previousScore === null) {
-    return `${prefix} — ${score}/100`;
-  }
-  const delta = score - previousScore;
-  if (delta < -5) {
-    return `${prefix} dropped ${Math.abs(delta)} points — ${score}/100`;
-  }
-  if (delta > 5) {
-    return `${prefix} improved ${delta} points — ${score}/100`;
-  }
-  if (delta === 0) {
-    return `${prefix} is stable — ${score}/100`;
-  }
-  // Small change
-  return `${prefix} — ${score}/100 (${delta > 0 ? "+" : ""}${delta})`;
-}
-
-/**
  * Generate Twitter share URL
  */
-function getTwitterShareUrl(score: number, resultsUrl: string): string {
-  const text = `Just audited my landing page with @getloupe — scored ${score}/100`;
+function getTwitterShareUrl(resultsUrl: string): string {
+  const text = `Just analyzed my landing page with @getloupe — found some opportunities to improve`;
   return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(resultsUrl)}`;
 }
 
@@ -167,63 +118,31 @@ function getTwitterShareUrl(score: number, resultsUrl: string): string {
  */
 export function scanCompleteEmail({
   pageUrl,
-  score,
-  previousScore,
   analysisId,
   triggerType,
 }: ScanCompleteParams): { subject: string; html: string } {
-  const scoreColor = getScoreColor(score);
-  const deltaHtml = formatScoreDelta(score, previousScore);
   const resultsUrl = `https://getloupe.io/analysis/${analysisId}`;
-  const hasChanges = previousScore !== null && score !== previousScore;
 
-  // Dynamic subject line
-  const subjectPrefix = `Your ${triggerType} scan`;
-  const subject = getSubjectLine(score, previousScore, subjectPrefix);
-
-  // Dynamic headline
-  const headline =
-    previousScore === null
-      ? `Your ${triggerType} scan is ready`
-      : hasChanges
-        ? "Something shifted on your page"
-        : "Your page is holding steady";
-
-  // Dynamic CTA
-  const ctaText = hasChanges ? "See what changed" : "View full report";
+  // Subject line
+  const subject = `Your ${triggerType} scan is ready`;
 
   // Twitter share
-  const twitterUrl = getTwitterShareUrl(score, resultsUrl);
+  const twitterUrl = getTwitterShareUrl(resultsUrl);
 
   const content = `
     <h1 style="margin: 0 0 12px 0; font-family: ${fonts.headline}; font-size: 26px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
-      ${headline}
+      Your ${triggerType} scan is ready
     </h1>
     <p style="margin: 0 0 28px 0; font-size: 15px; color: ${colors.textSecondary}; line-height: 1.5;">
       We just analyzed <strong style="color: ${colors.textPrimary};">${escapeHtml(pageUrl)}</strong>
     </p>
-
-    <!-- Score Card -->
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
-      <tr>
-        <td style="background-color: ${colors.background}; border-radius: 16px; padding: 32px 20px; text-align: center; border: 1px solid ${colors.border};">
-          <p class="score-number" style="margin: 0 0 4px 0; font-family: ${fonts.headline}; font-size: 56px; font-weight: 400; color: ${scoreColor}; letter-spacing: -2px; line-height: 1;">
-            ${score}
-          </p>
-          <p style="margin: 0; font-size: 13px; font-weight: 600; color: ${colors.textSecondary}; text-transform: uppercase; letter-spacing: 0.5px;">
-            out of 100
-          </p>
-          ${previousScore !== null ? `<p style="margin: 12px 0 0 0; font-size: 14px;">${deltaHtml}</p>` : ""}
-        </td>
-      </tr>
-    </table>
 
     <!-- CTA -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
       <tr>
         <td align="center">
           <a class="cta-button" href="${resultsUrl}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 16px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(91, 46, 145, 0.35);">
-            ${ctaText}
+            View your report
           </a>
         </td>
       </tr>
@@ -234,7 +153,7 @@ export function scanCompleteEmail({
       <tr>
         <td align="center">
           <a href="${twitterUrl}" style="font-size: 13px; color: ${colors.textSecondary}; text-decoration: none;">
-            Share your score on Twitter &rarr;
+            Share on Twitter &rarr;
           </a>
         </td>
       </tr>
@@ -246,8 +165,6 @@ export function scanCompleteEmail({
 
 interface DeployScanCompleteParams {
   pageUrl: string;
-  score: number;
-  previousScore: number | null;
   analysisId: string;
   commitSha: string;
   commitMessage: string | null;
@@ -258,42 +175,22 @@ interface DeployScanCompleteParams {
  */
 export function deployScanCompleteEmail({
   pageUrl,
-  score,
-  previousScore,
   analysisId,
   commitSha,
   commitMessage,
 }: DeployScanCompleteParams): { subject: string; html: string } {
-  const scoreColor = getScoreColor(score);
-  const deltaHtml = formatScoreDelta(score, previousScore);
   const resultsUrl = `https://getloupe.io/analysis/${analysisId}`;
   const shortSha = commitSha.slice(0, 7);
-  const hasChanges = previousScore !== null && score !== previousScore;
 
-  // Dynamic subject line
-  const subject = getSubjectLine(score, previousScore, `Deploy ${shortSha}`);
-
-  // Dynamic headline based on outcome
-  let headline: string;
-  if (previousScore === null) {
-    headline = "Post-deploy scan complete";
-  } else if (score < previousScore - 5) {
-    headline = "This deploy changed things";
-  } else if (hasChanges) {
-    headline = "A few things shifted after this deploy";
-  } else {
-    headline = "Your deploy looks clean";
-  }
-
-  // Dynamic CTA
-  const ctaText = hasChanges ? "See what changed" : "View full report";
+  // Subject line
+  const subject = `Post-deploy scan: ${shortSha}`;
 
   // Twitter share
-  const twitterUrl = getTwitterShareUrl(score, resultsUrl);
+  const twitterUrl = getTwitterShareUrl(resultsUrl);
 
   const content = `
     <h1 style="margin: 0 0 12px 0; font-family: ${fonts.headline}; font-size: 26px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
-      ${headline}
+      Post-deploy scan complete
     </h1>
     <p style="margin: 0 0 20px 0; font-size: 15px; color: ${colors.textSecondary}; line-height: 1.5;">
       We analyzed <strong style="color: ${colors.textPrimary};">${escapeHtml(pageUrl)}</strong> after your deploy
@@ -314,27 +211,12 @@ export function deployScanCompleteEmail({
       </tr>
     </table>
 
-    <!-- Score Card -->
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
-      <tr>
-        <td style="background-color: ${colors.background}; border-radius: 16px; padding: 32px 20px; text-align: center; border: 1px solid ${colors.border};">
-          <p class="score-number" style="margin: 0 0 4px 0; font-family: ${fonts.headline}; font-size: 56px; font-weight: 400; color: ${scoreColor}; letter-spacing: -2px; line-height: 1;">
-            ${score}
-          </p>
-          <p style="margin: 0; font-size: 13px; font-weight: 600; color: ${colors.textSecondary}; text-transform: uppercase; letter-spacing: 0.5px;">
-            out of 100
-          </p>
-          ${previousScore !== null ? `<p style="margin: 12px 0 0 0; font-size: 14px;">${deltaHtml}</p>` : ""}
-        </td>
-      </tr>
-    </table>
-
     <!-- CTA -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
       <tr>
         <td align="center">
           <a class="cta-button" href="${resultsUrl}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 16px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(91, 46, 145, 0.35);">
-            ${ctaText}
+            View your report
           </a>
         </td>
       </tr>
@@ -345,7 +227,7 @@ export function deployScanCompleteEmail({
       <tr>
         <td align="center">
           <a href="${twitterUrl}" style="font-size: 13px; color: ${colors.textSecondary}; text-decoration: none;">
-            Share your score on Twitter &rarr;
+            Share on Twitter &rarr;
           </a>
         </td>
       </tr>

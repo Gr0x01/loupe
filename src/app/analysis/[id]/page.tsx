@@ -4,112 +4,24 @@ import { useEffect, useState, useCallback, useRef, useId } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import type {
+  FindingEvaluation,
+  LegacyStructuredOutput,
+  LegacyChangesSummary,
+  LegacyFinding,
+  PageContext,
+  DeployContextAPI,
+  MetricsSnapshot,
+  ClaimStatus,
+} from "@/lib/types/analysis";
 
 // --- Types ---
-
-interface Finding {
-  type: "strength" | "issue" | "suggestion";
-  title: string;
-  detail: string;
-  impact?: "high" | "medium" | "low";
-  fix?: string;
-  methodology?: string;
-  element?: string;
-}
-
-interface Category {
-  name: string;
-  score: number;
-  findings: Finding[];
-}
-
-interface TopAction {
-  action: string;
-  impact: string;
-}
-
-interface HeadlineRewrite {
-  current: string;
-  suggested: string;
-  reasoning: string;
-}
-
-interface StructuredOutput {
-  overallScore: number;
-  verdict?: string;
-  categories: Category[];
-  summary: string;
-  topActions: (TopAction | string)[];
-  whatsWorking?: string[];
-  whatsNot?: string[];
-  headlineRewrite?: HeadlineRewrite | null;
-}
-
-// Updated ChangesSummary with new schema
-interface FindingEvaluation {
-  title: string;
-  element: string;
-  previous_status: "issue" | "suggestion";
-  evaluation: "resolved" | "improved" | "unchanged" | "regressed" | "new";
-  quality_assessment: string;
-  detail: string;
-}
-
-interface ChangesSummary {
-  // New schema fields
-  findings_evaluations?: FindingEvaluation[];
-  analytics_insights?: string;
-  // Legacy schema fields (for backwards compatibility)
-  findings_status?: {
-    title: string;
-    element: string;
-    previous_status: string;
-    current_status: "resolved" | "persists" | "regressed" | "new";
-    detail: string;
-  }[];
-  score_delta: number;
-  category_deltas: { name: string; previous: number; current: number; delta: number }[];
-  running_summary: string;
-  progress: {
-    total_original: number;
-    resolved: number;
-    improved?: number;
-    unchanged?: number;
-    persisting?: number; // Legacy field
-    regressed?: number;
-    new_issues: number;
-  };
-}
-
-interface PageContext {
-  page_id: string;
-  page_name: string | null;
-  scan_number: number;
-  prev_analysis_id: string | null;
-  next_analysis_id: string | null;
-}
-
-interface DeployContext {
-  commit_sha: string;
-  commit_message: string;
-  commit_author: string;
-  commit_timestamp: string;
-  changed_files: string[];
-}
-
-interface MetricsSnapshot {
-  pageviews: number;
-  unique_visitors: number;
-  bounce_rate: number;
-  period_days: number;
-  captured_at: string;
-}
-
-interface ClaimStatus {
-  is_claimed: boolean;
-  claimed_by_current_user: boolean;
-  claimed_page_id: string | null;
-}
+// Use legacy types during Phase 1.1 transition (LLM still outputs old format)
+type StructuredOutput = LegacyStructuredOutput;
+type ChangesSummary = LegacyChangesSummary;
+type DeployContext = DeployContextAPI;
+type Finding = LegacyFinding;
+type TopAction = LegacyStructuredOutput["topActions"][number];
 
 interface Analysis {
   id: string;

@@ -118,13 +118,6 @@ export default function SiteNav() {
                 Your pages
               </Link>
             )}
-            <Link
-              ref={(el) => setLinkRef("/leaderboard", el)}
-              href="/leaderboard"
-              className={`nav-link ${isActive("/leaderboard") ? "nav-link-active" : ""}`}
-            >
-              Leaderboard
-            </Link>
             {isAuthenticated ? (
               <Link
                 ref={(el) => setLinkRef("/settings/integrations", el)}
@@ -220,16 +213,6 @@ export default function SiteNav() {
                   Your pages
                 </Link>
               )}
-              <Link
-                href="/leaderboard"
-                className={`text-base font-medium px-3 py-2 rounded-lg transition-colors ${
-                  isActive("/leaderboard")
-                    ? "text-accent bg-[rgba(91,46,145,0.06)]"
-                    : "text-text-secondary hover:text-accent hover:bg-[rgba(91,46,145,0.06)]"
-                }`}
-              >
-                Leaderboard
-              </Link>
               {isAuthenticated ? (
                 <Link
                   href="/settings/integrations"

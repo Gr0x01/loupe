@@ -20,58 +20,30 @@ export async function GET(req: NextRequest) {
   const template = req.nextUrl.searchParams.get("template");
 
   const mockData = {
-    // Score dropped significantly
-    "scan-dropped": () =>
+    // Scheduled scans
+    "scan-daily": () =>
       scanCompleteEmail({
         pageUrl: "https://example.com/pricing",
-        score: 62,
-        previousScore: 78,
-        analysisId: "abc-123-def",
-        triggerType: "weekly",
-      }),
-    // Score improved
-    "scan-improved": () =>
-      scanCompleteEmail({
-        pageUrl: "https://example.com/pricing",
-        score: 85,
-        previousScore: 72,
         analysisId: "abc-123-def",
         triggerType: "daily",
       }),
-    // Score stable
-    "scan-stable": () =>
+    "scan-weekly": () =>
       scanCompleteEmail({
         pageUrl: "https://example.com/pricing",
-        score: 78,
-        previousScore: 78,
         analysisId: "abc-123-def",
         triggerType: "weekly",
       }),
-    // First scan (no previous)
-    "scan-first": () =>
-      scanCompleteEmail({
-        pageUrl: "https://example.com/pricing",
-        score: 72,
-        previousScore: null,
-        analysisId: "abc-123-def",
-        triggerType: "weekly",
-      }),
-    // Deploy - score dropped
-    "deploy-dropped": () =>
+    // Deploy scans
+    deploy: () =>
       deployScanCompleteEmail({
         pageUrl: "https://example.com/pricing",
-        score: 65,
-        previousScore: 82,
         analysisId: "abc-123-def",
         commitSha: "a1b2c3d4e5f6g7h8i9j0",
         commitMessage: "refactor: Rebuild hero section with new component",
       }),
-    // Deploy - looks clean
-    "deploy-clean": () =>
+    "deploy-short": () =>
       deployScanCompleteEmail({
         pageUrl: "https://example.com/pricing",
-        score: 82,
-        previousScore: 82,
         analysisId: "abc-123-def",
         commitSha: "f9e8d7c6b5a4",
         commitMessage: "fix: Update button colors",
@@ -92,16 +64,14 @@ export async function GET(req: NextRequest) {
 
           <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Scheduled Scans</h2>
           <ul style="line-height: 2;">
-            <li><a href="?template=scan-dropped">Score dropped (-16 pts)</a></li>
-            <li><a href="?template=scan-improved">Score improved (+13 pts)</a></li>
-            <li><a href="?template=scan-stable">Score stable (no change)</a></li>
-            <li><a href="?template=scan-first">First scan (no previous)</a></li>
+            <li><a href="?template=scan-daily">Daily scan</a></li>
+            <li><a href="?template=scan-weekly">Weekly scan</a></li>
           </ul>
 
           <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Deploy Scans</h2>
           <ul style="line-height: 2;">
-            <li><a href="?template=deploy-dropped">Deploy broke things (-17 pts)</a></li>
-            <li><a href="?template=deploy-clean">Deploy looks clean (no change)</a></li>
+            <li><a href="?template=deploy">Deploy scan (long commit message)</a></li>
+            <li><a href="?template=deploy-short">Deploy scan (short message)</a></li>
           </ul>
 
           <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Other</h2>

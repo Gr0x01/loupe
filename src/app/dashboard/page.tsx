@@ -15,8 +15,6 @@ interface PageData {
   last_scan: {
     id: string;
     status: string;
-    score: number | null;
-    previous_score: number | null;
     created_at: string;
   } | null;
 }
@@ -49,27 +47,6 @@ function timeAgo(dateStr: string): string {
   return `${weeks}w ago`;
 }
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "text-score-high";
-  if (score >= 60) return "text-score-mid";
-  return "text-score-low";
-}
-
-function ScoreDelta({ current, previous }: { current: number | null; previous: number | null }) {
-  if (current === null || previous === null) return null;
-  const delta = current - previous;
-  if (delta === 0) return null;
-
-  const color = delta > 0 ? "text-score-high" : "text-score-low";
-  const sign = delta > 0 ? "+" : "";
-
-  return (
-    <span className={`text-sm font-semibold ${color}`}>
-      {sign}{delta}
-    </span>
-  );
-}
-
 function FrequencyBadge({ frequency }: { frequency: string }) {
   const label = frequency === "daily" ? "Daily" : frequency === "weekly" ? "Weekly" : "Manual";
   return (
@@ -81,8 +58,6 @@ function FrequencyBadge({ frequency }: { frequency: string }) {
 
 function PageCard({ page, onDelete }: { page: PageData; onDelete: (id: string) => void }) {
   const displayName = page.name || getDomain(page.url);
-  const score = page.last_scan?.score;
-  const previousScore = page.last_scan?.previous_score;
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -123,19 +98,6 @@ function PageCard({ page, onDelete }: { page: PageData; onDelete: (id: string) =
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
-          {/* Score display */}
-          {typeof score === "number" && page.last_scan?.status === "complete" && (
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-3xl font-bold ${scoreColor(score)}`}
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                {score}
-              </span>
-              <ScoreDelta current={score} previous={previousScore ?? null} />
-            </div>
-          )}
-
           {page.last_scan?.status === "processing" && (
             <div className="glass-spinner w-6 h-6" />
           )}

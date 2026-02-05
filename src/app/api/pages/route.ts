@@ -51,38 +51,12 @@ export async function GET() {
     type AnalysisJoin = {
       id: string;
       status: string;
-      structured_output: { overallScore: number } | null;
       created_at: string;
-      parent_analysis_id: string | null;
     } | null;
 
-    // Collect all parent analysis IDs for batch fetch
-    const parentIds = (pages || [])
-      .map((p) => (p.analyses as unknown as AnalysisJoin)?.parent_analysis_id)
-      .filter((id): id is string => id !== null && id !== undefined);
-
-    // Batch fetch all parent analyses in one query
-    let parentScoreMap = new Map<string, number | null>();
-    if (parentIds.length > 0) {
-      const { data: parents } = await supabase
-        .from("analyses")
-        .select("id, structured_output")
-        .in("id", parentIds);
-
-      parentScoreMap = new Map(
-        (parents || []).map((p) => [
-          p.id,
-          (p.structured_output as { overallScore?: number } | null)?.overallScore ?? null,
-        ])
-      );
-    }
-
-    // Transform pages with delta info
-    const pagesWithDeltas = (pages || []).map((page) => {
+    // Transform pages
+    const pagesFormatted = (pages || []).map((page) => {
       const lastScan = page.analyses as unknown as AnalysisJoin;
-      const previousScore = lastScan?.parent_analysis_id
-        ? parentScoreMap.get(lastScan.parent_analysis_id) ?? null
-        : null;
 
       return {
         id: page.id,
@@ -94,15 +68,13 @@ export async function GET() {
           ? {
               id: lastScan.id,
               status: lastScan.status,
-              score: lastScan.structured_output?.overallScore ?? null,
-              previous_score: previousScore,
               created_at: lastScan.created_at,
             }
           : null,
       };
     });
 
-    return NextResponse.json({ pages: pagesWithDeltas });
+    return NextResponse.json({ pages: pagesFormatted });
   } catch (err) {
     console.error("Pages GET error:", err);
     return NextResponse.json(

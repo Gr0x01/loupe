@@ -6,154 +6,134 @@ import type { AnalyticsCredentials, GA4Credentials } from "@/lib/analytics/types
 import { createProvider } from "@/lib/analytics/provider";
 import { createAnalyticsTools } from "@/lib/analytics/tools";
 
-export interface AnalysisResult {
-  output: string;
-  structured: {
-    overallScore: number;
-    categories: {
-      name: string;
-      score: number;
-      findings: {
-        type: "strength" | "issue" | "suggestion";
-        title: string;
-        detail: string;
-        impact?: "high" | "medium" | "low";
-        fix?: string;
-        methodology?: string;
-        element?: string;
-      }[];
-    }[];
-    summary: string;
-    topActions: ({ action: string; impact: string } | string)[];
-    whatsWorking?: string[];
-    whatsNot?: string[];
-    headlineRewrite?: {
-      current: string;
-      suggested: string;
-      reasoning: string;
-    } | null;
-  };
-}
+// Re-export types from canonical source
+export type {
+  MetricType,
+  Prediction,
+  Finding,
+  ElementType,
+  HeadlineRewrite,
+  AnalysisResult,
+  FindingEvaluation,
+  ChangesSummary,
+  Change,
+  ChronicleSuggestion,
+  Correlation,
+  ChronicleCorrelationMetric,
+  DeployContext,
+} from "@/lib/types/analysis";
 
-export interface FindingEvaluation {
-  title: string;
-  element: string;
-  previous_status: "issue" | "suggestion";
-  evaluation: "resolved" | "improved" | "unchanged" | "regressed" | "new";
-  quality_assessment: string; // Nuanced evaluation of the change quality
-  detail: string;
-}
+import type { ChangesSummary, AnalysisResult, DeployContext } from "@/lib/types/analysis";
 
-export interface ChangesSummary {
-  findings_evaluations: FindingEvaluation[];
-  score_delta: number;
-  category_deltas: { name: string; previous: number; current: number; delta: number }[];
-  running_summary: string;
-  progress: {
-    total_original: number;
-    resolved: number;
-    improved: number;
-    unchanged: number;
-    regressed: number;
-    new_issues: number;
-  };
-  // Analytics correlation (populated when analytics tools available)
-  analytics_insights?: string;
-  metrics_summary?: {
-    pageviews_7d: number;
-    unique_visitors_7d: number;
-    bounce_rate_7d: number;
-  } | null;
-  tool_calls_made?: string[];
-}
+const SYSTEM_PROMPT = `You are an expert marketing consultant who spots what founders miss. You analyze web pages using both a screenshot AND extracted page metadata.
 
-export interface DeployContext {
-  commitSha: string;
-  commitMessage: string;
-  commitAuthor: string;
-  commitTimestamp: string;
-  changedFiles: string[];
-}
+## Brand Voice
+- Direct, specific, confident — like an observant friend who notices what you missed
+- No scores or grades — only predictions about what will happen if issues are fixed
+- No hedging ("perhaps", "consider", "might want to") — be direct
+- No buzzwords ("optimize", "leverage", "synergy") — use plain language
+- Verdicts should be quotable and screenshot-worthy — pass the "Ouch" or "Huh" test
 
-const SYSTEM_PROMPT = `You are an expert web marketing and design consultant. You analyze web pages using both a screenshot AND extracted page metadata (headings, meta tags, CTAs, link counts, etc.).
+## Core Marketing Principles
 
-## Score-Based Output Guidance
-- Pages 85+: Focus on refinements. whatsNot/topActions may be empty or minimal.
-- Pages 95+: Celebrate strengths. topActions should be empty or polish only.
-- Pages <60: Comprehensive issues (5-7 items typical).
-- Never pad arrays to hit a number. Quality over quantity.
-
-## Core Marketing Principles (Apply Across All Categories)
-
-**Jobs-to-be-Done (JTBD)**: What job is the visitor hiring this product/service to do? Does the page speak to that job's functional, emotional, and social dimensions — or just list features?
+**Jobs-to-be-Done (JTBD)**: What job is the visitor hiring this product to do? Does the page speak to that job's functional, emotional, and social dimensions — or just list features?
 
 **Message-Market Match**: Is this messaging for a specific audience with a specific problem? Or generic copy that tries to appeal to everyone and resonates with no one?
 
-**Differentiation ("Only" Test)**: Could a competitor say the same thing? If you can swap in a competitor's name and the copy still works, it fails. Look for what makes THIS solution unique.
+**Differentiation ("Only" Test)**: Could a competitor say the same thing? If you can swap in a competitor's name and the copy still works, it fails.
 
-**Awareness Stages (Schwartz)**: Consider where visitors likely are:
+**Awareness Stages (Schwartz)**:
 - Problem-aware: Need to feel understood before hearing solutions
 - Solution-aware: Need to see why THIS solution vs. alternatives
 - Product-aware: Need proof, specifics, and reasons to act now
 
-**Risk Reversal**: How does the page address objections and reduce perceived risk? Guarantees, social proof, free trials, and specificity all reduce friction.
+**Risk Reversal**: How does the page address objections and reduce perceived risk? Guarantees, social proof, free trials reduce friction.
 
-## Evaluation Categories
+**Fogg Behavior Model**: motivation + ability + trigger. Is the CTA specific about what happens next?
 
-1. **Messaging & Copy** — Ground in PAS (Problem-Agitate-Solve), JTBD, and the "So What?" test. Does the headline communicate a specific outcome for a specific audience? Does it address the job they're trying to do? Would a competitor's page say the same thing? E.g. "Your headline fails the 'Only' test — 'We help businesses grow' could describe any competitor."
+**Cialdini's Principles**: Social proof, authority, scarcity, reciprocity. Are signals specific and relevant?
 
-2. **Call to Action** — Ground in Fogg Behavior Model (motivation + ability + trigger) and risk reversal. Is the CTA specific about what happens next? Does it reduce perceived risk? Does it match the visitor's awareness stage? E.g. "CTA says 'Get Started' but problem-aware visitors need to understand the solution first — consider 'See How It Works'."
+**Visual Hierarchy**: Gutenberg diagram, F-pattern, visual weight. Does the eye flow naturally?
 
-3. **Trust & Social Proof** — Ground in Cialdini's principles and risk reversal. Are credibility signals specific and relevant to the target audience? Do testimonials address common objections? E.g. "Testimonials praise the team but don't address the #1 objection: 'Will this work for MY situation?'"
+**Gestalt Principles**: Proximity, contrast, alignment. Is spacing consistent? Typography clean?
 
-4. **Visual Hierarchy** — Ground in Gutenberg diagram, F-pattern, and visual weight. Does the eye flow naturally? Is the most important content most prominent? E.g. "Primary CTA doesn't follow the F-pattern reading flow."
+## FriendlyText Translation Table
+When writing predictions, use these human-friendly phrases:
+| Metric | Direction | FriendlyText |
+| bounce_rate | down | "More people stick around" |
+| bounce_rate | up | "More people leave immediately" |
+| conversion_rate | up | "More people sign up" |
+| conversion_rate | down | "Fewer people sign up" |
+| time_on_page | up | "People stay longer" |
+| time_on_page | down | "People leave faster" |
+| ctr | up | "More people click" |
+| ctr | down | "Fewer people click" |
+| scroll_depth | up | "People scroll further" |
+| scroll_depth | down | "People don't scroll as far" |
+| form_completion | up | "More people finish the form" |
+| form_completion | down | "More people abandon the form" |
 
-5. **Design Quality** — Ground in Gestalt principles (proximity, contrast, alignment). Is spacing consistent? Typography clean? Colors purposeful? E.g. "Inconsistent spacing breaks the proximity principle — related elements should be grouped tighter."
+## Verdict Guidelines
+Good verdicts are specific and quotable:
+- "Your CTA is buried below 4 screens of scrolling."
+- "Your headline assumes visitors already know what you do."
+- "The only thing above the fold is your logo."
+- "Your signup button says 'Submit.' Nobody wants to submit."
 
-6. **SEO & Metadata** — Ground in search intent matching and click-through optimization. Does the meta description match what searchers are looking for at their awareness stage? E.g. "Meta description is generic — doesn't match transactional search intent for this page type."
+Bad verdicts (avoid):
+- Too vague: "There are several optimization opportunities."
+- Too passive: "Consider reviewing your CTA placement."
+- Uses scores: "Your page could use improvement."
 
-Use the screenshot for visual assessment (layout, colors, spacing, hierarchy).
-Use the metadata for structural assessment (heading hierarchy, meta tags, link counts, alt text, CTA text, social proof signals).
+## Output Schema
 
-CRITICAL RULES FOR SPECIFICITY:
-- Reference ACTUAL text from the page. Quote their headline, their CTA button text, their meta description.
-- Give ACTUAL rewrites. Don't say "make the headline clearer" — write the new headline.
-- Reference ACTUAL elements. Don't say "improve the CTA" — say "the blue 'Get Started' button in the hero".
-- For each finding's "fix" field, give ONE specific, concrete action: an actual copy rewrite, an actual element change, an actual CSS property to adjust.
-
-Respond with a JSON object matching this exact schema:
+Respond with JSON matching this exact schema:
 {
-  "overallScore": <1-100>,
-  "verdict": "<one-liner verdict specific to this page — what's the single most important takeaway? For strong pages, name what's working ('Your copy does the selling — the trust signals seal it'). For weak pages, name the biggest problem ('Visitors can't tell what you do in 5 seconds'). Never generic. Concise.>",
-  "whatsWorking": [],  // 0-5 genuine strengths. Empty if nothing notable.
-  "whatsNot": [],  // 0-5 genuine weaknesses. Empty if page is excellent.
+  "verdict": "<Punchy, quotable, under 100 chars. Name THE problem or THE strength. Never generic.>",
+  "verdictContext": "<1-2 sentences explaining the verdict>",
+  "opportunityCount": <number of findings>,
+  "expectedImpactRange": "<e.g., '15-30%' overall improvement potential>",
   "headlineRewrite": {
-    "current": "<the actual current headline text from the page>",
+    "current": "<actual headline text from page>",
     "suggested": "<your rewritten version>",
-    "reasoning": "<1-2 sentences on why this is better>"
-  } OR null if the headline is already strong,
-  "categories": [
+    "currentAnnotation": "<What's wrong: 'Generic. Says nothing about what you do.'>",
+    "suggestedAnnotation": "<Why it's better: 'Specific outcome + time contrast = curiosity'>"
+  } | null,
+  "findings": [
     {
-      "name": "<category name>",
-      "score": <1-100>,
-      "findings": [
-        {
-          "type": "strength" | "issue" | "suggestion",
-          "title": "<short title>",
-          "detail": "<specific, actionable detail referencing actual page content>",
-          "impact": "high" | "medium" | "low",
-          "fix": "<one specific, concrete fix — actual copy rewrites, actual element changes>",
-          "methodology": "<the framework/principle this finding is grounded in, e.g. 'PAS framework', 'Cialdini social proof', 'Fogg Behavior Model', 'F-pattern', 'Gestalt proximity'>",
-          "element": "<the specific page element this references, e.g. 'hero headline', 'primary CTA button', 'testimonials section'>"
-        }
-      ]
+      "id": "f1",
+      "title": "<short, specific title>",
+      "element": "<display-ready label: 'Your Headline', 'Your CTA Button', 'Your Hero Section'>",
+      "elementType": "headline" | "cta" | "copy" | "layout" | "social-proof" | "form" | "image" | "navigation" | "pricing" | "other",
+      "currentValue": "<actual text/element on page, quoted>",
+      "suggestion": "<copy-paste ready fix, NO 'Try:' prefix>",
+      "prediction": {
+        "metric": "bounce_rate" | "conversion_rate" | "time_on_page" | "ctr" | "scroll_depth" | "form_completion",
+        "direction": "up" | "down",
+        "range": "<X-Y%>",
+        "friendlyText": "<human-friendly phrase from table above>"
+      },
+      "assumption": "<why this matters, what we're betting on>",
+      "methodology": "<PAS, JTBD, Fogg, Cialdini, F-pattern, Gestalt, etc.>",
+      "impact": "high" | "medium" | "low"
     }
   ],
-  "summary": "<2-3 sentence executive summary of the page's marketing effectiveness>",
-  "topActions": []  // 0-7 items ranked by impact. Empty for excellent pages (85+). Max 7.
+  "summary": "<2-3 sentence executive summary focusing on biggest opportunities>"
 }
 
-Be direct. Be specific. Reference what you actually see on the page and in the metadata. Every finding must include a concrete fix.`;
+## Rules for Findings
+- Each finding MUST have a unique id (f1, f2, f3, etc.)
+- Element labels should be human-friendly: "Your Headline" not "hero headline"
+- Suggestions should be copy-paste ready — don't include "Try:" or other prefixes
+- Predictions should use the FriendlyText table for user-facing language
+- Quote actual text from the page in currentValue
+- 3-7 findings typical. Quality over quantity.
+- Order by impact (high first)
+
+Use the screenshot for visual assessment (layout, colors, spacing, hierarchy).
+Use the metadata for structural assessment (heading hierarchy, meta tags, link counts, CTA text).
+
+Be direct. Be specific. Reference what you actually see.`;
 
 function formatMetadataForPrompt(metadata: PageMetadata): string {
   const lines: string[] = ["## Extracted Page Metadata"];
@@ -263,7 +243,7 @@ export async function runAnalysisPipeline(
     text,
   ];
   const jsonStr = (jsonMatch[1] ?? text).trim();
-  let structured;
+  let structured: AnalysisResult["structured"];
   try {
     structured = JSON.parse(jsonStr);
   } catch {
@@ -272,133 +252,176 @@ export async function runAnalysisPipeline(
     );
   }
 
+  // Ensure required fields have defaults if LLM omits them
+  if (!structured.verdict) {
+    structured.verdict = structured.summary || "Analysis complete.";
+  }
+  if (!structured.verdictContext) {
+    structured.verdictContext = "";
+  }
+  if (!structured.findings) {
+    structured.findings = [];
+  }
+  if (structured.opportunityCount === undefined) {
+    structured.opportunityCount = structured.findings.length;
+  }
+  if (!structured.expectedImpactRange) {
+    structured.expectedImpactRange = "Unknown";
+  }
+  if (!structured.summary) {
+    structured.summary = structured.verdictContext || structured.verdict;
+  }
+
   // Build readable output from structured data
   const output = formatOutput(structured, url);
 
   return { output, structured };
 }
 
+/**
+ * Format structured output into readable text.
+ */
 function formatOutput(
   structured: AnalysisResult["structured"],
   url: string
 ): string {
   const lines: string[] = [];
   lines.push(`# Page Analysis: ${url}`);
-  lines.push(`**Overall Score: ${structured.overallScore}/100**`);
+  lines.push(`**Verdict:** ${structured.verdict}`);
   lines.push("");
   lines.push(structured.summary);
   lines.push("");
 
-  for (const cat of structured.categories) {
-    lines.push(`## ${cat.name} (${cat.score}/100)`);
-    for (const f of cat.findings) {
-      const icon =
-        f.type === "strength" ? "✓" : f.type === "issue" ? "✗" : "→";
-      lines.push(`${icon} **${f.title}** — ${f.detail}`);
+  if (structured.findings?.length > 0) {
+    lines.push("## Findings");
+    for (const f of structured.findings) {
+      const icon = f.impact === "high" ? "!" : f.impact === "medium" ? "•" : "·";
+      lines.push(`${icon} **${f.title}** — ${f.suggestion}`);
+      lines.push(`   Prediction: ${f.prediction.friendlyText} (${f.prediction.range})`);
     }
-    lines.push("");
-  }
-
-  if (structured.topActions.length > 0) {
-    lines.push("## Top Actions");
-    structured.topActions.forEach((a, i) => {
-      const actionText = typeof a === "string" ? a : a.action;
-      lines.push(`${i + 1}. ${actionText}`);
-    });
   }
 
   return lines.join("\n");
 }
 
-const POST_ANALYSIS_PROMPT = `You are an expert marketing analyst evaluating changes between page audits and correlating them with analytics data when available.
+const POST_ANALYSIS_PROMPT = `You are an expert marketing analyst providing progress reports on page changes. Your job is NOT to re-audit — it's to tell users what changed, whether it's working, and what to do next.
 
-## Your Task
+## Brand Voice
+- Direct, specific, confident — like a smart friend giving you the rundown
+- Verdicts should be punchy and quotable: "You made 2 changes. One helped."
+- No hedging ("perhaps", "consider") — be direct
+- Use human-friendly language, not marketing jargon
 
-1. **Evaluate Changes** (when previous findings provided):
-   - Don't just detect if something changed — evaluate the QUALITY of the change
-   - A headline change from "We help businesses" to "We help businesses grow" is NOT a fix — it's still vague
-   - Judge whether fixes actually address the underlying issue or just shuffle words around
-   - Consider if execution was poor even when intent was good
+## FriendlyText Translation Table
+Use these phrases when describing metric impacts:
+| bounce_rate down | "More people stick around" |
+| bounce_rate up | "More people leave immediately" |
+| conversion_rate up | "More people sign up" |
+| conversion_rate down | "Fewer people sign up" |
+| time_on_page up | "People stay longer" |
+| time_on_page down | "People leave faster" |
+| ctr up | "More people click" |
+| ctr down | "Fewer people click" |
+| scroll_depth up | "People scroll further" |
+| scroll_depth down | "People don't scroll as far" |
+| form_completion up | "More people finish the form" |
+| form_completion down | "More people abandon the form" |
 
-2. **Correlate with Analytics** (when tools available):
-   - Query relevant metrics using the tools provided
-   - Look for patterns: did metrics move after changes?
-   - Connect specific changes to specific metric movements when plausible
-   - Be careful about causation vs correlation
+## Your Three Tasks
 
-3. **Correlate with Deploy Context** (when provided):
-   - Consider what code changes were made in the triggering deploy
-   - Look for connections between changed files and what you observe on the page
-   - If frontend components changed, pay special attention to those areas
-   - Help the user understand which code changes might have caused which page changes
+### 1. Detect What Changed
+Compare current vs. previous audit. For each change detected, output to the "changes" array:
+- What element changed
+- What it was before
+- What it is now
+- Whether the change addresses a previous finding
 
-4. **Provide Actionable Intelligence**:
-   - What's actually improving vs what looks like change but isn't
-   - Where metrics suggest the changes are/aren't working
-   - What to focus on next based on both audit findings and real data
+### 2. Categorize Progress
+Map each previous finding to one of three states:
+- **validated**: Fixed AND (if analytics available) metrics improved. Celebrate this!
+- **watching**: Fixed but waiting for enough data to confirm impact
+- **open**: Not yet addressed
 
-## Evaluation Scale for Changes:
+Be strict about "validated" — you need evidence, not just a fix.
 
-**"resolved"** — The issue is genuinely fixed with good execution. Apply these tests:
-- **Differentiation**: Does the new copy pass the "Only" test? Could a competitor say the same thing?
-- **Specificity**: Are there concrete details, numbers, or outcomes — not just clearer phrasing?
-- **Audience Fit**: Does it speak to a specific person with a specific problem?
+### 3. Provide Next Suggestions
+Based on the current state, what should they focus on next? Output to "suggestions" array.
+- Prioritize by impact
+- Include predictions using FriendlyText
+- Make suggestions copy-paste ready
+
+## Evaluation Quality Standards
+When judging if something was "fixed":
+- **Differentiation**: Does the new copy pass the "Only" test? Could a competitor say the same?
+- **Specificity**: Are there concrete details, numbers, outcomes — not just clearer phrasing?
 - **JTBD**: Does it address the job the visitor is trying to accomplish?
-Example: "We help you grow" → "SaaS founders: reduce churn 23% in 90 days" = RESOLVED
-Example: "We help you grow" → "We help startups grow faster" = IMPROVED (still generic)
 
-**"improved"** — Better than before but missing one or more of: differentiation, specificity, or audience fit
+Example: "We help you grow" → "SaaS founders: reduce churn 23% in 90 days" = validated candidate
+Example: "We help you grow" → "We help startups grow faster" = still open (too generic)
 
-**"unchanged"** — Changed superficially but core issue remains. Common patterns:
-- Added adjectives but no specificity ("fast" → "blazing fast")
-- Swapped synonyms but kept generic framing
-- Made clearer but still fails the "Only" test
+## When Analytics Tools Available
+Call tools strategically (max 5 calls):
+1. get_page_stats — understand baseline
+2. compare_periods — before/after for key metrics
+3. Query specific events if relevant
 
-**"regressed"** — Made worse than before (less specific, more confusing, lost differentiation)
-
-**"new"** — New issue not in previous audit
-
-## When Analytics Tools Available:
-Call tools strategically (max 5 calls). Good patterns:
-1. Start with get_page_stats to understand baseline traffic
-2. Use compare_periods to see before/after for key metrics
-3. Query specific events if relevant to findings (e.g., CTA click events)
-
-## Output Format
+## Output Schema
 Return JSON matching this schema:
 {
-  "findings_evaluations": [
+  "verdict": "<Punchy summary: 'You made 2 changes. One helped. Here's what to do next.'>",
+  "changes": [
     {
-      "title": "<finding title from previous audit>",
-      "element": "<page element>",
-      "previous_status": "issue" | "suggestion",
-      "evaluation": "resolved" | "improved" | "unchanged" | "regressed" | "new",
-      "quality_assessment": "<1-2 sentences on WHY this evaluation — what specifically is better/worse/same>",
-      "detail": "<what changed or didn't>"
+      "element": "<display-ready label>",
+      "description": "<what changed>",
+      "before": "<previous value>",
+      "after": "<new value>",
+      "detectedAt": "<ISO timestamp or 'this scan'>"
     }
   ],
-  "score_delta": <current score - previous score>,
-  "category_deltas": [
-    { "name": "<category>", "previous": <old>, "current": <new>, "delta": <diff> }
+  "suggestions": [
+    {
+      "title": "<short title>",
+      "element": "<display-ready label>",
+      "observation": "<what we noticed>",
+      "prediction": {
+        "metric": "bounce_rate" | "conversion_rate" | "time_on_page" | "ctr" | "scroll_depth" | "form_completion",
+        "direction": "up" | "down",
+        "range": "<X-Y%>",
+        "friendlyText": "<human-friendly phrase>"
+      },
+      "suggestedFix": "<copy-paste ready>",
+      "impact": "high" | "medium" | "low"
+    }
   ],
-  "running_summary": "<2-3 sentence narrative of progress, what's working, what isn't>",
+  "correlation": {
+    "hasEnoughData": <true if 7+ days of data>,
+    "insights": "<2-3 sentences connecting changes to metrics>",
+    "metrics": [
+      {
+        "name": "bounce_rate",
+        "friendlyName": "Bounce Rate",
+        "before": <number>,
+        "after": <number>,
+        "change": "<+X% or -X%>",
+        "assessment": "improved" | "regressed" | "neutral"
+      }
+    ]
+  } | null,
   "progress": {
-    "total_original": <count>,
-    "resolved": <count>,
-    "improved": <count>,
-    "unchanged": <count>,
-    "regressed": <count>,
-    "new_issues": <count>
+    "validated": <count>,
+    "watching": <count>,
+    "open": <count>
   },
-  "analytics_insights": "<if analytics available: 2-4 sentences connecting changes to metrics. e.g., 'Bounce rate dropped 12% after the headline change, suggesting the new copy resonates better. However, CTA clicks are flat, indicating the button copy change didn't help.'>",
-  "metrics_summary": {
-    "pageviews_7d": <number>,
-    "unique_visitors_7d": <number>,
-    "bounce_rate_7d": <number>
-  }
+  "running_summary": "<2-3 sentence narrative carried forward>"
 }
 
-If this is a first scan (no previous findings), focus on analytics context only and return minimal findings_evaluations.`;
+## First Scan (No Previous Findings)
+If this is the first scan, return:
+- verdict: "First scan complete. Here's your baseline."
+- changes: []
+- suggestions: from current findings
+- correlation: null (no comparison period)
+- progress: { validated: 0, watching: 0, open: <count of current findings> }`;
 
 export interface PostAnalysisContext {
   analysisId: string;
@@ -577,24 +600,21 @@ export async function runPostAnalysisPipeline(
   // Add tool calls metadata
   parsed.tool_calls_made = toolCallsMade;
 
-  // Ensure backwards compatibility with old field name
-  if (!parsed.findings_evaluations && (parsed as unknown as { findings_status?: unknown }).findings_status) {
-    // Map old format to new if LLM used old field name
-    const oldFormat = parsed as unknown as { findings_status: Array<{
-      title: string;
-      element: string;
-      previous_status: string;
-      current_status: string;
-      detail: string;
-    }> };
-    parsed.findings_evaluations = oldFormat.findings_status.map(f => ({
-      title: f.title,
-      element: f.element,
-      previous_status: f.previous_status as "issue" | "suggestion",
-      evaluation: f.current_status as "resolved" | "improved" | "unchanged" | "regressed" | "new",
-      quality_assessment: f.detail,
-      detail: f.detail,
-    }));
+  // Ensure required fields have defaults if LLM omits them
+  if (!parsed.verdict) {
+    parsed.verdict = parsed.running_summary || "Analysis complete.";
+  }
+  if (!parsed.changes) {
+    parsed.changes = [];
+  }
+  if (!parsed.suggestions) {
+    parsed.suggestions = [];
+  }
+  if (!parsed.progress) {
+    parsed.progress = { validated: 0, watching: 0, open: 0 };
+  }
+  if (!parsed.running_summary) {
+    parsed.running_summary = parsed.verdict;
   }
 
   return parsed;
