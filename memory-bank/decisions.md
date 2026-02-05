@@ -239,3 +239,50 @@
 - Solo dev MVP — security fixes should address real attack vectors, not theoretical enterprise concerns
 - Per-repo webhook secrets already provide good isolation (attacker needs both repo access AND webhook secret)
 - Token encryption adds complexity without meaningfully improving security (attacker with DB access has bigger problems)
+
+## D20: Unified post-analysis pipeline (Feb 4, 2026)
+
+**Decision**: Merge comparison and analytics correlation into a single Gemini 3 Pro call with LLM tools, instead of separate passes.
+
+**Why**:
+- Comparison needs full context to evaluate change quality ("did the fix actually help?")
+- Flash can do yes/no but Pro can assess nuance ("words shuffled but message unclear")
+- Single smart call is simpler than orchestrating multiple passes
+- Tools are optional — pipeline runs without analytics, adds tools when credentials exist
+
+## D21: Vision pivot — Predictions not grades (Feb 2026)
+
+**Decision**: Reposition from "website grader with scores" to "correlation layer with predictions." Remove scores entirely from UI. Every finding predicts impact, Chronicle tracks what actually happened.
+
+**Why**:
+- Scores are vanity metrics — users want to know "did my change help?"
+- Predictions are actionable — "expected +8-15% conversion" beats "score: 72"
+- Chronicle format (N+1 scans) creates ongoing value vs one-time audit
+- Differentiates from competitors (Hotjar, VisualPing) who don't correlate
+
+**What changed**:
+- Removed score display from all UI (dashboard, results, emails)
+- Deleted leaderboard feature (no scores = no ranking)
+- New types: Finding with Prediction, ChangesSummary with Correlation
+- Brand voice: "observant analyst" with emotional register (Ouch/Aha/Huh)
+
+## D22: Context-aware email templates (Feb 2026)
+
+**Decision**: Replace generic "scan complete" emails with context-aware templates based on what the scan found. Four templates: changeDetected, allQuiet, correlationUnlocked, weeklyDigest.
+
+**Why**:
+- Generic "your scan is ready" wastes user attention
+- Subject line should convey the finding: "Your headline change helped" vs "Scan complete"
+- All-quiet emails reduce anxiety ("nothing broke")
+- Correlation unlock is a celebration moment worth a dedicated email
+- Weekly digest for power users (3+ pages) reduces email fatigue
+
+**What we removed**:
+- `scanCompleteEmail` and `deployScanCompleteEmail` — no fallback needed
+- Scheduled/deploy scans always have `changes_summary` from post-analysis pipeline
+
+**Email selection**:
+1. Skip if manual trigger
+2. Skip if email_notifications disabled
+3. Changes detected → changeDetectedEmail (dynamic subject based on correlation)
+4. No changes → allQuietEmail
