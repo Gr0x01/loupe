@@ -587,6 +587,56 @@ Output as structured JSON.
 
 ---
 
+## Email Strategy
+
+Emails are context-aware, not generic notifications. The subject line tells you what happened.
+
+### Email Types
+
+| Email | When | Subject example |
+|-------|------|-----------------|
+| **Change detected** | Scheduled/deploy scan finds changes | "Your headline change helped" or "may need attention" |
+| **All quiet** | Scheduled scan, no changes | "All quiet on yoursite.com" |
+| **Correlation unlocked** | Watching item becomes validated | "Your headline change helped" |
+| **Weekly digest** | Monday, for users with 3+ pages | "Your weekly Loupe report" |
+
+### Design Principles
+- **Subject = verdict** — "Your headline change helped" not "Scan complete"
+- **Headline-first** — The main message is the first thing you see
+- **One focal point** — Don't compete for attention
+- **Left-aligned CTAs** — Less "marketing email" feeling
+- **All quiet = success** — Stability is reassuring, not boring
+
+### Change Detected Email Structure
+```
+[Headline: verdict based on correlation]
+This change helped.
+More people sticking around (+8%)
+
+[Gray box: the change]
+YOUR HEADLINE
+"Start free" → "Get started in 60 seconds"
+
+[If suggestion exists]
+Next up: Move CTA above fold — +10-15%
+
+[CTA: See full report]
+```
+
+### All Quiet Email Structure
+```
+Your page is stable.
+yoursite.com — no changes since Jan 15
+
+[If suggestion exists, gray box]
+While things are quiet:
+CTA Button: More people clicking — +10-15%
+
+[CTA: See suggestion / View your page]
+```
+
+---
+
 ## Open Questions
 
 1. **How do we generate predictions?** Industry benchmarks? Our own data from tracked pages? LLM estimates?
@@ -595,14 +645,14 @@ Output as structured JSON.
 2. **What triggers the "connect your analytics" moment?**
    - *Guidance:* Show correlation they *almost* have: "Your headline changed Tuesday. We think it helped — but we can't confirm. Connect PostHog to see the actual impact."
 
-3. **How does "nothing changed" feel valuable?**
-   - *Guidance:* Frame as success. "All quiet. Your site is holding steady." Add proactive suggestions: "Your page hasn't changed, but here's what we'd still improve."
+3. ~~**How does "nothing changed" feel valuable?**~~
+   - *Resolved:* allQuietEmail frames stability as success. "Your page is stable." + optional suggestion gives proactive value.
 
 4. **Landing page:** Does the audit input stay the hero, or do we lead with the correlation story?
    - *Guidance:* Keep audit as hero — it's the lead magnet. But subhead should hint at correlation: "See what's wrong. Fix it. Know if it worked."
 
-5. **Can we show historical changes using Wayback Machine?**
-   - This would demonstrate value before asking for "Track this page" commitment.
+5. ~~**Can we show historical changes using Wayback Machine?**~~
+   - *Resolved:* WaybackPreview component shows historical snapshots from Wayback CDX API.
 
 ---
 
@@ -621,9 +671,10 @@ Output as structured JSON.
 ## Next Steps
 
 1. Rewrite landing page copy: "Did that change work?" as primary headline
-2. Redesign audit results page: verdict + impact bar + collapsed finding cards
-3. Redesign N+1 results page: chronicle with timeline + correlation lines
-4. Redesign dashboard: two-zone activity stream (attention needed / watching)
-5. Redesign social card: verdict-first, specific observation as the hook
-6. Add prediction logic to findings (with honest credibility markers)
-7. Explore Wayback Machine integration for historical demo
+2. ~~Redesign audit results page: verdict + impact bar + collapsed finding cards~~ ✓
+3. ~~Redesign N+1 results page: chronicle with timeline + correlation lines~~ ✓
+4. ~~Redesign dashboard: two-zone activity stream (attention needed / watching)~~ ✓
+5. ~~Redesign social card: verdict-first, specific observation as the hook~~ ✓ (dynamic OG images)
+6. ~~Add prediction logic to findings (with honest credibility markers)~~ ✓
+7. ~~Explore Wayback Machine integration for historical demo~~ ✓ (WaybackPreview component)
+8. ~~Context-aware email templates~~ ✓
