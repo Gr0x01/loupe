@@ -498,59 +498,98 @@ function CollapsedFindingCard({
   );
 }
 
-// Feedback types for finding cards
-type FindingFeedbackType = 'will_fix' | 'already_done' | 'not_relevant' | 'wrong' | null;
-
-// Feedback confirmation text
-const FEEDBACK_CONFIRMATIONS: Record<Exclude<FindingFeedbackType, null>, string> = {
-  will_fix: "Tracking this",
-  already_done: "Got it",
-  not_relevant: "Noted",
-  wrong: "We'll improve",
-};
+// Feedback types for finding cards - accuracy-based for LLM calibration
+type FindingFeedbackType = 'accurate' | 'inaccurate' | null;
 
 // Expanded Finding Card - full-width with 2-column interior
 function ExpandedFindingCard({
   finding,
   onToggle,
+  feedback,
+  onFeedback,
+  analysisId,
 }: {
   finding: Finding;
   onToggle: () => void;
+  feedback: FindingFeedbackType;
+  onFeedback: (type: FindingFeedbackType, feedbackText?: string) => void;
+  analysisId: string;
 }) {
   const [suggestionCopied, setSuggestionCopied] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
-  const [feedback, setFeedback] = useState<FindingFeedbackType>(null);
-  const [showDismissMenu, setShowDismissMenu] = useState(false);
-  const [wrongText, setWrongText] = useState("");
-  const [showWrongInput, setShowWrongInput] = useState(false);
-  const dismissMenuRef = useRef<HTMLDivElement>(null);
+  const [inaccurateText, setInaccurateText] = useState("");
+  const [showInaccurateInput, setShowInaccurateInput] = useState(false);
+  const [inaccurateClosing, setInaccurateClosing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const inaccurateInputRef = useRef<HTMLDivElement>(null);
 
-  // Close dismiss menu when clicking outside
+  const closeInaccurateInput = useCallback(() => {
+    setInaccurateClosing(true);
+    setTimeout(() => {
+      setShowInaccurateInput(false);
+      setInaccurateClosing(false);
+      setInaccurateText("");
+    }, 150);
+  }, []);
+
+  // Close inaccurate input when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dismissMenuRef.current && !dismissMenuRef.current.contains(e.target as Node)) {
-        setShowDismissMenu(false);
+      if (inaccurateInputRef.current && !inaccurateInputRef.current.contains(e.target as Node)) {
+        closeInaccurateInput();
       }
     }
-    if (showDismissMenu) {
+    if (showInaccurateInput && !inaccurateClosing) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [showDismissMenu]);
+  }, [showInaccurateInput, inaccurateClosing, closeInaccurateInput]);
 
-  const handleFeedback = (type: Exclude<FindingFeedbackType, null>) => {
-    if (type === 'wrong') {
-      setShowWrongInput(true);
-      setShowDismissMenu(false);
-    } else {
-      setFeedback(type);
-      setShowDismissMenu(false);
+  const handleAccurate = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysisId,
+          findingId: finding.id,
+          feedbackType: "accurate",
+        }),
+      });
+      onFeedback("accurate");
+    } catch (err) {
+      console.error("Feedback error:", err);
     }
+    setSubmitting(false);
   };
 
-  const handleWrongSubmit = () => {
-    setFeedback('wrong');
-    setShowWrongInput(false);
+  const handleInaccurateClick = () => {
+    setShowInaccurateInput(true);
+  };
+
+  const handleInaccurateSubmit = async () => {
+    const trimmed = inaccurateText.trim();
+    if (!trimmed || submitting) return;
+    setSubmitting(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysisId,
+          findingId: finding.id,
+          feedbackType: "inaccurate",
+          feedbackText: trimmed,
+        }),
+      });
+      onFeedback("inaccurate", trimmed);
+      setShowInaccurateInput(false);
+    } catch (err) {
+      console.error("Feedback error:", err);
+    }
+    setSubmitting(false);
   };
 
   const handleCopySuggestion = (e: React.MouseEvent) => {
@@ -566,8 +605,8 @@ function ExpandedFindingCard({
     low: "LOW IMPACT",
   }[finding.impact];
 
-  // Determine if card should be dimmed (dismissed states)
-  const isDimmed = feedback === 'already_done' || feedback === 'not_relevant' || feedback === 'wrong';
+  // Determine if card should be dimmed (inaccurate feedback)
+  const isDimmed = feedback === 'inaccurate';
 
   return (
     <div className={`new-finding-card-expanded ${isDimmed ? 'finding-card-dimmed' : ''}`}>
@@ -673,88 +712,79 @@ function ExpandedFindingCard({
 
           {/* Right: Feedback controls */}
           <div className="finding-feedback">
-            {feedback ? (
-              /* Post-feedback confirmation */
-              <span className={`finding-feedback-confirmation ${feedback === 'will_fix' ? 'finding-feedback-confirmation-positive' : 'finding-feedback-confirmation-muted'}`}>
-                {FEEDBACK_CONFIRMATIONS[feedback]}
-              </span>
-            ) : showWrongInput ? (
-              /* Wrong input form */
-              <div className="finding-feedback-wrong-input">
-                <input
-                  type="text"
-                  placeholder="What did we get wrong?"
-                  value={wrongText}
-                  onChange={(e) => setWrongText(e.target.value)}
-                  className="finding-feedback-input"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleWrongSubmit();
-                    if (e.key === 'Escape') setShowWrongInput(false);
-                  }}
-                />
-                <button
-                  onClick={handleWrongSubmit}
-                  className="finding-feedback-submit"
-                >
-                  Send
-                </button>
+            {feedback === 'accurate' ? (
+              /* Accurate confirmation - click to undo */
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFeedback(null);
+                }}
+                className="finding-feedback-confirmation finding-feedback-confirmation-positive finding-feedback-undo"
+                title="Click to undo"
+              >
+                Noted
+              </button>
+            ) : feedback === 'inaccurate' ? (
+              /* Inaccurate confirmation - click to undo */
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFeedback(null);
+                }}
+                className="finding-feedback-confirmation finding-feedback-confirmation-muted finding-feedback-undo"
+                title="Click to undo"
+              >
+                Got it
+              </button>
+            ) : showInaccurateInput ? (
+              /* Inaccurate input form */
+              <div className={`finding-feedback-inaccurate-input ${inaccurateClosing ? 'finding-feedback-inaccurate-input-closing' : ''}`} ref={inaccurateInputRef}>
+                <span className="finding-feedback-prompt">What did we miss?</span>
+                <div className="finding-feedback-input-row">
+                  <input
+                    type="text"
+                    placeholder="e.g., We tested this already"
+                    value={inaccurateText}
+                    onChange={(e) => setInaccurateText(e.target.value)}
+                    className="finding-feedback-input"
+                    maxLength={500}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleInaccurateSubmit();
+                      if (e.key === 'Escape') closeInaccurateInput();
+                    }}
+                  />
+                  <button
+                    onClick={handleInaccurateSubmit}
+                    className="finding-feedback-submit"
+                    disabled={!inaccurateText.trim() || submitting}
+                  >
+                    {submitting ? '...' : 'Send'}
+                  </button>
+                </div>
               </div>
             ) : (
-              /* Default: feedback buttons */
+              /* Default: two feedback buttons */
               <>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleFeedback('will_fix');
+                    handleAccurate();
                   }}
-                  className="finding-feedback-btn finding-feedback-btn-primary"
+                  className="finding-feedback-btn finding-feedback-btn-accurate"
+                  disabled={submitting}
                 >
-                  I'll fix this
+                  Accurate
                 </button>
-                <div className="relative" ref={dismissMenuRef}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowDismissMenu(!showDismissMenu);
-                    }}
-                    className="finding-feedback-btn finding-feedback-btn-more"
-                    aria-label="More options"
-                  >
-                    ···
-                  </button>
-                  {showDismissMenu && (
-                    <div className="finding-feedback-popover">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFeedback('already_done');
-                        }}
-                        className="finding-feedback-popover-item"
-                      >
-                        Already done
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFeedback('not_relevant');
-                        }}
-                        className="finding-feedback-popover-item"
-                      >
-                        Doesn't apply
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFeedback('wrong');
-                        }}
-                        className="finding-feedback-popover-item finding-feedback-popover-item-danger"
-                      >
-                        Wrong
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleInaccurateClick();
+                  }}
+                  className="finding-feedback-btn finding-feedback-btn-inaccurate"
+                >
+                  Not quite
+                </button>
               </>
             )}
           </div>
@@ -779,11 +809,17 @@ function ExpandedFindingCard({
 }
 
 // Findings Section for new format - 2-column grid layout
-function FindingsSection({ findings }: { findings: Finding[] }) {
+function FindingsSection({ findings, analysisId }: { findings: Finding[]; analysisId: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Lift feedback state so it persists across card collapse/expand
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, FindingFeedbackType>>({});
 
   const toggleFinding = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
+  };
+
+  const handleFeedback = (findingId: string, type: FindingFeedbackType) => {
+    setFeedbackMap((prev) => ({ ...prev, [findingId]: type }));
   };
 
   if (findings.length === 0) return null;
@@ -807,6 +843,7 @@ function FindingsSection({ findings }: { findings: Finding[] }) {
       <div className="findings-grid">
         {findings.map((finding) => {
           const isExpanded = expandedId === finding.id;
+          const feedback = feedbackMap[finding.id] ?? null;
           return (
             <div
               key={finding.id}
@@ -816,6 +853,9 @@ function FindingsSection({ findings }: { findings: Finding[] }) {
                 <ExpandedFindingCard
                   finding={finding}
                   onToggle={() => toggleFinding(finding.id)}
+                  feedback={feedback}
+                  onFeedback={(type) => handleFeedback(finding.id, type)}
+                  analysisId={analysisId}
                 />
               ) : (
                 <CollapsedFindingCard
@@ -1725,7 +1765,7 @@ export default function AnalysisPage() {
         {/* Findings Section */}
         {s.findings && s.findings.length > 0 && (
           <>
-            <FindingsSection findings={s.findings} />
+            <FindingsSection findings={s.findings} analysisId={analysis.id} />
             <hr className="section-divider" />
           </>
         )}

@@ -102,7 +102,7 @@ export const analyzeUrl = inngest.createFunction(
       // 5. Run unified post-analysis pipeline (comparison + analytics correlation)
       const { data: analysis } = await supabase
         .from("analyses")
-        .select("user_id, deploy_id")
+        .select("user_id, deploy_id, page_id")
         .eq("id", analysisId)
         .single();
 
@@ -221,8 +221,58 @@ export const analyzeUrl = inngest.createFunction(
           };
         }
 
-        // Run post-analysis if we have previous findings OR analytics OR database OR deploy context
-        if (previousFindings || analyticsCredentials || databaseCredentials || deployContext) {
+        // Fetch user feedback for LLM calibration (if page exists)
+        let userFeedback: {
+          feedbackType: 'accurate' | 'inaccurate';
+          feedbackText: string | null;
+          findingSnapshot: {
+            title: string;
+            elementType: string;
+            currentValue: string;
+            suggestion: string;
+            impact: string;
+          };
+          createdAt: string;
+        }[] | null = null;
+
+        if (analysis.page_id) {
+          // Fetch feedback from last 90 days, limit 10 most recent
+          const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+          const { data: feedbackData } = await supabase
+            .from("finding_feedback")
+            .select("feedback_type, feedback_text, finding_snapshot, created_at")
+            .eq("page_id", analysis.page_id)
+            .gte("created_at", ninetyDaysAgo.toISOString())
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+          if (feedbackData && feedbackData.length > 0) {
+            // Filter to only include feedback where elementType exists in current findings
+            const currentElementTypes = new Set(
+              structured.findings?.map((f: { elementType: string }) => f.elementType) || []
+            );
+
+            userFeedback = feedbackData
+              .filter((f) => currentElementTypes.has(f.finding_snapshot?.elementType))
+              .map((f) => ({
+                feedbackType: f.feedback_type as 'accurate' | 'inaccurate',
+                feedbackText: f.feedback_text,
+                findingSnapshot: f.finding_snapshot as {
+                  title: string;
+                  elementType: string;
+                  currentValue: string;
+                  suggestion: string;
+                  impact: string;
+                },
+                createdAt: f.created_at,
+              }));
+          }
+        }
+
+        // Run post-analysis if we have previous findings OR analytics OR database OR deploy context OR user feedback
+        if (previousFindings || analyticsCredentials || databaseCredentials || deployContext || userFeedback?.length) {
           try {
             const changesSummary = await runPostAnalysisPipeline(
               {
@@ -233,6 +283,7 @@ export const analyzeUrl = inngest.createFunction(
                 previousFindings,
                 previousRunningSummary,
                 deployContext,
+                userFeedback,
               },
               {
                 supabase,

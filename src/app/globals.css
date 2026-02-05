@@ -1891,94 +1891,49 @@ body.modal-open .site-nav {
 .finding-feedback {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .finding-feedback-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--text-muted);
-  background: transparent;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   transition: all 150ms ease;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.finding-feedback-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 .finding-feedback-btn:active {
-  transform: scale(0.92);
+  transform: scale(0.95);
 }
 
-.finding-feedback-btn-primary {
-  color: var(--text-secondary);
+.finding-feedback-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.finding-feedback-btn-primary:hover {
+/* "Accurate" button */
+.finding-feedback-btn-accurate:hover:not(:disabled) {
   background: rgba(26, 140, 91, 0.08);
+  border-color: rgba(26, 140, 91, 0.2);
   color: var(--score-high);
 }
 
-.finding-feedback-btn-more {
-  padding: 6px 10px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.finding-feedback-btn-more:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text-secondary);
-}
-
-/* Dismiss popover */
-.finding-feedback-popover {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 4px;
-  min-width: 140px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(0, 0, 0, 0.03);
-  padding: 4px;
-  z-index: 50;
-  animation: feedbackPopoverIn 150ms ease-out;
-}
-
-@keyframes feedbackPopoverIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.finding-feedback-popover-item {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-align: left;
-  transition: all 120ms ease;
-}
-
-.finding-feedback-popover-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text-primary);
-}
-
-.finding-feedback-popover-item-danger:hover {
-  background: rgba(194, 59, 59, 0.08);
+/* "Not quite" button */
+.finding-feedback-btn-inaccurate:hover {
+  background: rgba(194, 59, 59, 0.06);
+  border-color: rgba(194, 59, 59, 0.15);
   color: var(--score-low);
 }
 
@@ -1986,16 +1941,14 @@ body.modal-open .site-nav {
 .finding-feedback-confirmation {
   font-size: 0.8125rem;
   font-weight: 500;
+  line-height: 1.4;
   animation: feedbackConfirm 300ms ease-out;
 }
 
 @keyframes feedbackConfirm {
   0% {
     opacity: 0;
-    transform: scale(0.9);
-  }
-  60% {
-    transform: scale(1.05);
+    transform: scale(0.95);
   }
   100% {
     opacity: 1;
@@ -2011,22 +1964,91 @@ body.modal-open .site-nav {
   color: var(--text-muted);
 }
 
-/* Wrong input form */
-.finding-feedback-wrong-input {
+/* Undo state - clickable confirmation */
+.finding-feedback-undo {
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 150ms ease;
+}
+
+.finding-feedback-undo:hover {
+  opacity: 0.6;
+}
+
+/* Inaccurate input form */
+.finding-feedback-inaccurate-input {
   display: flex;
   align-items: center;
-  gap: 6px;
-  animation: feedbackPopoverIn 150ms ease-out;
+  gap: 12px;
+  width: 100%;
+  animation: feedbackInputIn 200ms ease-out;
+}
+
+@keyframes feedbackInputIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes feedbackInputOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.finding-feedback-inaccurate-input-closing {
+  animation: feedbackInputOut 150ms ease-out forwards;
+}
+
+.finding-feedback-prompt {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.finding-feedback-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Stack on mobile */
+@media (max-width: 640px) {
+  .finding-feedback-inaccurate-input {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .finding-feedback-input-row {
+    width: 100%;
+  }
 }
 
 .finding-feedback-input {
-  padding: 6px 10px;
-  font-size: 0.8125rem;
+  padding: 8px 12px;
+  font-size: 0.875rem;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.6);
   color: var(--text-primary);
-  width: 180px;
+  flex: 1;
+  min-width: 0;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
@@ -2041,20 +2063,39 @@ body.modal-open .site-nav {
 }
 
 .finding-feedback-submit {
-  padding: 6px 12px;
+  padding: 8px 14px;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--accent);
-  border-radius: 6px;
+  color: white;
+  background: var(--accent);
+  border-radius: 8px;
   transition: all 150ms ease;
+  flex-shrink: 0;
 }
 
-.finding-feedback-submit:hover {
-  background: rgba(91, 46, 145, 0.08);
+.finding-feedback-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
-/* Dimmed state for dismissed findings */
+.finding-feedback-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Dimmed state for inaccurate findings */
 .finding-card-dimmed {
   opacity: 0.6;
   transition: opacity 300ms ease;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .finding-feedback {
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .finding-feedback-inaccurate-input {
+    width: 100%;
+  }
 }
