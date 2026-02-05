@@ -11,6 +11,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "URL parameter required" }, { status: 400 });
   }
 
+  // Validate URL to prevent SSRF
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return NextResponse.json({ error: "Invalid URL protocol" }, { status: 400 });
+    }
+    // Block internal/localhost URLs
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.endsWith(".local")
+    ) {
+      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
+  }
+
   try {
     // Query Wayback CDX API for snapshots
     const cdxUrl = new URL(CDX_API_URL);

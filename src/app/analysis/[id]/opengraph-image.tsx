@@ -13,10 +13,10 @@ export const contentType = "image/png";
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  // Fetch analysis data
+  // Fetch analysis data using anon key (analyses are publicly viewable)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   const { data: analysis } = await supabase
@@ -25,10 +25,15 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     .eq("id", id)
     .single();
 
-  // Extract data with fallbacks
-  const domain = analysis?.url
-    ? new URL(analysis.url).hostname
-    : "example.com";
+  // Extract domain with error handling
+  let domain = "example.com";
+  if (analysis?.url) {
+    try {
+      domain = new URL(analysis.url).hostname;
+    } catch {
+      // Invalid URL, use fallback
+    }
+  }
 
   const structured = analysis?.structured_output as {
     verdict?: string;

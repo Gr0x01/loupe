@@ -6,7 +6,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, source, analysis_id, url } = body;
 
-    if (!email || !email.includes("@")) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
     }
 
