@@ -286,3 +286,38 @@
 2. Skip if email_notifications disabled
 3. Changes detected → changeDetectedEmail (dynamic subject based on correlation)
 4. No changes → allQuietEmail
+
+## D23: Supabase direct integration for vibe coders (Feb 2026)
+
+**Decision**: Add Supabase as an analytics integration, enabling correlation between page changes and actual business outcomes (signups, orders) rather than proxy metrics (bounce rate).
+
+**Why**:
+- Every Lovable/Bolt project has Supabase by default — 100% coverage for vibe coder ICP
+- Zero "go set up analytics" friction
+- Differentiator: page→database correlation (nobody else does this)
+- Real outcomes (signups, orders) beat proxy metrics (bounce rate)
+
+**Connection approach**: Two-key flow
+1. User pastes Project URL + Anon Key (familiar — same key they use in their app)
+2. Try to introspect schema
+3. If tables visible → done
+4. If no tables (RLS blocking) → prompt to upgrade to Service Role Key
+
+**Why this works**:
+- Anon key is what vibe coders already copy/paste into Lovable/Bolt
+- Low friction start, escalate only when needed
+- Most vibe coder MVPs have minimal RLS anyway
+
+**Security**:
+- Anon key is safe by design (RLS-limited)
+- Service role key stored encrypted, only SELECT queries
+- Table name validation prevents injection
+- Clear messaging about what we access
+
+**What LLM sees**: Separate tools from PostHog/GA4
+- `discover_tables` — find available tables and row counts
+- `get_table_count` — check specific table counts
+- `identify_conversion_tables` — auto-detect signups/orders/waitlist
+- `compare_table_counts` — measure growth between snapshots
+
+Prompt explicitly tells LLM: "Supabase provides REAL business outcomes, not proxy metrics."

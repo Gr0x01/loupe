@@ -493,6 +493,99 @@ PostHog: 120 queries/hour. Max 6 tool calls per analysis is well within limits.
 - `src/app/api/integrations/posthog/connect/route.ts` — Connect endpoint
 - `src/app/api/integrations/posthog/route.ts` — Disconnect endpoint
 
+---
+
+## Supabase Integration (User Database)
+
+**Purpose:** Connect to user's Supabase project to track real business outcomes (signups, orders) instead of proxy metrics (bounce rate).
+
+### Architecture: Database Tools (Separate from Analytics)
+
+```
+User connects Supabase (URL + Key)
+         │
+         ▼
+┌─────────────────────────────────────────────┐
+│  runPostAnalysisPipeline() [Gemini 3 Pro]   │
+│                                             │
+│  Database Tools (if Supabase connected):    │
+│    ├─ discover_tables                       │
+│    ├─ get_table_count                       │
+│    ├─ identify_conversion_tables            │
+│    ├─ compare_table_counts                  │
+│    └─ get_table_structure                   │
+│              │                              │
+│              ▼                              │
+│    SupabaseAdapter (REST API)               │
+│              │                              │
+│              ▼                              │
+│    analytics_snapshots (store results)      │
+└─────────────────────────────────────────────┘
+         │
+         ▼
+   analyses.analytics_correlation
+```
+
+### Key Design Decisions
+1. **Separate from analytics** — Database tools are distinct from PostHog/GA4 tools. Both can be connected simultaneously.
+2. **Two-key approach** — Start with anon key (familiar), upgrade to service role if RLS blocks schema access.
+3. **Table name validation** — Prevents injection via `isValidTableName()` regex check.
+4. **Conversion detection** — LLM identifies tables like `users`, `signups`, `orders`, `waitlist` automatically.
+
+### Connection Flow
+1. User pastes Project URL + Anon Key (same key they use in their app)
+2. Validate credentials via REST health check
+3. Try schema introspection (may fail if RLS blocks)
+4. Store credentials in `integrations` table (provider: 'supabase')
+5. If no schema access → prompt to upgrade to Service Role Key
+
+### Credentials Storage
+```sql
+integrations (
+  provider = 'supabase',
+  provider_account_id = '<project-ref>',  -- e.g., 'abcdef123456'
+  access_token = '<anon-or-service-key>',
+  metadata = {
+    project_url: 'https://xyz.supabase.co',
+    key_type: 'anon' | 'service_role',
+    has_schema_access: boolean,
+    tables: ['users', 'orders', ...]
+  }
+)
+```
+
+### LLM Prompt Context
+When Supabase connected, pipeline adds:
+```
+## Database Available
+You have access to Supabase database tools. Use them to track REAL business
+outcomes (signups, orders) rather than proxy metrics.
+
+When correlating changes with database metrics, be specific:
+- "5 new signups since you changed your headline" (real outcome)
+- NOT "bounce rate decreased" (proxy metric)
+```
+
+### Security
+- Anon key is safe by design (RLS-limited)
+- Service role key bypasses RLS — only used for schema introspection + SELECT queries
+- Table name validation: `^[a-zA-Z_][a-zA-Z0-9_]*$` (max 63 chars)
+- Project URL validated: must end in `.supabase.co`
+- No data sampling — only row counts and schema structure
+
+### API Routes
+- `POST /api/integrations/supabase/connect` — Validate + store credentials
+- `DELETE /api/integrations/supabase` — Disconnect
+- `GET /api/integrations` — Includes supabase status in response
+
+### Key Files
+- `src/lib/analytics/supabase-adapter.ts` — Database adapter with schema introspection
+- `src/lib/analytics/tools.ts` — `createDatabaseTools()` for LLM
+- `src/lib/analytics/types.ts` — `SupabaseCredentials`, `SupabaseTableInfo`, etc.
+- `src/app/api/integrations/supabase/connect/route.ts` — Connect endpoint
+- `src/app/api/integrations/supabase/route.ts` — Disconnect endpoint
+- `src/app/settings/integrations/page.tsx` — UI with SupabaseConnectModal
+
 ## Email Notifications
 
 **Provider:** Resend (domain: getloupe.io)

@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PageMetadata } from "@/lib/screenshot";
 import type { AnalyticsCredentials, GA4Credentials } from "@/lib/analytics/types";
 import { createProvider } from "@/lib/analytics/provider";
-import { createAnalyticsTools } from "@/lib/analytics/tools";
+import { createAnalyticsTools, createDatabaseTools } from "@/lib/analytics/tools";
+import { createSupabaseAdapter } from "@/lib/analytics/supabase-adapter";
 
 // Re-export types from canonical source
 export type {
@@ -362,11 +363,27 @@ When judging if something was "fixed":
 Example: "We help you grow" → "SaaS founders: reduce churn 23% in 90 days" = validated candidate
 Example: "We help you grow" → "We help startups grow faster" = still open (too generic)
 
-## When Analytics Tools Available
+## When Analytics Tools Available (PostHog/GA4)
 Call tools strategically (max 5 calls):
 1. get_page_stats — understand baseline
 2. compare_periods — before/after for key metrics
 3. Query specific events if relevant
+
+## When Database Tools Available (Supabase)
+Supabase provides REAL business outcomes, not proxy metrics:
+- Row counts in tables like "users", "orders", "signups", "waitlist"
+- These are actual conversions, not bounce rates or pageviews
+
+Call database tools strategically:
+1. discover_tables — see what business data is available
+2. identify_conversion_tables — find tables that track conversions
+3. get_table_count — check current counts for key tables
+
+When correlating changes with database metrics, be specific:
+- "5 new signups since you changed your headline" (real outcome)
+- NOT "bounce rate decreased" (proxy metric)
+
+The user cares about: "Did my change get me more customers?"
 
 ## Output Schema
 Return JSON matching this schema:
@@ -473,9 +490,17 @@ export type AnalyticsCredentialsWithType =
   | ({ type: "posthog" } & AnalyticsCredentials)
   | ({ type: "ga4" } & GA4Credentials);
 
+export interface SupabaseIntegrationCredentials {
+  type: "supabase";
+  projectUrl: string;
+  accessToken: string;
+  keyType: "anon" | "service_role";
+}
+
 export interface PostAnalysisOptions {
   supabase: SupabaseClient;
   analyticsCredentials?: AnalyticsCredentialsWithType | null;
+  databaseCredentials?: SupabaseIntegrationCredentials | null;
 }
 
 /**
@@ -536,7 +561,7 @@ export async function runPostAnalysisPipeline(
   options: PostAnalysisOptions
 ): Promise<ChangesSummary> {
   const { currentFindings, previousFindings, previousRunningSummary, pageUrl, deployContext } = context;
-  const { supabase, analyticsCredentials } = options;
+  const { supabase, analyticsCredentials, databaseCredentials } = options;
 
   // Build the prompt
   const promptParts: string[] = [];
@@ -601,7 +626,38 @@ export async function runPostAnalysisPipeline(
       promptParts.push(`\n## Analytics\nAnalytics tools unavailable.`);
     }
   } else {
-    promptParts.push(`\n## Analytics\nNo analytics connected. Focus on evaluating the changes only.`);
+    promptParts.push(`\n## Analytics\nNo analytics connected.`);
+  }
+
+  // Add Supabase database tools if credentials available
+  if (databaseCredentials) {
+    try {
+      const adapter = createSupabaseAdapter(
+        databaseCredentials.projectUrl,
+        databaseCredentials.accessToken,
+        databaseCredentials.keyType
+      );
+
+      const databaseTools = createDatabaseTools({
+        adapter,
+        supabase,
+        analysisId: context.analysisId,
+        userId: context.userId,
+        pageUrl,
+      });
+
+      // Merge database tools with existing tools
+      tools = { ...tools, ...databaseTools };
+      promptParts.push(`\n## Database Available\nYou have access to Supabase database tools. Use them to track REAL business outcomes (signups, orders) rather than proxy metrics.`);
+    } catch (err) {
+      console.error("Failed to create database adapter:", err);
+      promptParts.push(`\n## Database\nDatabase tools unavailable.`);
+    }
+  }
+
+  // Final note if no tools at all
+  if (Object.keys(tools).length === 0) {
+    promptParts.push(`Focus on evaluating the changes only.`);
   }
 
   const hasTools = Object.keys(tools).length > 0;

@@ -197,8 +197,32 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
-        // Run post-analysis if we have previous findings OR analytics OR deploy context
-        if (previousFindings || analyticsCredentials || deployContext) {
+        // Check for Supabase database integration (separate from analytics)
+        let databaseCredentials: {
+          type: "supabase";
+          projectUrl: string;
+          accessToken: string;
+          keyType: "anon" | "service_role";
+        } | null = null;
+
+        const { data: supabaseIntegration } = await supabase
+          .from("integrations")
+          .select("access_token, metadata")
+          .eq("user_id", analysis.user_id)
+          .eq("provider", "supabase")
+          .maybeSingle();
+
+        if (supabaseIntegration?.metadata?.project_url) {
+          databaseCredentials = {
+            type: "supabase",
+            projectUrl: supabaseIntegration.metadata.project_url,
+            accessToken: supabaseIntegration.access_token,
+            keyType: supabaseIntegration.metadata.key_type || "anon",
+          };
+        }
+
+        // Run post-analysis if we have previous findings OR analytics OR database OR deploy context
+        if (previousFindings || analyticsCredentials || databaseCredentials || deployContext) {
           try {
             const changesSummary = await runPostAnalysisPipeline(
               {
@@ -213,6 +237,7 @@ export const analyzeUrl = inngest.createFunction(
               {
                 supabase,
                 analyticsCredentials,
+                databaseCredentials,
               }
             );
 
@@ -223,7 +248,7 @@ export const analyzeUrl = inngest.createFunction(
               updateData.changes_summary = changesSummary;
             }
 
-            if (analyticsCredentials) {
+            if (analyticsCredentials || databaseCredentials) {
               // Also store in analytics_correlation for dedicated access
               updateData.analytics_correlation = changesSummary;
             }

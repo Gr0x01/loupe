@@ -68,7 +68,8 @@ Suggestions get smarter over time because we know what actually moved the needle
 | **Vercel AI SDK** | Model-agnostic LLM calls |
 | **Playwright / Screenshot API** | Page screenshots |
 | **Inngest** | Scheduled jobs + background processing |
-| **PostHog / GA4 API** | Analytics data (v2) |
+| **PostHog / GA4 API** | Analytics data (pageviews, bounce rate) |
+| **Supabase API** | User database metrics (signups, orders) |
 | **GitHub Webhooks** | Deploy detection (v2) |
 | **Stripe** | Billing |
 

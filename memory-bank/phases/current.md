@@ -319,6 +319,18 @@ The integrations and correlation magic.
 - [x] GA4 adapter implements same AnalyticsProvider interface as PostHog
 - [x] Pipeline auto-detects PostHog or GA4 and uses appropriate adapter
 
+### Supabase Direct Integration (DONE)
+- [x] Connection flow: Project URL + Anon Key (upgrade to Service Role if RLS blocks)
+- [x] API routes: `POST /api/integrations/supabase/connect`, `DELETE /api/integrations/supabase`
+- [x] Schema introspection: list tables with row counts
+- [x] SupabaseAdapter with `getSchema()`, `getTableRowCount()`, `identifyConversionTables()`
+- [x] LLM database tools: `discover_tables`, `get_table_count`, `identify_conversion_tables`, `compare_table_counts`, `get_table_structure`
+- [x] Separate from analytics tools — both can be connected simultaneously
+- [x] Table name validation (injection prevention)
+- [x] Settings UI: SupabaseConnectModal with key type toggle, table discovery display
+- [x] POST_ANALYSIS_PROMPT updated to explain database metrics vs proxy metrics
+- [x] Pipeline passes `databaseCredentials` alongside `analyticsCredentials`
+
 **Status:** Complete. Full deploy→scan→correlation loop works end-to-end.
 
 ## Phase 1C-5 — Marketing Frameworks + Comparison View (DONE)
@@ -390,24 +402,6 @@ Build after learning from first 50 users.
 **Alternative:** Kill these pages and handle integration setup in-app or actual docs.
 
 ---
-
-## Ideas to Explore
-
-### Supabase Direct Integration
-Connect directly to vibe coder's Supabase for metrics instead of requiring PostHog/GA4.
-
-**Why:** Every Lovable project has Supabase by default. 100% coverage for the vibe coder ICP. No "go set up analytics" friction.
-
-**How it would work:**
-1. User connects Supabase (read-only API key)
-2. We introspect schema (tables, columns, row counts)
-3. LLM analyzes schema: "This looks like a waitlist app. `signups` table is your conversion event."
-4. Daily snapshot of relevant table counts
-5. Correlate with page changes
-
-**Value:** Track actual business outcomes (signups, orders) not proxy metrics (bounce rate). Differentiator — nobody else does page→database correlation.
-
-**Status:** Idea. Not scheduled.
 
 ---
 

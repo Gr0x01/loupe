@@ -16,6 +16,40 @@ export interface GA4Credentials {
   integrationId: string;
 }
 
+export interface SupabaseCredentials {
+  projectUrl: string;
+  anonKey?: string;
+  serviceRoleKey?: string;
+}
+
+export interface SupabaseTableInfo {
+  schema: string;
+  name: string;
+  row_count: number;
+  columns: { name: string; type: string }[];
+}
+
+export interface SupabaseSchemaInfo {
+  tables: SupabaseTableInfo[];
+  cached_at: string;
+}
+
+export interface SupabaseTableStats {
+  table_name: string;
+  row_count: number;
+  period_start?: string;
+  period_end?: string;
+}
+
+export interface SupabasePeriodComparison {
+  table_name: string;
+  current_count: number;
+  previous_count: number;
+  change: number;
+  change_percent: number;
+  direction: "up" | "down" | "flat";
+}
+
 export interface PageStats {
   pageviews: number;
   unique_visitors: number;

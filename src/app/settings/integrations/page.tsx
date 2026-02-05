@@ -43,10 +43,21 @@ interface GA4Property {
   account_name: string;
 }
 
+interface SupabaseIntegration {
+  connected: boolean;
+  project_ref: string;
+  project_url: string;
+  key_type: "anon" | "service_role";
+  has_schema_access: boolean;
+  tables: string[];
+  connected_at: string;
+}
+
 interface IntegrationsData {
   github: GitHubIntegration | null;
   posthog: PostHogIntegration | null;
   ga4: GA4Integration | null;
+  supabase: SupabaseIntegration | null;
 }
 
 function GitHubIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -522,6 +533,207 @@ function GA4PropertySelectModal({
   );
 }
 
+function SupabaseConnectModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [projectUrl, setProjectUrl] = useState("");
+  const [anonKey, setAnonKey] = useState("");
+  const [serviceRoleKey, setServiceRoleKey] = useState("");
+  const [useServiceKey, setUseServiceKey] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setProjectUrl("");
+      setAnonKey("");
+      setServiceRoleKey("");
+      setUseServiceKey(false);
+      setError("");
+      setShowKey(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen || !mounted) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConnecting(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/integrations/supabase/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectUrl,
+          anonKey: useServiceKey ? undefined : anonKey,
+          serviceRoleKey: useServiceKey ? serviceRoleKey : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to connect");
+        return;
+      }
+
+      onSuccess();
+      onClose();
+    } catch {
+      setError("Failed to connect");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-solid rounded-2xl shadow-xl p-6 w-full max-w-md border border-border-subtle"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-2xl font-bold text-text-primary mb-4"
+          style={{ fontFamily: "var(--font-instrument-serif)" }}
+        >
+          Connect Supabase
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Project URL
+              </label>
+              <input
+                type="text"
+                placeholder="https://xyz.supabase.co"
+                value={projectUrl}
+                onChange={(e) => setProjectUrl(e.target.value)}
+                className="input-glass w-full"
+                required
+              />
+              <p className="text-xs text-text-muted mt-1">
+                Found in Supabase Dashboard → Settings → API
+              </p>
+            </div>
+
+            {/* Key type toggle */}
+            <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-text-primary">
+                  Key type
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setUseServiceKey(!useServiceKey)}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+                    useServiceKey ? "bg-accent" : "bg-text-muted/30"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                      useServiceKey ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-text-muted">
+                {useServiceKey
+                  ? "Service Role Key — full access to all tables (bypasses RLS)"
+                  : "Anon Key — respects Row Level Security (some tables may be hidden)"}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                {useServiceKey ? "Service Role Key" : "Anon Key"}
+              </label>
+              <div className="relative">
+                <input
+                  type={showKey ? "text" : "password"}
+                  placeholder={useServiceKey ? "eyJhbGciOi..." : "eyJhbGciOi..."}
+                  value={useServiceKey ? serviceRoleKey : anonKey}
+                  onChange={(e) =>
+                    useServiceKey
+                      ? setServiceRoleKey(e.target.value)
+                      : setAnonKey(e.target.value)
+                  }
+                  className="input-glass w-full pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+                  tabIndex={-1}
+                >
+                  {showKey ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-text-muted mt-1">
+                {useServiceKey
+                  ? "Found in Supabase → Settings → API → service_role (keep secret!)"
+                  : "Found in Supabase → Settings → API → anon public"}
+              </p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-score-low text-sm mb-4">{error}</div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-secondary flex-1"
+              disabled={connecting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary flex-1"
+              disabled={connecting || !projectUrl || (!anonKey && !serviceRoleKey)}
+            >
+              {connecting ? "Connecting..." : "Connect"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function IntegrationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -531,11 +743,13 @@ function IntegrationsContent() {
   const [showAddRepo, setShowAddRepo] = useState(false);
   const [showPostHogConnect, setShowPostHogConnect] = useState(false);
   const [showGA4PropertySelect, setShowGA4PropertySelect] = useState(false);
+  const [showSupabaseConnect, setShowSupabaseConnect] = useState(false);
   const [connectingId, setConnectingId] = useState<number | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [disconnectingGitHub, setDisconnectingGitHub] = useState(false);
   const [disconnectingPostHog, setDisconnectingPostHog] = useState(false);
   const [disconnectingGA4, setDisconnectingGA4] = useState(false);
+  const [disconnectingSupabase, setDisconnectingSupabase] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [togglingEmail, setTogglingEmail] = useState(false);
 
@@ -720,6 +934,24 @@ function IntegrationsContent() {
       setError("Failed to disconnect Google Analytics");
     } finally {
       setDisconnectingGA4(false);
+    }
+  };
+
+  const handleDisconnectSupabase = async () => {
+    if (!confirm("Disconnect Supabase?")) return;
+
+    setDisconnectingSupabase(true);
+    try {
+      const res = await fetch("/api/integrations/supabase", { method: "DELETE" });
+      if (!res.ok) {
+        setError("Failed to disconnect Supabase");
+        return;
+      }
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to disconnect Supabase");
+    } finally {
+      setDisconnectingSupabase(false);
     }
   };
 
@@ -960,11 +1192,14 @@ function IntegrationsContent() {
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-                    <path d="M22.84 12.13a10.67 10.67 0 0 0-.18-1.93H12v3.59h6.08a5.25 5.25 0 0 1-2.25 3.45v2.82h3.63c2.13-1.96 3.38-4.87 3.38-7.93z" fill="#4285F4"/>
-                    <path d="M12 23c3.04 0 5.6-1 7.46-2.74l-3.63-2.82c-1.01.68-2.3 1.08-3.83 1.08-2.94 0-5.43-1.98-6.32-4.65H1.91v2.91A11 11 0 0 0 12 23z" fill="#34A853"/>
-                    <path d="M5.68 13.87a6.62 6.62 0 0 1 0-4.18V6.78H1.91a11 11 0 0 0 0 9.88l3.77-2.79z" fill="#FBBC05"/>
-                    <path d="M12 4.75c1.66 0 3.15.57 4.32 1.68l3.22-3.22A10.98 10.98 0 0 0 12 1 11 11 0 0 0 1.91 6.78l3.77 2.91c.89-2.67 3.38-4.94 6.32-4.94z" fill="#EA4335"/>
+                  <svg className="w-6 h-6" viewBox="0 0 55.273 64" fill="none">
+                    <g transform="matrix(.363638 0 0 .363636 -7.272763 -2.909091)">
+                      <path d="M130 29v132c0 14.77 10.2 23 21 23 10 0 21-7 21-23V30c0-13.54-10-22-21-22s-21 9.33-21 21z" fill="#f9ab00"/>
+                      <g fill="#e37400">
+                        <path d="M75 96v65c0 14.77 10.2 23 21 23 10 0 21-7 21-23V97c0-13.54-10-22-21-22s-21 9.33-21 21z"/>
+                        <circle cx="41" cy="163" r="21"/>
+                      </g>
+                    </g>
                   </svg>
                 </div>
                 <div className="min-w-0">
@@ -1047,6 +1282,122 @@ function IntegrationsContent() {
           </div>
         </section>
 
+        {/* Supabase Integration */}
+        <section className="mb-8">
+          <div className="glass-card-elevated p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#1C1C1C] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6" viewBox="0 0 109 113" fill="none">
+                    <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint0_linear)"/>
+                    <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint1_linear)" fillOpacity="0.2"/>
+                    <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
+                    <defs>
+                      <linearGradient id="paint0_linear" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#249361"/>
+                        <stop offset="1" stopColor="#3ECF8E"/>
+                      </linearGradient>
+                      <linearGradient id="paint1_linear" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse">
+                        <stop/>
+                        <stop offset="1" stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold text-text-primary">Supabase</h2>
+                  <p className="text-sm text-text-secondary">
+                    Track signups and orders from your database
+                  </p>
+                </div>
+              </div>
+
+              {!integrations?.supabase ? (
+                <button
+                  onClick={() => setShowSupabaseConnect(true)}
+                  className="btn-primary w-full sm:w-auto"
+                >
+                  Connect
+                </button>
+              ) : (
+                <button
+                  onClick={handleDisconnectSupabase}
+                  disabled={disconnectingSupabase}
+                  className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50 self-end sm:self-auto"
+                >
+                  {disconnectingSupabase ? "Disconnecting..." : "Disconnect"}
+                </button>
+              )}
+            </div>
+
+            {integrations?.supabase && (
+              <div className="mt-6 pt-6 border-t border-border-subtle">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-[#3ECF8E] flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">S</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-text-primary truncate">
+                      {integrations.supabase.project_ref}.supabase.co
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {integrations.supabase.key_type === "service_role"
+                        ? "Service Role Key"
+                        : "Anon Key"}{" "}
+                      · {integrations.supabase.tables.length} tables found
+                    </p>
+                  </div>
+                </div>
+
+                {!integrations.supabase.has_schema_access && (
+                  <div className="glass-card p-4 bg-score-mid/5 border-l-4 border-score-mid mb-4">
+                    <p className="text-sm text-text-primary font-medium">Limited access</p>
+                    <p className="text-sm text-text-secondary mt-1">
+                      Your tables may have Row Level Security enabled. Consider using a Service Role Key for full access.
+                    </p>
+                    <button
+                      onClick={() => setShowSupabaseConnect(true)}
+                      className="text-sm text-accent font-medium mt-2 hover:text-accent-hover transition-colors"
+                    >
+                      Upgrade to Service Role Key
+                    </button>
+                  </div>
+                )}
+
+                {integrations.supabase.tables.length > 0 && (
+                  <div className="glass-card p-4 mb-4">
+                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
+                      Tables detected
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {integrations.supabase.tables.slice(0, 8).map((table) => (
+                        <span
+                          key={table}
+                          className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-mono bg-bg-inset text-text-secondary"
+                        >
+                          {table}
+                        </span>
+                      ))}
+                      {integrations.supabase.tables.length > 8 && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm text-text-muted">
+                          +{integrations.supabase.tables.length - 8} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <p className="text-sm text-text-secondary">
+                    <span className="font-medium text-text-primary">How it works:</span>{" "}
+                    We track row counts in tables like signups, orders, and waitlist to correlate page changes with real business outcomes.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* Email Notifications */}
         <section className="mb-8">
           <div className="glass-card-elevated p-5 sm:p-6">
@@ -1110,6 +1461,12 @@ function IntegrationsContent() {
       <GA4PropertySelectModal
         isOpen={showGA4PropertySelect}
         onClose={() => setShowGA4PropertySelect(false)}
+        onSuccess={() => fetchIntegrations()}
+      />
+
+      <SupabaseConnectModal
+        isOpen={showSupabaseConnect}
+        onClose={() => setShowSupabaseConnect(false)}
         onSuccess={() => fetchIntegrations()}
       />
     </>

@@ -7,6 +7,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AnalyticsProvider } from "./provider";
+import type { SupabaseAdapter } from "./supabase-adapter";
 
 export interface ToolContext {
   provider: AnalyticsProvider;
@@ -15,6 +16,14 @@ export interface ToolContext {
   userId: string;
   pageUrl: string;
   providerType: string;
+}
+
+export interface DatabaseToolContext {
+  adapter: SupabaseAdapter;
+  supabase: SupabaseClient;
+  analysisId: string;
+  userId: string;
+  pageUrl: string;
 }
 
 /**
@@ -272,3 +281,157 @@ export function createAnalyticsTools(ctx: ToolContext) {
 }
 
 export type AnalyticsTools = ReturnType<typeof createAnalyticsTools>;
+
+/**
+ * Save database tool call result to analytics_snapshots
+ */
+async function saveDatabaseSnapshot(
+  ctx: DatabaseToolContext,
+  toolName: string,
+  toolInput: unknown,
+  toolOutput: unknown
+) {
+  try {
+    await ctx.supabase.from("analytics_snapshots").insert({
+      analysis_id: ctx.analysisId,
+      user_id: ctx.userId,
+      tool_name: toolName,
+      tool_input: toolInput,
+      tool_output: toolOutput,
+      provider: "supabase",
+      page_url: ctx.pageUrl,
+    });
+  } catch (err) {
+    console.error("Failed to save database snapshot:", err);
+  }
+}
+
+/**
+ * Create database tools for Supabase integration
+ * These track business outcomes (signups, orders) rather than pageviews
+ */
+export function createDatabaseTools(ctx: DatabaseToolContext) {
+  return {
+    discover_tables: tool({
+      description:
+        "Discover what database tables are available and their row counts. Call this first to understand what business data you can track. Look for tables like 'users', 'signups', 'orders', 'waitlist' that indicate conversions.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const schema = await ctx.adapter.getSchema();
+          await saveDatabaseSnapshot(ctx, "discover_tables", {}, schema);
+          return {
+            success: true,
+            data: {
+              tables: schema.tables.map((t) => ({
+                name: t.name,
+                row_count: t.row_count,
+                columns: t.columns.slice(0, 10), // Limit columns shown
+              })),
+              cached_at: schema.cached_at,
+            },
+          };
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Unknown error";
+          return { success: false, error };
+        }
+      },
+    }),
+
+    get_table_count: tool({
+      description:
+        "Get the current row count for a specific table. Use this to check conversion metrics like signups, orders, or waitlist entries.",
+      inputSchema: z.object({
+        table_name: z
+          .string()
+          .describe("The table name to count rows from (e.g., 'users', 'orders')"),
+      }),
+      execute: async ({ table_name }) => {
+        try {
+          const count = await ctx.adapter.getTableRowCount(table_name);
+          await saveDatabaseSnapshot(ctx, "get_table_count", { table_name }, { count });
+          return {
+            success: true,
+            data: { table_name, row_count: count },
+          };
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Unknown error";
+          return { success: false, error };
+        }
+      },
+    }),
+
+    identify_conversion_tables: tool({
+      description:
+        "Automatically identify tables that likely represent business conversions (signups, orders, waitlist). Returns table names that match common conversion patterns.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const tables = await ctx.adapter.identifyConversionTables();
+          await saveDatabaseSnapshot(ctx, "identify_conversion_tables", {}, { tables });
+          return {
+            success: true,
+            data: {
+              conversion_tables: tables,
+              hint: "These tables likely track business outcomes. Compare their row counts over time to measure real conversions.",
+            },
+          };
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Unknown error";
+          return { success: false, error };
+        }
+      },
+    }),
+
+    compare_table_counts: tool({
+      description:
+        "Compare row counts between current and previous snapshots to measure growth. Use this to see if signups or orders increased since a page change.",
+      inputSchema: z.object({
+        current_counts: z
+          .record(z.string(), z.number())
+          .describe("Current row counts by table name, e.g. { users: 150, orders: 45 }"),
+        previous_counts: z
+          .record(z.string(), z.number())
+          .describe("Previous row counts by table name from an earlier snapshot"),
+      }),
+      execute: async ({ current_counts, previous_counts }) => {
+        try {
+          const comparisons = ctx.adapter.compareCounts(
+            current_counts as Record<string, number>,
+            previous_counts as Record<string, number>
+          );
+          await saveDatabaseSnapshot(
+            ctx,
+            "compare_table_counts",
+            { current_counts, previous_counts },
+            comparisons
+          );
+          return { success: true, data: comparisons };
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Unknown error";
+          return { success: false, error };
+        }
+      },
+    }),
+
+    get_table_structure: tool({
+      description:
+        "Get the column structure of a table to understand what data it tracks. Useful for determining if a table is relevant for conversion tracking.",
+      inputSchema: z.object({
+        table_name: z.string().describe("The table name to inspect"),
+      }),
+      execute: async ({ table_name }) => {
+        try {
+          const structure = await ctx.adapter.getTableStructure(table_name);
+          await saveDatabaseSnapshot(ctx, "get_table_structure", { table_name }, structure);
+          return { success: true, data: structure };
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Unknown error";
+          return { success: false, error };
+        }
+      },
+    }),
+  };
+}
+
+export type DatabaseTools = ReturnType<typeof createDatabaseTools>;

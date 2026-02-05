@@ -5,6 +5,7 @@
 import type {
   AnalyticsCredentials,
   GA4Credentials,
+  SupabaseCredentials,
   PageStats,
   TrendPoint,
   EventCount,
@@ -13,6 +14,7 @@ import type {
   SchemaInfo,
   ExperimentsResult,
 } from "./types";
+import type { SupabaseAdapter } from "./supabase-adapter";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AnalyticsProvider {
@@ -57,6 +59,7 @@ export interface AnalyticsProvider {
 }
 
 export type ProviderType = "posthog" | "ga4";
+export type DatabaseProviderType = "supabase";
 
 export async function createProvider(
   type: ProviderType,
@@ -77,5 +80,23 @@ export async function createProvider(
     }
     default:
       throw new Error(`Unknown analytics provider: ${type}`);
+  }
+}
+
+/**
+ * Create a database provider (Supabase) for tracking business outcomes
+ * This is separate from analytics providers since it tracks different metrics
+ */
+export async function createDatabaseProvider(
+  type: DatabaseProviderType,
+  credentials: SupabaseCredentials
+): Promise<SupabaseAdapter> {
+  switch (type) {
+    case "supabase": {
+      const { SupabaseAdapter } = await import("./supabase-adapter");
+      return new SupabaseAdapter(credentials);
+    }
+    default:
+      throw new Error(`Unknown database provider: ${type}`);
   }
 }

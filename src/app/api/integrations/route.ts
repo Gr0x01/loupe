@@ -46,6 +46,14 @@ export async function GET() {
     .eq("provider", "ga4")
     .maybeSingle();
 
+  // Get Supabase integration
+  const { data: supabaseIntegration } = await serviceClient
+    .from("integrations")
+    .select("id, provider_account_id, metadata, created_at")
+    .eq("user_id", user.id)
+    .eq("provider", "supabase")
+    .maybeSingle();
+
   return NextResponse.json({
     github: github ? {
       connected: true,
@@ -67,6 +75,15 @@ export async function GET() {
       email: ga4.metadata?.email,
       pending_property_selection: !ga4.metadata?.property_id,
       connected_at: ga4.created_at,
+    } : null,
+    supabase: supabaseIntegration ? {
+      connected: true,
+      project_ref: supabaseIntegration.provider_account_id,
+      project_url: supabaseIntegration.metadata?.project_url,
+      key_type: supabaseIntegration.metadata?.key_type || "anon",
+      has_schema_access: supabaseIntegration.metadata?.has_schema_access ?? false,
+      tables: supabaseIntegration.metadata?.tables || [],
+      connected_at: supabaseIntegration.created_at,
     } : null,
   });
 }
