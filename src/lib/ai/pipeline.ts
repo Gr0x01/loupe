@@ -21,6 +21,9 @@ export type {
   Correlation,
   ChronicleCorrelationMetric,
   DeployContext,
+  ValidatedItem,
+  WatchingItem,
+  OpenItem,
 } from "@/lib/types/analysis";
 
 import type { ChangesSummary, AnalysisResult, DeployContext } from "@/lib/types/analysis";
@@ -410,10 +413,43 @@ Return JSON matching this schema:
   "progress": {
     "validated": <count>,
     "watching": <count>,
-    "open": <count>
+    "open": <count>,
+    "validatedItems": [
+      {
+        "id": "<finding id that was validated>",
+        "element": "<display label: 'Your Headline'>",
+        "title": "<what was fixed: 'Headline made specific'>",
+        "metric": "bounce_rate",
+        "friendlyText": "<e.g., 'Visitors actually stick around'>",
+        "change": "<+8%>"
+      }
+    ],
+    "watchingItems": [
+      {
+        "id": "<finding id being watched>",
+        "element": "<display label>",
+        "title": "<what was changed>",
+        "daysOfData": <1-6>,
+        "daysNeeded": 7
+      }
+    ],
+    "openItems": [
+      {
+        "id": "<finding id still open>",
+        "element": "<display label>",
+        "title": "<issue title>",
+        "impact": "high" | "medium" | "low"
+      }
+    ]
   },
   "running_summary": "<2-3 sentence narrative carried forward>"
 }
+
+## Progress Item Rules
+- validatedItems: Only include if you have metric evidence the change helped
+- watchingItems: Fixed items awaiting enough data (daysOfData < 7)
+- openItems: Previous findings not yet addressed
+- For first scans, openItems should list current findings with their ids
 
 ## First Scan (No Previous Findings)
 If this is the first scan, return:
@@ -421,7 +457,7 @@ If this is the first scan, return:
 - changes: []
 - suggestions: from current findings
 - correlation: null (no comparison period)
-- progress: { validated: 0, watching: 0, open: <count of current findings> }`;
+- progress: { validated: 0, watching: 0, open: <count>, validatedItems: [], watchingItems: [], openItems: [...] }`;
 
 export interface PostAnalysisContext {
   analysisId: string;
@@ -611,40 +647,16 @@ export async function runPostAnalysisPipeline(
     parsed.suggestions = [];
   }
   if (!parsed.progress) {
-    parsed.progress = { validated: 0, watching: 0, open: 0 };
+    parsed.progress = { validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [] };
+  } else {
+    // Ensure item arrays exist even if counts are provided
+    parsed.progress.validatedItems = parsed.progress.validatedItems ?? [];
+    parsed.progress.watchingItems = parsed.progress.watchingItems ?? [];
+    parsed.progress.openItems = parsed.progress.openItems ?? [];
   }
   if (!parsed.running_summary) {
     parsed.running_summary = parsed.verdict;
   }
 
   return parsed;
-}
-
-/**
- * @deprecated Use runPostAnalysisPipeline instead
- * Kept for backwards compatibility during migration
- */
-export async function runComparisonPipeline(
-  previousStructured: AnalysisResult["structured"],
-  currentStructured: AnalysisResult["structured"],
-  previousRunningSummary?: string | null
-): Promise<ChangesSummary> {
-  // This is a compatibility shim - use the new pipeline without analytics
-  // We need a supabase client and context, so this creates a minimal version
-  console.warn("runComparisonPipeline is deprecated. Use runPostAnalysisPipeline instead.");
-
-  const { text } = await generateText({
-    model: google("gemini-3-pro-preview"),
-    system: POST_ANALYSIS_PROMPT,
-    prompt: `## Previous Audit Findings\n${JSON.stringify(previousStructured, null, 2)}\n\n## Current Audit Findings\n${JSON.stringify(currentStructured, null, 2)}\n\n## Previous Running Summary\n${previousRunningSummary || "(first re-scan)"}\n\n## Analytics\nNo analytics connected.`,
-    maxOutputTokens: 3000,
-  });
-
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];
-  const jsonStr = (jsonMatch[1] ?? text).trim();
-  try {
-    return JSON.parse(jsonStr) as ChangesSummary;
-  } catch {
-    throw new Error(`Failed to parse comparison response as JSON. Raw start: ${text.substring(0, 200)}`);
-  }
 }

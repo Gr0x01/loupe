@@ -269,7 +269,7 @@ Here's what we'd tell you:
 
 The real product. What users see after initial audit. Distinct from initial audit layout.
 
-### 3.1 Chronicle Layout
+### 3.1 Chronicle Layout ✅ COMPLETE
 
 **Current:** Same as initial audit (another audit report)
 **New:** Three sections — What changed, What to do next, Progress
@@ -302,11 +302,22 @@ Progress
 ```
 
 **Tasks:**
-- [ ] Build ChronicleLayout (distinct from AuditLayout)
-- [ ] Section headers with visual separators
-- [ ] Detect initial vs N+1 and render appropriate layout
+- [x] Build ChronicleLayout (distinct from AuditLayout)
+- [x] Section headers with visual separators
+- [x] Detect initial vs N+1 and render appropriate layout
 
-### 3.2 Timeline with Correlation Lines
+**Components built:**
+- `ChronicleLayout.tsx` — Main orchestrator
+- `ChronicleHero.tsx` — Verdict + baseline date header
+- `WhatChangedSection.tsx` — Timeline with correlation
+- `TimelineEntry.tsx` — Before/after with status badges
+- `WhatToDoNextSection.tsx` — Prioritized suggestions
+- `SuggestionCard.tsx` — Collapsible with accessibility
+- `ProgressTracker.tsx` — Inline summary display
+
+**Type guard:** `isChronicleFormat()` in page.tsx detects new ChangesSummary format and conditionally renders Chronicle instead of initial audit layout.
+
+### 3.2 Timeline with Correlation Lines ✅ COMPLETE
 
 **Key insight:** Visually connect changes to metric outcomes. Don't make users compute causation.
 
@@ -339,13 +350,13 @@ Progress
 - `no-data` — No analytics connected (gray)
 
 **Tasks:**
-- [ ] Build TimelineEntry component
-- [ ] Build CorrelationLine visual connector
-- [ ] Build WatchingProgress bar (% of data needed)
-- [ ] Handle all four states with appropriate styling
-- [ ] Use friendlyText for metric displays
+- [x] Build TimelineEntry component
+- [x] Build CorrelationLine visual connector
+- [x] Build WatchingProgress bar (% of data needed)
+- [x] Handle all four states with appropriate styling
+- [x] Use friendlyText for metric displays
 
-### 3.3 Progress Tracker
+### 3.3 Progress Tracker ✅ COMPLETE
 
 ```
 ● Validated (2)                              [expand ▼]
@@ -364,14 +375,19 @@ Progress
 ```
 
 **Tasks:**
-- [ ] Build ProgressTracker component
-- [ ] Three collapsible sections: validated, watching, open
-- [ ] Visual symbols: ● (validated), ◐ (watching), ○ (open)
-- [ ] Summary line: "X of Y validated · Impact: +Z%"
-- [ ] Each validated item shows friendlyText metric
-- [ ] Each watching item shows days of data collected
+- [x] Build ProgressTracker component
+- [x] Three collapsible sections: validated, watching, open
+- [x] Visual symbols: ● (validated), ◐ (watching), ○ (open)
+- [x] Summary line: "X of Y validated · Impact: +Z%"
+- [x] Each validated item shows friendlyText metric
+- [x] Each watching item shows days of data collected
 
-### 3.4 Suggestions Section (N+1)
+**Implementation notes:**
+- Added `ValidatedItem`, `WatchingItem`, `OpenItem` types to `analysis.ts`
+- Updated POST_ANALYSIS_PROMPT to output `progress.validatedItems[]`, `watchingItems[]`, `openItems[]`
+- ProgressTracker shows inline summary + expandable sections when item arrays available
+
+### 3.4 Suggestions Section (N+1) ✅ COMPLETE
 
 Similar to initial audit finding cards, but:
 - Context-aware (knows what changed, what's still open)
@@ -379,9 +395,9 @@ Similar to initial audit finding cards, but:
 - Same collapsible pattern as 2.2
 
 **Tasks:**
-- [ ] Reuse CollapsibleFindingCard from Phase 2.2
-- [ ] Filter to show only "open" suggestions
-- [ ] Sort by impact (high first)
+- [x] Reuse CollapsibleFindingCard from Phase 2.2
+- [x] Filter to show only "open" suggestions
+- [x] Sort by impact (high first)
 
 ---
 
@@ -653,10 +669,10 @@ Week 2: Initial Audit + Shareability
 Week 3: Value Bridge + Chronicle
 ├── Wayback Machine integration (/api/wayback)
 ├── Value bridge before "Track this page"
-├── Chronicle layout (distinct from audit)
-├── Timeline with correlation lines
-├── Progress tracker with symbols
-└── Suggestions section (reuse collapsible cards)
+├── ✅ Chronicle layout (distinct from audit)
+├── ✅ Timeline with correlation lines
+├── ✅ Progress tracker with symbols + expandable sections
+└── ✅ Suggestions section (reuse collapsible cards)
 
 Week 4: Dashboard + Emails
 ├── Two-zone dashboard (AttentionZone + WatchingZone)
@@ -686,10 +702,10 @@ Week 5: Landing Page + Polish
 - [ ] Wayback API integration functional
 
 **UX:**
-- [ ] Initial audit feels valuable (verdict + impact bar + predictions)
-- [ ] Finding cards are action-first (suggestion visible before reasoning)
-- [ ] N+1 feels different from initial (chronicle with timeline, not report card)
-- [ ] Timeline shows correlation lines connecting changes to metrics
+- [x] Initial audit feels valuable (verdict + impact bar + predictions)
+- [x] Finding cards are action-first (suggestion visible before reasoning)
+- [x] N+1 feels different from initial (chronicle with timeline, not report card)
+- [x] Timeline shows correlation lines connecting changes to metrics
 - [ ] Dashboard uses two-zone structure (attention vs. watching)
 - [ ] "Nothing changed" feels like success, not emptiness
 - [ ] Vibe coder language used throughout (no raw metric names)

@@ -107,6 +107,31 @@ export interface ChronicleSuggestion {
   impact: "high" | "medium" | "low";
 }
 
+// Progress tracking item types for Chronicle experience
+export interface ValidatedItem {
+  id: string;
+  element: string; // "Your Headline"
+  title: string; // "Headline updated"
+  metric: string; // "bounce_rate"
+  friendlyText: string; // "More people sticking around"
+  change: string; // "+8%"
+}
+
+export interface WatchingItem {
+  id: string;
+  element: string;
+  title: string;
+  daysOfData: number; // How many days collected
+  daysNeeded: number; // Typically 7-14
+}
+
+export interface OpenItem {
+  id: string;
+  element: string;
+  title: string;
+  impact: "high" | "medium" | "low";
+}
+
 export interface ChangesSummary {
   verdict: string; // Punchy, quotable summary
   changes: Change[];
@@ -116,6 +141,10 @@ export interface ChangesSummary {
     validated: number; // Confirmed positive impact
     watching: number; // Collecting data
     open: number; // Not yet addressed
+    // Item-level detail (optional for backward compat)
+    validatedItems?: ValidatedItem[];
+    watchingItems?: WatchingItem[];
+    openItems?: OpenItem[];
   };
   running_summary: string;
   tool_calls_made?: string[];
@@ -127,88 +156,6 @@ export interface DeployContext {
   commitAuthor: string;
   commitTimestamp: string;
   changedFiles: string[];
-}
-
-// ============================================
-// Legacy types for backward compatibility
-// These support old LLM output format until Phase 1.2
-// ============================================
-
-/**
- * Legacy finding structure from old LLM prompt
- * @deprecated Use Finding instead after Phase 1.2
- */
-export interface LegacyFinding {
-  type: "strength" | "issue" | "suggestion";
-  title: string;
-  detail: string;
-  impact?: "high" | "medium" | "low";
-  fix?: string;
-  methodology?: string;
-  element?: string;
-}
-
-/**
- * Legacy category structure from old LLM prompt
- * @deprecated Will be removed after Phase 1.2
- */
-export interface LegacyCategory {
-  name: string;
-  score: number;
-  findings: LegacyFinding[];
-}
-
-/**
- * Legacy structured output from old LLM prompt
- * @deprecated Use AnalysisResult["structured"] after Phase 1.2
- */
-export interface LegacyStructuredOutput {
-  overallScore: number;
-  verdict?: string;
-  categories: LegacyCategory[];
-  summary: string;
-  topActions: (string | { action: string; impact: string })[];
-  whatsWorking?: string[];
-  whatsNot?: string[];
-  headlineRewrite?: {
-    current: string;
-    suggested: string;
-    reasoning: string;
-  } | null;
-}
-
-/**
- * Legacy changes summary with score-based fields
- * @deprecated Use ChangesSummary after Phase 1.2
- */
-export interface LegacyChangesSummary {
-  findings_evaluations?: FindingEvaluation[];
-  findings_status?: {
-    title: string;
-    element: string;
-    previous_status: string;
-    current_status: "resolved" | "persists" | "regressed" | "new";
-    detail: string;
-  }[];
-  score_delta: number;
-  category_deltas: { name: string; previous: number; current: number; delta: number }[];
-  running_summary: string;
-  progress: {
-    total_original: number;
-    resolved: number;
-    improved?: number;
-    unchanged?: number;
-    persisting?: number; // Legacy field
-    regressed?: number;
-    new_issues: number;
-  };
-  analytics_insights?: string;
-  metrics_summary?: {
-    pageviews_7d: number;
-    unique_visitors_7d: number;
-    bounce_rate_7d: number;
-  } | null;
-  tool_calls_made?: string[];
 }
 
 // ============================================

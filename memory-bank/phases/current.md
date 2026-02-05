@@ -18,7 +18,8 @@ Major repositioning from "website grader with scores" to "correlation layer with
 | 1.2 Foundation | LLM prompts update | **DONE** |
 | 2.1 Initial Audit | Results page hero redesign | **DONE** |
 | 2.2 Initial Audit | Results page body sections | **DONE** |
-| 3. Chronicle | N+1 experience | Not started |
+| 2.4-2.7 | Results page polish & conversion | **DONE** |
+| 3 Chronicle | N+1 experience | **DONE** |
 | 4. Dashboard | Activity stream | Not started |
 | 5. Emails | Update templates | Not started |
 | 6. Landing Page | New positioning | Not started |
@@ -65,9 +66,61 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] Accessibility: keyboard navigation (Enter/Space), aria-expanded, aria-label, focus-visible styles
 - [x] Backward compatible: new sections only render for `isNewAnalysisFormat(s)` analyses
 
+### Phase 3 Completed (Chronicle Experience)
+
+**3.1 Chronicle Layout:**
+- [x] Created `isChronicleFormat()` type guard to detect new ChangesSummary format
+- [x] Built Chronicle component system in `src/components/chronicle/`:
+  - `ChronicleLayout.tsx` — Main orchestrator with three sections
+  - `ChronicleHero.tsx` — Verdict + "Your page since {date}" header
+  - `WhatChangedSection.tsx` — Timeline of changes with correlation insights
+  - `TimelineEntry.tsx` — Individual change with before/after and correlation badges
+  - `WhatToDoNextSection.tsx` — Prioritized suggestions sorted by impact
+  - `SuggestionCard.tsx` — Collapsible cards with accessibility
+  - `ProgressTracker.tsx` — Expandable sections with item details
+- [x] Conditional rendering: Chronicle replaces initial audit layout for N+1 scans
+
+**3.2-3.4 Timeline & Progress Polish:**
+- [x] Added item-level progress types: `ValidatedItem`, `WatchingItem`, `OpenItem`
+- [x] Updated POST_ANALYSIS_PROMPT to output item arrays with details
+- [x] Dynamic TimelineEntry bullet states: validated (green), watching (amber), regressed (red), no-data (gray)
+- [x] Visual correlation connector with confirmation messages
+- [x] Expanded ProgressTracker with collapsible sections showing individual items
+- [x] WatchingProgressBar showing data collection progress (X of 7 days)
+- [x] CSS: timeline bullets, correlation connector, progress sections, watching bar
+
+### Phase 2.4-2.7 Completed (Results Page Polish & Conversion)
+
+**2.4 Bridge CTAs:**
+- [x] Updated hero footer CTA: "Track this page" → "Track" button
+- [x] Updated Zone 6 CTA: "Want to know if your changes helped?" messaging
+- [x] Updated post-claim success state with specific next-step guidance
+- [x] Updated "already watching" state with clearer action guidance
+
+**2.5 Wayback Machine Value Bridge:**
+- [x] Created `GET /api/wayback` proxy endpoint for CDX API
+- [x] Built `WaybackPreview` component showing historical snapshots
+- [x] Graceful fallback: mock timeline when no Wayback history exists
+- [x] Only shown for unclaimed initial audits (not Chronicle scans)
+
+**2.6 Dynamic OG Images:**
+- [x] Created `src/app/analysis/[id]/opengraph-image.tsx` for dynamic OG generation
+- [x] Card shows: domain, verdict (quoted), impact range badge, CTA
+- [x] Enhanced share buttons: Twitter/X, LinkedIn, Copy link
+- [x] Pre-filled tweet text with verdict snippet
+
+**2.7 PDF Downloads with Email Capture:**
+- [x] Installed `@react-pdf/renderer` dependency
+- [x] Created `src/lib/pdf/generate-audit-pdf.tsx` — full audit PDF generation
+- [x] PDF includes: header, verdict section, findings (up to 5), headline rewrite, summary
+- [x] Built `PdfDownloadButton` component with email capture modal
+- [x] Created `POST /api/leads` endpoint for email capture
+- [x] Email is optional — graceful degradation if not provided
+
 ### Key Changes (remaining)
-- Chronicle experience for N+1 (Phase 3)
 - Dashboard as activity stream (Phase 4)
+- Email templates update (Phase 5)
+- Landing page positioning (Phase 6)
 
 ---
 
@@ -86,7 +139,7 @@ The lead magnet. Paste URL → get findings with predictions.
 - [x] LLM pipeline evaluation → Gemini 3 Pro won (best quality, lowest cost, fast)
 - [x] Rate limiting / bot protection
 - [x] Auth (Supabase Auth, magic link + Google OAuth)
-- [ ] Shareable results card (OG image generation)
+- [x] Shareable results card (OG image generation) — completed in Phase 2.6
 
 **Status:** Complete. Free audit works end-to-end. Auth implemented.
 

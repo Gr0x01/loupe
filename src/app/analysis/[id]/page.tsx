@@ -354,7 +354,7 @@ function NewHeroSection({
                 {/* Right: hook + form */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 order-1 sm:order-2">
                   <p className="text-sm text-text-secondary">
-                    We&apos;ll watch for changes →
+                    Track this page →
                   </p>
                   <form onSubmit={onClaimEmail} className="flex items-stretch gap-2">
                     <input
@@ -371,7 +371,7 @@ function NewHeroSection({
                       disabled={claimLoading}
                       className="btn-primary text-sm py-2 px-4 whitespace-nowrap"
                     >
-                      {claimLoading ? "..." : "Watch"}
+                      {claimLoading ? "..." : "Track"}
                     </button>
                   </form>
                 </div>
@@ -660,6 +660,288 @@ function FindingsSection({ findings }: { findings: Finding[] }) {
         ))}
       </div>
     </section>
+  );
+}
+
+// Wayback Preview — shows historical snapshots to demonstrate tracking value
+interface WaybackSnapshot {
+  timestamp: string;
+  original: string;
+  thumbnailUrl: string;
+  snapshotUrl: string;
+  date: string;
+}
+
+function WaybackPreview({ url }: { url: string }) {
+  const [snapshots, setSnapshots] = useState<WaybackSnapshot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    async function fetchSnapshots() {
+      try {
+        const res = await fetch(`/api/wayback?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (data.snapshots && data.snapshots.length > 0) {
+          setSnapshots(data.snapshots.slice(0, 4)); // Max 4 snapshots
+        } else {
+          setError(true);
+        }
+      } catch {
+        setError(true);
+      }
+      setLoading(false);
+    }
+    fetchSnapshots();
+  }, [url]);
+
+  // Show mock timeline if no Wayback history
+  if (error || (!loading && snapshots.length === 0)) {
+    return (
+      <section className="result-section">
+        <div className="section-header">
+          <div>
+            <h2
+              className="text-4xl font-bold text-text-primary"
+              style={{ fontFamily: "var(--font-instrument-serif)" }}
+            >
+              Your page, tracked over time
+            </h2>
+            <p className="text-sm text-text-muted mt-1">
+              This is what Loupe does — but with metrics attached
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {["6 months ago", "3 months ago", "1 month ago", "Today"].map((label, i) => (
+            <div key={i} className="relative">
+              <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-border-subtle/60 animate-pulse" />
+                </div>
+              </div>
+              <p className="text-xs text-text-muted text-center mt-2">{label}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-sm text-text-secondary text-center mt-6">
+          When you make changes, we&apos;ll show you what improved — and what didn&apos;t.
+        </p>
+      </section>
+    );
+  }
+
+  if (loading) {
+    return (
+      <section className="result-section">
+        <div className="section-header">
+          <div>
+            <h2
+              className="text-4xl font-bold text-text-primary"
+              style={{ fontFamily: "var(--font-instrument-serif)" }}
+            >
+              Your page over time
+            </h2>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="aspect-[4/3] rounded-lg bg-bg-inset animate-pulse" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="result-section">
+      <div className="section-header">
+        <div>
+          <h2
+            className="text-4xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
+          >
+            Your page over time
+          </h2>
+          <p className="text-sm text-text-muted mt-1">
+            Here&apos;s how it looked before. Imagine knowing which changes helped.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {snapshots.map((snapshot, i) => (
+          <a
+            key={i}
+            href={snapshot.snapshotUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative block"
+          >
+            <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden transition-all group-hover:border-accent group-hover:shadow-lg">
+              <img
+                src={snapshot.thumbnailUrl}
+                alt={`Snapshot from ${snapshot.date}`}
+                className="w-full h-full object-cover object-top"
+                loading="lazy"
+                onError={(e) => {
+                  // Hide broken images
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30 group-hover:to-black/40 transition-colors" />
+            </div>
+            <p className="text-xs text-text-muted text-center mt-2 group-hover:text-accent transition-colors">
+              {snapshot.date}
+            </p>
+          </a>
+        ))}
+      </div>
+      <p className="text-sm text-text-secondary text-center mt-6">
+        This is what Loupe does — but we track the <span className="font-semibold">metrics</span> too.
+      </p>
+    </section>
+  );
+}
+
+// PDF Download Button with email capture modal
+function PdfDownloadButton({
+  analysis,
+}: {
+  analysis: {
+    id: string;
+    url: string;
+    created_at: string;
+    structured_output: AnalysisResult["structured"];
+  };
+}) {
+  const [showModal, setShowModal] = useState(false);
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleDownload = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (loading) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Capture email if provided
+      if (email) {
+        await fetch("/api/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            source: "pdf_download",
+            analysis_id: analysis.id,
+            url: analysis.url,
+          }),
+        });
+      }
+
+      // Dynamically import PDF generator (client-side only)
+      const { generateAuditPdf } = await import("@/lib/pdf/generate-audit-pdf");
+
+      const blob = await generateAuditPdf({
+        url: analysis.url,
+        structured: analysis.structured_output,
+        createdAt: analysis.created_at,
+      });
+
+      // Trigger download
+      const domain = new URL(analysis.url).hostname;
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `loupe-audit-${domain}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      setShowModal(false);
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      setError("Failed to generate PDF. Try again.");
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M8 2v8m0 0l-3-3m3 3l3-3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Download PDF
+      </button>
+
+      {/* Email capture modal */}
+      {showModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            className="glass-card-elevated p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              className="text-xl font-bold text-text-primary mb-2"
+              style={{ fontFamily: "var(--font-instrument-serif)" }}
+            >
+              Download your audit
+            </h3>
+            <p className="text-sm text-text-secondary mb-4">
+              Get a PDF copy of this audit to share with your team.
+            </p>
+
+            <form onSubmit={handleDownload} className="space-y-3">
+              <div>
+                <label htmlFor="pdf-email" className="text-xs text-text-muted block mb-1">
+                  Email (optional — for follow-up tips)
+                </label>
+                <input
+                  id="pdf-email"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-glass w-full"
+                />
+              </div>
+
+              {error && <p className="text-xs text-score-low">{error}</p>}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary flex-1"
+                >
+                  {loading ? "Generating..." : "Download"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1318,6 +1600,14 @@ export default function AnalysisPage() {
             <hr className="section-divider" />
           </>
         )}
+
+        {/* Wayback Preview — value bridge before signup (only for unclaimed initial audits) */}
+        {!analysis.claim_status?.claimed_by_current_user && !analysis.claim_status?.is_claimed && (
+          <>
+            <WaybackPreview url={analysis.url} />
+            <hr className="section-divider" />
+          </>
+        )}
           </>
         )}
 
@@ -1346,16 +1636,16 @@ export default function AnalysisPage() {
                   className="text-2xl font-bold text-text-primary"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  You&apos;re watching this
+                  You&apos;re tracking this page
                 </p>
                 <p className="text-base text-text-secondary mt-2 mb-4">
-                  {getDomain(analysis.url)} is already on your watchlist.
+                  Make your changes. We&apos;ll re-scan and show you what improved.
                 </p>
                 <Link
                   href={`/pages/${analysis.claim_status.claimed_page_id}`}
                   className="btn-primary inline-block"
                 >
-                  Go to your page
+                  View your page history
                 </Link>
               </div>
             ) : analysis.claim_status?.is_claimed ? (
@@ -1390,10 +1680,10 @@ export default function AnalysisPage() {
                   className="text-2xl font-bold text-text-primary"
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
-                  You&apos;re in
+                  You&apos;re tracking this page
                 </p>
                 <p className="text-base text-text-secondary mt-2">
-                  Check your inbox for the magic link to start watching.
+                  Check your inbox for the magic link. Make your changes, then we&apos;ll show you what moved.
                 </p>
               </div>
             ) : (
@@ -1405,13 +1695,13 @@ export default function AnalysisPage() {
                   style={{ fontFamily: "var(--font-instrument-serif)" }}
                 >
                   {analysis.changes_summary
-                    ? "Keep watching"
-                    : <>Watch {getDomain(analysis.url)}</>}
+                    ? "Want to know if your changes helped?"
+                    : <>Track {getDomain(analysis.url)}</>}
                 </h2>
                 <p className="text-base text-text-secondary mt-2 mb-6">
                   {analysis.changes_summary
-                    ? "We\u2019re monitoring. You\u2019ll know when something shifts."
-                    : "We\u2019ll catch the changes you miss before your visitors do."}
+                    ? "We\u2019ll re-scan after you make changes and show you what improved."
+                    : "Get notified when this page changes and see if updates improve your metrics."}
                 </p>
 
                 {/* Email form — the hero */}
@@ -1430,7 +1720,7 @@ export default function AnalysisPage() {
                     disabled={claimLoading}
                     className="btn-primary whitespace-nowrap"
                   >
-                    {claimLoading ? "Sending..." : "Start watching"}
+                    {claimLoading ? "Sending..." : "Track this page"}
                   </button>
                 </form>
 
@@ -1476,14 +1766,50 @@ export default function AnalysisPage() {
             )}
           </div>
 
-          {/* Footer links */}
-          <div className="flex items-center justify-center gap-6 text-sm text-text-muted mt-6">
+          {/* Footer links with social share */}
+          <div className="flex items-center justify-center gap-4 text-sm text-text-muted mt-6 flex-wrap">
             <button
               onClick={handleShareLink}
-              className="hover:text-accent transition-colors"
+              className="hover:text-accent transition-colors flex items-center gap-1.5"
             >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M6 10l4-4m0 0H7m3 0v3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M14 8v5a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1h5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               {linkCopied ? "Copied!" : "Copy link"}
             </button>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                `"${s.verdict}"\n\nGot this from my @getloupe audit. Free page analysis:`
+              )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-accent transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M9.52 6.775l4.898-5.695h-1.16L9.01 5.9 6.05 1.08H1.78l5.14 7.48-5.14 5.96h1.16l4.49-5.22 3.59 5.22h4.27L9.52 6.775zm-1.59 1.848l-.52-.745-4.14-5.92h1.78l3.34 4.78.52.745 4.34 6.21h-1.78l-3.54-5.07z"/>
+              </svg>
+              Share on X
+            </a>
+            <a
+              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-accent transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/>
+              </svg>
+              LinkedIn
+            </a>
+            <PdfDownloadButton
+              analysis={{
+                id: analysis.id,
+                url: analysis.url,
+                created_at: analysis.created_at,
+                structured_output: s,
+              }}
+            />
             <Link href="/" className="hover:text-accent transition-colors">
               Audit another page
             </Link>
