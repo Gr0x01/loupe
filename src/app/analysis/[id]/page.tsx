@@ -1575,11 +1575,18 @@ export default function AnalysisPage() {
                       <p className="headline-rewrite-current text-base leading-relaxed mb-2">
                         {headlineRewrite.current}
                       </p>
-                      {/* New format: show currentAnnotation */}
+                      {/* New format: show currentAnnotation as diagnosis */}
                       {annotation && (
-                        <p className="text-sm text-text-muted mb-4 italic">
-                          {annotation}
-                        </p>
+                        <div className="mt-2 mb-4 flex items-start gap-2 p-3 rounded-lg bg-[rgba(194,59,59,0.05)] border border-[rgba(194,59,59,0.1)]">
+                          <svg className="w-4 h-4 text-score-low flex-shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <circle cx="8" cy="8" r="6" />
+                            <path d="M8 5v3" strokeLinecap="round" />
+                            <circle cx="8" cy="11" r="0.5" fill="currentColor" />
+                          </svg>
+                          <p className="text-sm text-text-secondary leading-relaxed">
+                            {annotation}
+                          </p>
+                        </div>
                       )}
                       {!annotation && <div className="mb-2" />}
 
@@ -1606,9 +1613,12 @@ export default function AnalysisPage() {
                     </div>
 
                     {/* Right: reasoning/annotation */}
-                    <div className="lg:pt-6">
+                    <div className="flex flex-col justify-center">
                       <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
-                      <p className="text-lg text-text-primary leading-relaxed">
+                      <p
+                        className="text-xl lg:text-2xl text-text-primary leading-snug"
+                        style={{ fontFamily: "var(--font-instrument-serif)" }}
+                      >
                         {explanation}
                       </p>
                     </div>
