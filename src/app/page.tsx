@@ -5,18 +5,6 @@ import CorrelationCard from "@/components/landing/CorrelationCard";
 import ScenarioCarousel from "@/components/landing/ScenarioCarousel";
 import AudienceCards from "@/components/landing/AudienceCards";
 
-function WatchingIndicator() {
-  return (
-    <div className="inline-flex items-center gap-2 text-xs font-medium text-text-secondary uppercase tracking-wide font-mono">
-      <div className="relative">
-        <div className="w-1.5 h-1.5 rounded-full bg-score-high" />
-        <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-score-high animate-ping opacity-75" />
-      </div>
-      <span>Watching 847 pages</span>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -34,25 +22,18 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             {/* Left column -- Copy + CTA */}
             <div className="max-w-xl">
-              {/* Social proof */}
-              <div className="mb-6 landing-hero-social-proof">
-                <WatchingIndicator />
-              </div>
-
               {/* Headline */}
               <h1
-                className="text-[clamp(2.5rem,5.5vw,3.75rem)] leading-[1.1] tracking-tight text-text-primary font-semibold"
+                className="text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.1] tracking-tight text-text-primary font-semibold"
                 style={{ fontFamily: "var(--font-instrument-serif)" }}
               >
-                <span className="landing-hero-headline-1 block">Did that change</span>
-                <span className="landing-hero-headline-2 block text-accent">work?</span>
+                <span className="landing-hero-headline-1 block">Your headline changed.</span>
+                <span className="landing-hero-headline-2 block text-accent">Signups jumped 23%.</span>
               </h1>
 
               {/* Subheadline */}
               <p className="text-xl text-text-secondary mt-6 leading-relaxed landing-hero-subhead">
-                See what changed on your site.
-                <br />
-                See what it did to your numbers.
+                You ship fast. Loupe watches what that does to your&nbsp;numbers.
               </p>
 
               {/* Form */}
@@ -95,12 +76,6 @@ export default function Home() {
           <p className="text-text-secondary mb-8">
             Free audit, no signup. See what Loupe finds in 30 seconds.
           </p>
-          <div className="flex items-center justify-center gap-4 mb-8 text-sm text-text-muted">
-            <span className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-score-high" />
-              847 pages watched
-            </span>
-          </div>
           <FreeAuditForm />
         </div>
       </section>
