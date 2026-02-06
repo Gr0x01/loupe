@@ -1284,7 +1284,10 @@ export default function AnalysisPage() {
   const searchParams = useSearchParams();
   const previewLoading = searchParams.get("preview") === "loading";
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [loadingStep, setLoadingStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [stageIndex, setStageIndex] = useState(0);
+  const [exampleIndex, setExampleIndex] = useState(0);
+  const loadingStartTime = useRef(Date.now());
   const [error, setError] = useState("");
   const [showScreenshot, setShowScreenshot] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
@@ -1381,17 +1384,37 @@ export default function AnalysisPage() {
     return () => clearInterval(interval);
   }, [fetchAnalysis]);
 
-  // Loading step cycle (cycles through analysis stages)
+  // Steady progress animation (no looping, no fast jumps)
   useEffect(() => {
     if (
       previewLoading ||
       analysis?.status === "pending" ||
       analysis?.status === "processing"
     ) {
-      const timer = setInterval(() => {
-        setLoadingStep((s) => (s + 1) % ANALYSIS_STAGES.length);
-      }, 3500);
-      return () => clearInterval(timer);
+      // Reset start time when entering loading state
+      loadingStartTime.current = Date.now();
+
+      // Steady progress: ~2% per second, caps at 90%
+      const progressTimer = setInterval(() => {
+        const elapsed = (Date.now() - loadingStartTime.current) / 1000;
+        setProgress(Math.min(90, elapsed * 2));
+      }, 200);
+
+      // Stages advance forward only, hold on final (8s per stage = 40s total)
+      const stageTimer = setInterval(() => {
+        setStageIndex((s) => Math.min(s + 1, ANALYSIS_STAGES.length - 1));
+      }, 8000);
+
+      // Examples rotate independently (5s each, with crossfade)
+      const exampleTimer = setInterval(() => {
+        setExampleIndex((s) => (s + 1) % DRIFT_EXAMPLES.length);
+      }, 5000);
+
+      return () => {
+        clearInterval(progressTimer);
+        clearInterval(stageTimer);
+        clearInterval(exampleTimer);
+      };
     }
   }, [analysis?.status, previewLoading]);
 
@@ -1425,8 +1448,6 @@ export default function AnalysisPage() {
     analysis.status === "pending" ||
     analysis.status === "processing"
   ) {
-    const currentStageIndex = loadingStep % ANALYSIS_STAGES.length;
-
     return (
       <div className="flex justify-center px-4 pt-12 pb-16">
         <div className="w-full max-w-[540px]">
@@ -1439,27 +1460,32 @@ export default function AnalysisPage() {
                   {getDomain(analysis.url)}
                 </p>
               )}
-              <div className="flex gap-1.5 w-full max-w-[200px] mx-auto mb-2">
-                {ANALYSIS_STAGES.map((stage, i) => (
+
+              {/* Single continuous progress bar */}
+              <div className="w-full max-w-[280px] mx-auto mb-3">
+                <div className="h-1.5 rounded-full bg-bg-inset overflow-hidden">
                   <div
+                    className="h-full rounded-full bg-accent"
+                    style={{
+                      width: `${progress}%`,
+                      transition: "width 0.4s ease-out",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Stage label with crossfade */}
+              <div className="relative h-6 overflow-hidden">
+                {ANALYSIS_STAGES.map((stage, i) => (
+                  <p
                     key={stage.id}
-                    className="h-1.5 flex-1 rounded-full bg-bg-inset overflow-hidden"
+                    className="absolute inset-0 text-base text-text-secondary transition-opacity duration-500"
+                    style={{ opacity: i === stageIndex ? 1 : 0 }}
                   >
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        i < currentStageIndex
-                          ? "w-full bg-accent"
-                          : i === currentStageIndex
-                          ? "w-1/2 bg-accent animate-pulse"
-                          : "w-0"
-                      }`}
-                    />
-                  </div>
+                    {stage.label}...
+                  </p>
                 ))}
               </div>
-              <p className="text-base text-text-secondary">
-                {ANALYSIS_STAGES[currentStageIndex].label}...
-              </p>
             </div>
 
             {/* Preview with overlapping suggestion card */}
@@ -1483,13 +1509,22 @@ export default function AnalysisPage() {
                 <p className="text-[10px] font-semibold text-accent uppercase tracking-wide mb-1.5">
                   What we catch
                 </p>
-                <p className="text-sm text-text-primary font-medium leading-snug transition-opacity duration-300">
-                  &ldquo;{DRIFT_EXAMPLES[loadingStep % DRIFT_EXAMPLES.length]}&rdquo;
-                </p>
+                {/* Crossfade between examples */}
+                <div className="relative h-10 overflow-hidden">
+                  {DRIFT_EXAMPLES.map((example, i) => (
+                    <p
+                      key={i}
+                      className="absolute inset-0 text-sm text-text-primary font-medium leading-snug transition-opacity duration-500"
+                      style={{ opacity: i === exampleIndex ? 1 : 0 }}
+                    >
+                      &ldquo;{example}&rdquo;
+                    </p>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Value prop + Email capture */}
+            {/* Email capture */}
             {claimEmailSent ? (
               <div className="text-center py-3">
                 <div className="inline-flex items-center gap-2 text-score-high mb-1">
@@ -1502,16 +1537,6 @@ export default function AnalysisPage() {
               </div>
             ) : (
               <>
-                <p
-                  className="text-xl font-bold text-text-primary text-center mb-1"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
-                >
-                  We just captured your page
-                </p>
-                <p className="text-base text-text-secondary text-center mb-5">
-                  We&apos;ll email you when something shifts.
-                </p>
-
                 <form onSubmit={handleClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-2 max-w-md mx-auto">
                   <input
                     type="email"
