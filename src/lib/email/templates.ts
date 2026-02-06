@@ -578,6 +578,60 @@ function truncateText(text: string, maxLength: number): string {
   return text.slice(0, maxLength - 1) + "...";
 }
 
+interface ClaimPageEmailParams {
+  domain: string;
+  magicLink: string;
+}
+
+/**
+ * Claim page email — sent when a user enters their email to claim a page
+ */
+export function claimPageEmail({
+  domain,
+  magicLink,
+}: ClaimPageEmailParams): { subject: string; html: string } {
+  const subject = `Claim ${domain}`;
+
+  const content = `
+    <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 28px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
+      Your audit is ready.
+    </h1>
+    <p style="margin: 0 0 28px 0; font-size: 17px; color: ${colors.textSecondary}; line-height: 1.6;">
+      Claim <strong style="color: ${colors.textPrimary};">${escapeHtml(domain)}</strong> to track what changes&nbsp;next.
+    </p>
+
+    <!-- CTA Button -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+      <tr>
+        <td>
+          <a class="cta-button" href="${escapeHtml(magicLink)}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 24px; border-radius: 10px;">
+            Claim ${escapeHtml(domain)}
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+      <tr>
+        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 12px;">
+          <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
+            What happens next
+          </p>
+          <p style="margin: 0; font-size: 15px; color: ${colors.textPrimary}; line-height: 1.6;">
+            We'll re-scan your page daily and notify you when something changes — so you know if updates help or&nbsp;hurt.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin: 0; font-size: 13px; color: ${colors.textMuted}; line-height: 1.5;">
+      This link expires in 1&nbsp;hour. If you didn't request this, you can ignore this&nbsp;email.
+    </p>
+  `;
+
+  return { subject, html: emailWrapper(content) };
+}
+
 interface WaitlistConfirmationParams {
   email: string;
 }

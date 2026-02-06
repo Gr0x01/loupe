@@ -192,7 +192,6 @@ export async function GET(req: NextRequest) {
 
     "claim-page": () =>
       claimPageEmail({
-        pageUrl: "https://acme.io/pricing",
         domain: "acme.io",
         magicLink: "https://getloupe.io/auth/callback?token=abc123&claim=def456",
       }),

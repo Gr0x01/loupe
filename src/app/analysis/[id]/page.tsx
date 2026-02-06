@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { PageLoader } from "@/components/PageLoader";
 import type {
   PageContext,
@@ -1323,17 +1322,19 @@ export default function AnalysisPage() {
     setClaimLoading(true);
     setClaimError("");
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: claimEmail.trim(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?claim=${analysis.id}`,
-        },
+      const res = await fetch("/api/auth/claim-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: claimEmail.trim(),
+          analysisId: analysis.id,
+        }),
       });
-      if (!error) {
+      if (res.ok) {
         setClaimEmailSent(true);
       } else {
-        console.error("Magic link error:", error.message);
+        const data = await res.json();
+        console.error("Claim link error:", data.error);
         setClaimError("Failed to send link. Try again.");
       }
     } catch {

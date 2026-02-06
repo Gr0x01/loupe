@@ -97,4 +97,6 @@ export const RATE_LIMITS = {
   rescan: { windowMs: 60 * 60 * 1000, maxRequests: 30 },
   // Feedback: 60 feedback items per hour
   feedback: { windowMs: 60 * 60 * 1000, maxRequests: 60 },
+  // Claim link: 5 per hour per IP (unauthenticated, abuse prevention)
+  claimLink: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
 } as const;
