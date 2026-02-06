@@ -16,6 +16,7 @@ import type {
   ElementType,
 } from "@/lib/types/analysis";
 import { ChronicleLayout } from "@/components/chronicle";
+import { ClaimModal, type ClaimModalType } from "@/components/ClaimModal";
 
 // Type guard for Chronicle format (N+1 scans with new ChangesSummary)
 function isChronicleFormat(summary: unknown): summary is ChangesSummary {
@@ -1302,6 +1303,18 @@ export default function AnalysisPage() {
     isFull: boolean;
   } | null>(null);
   const [isInitialFetch, setIsInitialFetch] = useState(true);
+  const [claimModalType, setClaimModalType] = useState<ClaimModalType>(null);
+
+  // Check for already_claimed URL param (from auth callback redirect)
+  useEffect(() => {
+    if (searchParams.get("already_claimed") === "true") {
+      setClaimModalType("already_claimed");
+      // Clean up URL without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete("already_claimed");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
 
   // Fetch founding status on mount
   useEffect(() => {
@@ -2098,6 +2111,14 @@ export default function AnalysisPage() {
           onClose={() => setShowScreenshot(false)}
         />
       )}
+
+      {/* Claim error modal */}
+      <ClaimModal
+        type={claimModalType}
+        onClose={() => setClaimModalType(null)}
+        domain={getDomain(analysis.url)}
+        onShare={handleShareLink}
+      />
     </main>
   );
 }

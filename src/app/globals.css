@@ -2099,3 +2099,184 @@ body.modal-open .site-nav {
     width: 100%;
   }
 }
+
+/* ===== LANDING PAGE HERO ANIMATIONS ===== */
+@keyframes landingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landingSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hero stagger sequence */
+.landing-hero-social-proof {
+  opacity: 0;
+  animation: landingFadeIn 0.4s ease-out forwards;
+  animation-delay: 0ms;
+}
+
+.landing-hero-headline-1 {
+  opacity: 0;
+  animation: landingFadeIn 0.5s ease-out forwards;
+  animation-delay: 200ms;
+}
+
+.landing-hero-headline-2 {
+  opacity: 0;
+  animation: landingFadeIn 0.5s ease-out forwards;
+  animation-delay: 350ms;
+}
+
+.landing-hero-subhead {
+  opacity: 0;
+  animation: landingFadeIn 0.4s ease-out forwards;
+  animation-delay: 500ms;
+}
+
+.landing-hero-form {
+  opacity: 0;
+  animation: landingSlideUp 0.5s ease-out forwards;
+  animation-delay: 650ms;
+}
+
+.landing-hero-trust {
+  opacity: 0;
+  animation: landingFadeIn 0.4s ease-out forwards;
+  animation-delay: 900ms;
+}
+
+.landing-hero-card {
+  opacity: 0;
+  animation: landingSlideUp 0.6s ease-out forwards;
+  animation-delay: 400ms;
+}
+
+/* Scroll cue */
+.landing-scroll-cue {
+  opacity: 0;
+  animation: landingFadeIn 0.4s ease-out forwards;
+  animation-delay: 1200ms;
+}
+
+/* ===== CORRELATION CARD (Hero "money shot") ===== */
+.correlation-card-hero {
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid rgba(91, 46, 145, 0.12);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 4px 12px rgba(0, 0, 0, 0.04),
+    0 16px 48px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(91, 46, 145, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 300ms ease;
+}
+
+.correlation-card-hero:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.06),
+    0 24px 64px rgba(91, 46, 145, 0.08),
+    0 0 0 1px rgba(91, 46, 145, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.correlation-card-chrome {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.correlation-card-body {
+  padding: 20px;
+}
+
+/* ===== AUDIENCE CARDS (dark glass) ===== */
+.audience-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #1e1e35 100%);
+  border: 1px solid rgba(91, 46, 145, 0.2);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: all 200ms ease;
+}
+
+.audience-card:hover {
+  border-color: rgba(91, 46, 145, 0.35);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.16),
+    0 0 0 1px rgba(91, 46, 145, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+/* ===== CLAIM MODAL ===== */
+.claim-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  animation: modalOverlayIn 200ms ease-out forwards;
+}
+
+.claim-modal-overlay.closing {
+  animation: modalOverlayOut 200ms ease-in forwards;
+}
+
+.claim-modal-content {
+  position: relative;
+  max-width: 400px;
+  width: 100%;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 20px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 24px 64px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  opacity: 0;
+  transform: scale(0.96) translateY(8px);
+  animation: modalContentIn 200ms ease-out 50ms forwards;
+}
+
+.claim-modal-content.closing {
+  animation: modalContentOut 150ms ease-in forwards;
+}
+
+@media (max-width: 440px) {
+  .claim-modal-content {
+    padding: 24px;
+    margin: 0 8px;
+  }
+}
