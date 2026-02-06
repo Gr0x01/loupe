@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFileSync } from "fs";
+import { join } from "path";
 import {
   changeDetectedEmail,
   allQuietEmail,
   correlationUnlockedEmail,
   weeklyDigestEmail,
   waitlistConfirmationEmail,
+  claimPageEmail,
 } from "@/lib/email/templates";
 
 /**
@@ -186,6 +189,57 @@ export async function GET(req: NextRequest) {
       waitlistConfirmationEmail({
         email: "founder@startup.com",
       }),
+
+    "claim-page": () =>
+      claimPageEmail({
+        pageUrl: "https://acme.io/pricing",
+        domain: "acme.io",
+        magicLink: "https://getloupe.io/auth/callback?token=abc123&claim=def456",
+      }),
+
+    // Supabase Auth templates (static HTML with mock variable replacements)
+    "auth-magic-link": () => {
+      const html = readFileSync(
+        join(process.cwd(), "supabase/templates/magic-link.html"),
+        "utf-8"
+      ).replace(
+        /\{\{ \.ConfirmationURL \}\}/g,
+        "https://getloupe.io/auth/confirm?token_hash=abc123"
+      );
+      return { html };
+    },
+    "auth-confirmation": () => {
+      const html = readFileSync(
+        join(process.cwd(), "supabase/templates/confirmation.html"),
+        "utf-8"
+      ).replace(
+        /\{\{ \.ConfirmationURL \}\}/g,
+        "https://getloupe.io/auth/confirm?token_hash=abc123"
+      );
+      return { html };
+    },
+    "auth-recovery": () => {
+      const html = readFileSync(
+        join(process.cwd(), "supabase/templates/recovery.html"),
+        "utf-8"
+      ).replace(
+        /\{\{ \.ConfirmationURL \}\}/g,
+        "https://getloupe.io/auth/confirm?token_hash=abc123&type=recovery"
+      );
+      return { html };
+    },
+    "auth-email-change": () => {
+      const html = readFileSync(
+        join(process.cwd(), "supabase/templates/email-change.html"),
+        "utf-8"
+      )
+        .replace(/\{\{ \.NewEmail \}\}/g, "newemail@example.com")
+        .replace(
+          /\{\{ \.ConfirmationURL \}\}/g,
+          "https://getloupe.io/auth/confirm?token_hash=abc123&type=email_change"
+        );
+      return { html };
+    },
   };
 
   if (!template || !(template in mockData)) {
@@ -220,6 +274,15 @@ export async function GET(req: NextRequest) {
           <ul style="line-height: 2;">
             <li><a href="?template=weekly-digest">Weekly Digest</a></li>
             <li><a href="?template=waitlist">Waitlist Confirmation</a></li>
+            <li><a href="?template=claim-page">Claim Page</a></li>
+          </ul>
+
+          <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Supabase Auth</h2>
+          <ul style="line-height: 2;">
+            <li><a href="?template=auth-magic-link">Magic Link (Sign In)</a></li>
+            <li><a href="?template=auth-confirmation">Email Confirmation (Sign Up)</a></li>
+            <li><a href="?template=auth-recovery">Password Recovery</a></li>
+            <li><a href="?template=auth-email-change">Email Change</a></li>
           </ul>
         </body>
       </html>
