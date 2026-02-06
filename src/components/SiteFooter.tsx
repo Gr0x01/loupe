@@ -99,6 +99,12 @@ export default function SiteFooter() {
             >
               Contact
             </a>
+            <Link href="/privacy" className="hover:text-accent transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-accent transition-colors">
+              Terms
+            </Link>
           </nav>
         </div>
       </div>
