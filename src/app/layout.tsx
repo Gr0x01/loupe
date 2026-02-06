@@ -6,6 +6,7 @@ import { PostHogPageView } from "@/components/PostHogPageView";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
+import "./hero-bg.css";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",

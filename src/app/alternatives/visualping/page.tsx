@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import CTASection from "@/components/seo/CTASection";
-import MockComparisonCard from "@/components/MockComparisonCard";
+import CorrelationCard from "@/components/landing/CorrelationCard";
 
 export const metadata: Metadata = {
   title: "Visualping Alternative for Founders Who Ship Fast | Loupe",
@@ -183,8 +183,8 @@ export default function VisualpingAlternativePage() {
             </div>
 
             {/* Right column - Visual */}
-            <div className="mt-8 lg:mt-0">
-              <MockComparisonCard />
+            <div className="mt-8 lg:mt-0 flex justify-center lg:justify-end">
+              <CorrelationCard />
             </div>
           </div>
         </div>
