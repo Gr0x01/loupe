@@ -3,46 +3,10 @@
 /**
  * AudienceCards - Two side-by-side cards for Vibe Coders and Technical Founders
  * "Built for how you ship"
+ *
+ * Uses text-based tool pills instead of fake brand SVG logos.
+ * Consistent with ScenarioCarousel's approach.
  */
-
-const LovableIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="6" fill="#FF6B6B" />
-    <path d="M12 7l2.5 4h-5L12 7z" fill="white" />
-    <circle cx="12" cy="15" r="2" fill="white" />
-  </svg>
-);
-
-const CursorIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="6" fill="#000" />
-    <path d="M8 6l8 6-4 1-2 5-2-12z" fill="white" />
-  </svg>
-);
-
-const BoltIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="6" fill="#FFB800" />
-    <path d="M13 5L9 13h4l-1 6 5-8h-4l1-6z" fill="white" />
-  </svg>
-);
-
-const GitHubIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="6" fill="#24292F" />
-    <path
-      d="M12 6C8.7 6 6 8.7 6 12c0 2.6 1.7 4.9 4 5.7.3.1.4-.1.4-.3v-1c-1.6.4-2-.8-2-.8-.3-.7-.7-.9-.7-.9-.5-.4 0-.4 0-.4.6 0 .9.6.9.6.5.9 1.4.6 1.7.5 0-.4.2-.6.4-.8-1.3-.1-2.6-.6-2.6-2.8 0-.6.2-1.1.6-1.5-.1-.2-.3-.7 0-1.5 0 0 .5-.2 1.6.6.5-.1 1-.2 1.5-.2s1 .1 1.5.2c1.1-.8 1.6-.6 1.6-.6.3.8.1 1.3 0 1.5.4.4.6.9.6 1.5 0 2.2-1.3 2.7-2.6 2.8.2.2.4.5.4 1v1.5c0 .2.1.4.4.3 2.3-.8 4-3 4-5.7 0-3.3-2.7-6-6-6z"
-      fill="white"
-    />
-  </svg>
-);
-
-const VercelIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="6" fill="#000" />
-    <path d="M12 7l6 10H6L12 7z" fill="white" />
-  </svg>
-);
 
 const CheckIcon = () => (
   <svg
@@ -57,6 +21,14 @@ const CheckIcon = () => (
     <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
   </svg>
 );
+
+function ToolPill({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-white/60 bg-white/8 border border-white/10">
+      {label}
+    </span>
+  );
+}
 
 function MiniAIChangelog() {
   return (
@@ -128,9 +100,9 @@ export default function AudienceCards() {
           {/* Vibe Coders card */}
           <div className="audience-card rounded-2xl p-6 sm:p-8">
             <div className="flex items-center gap-2 mb-4">
-              <LovableIcon />
-              <CursorIcon />
-              <BoltIcon />
+              <ToolPill label="Lovable" />
+              <ToolPill label="Cursor" />
+              <ToolPill label="Bolt" />
             </div>
             <h3
               className="text-xl sm:text-2xl text-white mb-3"
@@ -148,8 +120,8 @@ export default function AudienceCards() {
           {/* Technical Founders card */}
           <div className="audience-card rounded-2xl p-6 sm:p-8">
             <div className="flex items-center gap-2 mb-4">
-              <GitHubIcon />
-              <VercelIcon />
+              <ToolPill label="GitHub" />
+              <ToolPill label="Vercel" />
             </div>
             <h3
               className="text-xl sm:text-2xl text-white mb-3"
