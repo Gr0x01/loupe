@@ -103,7 +103,7 @@ export const analyzeUrl = inngest.createFunction(
       // 5. Run unified post-analysis pipeline (comparison + analytics correlation)
       const { data: analysis } = await supabase
         .from("analyses")
-        .select("user_id, deploy_id, page_id")
+        .select("user_id, deploy_id")
         .eq("id", analysisId)
         .single();
 
@@ -236,7 +236,15 @@ export const analyzeUrl = inngest.createFunction(
           createdAt: string;
         }[] | null = null;
 
-        if (analysis.page_id) {
+        // Look up page_id via url + user_id
+        const { data: pageForFeedback } = await supabase
+          .from("pages")
+          .select("id")
+          .eq("url", url)
+          .eq("user_id", analysis.user_id)
+          .maybeSingle();
+
+        if (pageForFeedback) {
           // Fetch feedback from last 90 days, limit 10 most recent
           const ninetyDaysAgo = new Date();
           ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -244,7 +252,7 @@ export const analyzeUrl = inngest.createFunction(
           const { data: feedbackData } = await supabase
             .from("finding_feedback")
             .select("feedback_type, feedback_text, finding_snapshot, created_at")
-            .eq("page_id", analysis.page_id)
+            .eq("page_id", pageForFeedback.id)
             .gte("created_at", ninetyDaysAgo.toISOString())
             .order("created_at", { ascending: false })
             .limit(10);

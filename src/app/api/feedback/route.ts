@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     // Fetch the analysis and verify ownership
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")
-      .select("id, page_id, user_id, structured_output")
+      .select("id, url, user_id, structured_output")
       .eq("id", analysisId)
       .single();
 
@@ -133,11 +133,26 @@ export async function POST(req: NextRequest) {
       impact: finding.impact,
     };
 
+    // Look up page_id via url + user_id
+    const { data: page } = await supabase
+      .from("pages")
+      .select("id")
+      .eq("url", analysis.url)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!page) {
+      return NextResponse.json(
+        { error: "Page not found for this analysis" },
+        { status: 404 }
+      );
+    }
+
     // Insert feedback
     const { error: insertError } = await supabase
       .from("finding_feedback")
       .insert({
-        page_id: analysis.page_id,
+        page_id: page.id,
         analysis_id: analysisId,
         finding_id: findingId,
         feedback_type: feedbackType,
