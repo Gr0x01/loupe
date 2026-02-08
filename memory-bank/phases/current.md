@@ -132,9 +132,10 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] `correlationUnlockedEmail()` — for when watching items become validated
   - Subject: "Your {element} change helped"
   - Shows change details with before/after and metric improvement
-- [x] `weeklyDigestEmail()` — weekly summary for users with 3+ pages
-  - Subject: "Your weekly Loupe report"
-  - Lists all pages with status: changed (with helped indicator), stable, or suggestion
+- [x] `dailyDigestEmail()` — consolidated daily/weekly scan summary (replaced weeklyDigestEmail)
+  - Dynamic subject: "{domain} changed, N pages stable" or "N of M pages changed"
+  - Changed pages show before/after detail; stable pages as compact one-liners
+  - Only sent if at least 1 page changed
 
 **5.2 Email Selection Logic:**
 - [x] Updated `analyzeUrl` in functions.ts to use intelligent email selection
@@ -148,15 +149,16 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] Compares previous `watchingItems` with current `validatedItems`
 - [x] Sends `correlationUnlockedEmail` when correlation is confirmed
 
-**5.4 Weekly Digest Function:**
-- [x] Added `weeklyDigest` Inngest function
-- [x] Runs Monday 10am UTC (1 hour after scheduled scans)
-- [x] Targets users with 3+ monitored pages
-- [x] Aggregates page statuses (changed/stable/suggestion)
+**5.4 Daily Scan Digest Function:**
+- [x] Replaced `weeklyDigest` with `dailyScanDigest` Inngest function
+- [x] Runs daily 11am UTC (2h after scans start at 9am)
+- [x] Queries completed analyses from last 3h with daily/weekly trigger
+- [x] Groups by user, skips if all pages stable, sends consolidated email
+- [x] Per-page emails suppressed for daily/weekly scans (deploy-only now)
 
 **5.5 Email Preview Route:**
 - [x] Extended `/api/dev/email-preview` with all new templates
-- [x] Multiple variations: change-detected (watching/improved/regressed/deploy), all-quiet (with/without suggestion), correlation-unlocked, weekly-digest
+- [x] Multiple variations: change-detected (watching/improved/regressed/deploy), all-quiet (with/without suggestion), correlation-unlocked, daily-digest
 
 **5.6 UI Designer Review:**
 - [x] Cleaner visual hierarchy — headline carries the verdict

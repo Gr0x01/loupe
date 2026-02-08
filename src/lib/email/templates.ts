@@ -462,98 +462,126 @@ export function correlationUnlockedEmail({
   return { subject, html: emailWrapper(content) };
 }
 
-interface WeeklyDigestPageStatus {
+interface DailyDigestPageResult {
   url: string;
   domain: string;
-  status: "changed" | "stable" | "suggestion";
-  changesCount?: number;
-  helped?: boolean;
-  suggestionTitle?: string;
+  analysisId: string;
+  hasChanges: boolean;
+  primaryChange?: {
+    element: string;
+    before: string;
+    after: string;
+  };
+  additionalChangesCount?: number;
 }
 
-interface WeeklyDigestEmailParams {
-  pages: WeeklyDigestPageStatus[];
+interface DailyDigestEmailParams {
+  pages: DailyDigestPageResult[];
 }
 
 /**
- * Weekly digest email — sent to users monitoring 3+ pages
+ * Daily digest email — consolidated summary of all daily/weekly scan results.
+ * Only sent when at least one page has changes.
  */
-export function weeklyDigestEmail({
+export function dailyDigestEmail({
   pages,
-}: WeeklyDigestEmailParams): { subject: string; html: string } {
-  const subject = "Your weekly Loupe report";
+}: DailyDigestEmailParams): { subject: string; html: string } {
   const dashboardUrl = "https://getloupe.io/dashboard";
 
-  // Count stats
-  const changedCount = pages.filter(p => p.status === "changed").length;
-  const helpedCount = pages.filter(p => p.status === "changed" && p.helped).length;
+  const changedPages = pages.filter((p) => p.hasChanges);
+  const stablePages = pages.filter((p) => !p.hasChanges);
 
-  // Header with summary
-  let summaryText = "";
-  if (changedCount === 0) {
-    summaryText = "All pages stable this week.";
-  } else if (helpedCount > 0) {
-    summaryText = `${changedCount} page${changedCount > 1 ? "s" : ""} changed${helpedCount > 0 ? `, ${helpedCount} helped` : ""}.`;
+  // Dynamic subject line
+  let subject: string;
+  if (changedPages.length === 1 && stablePages.length === 0) {
+    subject = `${escapeHtml(changedPages[0].domain)} changed`;
+  } else if (changedPages.length === 1) {
+    subject = `${escapeHtml(changedPages[0].domain)} changed, ${stablePages.length} page${stablePages.length > 1 ? "s" : ""} stable`;
   } else {
-    summaryText = `${changedCount} page${changedCount > 1 ? "s" : ""} changed.`;
+    subject = `${changedPages.length} of ${pages.length} pages changed`;
   }
 
+  // Header
   const headerHtml = `
     <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 28px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
-      This week
+      Your daily scan
     </h1>
     <p style="margin: 0 0 28px 0; font-size: 17px; color: ${colors.textSecondary}; line-height: 1.5;">
-      ${summaryText}
+      ${changedPages.length} page${changedPages.length !== 1 ? "s" : ""} changed${stablePages.length > 0 ? `, ${stablePages.length} stable` : ""}.
     </p>
   `;
 
-  // Build page rows - simpler, cleaner
-  const pageRows = pages
+  // Changed pages — show detail
+  const changedPagesHtml = changedPages
     .map((page) => {
-      let statusText = "";
-      let statusColor = colors.textMuted;
-
-      if (page.status === "changed") {
-        if (page.helped) {
-          statusText = "helped";
-          statusColor = colors.scoreHigh;
-        } else {
-          statusText = `${page.changesCount || 1} change${(page.changesCount || 1) > 1 ? "s" : ""}`;
-          statusColor = colors.textSecondary;
-        }
-      } else if (page.status === "stable") {
-        statusText = "stable";
-        statusColor = colors.textMuted;
-      } else if (page.status === "suggestion") {
-        statusText = "suggestion ready";
-        statusColor = colors.accent;
-      }
+      const changeDetail = page.primaryChange
+        ? `
+          <p style="margin: 8px 0 4px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
+            ${escapeHtml(page.primaryChange.element)}
+          </p>
+          <p style="margin: 0 0 4px 0; font-size: 14px; color: ${colors.textMuted}; line-height: 1.5;">
+            <span style="text-decoration: line-through;">${escapeHtml(truncateText(page.primaryChange.before, 60))}</span>
+          </p>
+          <p style="margin: 0; font-size: 14px; color: ${colors.textPrimary}; line-height: 1.5;">
+            ${escapeHtml(truncateText(page.primaryChange.after, 60))}
+          </p>
+          ${(page.additionalChangesCount ?? 0) > 0 ? `<p style="margin: 6px 0 0 0; font-size: 13px; color: ${colors.textMuted};">+ ${page.additionalChangesCount} more</p>` : ""}
+        `
+        : "";
 
       return `
         <tr>
-          <td style="padding: 14px 0; border-bottom: 1px solid ${colors.borderSubtle};">
+          <td style="padding: 16px; background-color: ${colors.background}; border-radius: 12px; margin-bottom: 8px;">
+            <a href="https://getloupe.io/analysis/${page.analysisId}" style="font-size: 15px; font-weight: 600; color: ${colors.textPrimary}; text-decoration: none;">
+              ${escapeHtml(page.domain)}
+            </a>
+            ${changeDetail}
+          </td>
+        </tr>
+        <tr><td style="height: 8px;"></td></tr>
+      `;
+    })
+    .join("");
+
+  // Stable pages — compact list
+  let stablePagesHtml = "";
+  if (stablePages.length > 0) {
+    const stableRows = stablePages
+      .map(
+        (page) => `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid ${colors.borderSubtle};">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
               <tr>
-                <td style="font-size: 15px; color: ${colors.textPrimary};">
+                <td style="font-size: 14px; color: ${colors.textPrimary};">
                   ${escapeHtml(page.domain)}
                 </td>
-                <td align="right" style="font-size: 14px; color: ${statusColor};">
-                  ${statusText}
+                <td align="right" style="font-size: 13px; color: ${colors.textMuted};">
+                  stable
                 </td>
               </tr>
             </table>
           </td>
         </tr>
-      `;
-    })
-    .join("");
+      `
+      )
+      .join("");
+
+    stablePagesHtml = `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 16px; margin-bottom: 28px;">
+        ${stableRows}
+      </table>
+    `;
+  }
 
   const content = `
     ${headerHtml}
 
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
-      ${pageRows}
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: ${stablePages.length > 0 ? "8px" : "28px"};">
+      ${changedPagesHtml}
     </table>
+
+    ${stablePagesHtml}
 
     <!-- CTA -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">

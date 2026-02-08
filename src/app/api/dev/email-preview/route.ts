@@ -5,7 +5,7 @@ import {
   changeDetectedEmail,
   allQuietEmail,
   correlationUnlockedEmail,
-  weeklyDigestEmail,
+  dailyDigestEmail,
   waitlistConfirmationEmail,
   claimPageEmail,
 } from "@/lib/email/templates";
@@ -161,26 +161,32 @@ export async function GET(req: NextRequest) {
         },
       }),
 
-    "weekly-digest": () =>
-      weeklyDigestEmail({
+    "daily-digest": () =>
+      dailyDigestEmail({
         pages: [
           {
             url: "https://acme.io",
             domain: "acme.io",
-            status: "changed",
-            changesCount: 1,
-            helped: true,
+            analysisId: "abc-123-def",
+            hasChanges: true,
+            primaryChange: {
+              element: "Your headline",
+              before: "Start free today",
+              after: "Get started in 60 seconds",
+            },
+            additionalChangesCount: 1,
           },
           {
             url: "https://acme.io/pricing",
             domain: "acme.io/pricing",
-            status: "stable",
+            analysisId: "def-456-ghi",
+            hasChanges: false,
           },
           {
             url: "https://acme.io/features",
             domain: "acme.io/features",
-            status: "suggestion",
-            suggestionTitle: "Move CTA above fold",
+            analysisId: "ghi-789-jkl",
+            hasChanges: false,
           },
         ],
       }),
@@ -271,7 +277,7 @@ export async function GET(req: NextRequest) {
 
           <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Digest & Other</h2>
           <ul style="line-height: 2;">
-            <li><a href="?template=weekly-digest">Weekly Digest</a></li>
+            <li><a href="?template=daily-digest">Daily Digest</a></li>
             <li><a href="?template=waitlist">Waitlist Confirmation</a></li>
             <li><a href="?template=claim-page">Claim Page</a></li>
           </ul>

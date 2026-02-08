@@ -8,7 +8,7 @@ import {
   changeDetectedEmail,
   allQuietEmail,
   correlationUnlockedEmail,
-  weeklyDigestEmail,
+  dailyDigestEmail,
 } from "@/lib/email/templates";
 import type { ChangesSummary, ChronicleSuggestion } from "@/lib/types/analysis";
 import { safeDecrypt } from "@/lib/crypto";
@@ -400,8 +400,7 @@ export const analyzeUrl = inngest.createFunction(
           .eq("id", analysisId)
           .single();
 
-        const triggerType = fullAnalysis?.trigger_type;
-        if (triggerType && triggerType !== "manual") {
+        if (fullAnalysis?.trigger_type === "deploy") {
           // Get user email + preferences
           const { data: profile } = await supabase
             .from("profiles")
@@ -459,7 +458,7 @@ export const analyzeUrl = inngest.createFunction(
                 const { subject, html } = changeDetectedEmail({
                   pageUrl: url,
                   analysisId,
-                  triggerType: triggerType as "daily" | "weekly" | "deploy",
+                  triggerType: "deploy",
                   primaryChange: {
                     element: primaryChange.element,
                     before: primaryChange.before,
@@ -805,133 +804,118 @@ export const deployDetected = inngest.createFunction(
 );
 
 /**
- * Weekly digest — sends summary email to users with 3+ monitored pages
- * Runs Monday 10am UTC (1 hour after scheduled scans)
+ * Daily scan digest — sends one consolidated email per user after daily/weekly scans.
+ * Runs daily at 10am UTC (1 hour after scans start at 9am, giving them time to complete).
+ * Only sends if at least one page changed. All-quiet = no email.
  */
-export const weeklyDigest = inngest.createFunction(
+export const dailyScanDigest = inngest.createFunction(
   {
-    id: "weekly-digest",
+    id: "daily-scan-digest",
     retries: 1,
   },
-  { cron: "0 10 * * 1" }, // Monday 10am UTC
+  { cron: "0 11 * * *" }, // Daily 11am UTC (2h after scans start at 9am)
   async ({ step }) => {
     const supabase = createServiceClient();
 
-    // Find users with 3+ pages who have email notifications enabled
-    const eligibleUsers = await step.run("find-eligible-users", async () => {
-      const { data: users } = await supabase
-        .from("profiles")
-        .select("id, email, email_notifications")
-        .eq("email_notifications", true)
-        .not("email", "is", null);
+    // Find all analyses from the last 3 hours with daily/weekly trigger
+    const recentAnalyses = await step.run("find-recent-analyses", async () => {
+      const threeHoursAgo = new Date();
+      threeHoursAgo.setHours(threeHoursAgo.getHours() - 3);
 
-      if (!users) return [];
+      const { data, error } = await supabase
+        .from("analyses")
+        .select("id, url, user_id, changes_summary, status")
+        .in("trigger_type", ["daily", "weekly"])
+        .gte("created_at", threeHoursAgo.toISOString())
+        .eq("status", "complete");
 
-      // Filter to users with 3+ pages
-      const usersWithPageCounts = await Promise.all(
-        users.map(async (user) => {
-          const { count } = await supabase
-            .from("pages")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", user.id);
-          return { ...user, pageCount: count ?? 0 };
-        })
-      );
+      if (error) {
+        console.error("Failed to fetch recent analyses for digest:", error);
+        throw error;
+      }
 
-      return usersWithPageCounts.filter((u) => u.pageCount >= 3);
+      return data || [];
     });
 
-    if (eligibleUsers.length === 0) {
-      return { sent: 0 };
+    if (recentAnalyses.length === 0) {
+      return { sent: 0, reason: "no recent analyses" };
     }
 
-    // Send digest to each eligible user
+    // Group by user_id
+    const byUser = new Map<string, typeof recentAnalyses>();
+    for (const analysis of recentAnalyses) {
+      const existing = byUser.get(analysis.user_id) || [];
+      existing.push(analysis);
+      byUser.set(analysis.user_id, existing);
+    }
+
+    // Send digest to each user
     const results = await step.run("send-digests", async () => {
       let sent = 0;
 
-      for (const user of eligibleUsers) {
-        // Get all pages for this user with their latest scan status
-        const { data: pages } = await supabase
-          .from("pages")
-          .select(`
-            id,
-            url,
-            last_scan_id
-          `)
-          .eq("user_id", user.id);
-
-        if (!pages || pages.length === 0) continue;
-
-        // Get latest analysis for each page
-        const pageStatuses: Array<{
-          url: string;
-          domain: string;
-          status: "changed" | "stable" | "suggestion";
-          changesCount?: number;
-          helped?: boolean;
-          suggestionTitle?: string;
-        }> = [];
-
-        for (const page of pages) {
-          if (!page.last_scan_id) {
-            pageStatuses.push({
-              url: page.url,
-              domain: new URL(page.url).hostname,
-              status: "stable",
-            });
-            continue;
-          }
-
-          const { data: analysis } = await supabase
-            .from("analyses")
-            .select("changes_summary, structured_output")
-            .eq("id", page.last_scan_id)
+      for (const [userId, analyses] of byUser) {
+        try {
+          // Check user email preferences
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email, email_notifications")
+            .eq("id", userId)
             .single();
 
-          const changesSummary = analysis?.changes_summary as ChangesSummary | null;
-          const structuredOutput = analysis?.structured_output as { findings?: Array<{ title: string }> } | null;
+          if (!profile?.email || !profile.email_notifications) continue;
 
-          if (changesSummary?.changes?.length) {
-            // Has changes
-            const hasImproved = changesSummary.correlation?.metrics?.some(
-              (m) => m.assessment === "improved"
-            );
-            pageStatuses.push({
-              url: page.url,
-              domain: new URL(page.url).hostname,
-              status: "changed",
-              changesCount: changesSummary.changes.length,
-              helped: hasImproved,
-            });
-          } else if (changesSummary?.suggestions?.length) {
-            // Has suggestions
-            pageStatuses.push({
-              url: page.url,
-              domain: new URL(page.url).hostname,
-              status: "suggestion",
-              suggestionTitle: changesSummary.suggestions[0]?.title,
-            });
-          } else if (structuredOutput?.findings?.length) {
-            // Initial audit with findings
-            pageStatuses.push({
-              url: page.url,
-              domain: new URL(page.url).hostname,
-              status: "suggestion",
-              suggestionTitle: structuredOutput.findings[0]?.title,
-            });
-          } else {
-            pageStatuses.push({
-              url: page.url,
-              domain: new URL(page.url).hostname,
-              status: "stable",
-            });
+          // Build page results
+          const pageResults: Array<{
+            url: string;
+            domain: string;
+            analysisId: string;
+            hasChanges: boolean;
+            primaryChange?: { element: string; before: string; after: string };
+            additionalChangesCount?: number;
+          }> = [];
+
+          for (const analysis of analyses) {
+            const changesSummary = analysis.changes_summary as ChangesSummary | null;
+            const hasChanges = !!(changesSummary?.changes?.length);
+
+            let domain: string;
+            try {
+              domain = new URL(analysis.url).hostname;
+            } catch {
+              domain = analysis.url;
+            }
+
+            const result: (typeof pageResults)[number] = {
+              url: analysis.url,
+              domain,
+              analysisId: analysis.id,
+              hasChanges,
+            };
+
+            if (hasChanges && changesSummary) {
+              const primary = changesSummary.changes[0];
+              result.primaryChange = {
+                element: primary.element,
+                before: primary.before,
+                after: primary.after,
+              };
+              result.additionalChangesCount = changesSummary.changes.length - 1;
+            }
+
+            pageResults.push(result);
           }
-        }
 
-        // Send the digest email
-        const { subject, html } = weeklyDigestEmail({ pages: pageStatuses });
-        await sendEmail({ to: user.email!, subject, html }).catch(console.error);
-        sent++;
+          // Skip email if ALL pages are stable
+          const anyChanged = pageResults.some((p) => p.hasChanges);
+          if (!anyChanged) continue;
+
+          // Send consolidated email
+          const { subject, html } = dailyDigestEmail({ pages: pageResults });
+          await sendEmail({ to: profile.email, subject, html }).catch(console.error);
+          sent++;
+        } catch (err) {
+          console.error(`Digest failed for user ${userId}:`, err);
+        }
       }
 
       return sent;

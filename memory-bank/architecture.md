@@ -644,25 +644,26 @@ When correlating changes with database metrics, be specific:
 3. **Correlation unlocked** (`correlationUnlockedEmail`) — When watching item becomes validated
    - Subject: "Your {element} change helped"
    - Celebrates confirmed positive correlation
-4. **Weekly digest** (`weeklyDigestEmail`) — For users with 3+ pages (Monday 10am UTC)
-   - Subject: "Your weekly Loupe report"
-   - Lists all pages with status: changed/helped/stable/suggestion
+4. **Daily digest** (`dailyDigestEmail`) — Consolidated summary after daily/weekly scans (11am UTC)
+   - Dynamic subject: "{domain} changed, 2 pages stable" or "2 of 3 pages changed"
+   - Changed pages show primary change before/after detail
+   - Stable pages shown as compact one-liners
+   - Only sent if at least 1 page changed; all-quiet = no email
 5. **Waitlist confirmation** — When someone joins waitlist
 
 Manual re-scans do NOT trigger emails.
 
 ### Email Selection Logic
-In `analyzeUrl` (Inngest function):
-1. Skip if `trigger_type === "manual"`
-2. Skip if `email_notifications === false`
-3. If `changes_summary.changes.length > 0` → `changeDetectedEmail()`
-4. If no changes → `allQuietEmail()`
+- **Deploy scans**: Per-page email (changeDetected/allQuiet) sent immediately from `analyzeUrl`
+- **Daily/weekly scans**: No per-page email. Consolidated via `dailyScanDigest` at 11am UTC
+- **Correlation unlock**: Sent immediately when watching → validated transition detected
+- **Manual rescans**: No email
 
 ### Correlation Unlock Detection
 After storing `changes_summary`, compares previous `watchingItems` with current `validatedItems`. If an item transitioned from watching to validated, sends `correlationUnlockedEmail`.
 
-### Weekly Digest
-Inngest function `weeklyDigest` runs Monday 10am UTC (1 hour after scheduled scans). Finds users with 3+ pages and `email_notifications === true`, aggregates page statuses, sends digest.
+### Daily Scan Digest
+Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start at 9am). Queries completed analyses from last 3 hours with `trigger_type` in (daily, weekly), groups by user, skips if all pages stable, sends one consolidated email per user. Per-user try/catch prevents one failure from blocking others.
 
 ### Key Files
 - `src/lib/email/resend.ts` — Resend client wrapper, `sendEmail()` helper
@@ -681,11 +682,11 @@ Inngest function `weeklyDigest` runs Monday 10am UTC (1 hour after scheduled sca
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion. Sends context-aware email (changeDetected/allQuiet) for scheduled/deploy scans. Detects correlation unlocks.
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion. Sends per-page email (changeDetected/allQuiet) only for deploy scans. Detects correlation unlocks.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
 - `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
 - `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans all user pages (simplified for MVP: 1 domain per user)
-- `weekly-digest` — weekly cron (Monday 10am UTC), sends digest email to users with 3+ monitored pages
+- `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 
 ## File Structure
 ```
