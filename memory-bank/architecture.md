@@ -601,11 +601,27 @@ User connects Supabase (URL + Key)
 4. **Conversion detection** — LLM identifies tables like `users`, `signups`, `orders`, `waitlist` automatically.
 
 ### Connection Flow
-1. User pastes Project URL + Anon Key (same key they use in their app)
-2. Validate credentials via REST health check
-3. Try schema introspection (may fail if RLS blocks)
+1. User pastes Project URL + Key (anon or service role)
+2. Validate credentials via OpenAPI endpoint fetch
+3. Discover tables from Swagger spec paths (see below)
 4. Store credentials in `integrations` table (provider: 'supabase')
-5. If no schema access → prompt to upgrade to Service Role Key
+5. If anon key + no tables → prompt to upgrade to Service Role Key
+
+### Table Discovery (OpenAPI Approach)
+Supabase's PostgREST doesn't expose `information_schema` via REST API (even with service role key). Instead, we fetch the auto-generated Swagger spec:
+
+```javascript
+const spec = await fetch(`${projectUrl}/rest/v1/`, {
+  headers: { apikey, Authorization: `Bearer ${key}`, Accept: "application/openapi+json" }
+}).then(r => r.json());
+
+// Response: { swagger: "2.0", paths: { "/": {...}, "/profiles": {...}, "/orders": {...} } }
+const tables = Object.keys(spec.paths)
+  .filter(p => p !== "/" && !p.startsWith("/rpc/"))  // Skip introspection + RPC
+  .map(p => p.replace(/^\//, ""));  // Remove leading slash
+```
+
+This returns all tables exposed to the API based on the key's role permissions.
 
 ### Credentials Storage
 ```sql
@@ -925,6 +941,52 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 | `src/lib/analytics/posthog-adapter.ts` | HogQL absolute date queries |
 | `src/lib/analytics/ga4-adapter.ts` | GA4 YYYY-MM-DD date format |
 | `src/lib/types/analysis.ts` | `DetectedChange`, `CorrelationMetrics`, `QuickDiffResult` |
+
+---
+
+## Dashboard Results Zone
+
+**Purpose:** Surface correlation wins/losses at the top of the dashboard. Completes the value flywheel:
+```
+Free audit → Track page → First correlation proves it works → Upgrade
+```
+
+### Architecture
+
+```
+/api/changes (GET)
+    │
+    ├─ Query detected_changes WHERE status IN ('validated', 'regressed')
+    ├─ Include correlation_metrics, page info
+    └─ Return sorted by correlation_unlocked_at DESC
+
+Dashboard page
+    │
+    ├─ ResultsZone (top, before AttentionZone)
+    │   └─ ResultCard[] (max 4, grid layout)
+    │       ├─ Big percentage (hero moment)
+    │       ├─ Element name + before/after
+    │       └─ Metric name + direction
+    │
+    └─ Deep link support: ?win=<changeId> highlights specific card
+```
+
+### Design Decisions
+- **Results at TOP** — Wins ARE the proof, not buried below attention items
+- **Emerald for validated** — Positive, growth, success
+- **Coral for regressed** — Attention needed, but not scary red
+- **Max 4 cards** — Prevents overwhelming; "See all X results" link if more
+- **Hidden when empty** — Zone appears organically on first correlation
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `src/app/api/changes/route.ts` | GET endpoint for detected_changes with stats |
+| `src/components/dashboard/ResultsZone.tsx` | Zone header + grid container |
+| `src/components/dashboard/ResultCard.tsx` | Individual result with percentage hero |
+| `src/app/dashboard/page.tsx` | Integrates ResultsZone at top |
+| `src/lib/email/templates.ts` | Deep links with `?win=` param |
+| `src/lib/utils/date.ts` | `formatDistanceToNow()` utility |
 
 ---
 
