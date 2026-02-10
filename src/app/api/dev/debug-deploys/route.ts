@@ -34,10 +34,10 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(10);
 
-  // Get recent analyses (last 24h)
+  // Get recent analyses with FULL structured_output and changes_summary (last 24h)
   const { data: analyses } = await supabase
     .from("analyses")
-    .select("id, url, status, trigger_type, deploy_id, created_at, changes_summary")
+    .select("id, url, status, trigger_type, deploy_id, parent_analysis_id, created_at, structured_output, changes_summary")
     .eq("user_id", user.id)
     .gte("created_at", oneDayAgo.toISOString())
     .order("created_at", { ascending: false })
@@ -64,16 +64,32 @@ export async function GET() {
       status: d.status,
       created_at: d.created_at,
     })),
-    recent_analyses: analyses?.map(a => ({
-      id: a.id,
-      url: a.url,
-      status: a.status,
-      trigger_type: a.trigger_type,
-      deploy_id: a.deploy_id,
-      created_at: a.created_at,
-      has_changes: !!(a.changes_summary as { changes?: unknown[] })?.changes?.length,
-      changes_count: (a.changes_summary as { changes?: unknown[] })?.changes?.length || 0,
-    })),
+    recent_analyses: analyses?.map(a => {
+      const structured = a.structured_output as { verdict?: string; findings?: Array<{ title?: string; currentValue?: string }> } | null;
+      const changes = a.changes_summary as { changes?: unknown[]; verdict?: string } | null;
+
+      return {
+        id: a.id,
+        url: a.url,
+        status: a.status,
+        trigger_type: a.trigger_type,
+        deploy_id: a.deploy_id,
+        parent_analysis_id: a.parent_analysis_id,
+        created_at: a.created_at,
+        // Structured output summary
+        verdict: structured?.verdict,
+        findings_count: structured?.findings?.length || 0,
+        first_finding: structured?.findings?.[0] ? {
+          title: structured.findings[0].title,
+          currentValue: structured.findings[0].currentValue?.slice(0, 100),
+        } : null,
+        // Changes summary
+        has_changes_summary: !!changes,
+        changes_verdict: changes?.verdict,
+        changes_count: (changes?.changes as unknown[] | undefined)?.length || 0,
+        changes_preview: changes?.changes,
+      };
+    }),
     pages: pages?.map(p => ({
       id: p.id,
       url: p.url,
