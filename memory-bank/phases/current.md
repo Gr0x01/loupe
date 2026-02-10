@@ -223,6 +223,83 @@ See `architecture.md` Security section for details.
 
 See `decisions.md` D27-D28 and `homepage-story.md` for details.
 
+### Deploy Scanning & Correlation System Fix (Feb 2026)
+
+Major refactor to reduce deploy scan costs and fix correlation windows.
+
+**Problem solved:**
+- Every GitHub push triggered full LLM analysis (~$0.06/page)
+- Each deploy shifted parent reference, breaking correlation windows
+- Analytics tools only supported relative windows, not absolute dates
+- `daysOfData` was LLM-guessed, not calculated from timestamps
+
+**New architecture:**
+1. **Lightweight deploy detection** — Haiku vision diff (~$0.01) instead of full Sonnet analysis
+2. **Stable baseline** — Daily/weekly scans set `stable_baseline_id`, deploys compare against it
+3. **Persistent change registry** — `detected_changes` table with `first_detected_at` timestamp
+4. **Absolute date correlation** — `comparePeriodsAbsolute()` on analytics providers
+5. **Correlation cron** — `checkCorrelations` runs every 6h to unlock watching → validated
+
+**New user flow:**
+| When | What Happens | User Sees |
+|------|--------------|-----------|
+| Deploy | Screenshot + Haiku diff | "We noticed your headline changed. Watching for impact." |
+| Next day 9am | Full daily analysis | Changes documented, new suggestions, findings |
+| 7+ days later | Correlation cron | "Your headline change helped — signups up 12%" |
+
+**Database changes:**
+- New `detected_changes` table (page_id, element, scope, before/after, status, correlation_metrics)
+- Added `stable_baseline_id` column to pages table
+
+**Key files modified:**
+- `src/lib/inngest/functions.ts` — Modified `deployDetected`, added `checkCorrelations` cron
+- `src/lib/ai/pipeline.ts` — Added `runQuickDiff()` for Haiku vision comparison
+- `src/lib/analytics/provider.ts` — Added `comparePeriodsAbsolute()` interface
+- `src/lib/analytics/posthog-adapter.ts` — Implemented absolute date queries
+- `src/lib/analytics/ga4-adapter.ts` — Implemented absolute date queries
+- `src/lib/analytics/correlation.ts` — New file for `correlateChange()` utility
+- `src/lib/analysis/baseline.ts` — New file for `getStableBaseline()` utility
+- `src/lib/types/analysis.ts` — Added `DetectedChange`, `QuickDiffResult`, updated `WatchingItem`
+
+**Cost reduction:** ~60-80% savings on deploy scans for active deployers.
+
+### Dashboard Results Zone (Feb 2026)
+
+Surfaced validated/regressed correlations in the dashboard UI. The flywheel is now complete:
+
+```
+Free audit → Track page → First correlation proves it works → Upgrade
+                                    ↑
+                           NOW VISIBLE IN DASHBOARD
+```
+
+**New files:**
+- `src/app/api/changes/route.ts` — API endpoint for detected_changes with stats
+- `src/components/dashboard/ResultsZone.tsx` — Zone with header, grid, "see all" link
+- `src/components/dashboard/ResultCard.tsx` — Individual validated/regressed change card
+- `src/lib/utils/date.ts` — formatDistanceToNow utility
+
+**Modified files:**
+- `src/app/dashboard/page.tsx` — Added ResultsZone at TOP, ?win= highlight param
+- `src/lib/email/templates.ts` — Correlation email deep links to dashboard with ?win= param
+- `src/lib/inngest/functions.ts` — Pass changeId to email template
+- `src/components/dashboard/index.ts` — Export new components
+- `src/app/globals.css` — Result card CSS (emerald/coral accents, big percentage)
+
+**User flow:**
+1. User deploys change → detected_changes record created with status "watching"
+2. 7 days later → correlation cron runs → status "validated" or "regressed"
+3. Email sent → "Your headline change helped" with deep link
+4. User clicks → Dashboard shows ResultsZone at top with their win highlighted
+5. Card shows: element, before/after, big percentage, metric name
+
+**Design decisions:**
+- ResultsZone at TOP of dashboard (before Attention) — wins ARE the proof
+- Emerald accent for validated, coral for regressed
+- Big percentage number is hero moment (shareable)
+- Hidden when empty — appears organically on first correlation
+- Max 4 cards in grid, "See all X results" link if more
+
 ### Key Changes (remaining)
 - None — Phase 2A complete
 

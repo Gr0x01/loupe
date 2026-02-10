@@ -115,12 +115,37 @@ pages (
   name text,                      -- optional friendly name
   scan_frequency text NOT NULL DEFAULT 'weekly',  -- weekly | daily | manual
   last_scan_id uuid FK analyses ON DELETE SET NULL,
+  stable_baseline_id uuid FK analyses ON DELETE SET NULL,  -- stable baseline for quick diff
   repo_id uuid FK repos ON DELETE SET NULL,  -- link to GitHub repo for auto-scan
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, url)
 )
 -- RLS: user can only access own pages (auth.uid() = user_id)
 -- Note: hide_from_leaderboard column removed (leaderboard feature deleted in Phase 2A.1.1)
+
+detected_changes (
+  id uuid PK default gen_random_uuid(),
+  page_id uuid NOT NULL FK pages ON DELETE CASCADE,
+  user_id uuid NOT NULL FK auth.users ON DELETE CASCADE,
+  element text NOT NULL,              -- "Your Headline", "Hero Section"
+  element_type text,                  -- "headline", "cta", "layout"
+  scope text NOT NULL DEFAULT 'element',  -- element | section | page
+  before_value text NOT NULL,
+  after_value text NOT NULL,
+  description text,
+  first_detected_at timestamptz NOT NULL DEFAULT now(),
+  first_detected_date date GENERATED ALWAYS AS ((first_detected_at AT TIME ZONE 'UTC')::date) STORED,
+  first_detected_analysis_id uuid FK analyses ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'watching',  -- watching | validated | regressed | inconclusive | reverted
+  correlation_metrics jsonb,
+  correlation_unlocked_at timestamptz,
+  deploy_id uuid FK deploys ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+)
+-- Indexes: (page_id, status), (user_id, status) WHERE status='watching', (first_detected_at) WHERE status='watching'
+-- Unique: (page_id, element, first_detected_date) — prevents duplicate changes same day
+-- RLS: user can view own, service role can manage
 
 profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
@@ -682,11 +707,12 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` on completion. Sends per-page email (changeDetected/allQuiet) only for deploy scans. Detects correlation unlocks.
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
-- `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`
-- `deploy-detected` — triggered by GitHub webhook push, waits 45s for Vercel, then scans all user pages (simplified for MVP: 1 domain per user)
+- `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id.
+- `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
+- `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
 
 ## File Structure
 ```
@@ -783,6 +809,122 @@ Note: Post-analysis only runs on re-scans or when analytics connected. First ano
 | Pro (10 pages, weekly + on-demand) | ~$3-5 |
 
 Pro at $19/mo = healthy margins.
+
+---
+
+## Deploy Scanning & Correlation System
+
+### Architecture: Two-Tier Change Detection
+
+**Problem solved:** Every GitHub push was triggering full LLM analysis (~$0.06/page), and each deploy shifted the parent reference, breaking correlation windows.
+
+**Solution:** Lightweight deploy detection with deferred correlation.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      DEPLOY DETECTION (Cheap)                       │
+│                                                                     │
+│  GitHub Push → deploy/detected event → 45s wait → for each page:   │
+│    ├─ Stale/missing baseline? → Full analysis (fallback)           │
+│    └─ Fresh baseline? → Haiku quick diff (~$0.01) → detected_changes│
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SCHEDULED SCAN (Full Value)                      │
+│                                                                     │
+│  Daily/Weekly cron → Full Gemini analysis → sets stable_baseline_id │
+│    ├─ Copy suggestions, design findings, current state audit       │
+│    ├─ Passes pending changes to LLM for revert detection           │
+│    └─ Updates stable_baseline_id for future deploy comparisons     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                   CORRELATION CRON (Deferred)                       │
+│                                                                     │
+│  Every 6h → Find watching changes with 7+ days data:                │
+│    ├─ Query analytics with absolute date windows (7d before/after)  │
+│    ├─ Update status: validated / regressed / inconclusive          │
+│    └─ Send correlationUnlockedEmail if improved                    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Cost Comparison
+
+| Approach | Cost per page per deploy |
+|----------|-------------------------|
+| Old (full analysis) | ~$0.06 |
+| New (Haiku diff) | ~$0.01 |
+| **Savings** | **83%** |
+
+For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
+
+### Key Components
+
+**Stable Baseline (`src/lib/analysis/baseline.ts`):**
+- Priority 1: `pages.stable_baseline_id` (explicit baseline from daily/weekly scan)
+- Priority 2: Last daily/weekly scan that completed
+- Priority 3: Most recent complete analysis 24h+ old
+- Priority 4: null (triggers full analysis to establish baseline)
+- Staleness: >14 days triggers full analysis fallback
+
+**Quick Diff (`src/lib/ai/pipeline.ts: runQuickDiff`):**
+- Uses Claude Haiku for fast, cheap vision comparison
+- Compares baseline screenshot URL vs current screenshot base64
+- Returns `QuickDiffResult` with changes array (element, scope, before, after)
+- Aggregates changes appropriately (element/section/page scope)
+
+**Detected Changes (`detected_changes` table):**
+- Persistent registry with `first_detected_at` timestamps (correlation anchor)
+- Status state machine: `watching` → `validated` | `regressed` | `inconclusive` | `reverted`
+- Dedup via unique index on `(page_id, element, first_detected_date)`
+- `correlation_metrics` stores analytics comparison results when correlation completes
+
+**Correlation (`src/lib/analytics/correlation.ts: correlateChange`):**
+- Uses `comparePeriodsAbsolute()` on analytics providers (not relative "last 7 days")
+- 7 days before change vs 7 days after change
+- Checks bounce_rate, pageviews, unique_visitors
+- Returns assessment: improved (down bounce / up traffic), regressed, neutral
+
+**LLM-Based Revert Detection:**
+- Post-analysis receives pending changes (watching status) via `pendingChanges` parameter
+- LLM checks if each change is still visible on page (shows AFTER value) or reverted (shows BEFORE value)
+- Returns `revertedChangeIds: string[]` with IDs of reverted changes
+- Changes marked as status `"reverted"` in database
+- Security: IDs validated against sent IDs set, ownership check, status check before update
+
+### Inngest Functions
+
+| Function | Trigger | Purpose |
+|----------|---------|---------|
+| `deploy-detected` | `deploy/detected` event | Lightweight Haiku diff, creates detected_changes |
+| `analyze-url` | `analysis/created` event | Full analysis, sets stable_baseline_id for daily/weekly |
+| `check-correlations` | Cron every 6h | Queries analytics for 7+ day old watching changes |
+| `daily-scan-digest` | Cron 11am UTC | Consolidated email for daily/weekly scans |
+
+### Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| No baseline | Falls back to full analysis (establishes baseline) |
+| Stale baseline (>14d) | Falls back to full analysis |
+| Deploy fallback to full | Now sets stable_baseline_id to prevent infinite loop |
+| Analytics disconnected | Marks change as `inconclusive`, doesn't retry forever |
+| Quick diff parse failure | Returns `{ hasChanges: false }` (safe false negative) |
+| Multiple rapid deploys | Each runs independently (45s wait each) |
+| Reverted change | LLM detects, marks as `status: "reverted"` |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/inngest/functions.ts` | `deployDetected`, `checkCorrelations`, `analyzeUrl` mods |
+| `src/lib/ai/pipeline.ts` | `runQuickDiff` (Haiku), `formatPendingChanges`, revertedChangeIds |
+| `src/lib/analysis/baseline.ts` | `getStableBaseline` (3-tier fallback), `isBaselineStale` |
+| `src/lib/analytics/correlation.ts` | `correlateChange` (absolute date windows) |
+| `src/lib/analytics/provider.ts` | `comparePeriodsAbsolute()` interface |
+| `src/lib/analytics/posthog-adapter.ts` | HogQL absolute date queries |
+| `src/lib/analytics/ga4-adapter.ts` | GA4 YYYY-MM-DD date format |
+| `src/lib/types/analysis.ts` | `DetectedChange`, `CorrelationMetrics`, `QuickDiffResult` |
 
 ---
 
