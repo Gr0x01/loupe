@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { Inter, Urbanist, IBM_Plex_Mono } from "next/font/google";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { PostHogPageView } from "@/components/PostHogPageView";
 import SiteNav from "@/components/SiteNav";
@@ -14,9 +14,10 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const spaceGrotesk = Space_Grotesk({
+const urbanist = Urbanist({
   variable: "--font-display", // Headline font
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -99,7 +100,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable} font-sans antialiased min-h-screen flex flex-col`}
+        className={`${inter.variable} ${urbanist.variable} ${ibmPlexMono.variable} font-sans antialiased min-h-screen flex flex-col`}
       >
         <PostHogProvider>
           <PostHogPageView />
