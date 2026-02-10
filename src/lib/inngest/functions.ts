@@ -113,26 +113,17 @@ export const analyzeUrl = inngest.createFunction(
         let previousRunningSummary = null;
 
         if (parentAnalysisId) {
-          const { data: parent, error: parentError } = await supabase
+          const { data: parent } = await supabase
             .from("analyses")
             .select("structured_output, changes_summary")
             .eq("id", parentAnalysisId)
             .single();
 
-          if (parentError) {
-            console.error(`Failed to fetch parent analysis ${parentAnalysisId}:`, parentError);
-          } else if (!parent) {
-            console.warn(`Parent analysis ${parentAnalysisId} not found`);
-          } else if (!parent.structured_output) {
-            console.warn(`Parent analysis ${parentAnalysisId} has no structured_output`);
-          } else {
+          if (parent?.structured_output) {
             previousFindings = parent.structured_output;
             previousRunningSummary =
               (parent.changes_summary as ChangesSummary | null)?.running_summary ?? null;
-            console.log(`Loaded previousFindings from parent ${parentAnalysisId}`);
           }
-        } else {
-          console.log(`No parentAnalysisId for analysis ${analysisId}`);
         }
 
         // Fetch deploy context if this analysis was triggered by a deploy
@@ -319,8 +310,6 @@ export const analyzeUrl = inngest.createFunction(
               // Also store in analytics_correlation for dedicated access
               updateData.analytics_correlation = changesSummary;
             }
-
-            console.log(`Storing changes_summary for ${analysisId}: ${changesSummary.changes?.length || 0} changes, previousFindings: ${!!previousFindings}`);
 
             await supabase
               .from("analyses")
