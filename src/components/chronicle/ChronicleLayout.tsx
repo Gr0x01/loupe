@@ -182,7 +182,7 @@ export function ChronicleLayout({
         <div className="chronicle-section-header">
           <h2
             className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Progress
           </h2>

@@ -13,7 +13,7 @@ export function EmptySuccessState() {
       </div>
       <h3
         className="text-xl font-bold text-text-primary mb-2"
-        style={{ fontFamily: "var(--font-instrument-serif)" }}
+        style={{ fontFamily: "var(--font-display)" }}
       >
         All quiet
       </h3>

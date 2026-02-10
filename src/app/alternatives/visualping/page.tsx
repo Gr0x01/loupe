@@ -168,7 +168,7 @@ export default function VisualpingAlternativePage() {
               </div>
               <h1
                 className="text-[clamp(2rem,4vw,3rem)] leading-[1.1] text-text-primary mb-6"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 A Visualping alternative that tells you{" "}
                 <span className="italic">what</span> changed
@@ -196,7 +196,7 @@ export default function VisualpingAlternativePage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               The fundamental difference
             </h2>
@@ -299,7 +299,7 @@ export default function VisualpingAlternativePage() {
           <div className="text-center mb-10">
             <h2
               className="text-[clamp(1.5rem,3vw,2rem)] text-text-primary mb-3"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Loupe vs Visualping
             </h2>
@@ -356,7 +356,7 @@ export default function VisualpingAlternativePage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-white mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Which tool for which job?
             </h2>
@@ -406,7 +406,7 @@ export default function VisualpingAlternativePage() {
           <div className="text-center mb-12">
             <h2
               className="text-[clamp(1.5rem,3vw,2rem)] text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Frequently asked questions
             </h2>

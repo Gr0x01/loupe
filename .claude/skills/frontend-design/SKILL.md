@@ -68,7 +68,7 @@ Solid surfaces, strong borders, minimal shadows. Confident typography with a war
 Font loading via `next/font/google`:
 ```tsx
 // --font-dm-sans → Inter (body)
-// --font-instrument-serif → Space Grotesk (headlines)
+// --font-display → Space Grotesk (headlines)
 // --font-geist-mono → IBM Plex Mono (code)
 ```
 
@@ -197,7 +197,7 @@ Uses a gradient arc from signal → paper on a subtle track. Letter grade + nume
   <p className="text-sm font-semibold text-ink-500 uppercase tracking-wide mb-2">
     Category Name
   </p>
-  <p className="text-4xl font-black" style={{ fontFamily: 'var(--font-instrument-serif)' }}>
+  <p className="text-4xl font-black" style={{ fontFamily: 'var(--font-display)' }}>
     68
   </p>
   <div className="progress-track mb-3">

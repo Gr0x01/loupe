@@ -9,24 +9,24 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// Brand colors — Soft Brutalism 2.0
+// Brand colors — Refined Brutalism 2.0
 const colors = {
-  background: "#F7F4EC",
+  background: "#F8FAFC",
   card: "#FFFFFF",
-  accent: "#FF5A36",
-  textPrimary: "#111111",
-  textSecondary: "#555555",
-  textMuted: "#888888",
-  scoreHigh: "#15803D",
-  scoreMid: "#B45309",
-  scoreLow: "#B91C1C",
-  border: "#1a1a1a",
-  borderSubtle: "rgba(26, 26, 26, 0.12)",
+  accent: "#FF6B4A",
+  textPrimary: "#0F172A",
+  textSecondary: "#64748B",
+  textMuted: "#94A3B8",
+  scoreHigh: "#059669",
+  scoreMid: "#D97706",
+  scoreLow: "#DC2626",
+  border: "#9AAABD",
+  borderSubtle: "rgba(100, 116, 139, 0.34)",
 };
 
 // Typography stacks
 const fonts = {
-  headline: "Georgia, 'Times New Roman', serif",
+  headline: "'Trebuchet MS', 'Gill Sans', 'Helvetica Neue', Arial, sans-serif",
   body: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
   mono: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
 };
@@ -71,7 +71,7 @@ function emailWrapper(content: string): string {
           <!-- Content Card -->
           <tr>
             <td>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: ${colors.card}; border-radius: 16px; border: 1px solid ${colors.border};">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: ${colors.card}; border-radius: 10px; border: 2px solid ${colors.border}; box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14);">
                 <tr>
                   <td class="content-card" style="padding: 40px 36px;">
                     ${content}
@@ -207,7 +207,7 @@ export function changeDetectedEmail({
   const changeDetailHtml = `
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
       <tr>
-        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 12px;">
+        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
           <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
             ${escapeHtml(primaryChange.element)}
           </p>
@@ -324,7 +324,7 @@ export function allQuietEmail({
     suggestionHtml = `
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
         <tr>
-          <td style="padding: 20px; background-color: ${colors.background}; border-radius: 12px;">
+          <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
             <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
               While things are quiet
             </p>
@@ -410,7 +410,7 @@ export function correlationUnlockedEmail({
   const changeDetailHtml = `
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
       <tr>
-        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 12px;">
+        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
           <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
             Your ${escapeHtml(change.element.toLowerCase())} on ${escapeHtml(change.changedAt)}
           </p>
@@ -534,7 +534,7 @@ export function dailyDigestEmail({
 
       return `
         <tr>
-          <td style="padding: 16px; background-color: ${colors.background}; border-radius: 12px; margin-bottom: 8px;">
+          <td style="padding: 16px; background-color: ${colors.background}; border-radius: 10px; margin-bottom: 8px;">
             <a href="https://getloupe.io/analysis/${page.analysisId}" style="font-size: 15px; font-weight: 600; color: ${colors.textPrimary}; text-decoration: none;">
               ${escapeHtml(page.domain)}
             </a>
@@ -644,7 +644,7 @@ export function claimPageEmail({
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
       <tr>
-        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 12px;">
+        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
           <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
             What happens next
           </p>
@@ -682,7 +682,7 @@ export function waitlistConfirmationEmail({
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
       <tr>
-        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 12px;">
+        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
           <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
             What you'll get
           </p>

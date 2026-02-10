@@ -144,7 +144,7 @@ export default function CorrelationCard() {
               </span>
               <span
                 className="text-[14px] font-bold text-score-high"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 +23%
               </span>

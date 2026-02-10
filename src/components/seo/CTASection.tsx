@@ -22,7 +22,7 @@ export default function CTASection({
       <div className="w-full max-w-2xl mx-auto text-center">
         <h2
           className="text-[clamp(1.75rem,4vw,2.5rem)] text-text-primary mb-4"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           {headline}
         </h2>

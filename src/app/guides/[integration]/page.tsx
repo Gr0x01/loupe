@@ -149,7 +149,7 @@ export default async function IntegrationGuidePage({ params }: PageProps) {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               How it works
             </h2>

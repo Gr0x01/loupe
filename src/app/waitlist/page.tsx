@@ -57,7 +57,7 @@ export default function WaitlistPage() {
             </div>
             <h1
               className="text-4xl text-text-primary tracking-tight"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               You're on the list
             </h1>
@@ -74,7 +74,7 @@ export default function WaitlistPage() {
           <>
             <h1
               className="text-4xl text-text-primary tracking-tight mt-8"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Founding 50 is full
             </h1>

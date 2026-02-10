@@ -154,7 +154,7 @@ export function ClaimModal({
             <h2
               id="claim-modal-title"
               className="text-2xl font-bold text-text-primary mb-3"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Someone&apos;s already watching this
             </h2>
@@ -195,7 +195,7 @@ export function ClaimModal({
             <h2
               id="claim-modal-title"
               className="text-2xl font-bold text-text-primary mb-3"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               You&apos;re at your page limit
             </h2>

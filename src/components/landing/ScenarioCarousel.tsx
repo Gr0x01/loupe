@@ -166,7 +166,7 @@ function ScenarioCard({
 
             <h3
               className="text-lg sm:text-xl text-text-primary leading-snug mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               {scenario.title}
             </h3>
@@ -216,7 +216,7 @@ function ScenarioCard({
                       ? "text-score-high"
                       : "text-score-low"
                   }`}
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   +{count}%
                 </span>
@@ -259,7 +259,7 @@ export default function ScenarioCarousel() {
           </p>
           <h2
             className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Here&apos;s what Loupe caught this&nbsp;week.
           </h2>

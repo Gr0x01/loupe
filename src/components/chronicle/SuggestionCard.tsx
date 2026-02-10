@@ -51,7 +51,7 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <p
               className="text-[1.0625rem] font-semibold text-text-primary leading-snug"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               {suggestion.title}
             </p>
@@ -104,7 +104,7 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
             </p>
             <p
               className="text-[0.9375rem] text-text-primary leading-relaxed"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               {suggestion.prediction.friendlyText} ({suggestion.prediction.direction === "up" ? "+" : "-"}
               {suggestion.prediction.range})

@@ -17,7 +17,7 @@ export function WhatChangedSection({ changes, correlation, hasError }: WhatChang
         <div className="chronicle-section-header">
           <h2
             className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             What changed
           </h2>
@@ -42,7 +42,7 @@ export function WhatChangedSection({ changes, correlation, hasError }: WhatChang
       <div className="chronicle-section-header">
         <h2
           className="text-2xl font-bold text-text-primary"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           What changed
         </h2>
@@ -96,7 +96,7 @@ export function WhatChangedSection({ changes, correlation, hasError }: WhatChang
               </p>
               <p
                 className="text-lg text-text-primary leading-relaxed"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 {correlation.insights}
               </p>

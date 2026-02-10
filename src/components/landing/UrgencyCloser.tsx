@@ -37,7 +37,7 @@ export default function UrgencyCloser({
         <h2
           className="text-[clamp(1.85rem,4.5vw,2.75rem)] text-text-primary leading-[1.15] mb-4"
           style={{
-            fontFamily: "var(--font-instrument-serif)",
+            fontFamily: "var(--font-display)",
             letterSpacing: "-0.02em",
           }}
         >

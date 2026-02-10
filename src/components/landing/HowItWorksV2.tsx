@@ -160,7 +160,7 @@ function VerdictVisual({ revealed }: { revealed: boolean }) {
         <div>
           <p
             className="text-[32px] font-bold text-score-high leading-none"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             +{count}%
           </p>
@@ -258,7 +258,7 @@ export default function HowItWorksV2() {
           </div>
           <h2
             className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Start with a free audit. Loupe handles the rest.
           </h2>
@@ -281,7 +281,7 @@ export default function HowItWorksV2() {
                 </p>
                 <h3
                   className="text-xl md:text-2xl text-text-primary mb-2"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   Step 1: Paste your URL
                 </h3>

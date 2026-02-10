@@ -16,7 +16,7 @@ export function EmptyOnboardingState() {
         </div>
         <h3
           className="text-2xl font-bold text-text-primary mb-3"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Start watching your site
         </h3>

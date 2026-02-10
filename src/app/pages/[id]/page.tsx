@@ -311,7 +311,7 @@ export default function PageTimelinePage() {
             <div className="min-w-0 flex-1">
               <h1
                 className="text-lg sm:text-xl font-semibold text-text-primary truncate"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 {displayName}
               </h1>

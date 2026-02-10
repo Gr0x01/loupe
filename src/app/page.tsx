@@ -54,7 +54,7 @@ export default function Home() {
               {/* Headline */}
               <h1
                 className="text-[clamp(2rem,4.5vw,2.85rem)] leading-[1.15] tracking-[-0.02em] landing-hero-headline-depth"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 <span className="landing-hero-headline-1 block text-text-primary">
                   Stop guessing after

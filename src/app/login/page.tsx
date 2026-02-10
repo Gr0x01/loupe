@@ -116,7 +116,7 @@ export default function LoginPage() {
             </div>
             <h1
               className="text-4xl text-text-primary tracking-tight"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               You're on the list
             </h1>
@@ -148,7 +148,7 @@ export default function LoginPage() {
             </Link>
             <h1
               className="text-4xl text-text-primary tracking-tight mt-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Founding 50 is full
             </h1>
@@ -211,7 +211,7 @@ export default function LoginPage() {
           </Link>
           <h1
             className="text-4xl text-text-primary tracking-tight mt-4"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Sign in to Loupe
           </h1>

@@ -154,7 +154,7 @@ function AddRepoModal({
       >
         <h2
           className="text-2xl font-bold text-text-primary mb-4"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Connect a repository
         </h2>
@@ -278,7 +278,7 @@ function PostHogConnectModal({
       >
         <h2
           className="text-2xl font-bold text-text-primary mb-4"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Connect PostHog
         </h2>
@@ -468,7 +468,7 @@ function GA4PropertySelectModal({
       >
         <h2
           className="text-2xl font-bold text-text-primary mb-2"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Select GA4 Property
         </h2>
@@ -613,7 +613,7 @@ function SupabaseConnectModal({
       >
         <h2
           className="text-2xl font-bold text-text-primary mb-4"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Connect Supabase
         </h2>
@@ -1008,7 +1008,7 @@ function SettingsContent() {
         <div className="mb-10">
           <h1
             className="text-4xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Settings
           </h1>

@@ -42,7 +42,7 @@ export default function WorksWithStrip() {
           </p>
           <h2
             className="mt-2 text-[clamp(1.4rem,2.8vw,2rem)] text-white leading-[1.15] tracking-[-0.01em]"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Works with how you already ship
           </h2>

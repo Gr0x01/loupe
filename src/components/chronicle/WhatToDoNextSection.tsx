@@ -14,7 +14,7 @@ export function WhatToDoNextSection({ suggestions }: WhatToDoNextSectionProps) {
         <div className="chronicle-section-header">
           <h2
             className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             What to do next
           </h2>
@@ -50,7 +50,7 @@ export function WhatToDoNextSection({ suggestions }: WhatToDoNextSectionProps) {
       <div className="chronicle-section-header">
         <h2
           className="text-2xl font-bold text-text-primary"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           What to do next
         </h2>

@@ -216,7 +216,7 @@ export default function WebsiteAuditPage() {
           </p>
           <h1
             className="text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-text-primary mb-6"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             You shipped fast.
             <br />
@@ -242,7 +242,7 @@ export default function WebsiteAuditPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               What we check
             </h2>
@@ -293,7 +293,7 @@ export default function WebsiteAuditPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               How it works
             </h2>
@@ -335,7 +335,7 @@ export default function WebsiteAuditPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] leading-tight mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)", color: "#F5F5F7" }}
+              style={{ fontFamily: "var(--font-display)", color: "#F5F5F7" }}
             >
               What you&apos;ll see
             </h2>
@@ -350,7 +350,7 @@ export default function WebsiteAuditPage() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-xs font-semibold text-[#8E8EA0] uppercase tracking-wide">Overall Score</p>
-                  <p className="text-4xl font-bold text-[#111118]" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+                  <p className="text-4xl font-bold text-[#111118]" style={{ fontFamily: "var(--font-display)" }}>
                     67<span className="text-lg text-[#8E8EA0]">/100</span>
                   </p>
                 </div>
@@ -430,7 +430,7 @@ export default function WebsiteAuditPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Frequently asked questions
             </h2>

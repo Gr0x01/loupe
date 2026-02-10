@@ -68,7 +68,7 @@ const inter = Inter({
 });
 
 const spaceGrotesk = Space_Grotesk({
-  variable: "--font-instrument-serif", // Maps to headline font
+  variable: "--font-display", // Maps to headline font
   subsets: ["latin"],
 });
 

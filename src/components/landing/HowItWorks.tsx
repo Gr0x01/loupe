@@ -172,7 +172,7 @@ function MiniMetricsVisual() {
         <div>
           <p
             className="text-lg font-bold text-score-high"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             +23%
           </p>
@@ -219,7 +219,7 @@ export default function HowItWorks() {
           </p>
           <h2
             className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Start with a free audit. Loupe handles the&nbsp;rest.
           </h2>

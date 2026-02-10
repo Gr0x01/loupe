@@ -134,7 +134,7 @@ function HeroVerdictCard({ revealed, delay = 0 }: { revealed: boolean; delay?: n
             </p>
             <p
               className="text-[2.75rem] md:text-[3rem] font-bold leading-none text-emerald mt-2"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               +{lift}%
             </p>
@@ -309,25 +309,25 @@ function CompoundingCard({ revealed, delay = 0 }: { revealed: boolean; delay?: n
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-center">
         <div className="rounded-lg bg-blue/8 py-3">
-          <p className="text-2xl font-bold text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+          <p className="text-2xl font-bold text-text-primary" style={{ fontFamily: "var(--font-display)" }}>
             {weeks}
           </p>
           <p className="text-[11px] text-text-secondary mt-0.5">weeks</p>
         </div>
         <div className="rounded-lg bg-blue/8 py-3">
-          <p className="text-2xl font-bold text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+          <p className="text-2xl font-bold text-text-primary" style={{ fontFamily: "var(--font-display)" }}>
             {scans}
           </p>
           <p className="text-[11px] text-text-secondary mt-0.5">scans</p>
         </div>
         <div className="rounded-lg bg-blue/8 py-3">
-          <p className="text-2xl font-bold text-text-primary" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+          <p className="text-2xl font-bold text-text-primary" style={{ fontFamily: "var(--font-display)" }}>
             {changes}
           </p>
           <p className="text-[11px] text-text-secondary mt-0.5">changes</p>
         </div>
         <div className="rounded-lg bg-emerald/10 py-3">
-          <p className="text-2xl font-bold text-emerald" style={{ fontFamily: "var(--font-instrument-serif)" }}>
+          <p className="text-2xl font-bold text-emerald" style={{ fontFamily: "var(--font-display)" }}>
             {validated}
           </p>
           <p className="text-[11px] text-text-secondary mt-0.5">validated</p>
@@ -355,7 +355,7 @@ export default function YourResults() {
 
           <h2
             className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Your changes. Clear calls.
           </h2>

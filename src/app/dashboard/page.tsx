@@ -59,7 +59,7 @@ function AddPageModal({
       >
         <h2
           className="text-2xl font-bold text-text-primary mb-4"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Add a page
         </h2>
@@ -146,7 +146,7 @@ function DeleteConfirmModal({
       >
         <h2
           className="text-2xl font-bold text-text-primary mb-2"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Delete {pageName}?
         </h2>
@@ -357,7 +357,7 @@ function DashboardContent() {
           <div>
             <h1
               className="text-3xl sm:text-4xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Your pages
             </h1>

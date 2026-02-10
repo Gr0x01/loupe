@@ -88,7 +88,7 @@ export default function ShareModal({ isOpen, onClose, onSuccess }: ShareModalPro
             </div>
             <h2
               className="text-2xl font-bold text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Page unlocked
             </h2>
@@ -100,7 +100,7 @@ export default function ShareModal({ isOpen, onClose, onSuccess }: ShareModalPro
           <>
             <h2
               className="text-2xl font-bold text-text-primary mb-2"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Share to unlock +1 page
             </h2>

@@ -130,7 +130,6 @@
   --color-amber-hover: var(--amber-hover);
   --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-instrument-serif);
 }
 
 /* ===== PAGE BACKGROUND ===== */
@@ -2085,7 +2084,7 @@ body.modal-open .site-nav {
 }
 
 .result-card-percent {
-  font-family: var(--font-instrument-serif);
+  font-family: var(--font-display);
   font-size: 1.75rem;
   font-weight: 400;
   line-height: 1;
@@ -2745,7 +2744,7 @@ body.modal-open .site-nav {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--emerald);
-  font-family: var(--font-instrument-serif);
+  font-family: var(--font-display);
   margin-bottom: 4px;
 }
 
@@ -3201,7 +3200,7 @@ body.modal-open .site-nav {
 
 /* Row 2: The hook (change summary) */
 .scenario-hook {
-  font-family: var(--font-instrument-serif);
+  font-family: var(--font-display);
   font-size: clamp(18px, 2.5vw, 22px);
   font-weight: 400;
   color: var(--text-primary);
@@ -3270,7 +3269,7 @@ body.modal-open .site-nav {
 }
 
 .scenario-metric-value {
-  font-family: var(--font-instrument-serif);
+  font-family: var(--font-display);
   font-size: clamp(28px, 4vw, 36px);
   font-weight: 400;
   line-height: 1.1;

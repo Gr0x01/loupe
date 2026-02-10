@@ -42,7 +42,7 @@ export default function SEOHero({
 
             <h1
               className="text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-text-primary"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               {headline}
             </h1>

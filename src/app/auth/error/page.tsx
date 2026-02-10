@@ -6,7 +6,7 @@ export default function AuthErrorPage() {
       <div className="text-center max-w-md">
         <h1
           className="text-3xl text-text-primary mb-4"
-          style={{ fontFamily: "var(--font-instrument-serif)" }}
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Something went wrong
         </h1>

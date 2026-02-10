@@ -43,7 +43,7 @@ export default function YourPage() {
                     </p>
                     <p
                       className="text-[1.05rem] text-text-primary leading-snug"
-                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                      style={{ fontFamily: "var(--font-display)" }}
                     >
                       Get started free
                     </p>
@@ -101,7 +101,7 @@ export default function YourPage() {
             </div>
             <h2
               className="text-[clamp(1.8rem,3.6vw,2.6rem)] text-text-primary leading-[1.15] tracking-[-0.01em]"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Your page, through Loupe
             </h2>

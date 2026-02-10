@@ -32,7 +32,7 @@ export function ChronicleHero({ verdict, url, baselineDate }: ChronicleHeroProps
       {/* Verdict - the star */}
       <h1
         className="chronicle-hero-verdict text-text-primary"
-        style={{ fontFamily: "var(--font-instrument-serif)" }}
+        style={{ fontFamily: "var(--font-display)" }}
       >
         {verdict}
       </h1>

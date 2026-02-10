@@ -193,7 +193,7 @@ function VerdictDisplay({
     <div className="text-left">
       <h1
         className="hero-reveal-verdict-new text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight text-text-primary max-w-2xl lg:max-w-none tracking-tight"
-        style={{ fontFamily: "var(--font-instrument-serif)" }}
+        style={{ fontFamily: "var(--font-display)" }}
       >
         {verdict}
       </h1>
@@ -475,7 +475,7 @@ function CollapsedFindingCard({
       {/* Title */}
       <h3
         className="text-lg font-bold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors"
-        style={{ fontFamily: "var(--font-instrument-serif)" }}
+        style={{ fontFamily: "var(--font-display)" }}
       >
         {finding.title}
       </h3>
@@ -629,7 +629,7 @@ function ExpandedFindingCard({
       {/* Title */}
       <h3
         className="text-2xl font-bold text-text-primary mb-6"
-        style={{ fontFamily: "var(--font-instrument-serif)" }}
+        style={{ fontFamily: "var(--font-display)" }}
       >
         {finding.title}
       </h3>
@@ -830,7 +830,7 @@ function FindingsSection({ findings, analysisId }: { findings: Finding[]; analys
         <div>
           <h2
             className="text-4xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             What to fix
           </h2>
@@ -922,14 +922,14 @@ function BottomLineSection({ url, summary, screenshotUrl }: { url: string; summa
         <blockquote className="relative mb-8">
           <span
             className="absolute -top-2 left-1/2 -translate-x-1/2 text-5xl text-accent opacity-10 select-none leading-none pointer-events-none"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
             aria-hidden="true"
           >
             "
           </span>
           <p
             className="text-xl lg:text-2xl text-text-primary leading-relaxed pt-4"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             {summary}
           </p>
@@ -1161,7 +1161,7 @@ function PdfDownloadButton({
             >
               <h3
                 className="text-xl font-bold text-text-primary mb-2"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 Download your audit
               </h3>
@@ -1818,7 +1818,7 @@ export default function AnalysisPage() {
                 <div>
                   <h2
                     className="text-4xl font-bold text-text-primary"
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    style={{ fontFamily: "var(--font-display)" }}
                   >
                     Headline rewrite
                   </h2>
@@ -1866,7 +1866,7 @@ export default function AnalysisPage() {
                       <div className="headline-rewrite-suggested relative">
                         <p
                           className="text-base font-bold leading-relaxed pr-8"
-                          style={{ fontFamily: "var(--font-instrument-serif)" }}
+                          style={{ fontFamily: "var(--font-display)" }}
                         >
                           {headlineRewrite.suggested}
                         </p>
@@ -1889,7 +1889,7 @@ export default function AnalysisPage() {
                       <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
                       <p
                         className="text-xl lg:text-2xl text-text-primary leading-snug"
-                        style={{ fontFamily: "var(--font-instrument-serif)" }}
+                        style={{ fontFamily: "var(--font-display)" }}
                       >
                         {explanation}
                       </p>
@@ -1939,7 +1939,7 @@ export default function AnalysisPage() {
                 </div>
                 <p
                   className="text-2xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   You&apos;re tracking this page
                 </p>
@@ -1965,7 +1965,7 @@ export default function AnalysisPage() {
                 </div>
                 <p
                   className="text-2xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   Already being monitored
                 </p>
@@ -1983,7 +1983,7 @@ export default function AnalysisPage() {
                 </div>
                 <p
                   className="text-2xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   You&apos;re tracking this page
                 </p>
@@ -1997,7 +1997,7 @@ export default function AnalysisPage() {
                 {/* Headline + subhead */}
                 <h2
                   className="text-2xl md:text-3xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-instrument-serif)" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   {analysis.changes_summary
                     ? "Want to know if your changes helped?"

@@ -175,7 +175,7 @@ export default function MonitorWebsiteChangesPage() {
           </p>
           <h1
             className="text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-text-primary mb-6"
-            style={{ fontFamily: "var(--font-instrument-serif)" }}
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Monitor website changes that
             <br />
@@ -219,7 +219,7 @@ export default function MonitorWebsiteChangesPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               What we catch (and&nbsp;what&nbsp;it&nbsp;means)
             </h2>
@@ -305,7 +305,7 @@ export default function MonitorWebsiteChangesPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               What you'll receive
             </h2>
@@ -385,7 +385,7 @@ export default function MonitorWebsiteChangesPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] leading-tight mb-4"
-              style={{ fontFamily: "var(--font-instrument-serif)", color: "#F5F5F7" }}
+              style={{ fontFamily: "var(--font-display)", color: "#F5F5F7" }}
             >
               Sound familiar?
             </h2>
@@ -449,7 +449,7 @@ export default function MonitorWebsiteChangesPage() {
           <div className="text-center mb-14">
             <h2
               className="text-[clamp(1.75rem,3.5vw,2.5rem)] text-text-primary leading-tight"
-              style={{ fontFamily: "var(--font-instrument-serif)" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Frequently asked questions
             </h2>

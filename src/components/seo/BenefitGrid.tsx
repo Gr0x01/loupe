@@ -34,7 +34,7 @@ export default function BenefitGrid({
             <h2
               className="text-[clamp(2rem,4vw,3rem)] leading-tight"
               style={{
-                fontFamily: "var(--font-instrument-serif)",
+                fontFamily: "var(--font-display)",
                 color: headlineColor,
               }}
             >
