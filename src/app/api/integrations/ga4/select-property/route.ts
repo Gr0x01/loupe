@@ -109,6 +109,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to save property selection" }, { status: 500 });
     }
 
+    // Reset inconclusive changes that failed due to disconnected analytics
+    // so they can be re-checked on the next correlation cron run
+    const { error: resetError } = await serviceClient
+      .from("detected_changes")
+      .update({
+        status: "watching",
+        correlation_metrics: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+      .eq("status", "inconclusive")
+      .contains("correlation_metrics", { reason: "analytics_disconnected" });
+
+    if (resetError) {
+      // Non-blocking — log but don't fail the property selection
+      console.error("Failed to reset inconclusive changes:", resetError);
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Failed to select GA4 property:", err);

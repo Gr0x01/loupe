@@ -90,6 +90,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Reset inconclusive changes that failed due to disconnected analytics
+    // so they can be re-checked on the next correlation cron run
+    const { error: resetError } = await serviceClient
+      .from("detected_changes")
+      .update({
+        status: "watching",
+        correlation_metrics: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+      .eq("status", "inconclusive")
+      .contains("correlation_metrics", { reason: "analytics_disconnected" });
+
+    if (resetError) {
+      // Non-blocking — log but don't fail the connection
+      console.error("Failed to reset inconclusive changes:", resetError);
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("PostHog connect error:", err);

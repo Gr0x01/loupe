@@ -129,6 +129,7 @@ export async function GET(req: NextRequest) {
       correlationUnlockedEmail({
         pageUrl: "https://acme.io",
         analysisId: "abc-123-def",
+        changeId: "change-456-ghi",
         change: {
           element: "headline",
           before: "Start free today",
@@ -149,6 +150,7 @@ export async function GET(req: NextRequest) {
       correlationUnlockedEmail({
         pageUrl: "https://acme.io",
         analysisId: "abc-123-def",
+        changeId: "change-789-jkl",
         change: {
           element: "CTA button",
           before: "Sign up",

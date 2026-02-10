@@ -99,4 +99,6 @@ export const RATE_LIMITS = {
   feedback: { windowMs: 60 * 60 * 1000, maxRequests: 60 },
   // Claim link: 5 per hour per IP (unauthenticated, abuse prevention)
   claimLink: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
+  // Changes: 120 reads per hour (dashboard refreshes)
+  changes: { windowMs: 60 * 60 * 1000, maxRequests: 120 },
 } as const;
