@@ -184,7 +184,7 @@ function AddRepoModal({
                   key={repo.id}
                   onClick={() => onConnect(repo)}
                   disabled={connectingId !== null}
-                  className="w-full glass-card p-4 text-left hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 disabled:opacity-50"
+                  className="w-full glass-card p-4 text-left hover:border-[rgba(255,90,54,0.15)] transition-all duration-150 disabled:opacity-50"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -502,7 +502,7 @@ function GA4PropertySelectModal({
                   key={property.property_id}
                   onClick={() => handleSelect(property)}
                   disabled={selectingId !== null}
-                  className="w-full glass-card p-4 text-left hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 disabled:opacity-50"
+                  className="w-full glass-card p-4 text-left hover:border-[rgba(255,90,54,0.15)] transition-all duration-150 disabled:opacity-50"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -1148,7 +1148,7 @@ function SettingsContent() {
                   </div>
 
                   {/* How it works */}
-                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
                     <p className="text-sm text-text-secondary">
                       <span className="font-medium text-text-primary">How it works:</span>{" "}
                       When you push to the default branch, we wait 45 seconds for your deploy to finish, then scan all pages linked to the repo.
@@ -1215,7 +1215,7 @@ function SettingsContent() {
                     </div>
                   </div>
 
-                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
                     <p className="text-sm text-text-secondary">
                       <span className="font-medium text-text-primary">How it works:</span>{" "}
                       We&apos;ll pull your analytics so you can see if changes actually moved the&nbsp;needle.
@@ -1311,7 +1311,7 @@ function SettingsContent() {
                     </div>
                   )}
 
-                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
                     <p className="text-sm text-text-secondary">
                       <span className="font-medium text-text-primary">How it works:</span>{" "}
                       We&apos;ll pull your analytics so you can see if changes actually moved the&nbsp;needle.
@@ -1427,7 +1427,7 @@ function SettingsContent() {
                     </div>
                   )}
 
-                  <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                  <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
                     <p className="text-sm text-text-secondary">
                       <span className="font-medium text-text-primary">How it works:</span>{" "}
                       We track row counts in tables like signups, orders, and waitlist to correlate page changes with real business outcomes.
@@ -1474,7 +1474,7 @@ function SettingsContent() {
               </div>
 
               <div className="mt-6 pt-6 border-t border-border-subtle">
-                <div className="glass-card p-4 bg-[rgba(91,46,145,0.04)]">
+                <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
                   <p className="text-sm text-text-secondary">
                     <span className="font-medium text-text-primary">What you&apos;ll get:</span>{" "}
                     Emails when your daily or weekly scans complete, and after GitHub-triggered deploy scans.

@@ -370,3 +370,81 @@ Prompt explicitly tells LLM: "Supabase provides REAL business outcomes, not prox
 - Our ICP is already doing the hard work (shipping) — we're here to help them see results
 - Celebration + curiosity converts better than fear for builders who are proud of their velocity
 - Tone should match the product experience: helpful advisor, not judgmental auditor
+
+## D26: Hide founding count until 10+ users (Feb 2026)
+
+**Decision**: Don't display the "X of 50 spots claimed" counter until at least 10 users have signed up. Counter auto-appears once threshold is crossed.
+
+**Why**:
+- "2/50 claimed" looks empty, not exclusive
+- Low numbers hurt social proof instead of creating urgency
+- At 10+, the counter actually works ("38 remaining" feels real)
+- Simple threshold check — no messaging changes needed
+
+**Where hidden**:
+- Homepage hero progress bar
+- Homepage closing section ("X remaining")
+- Analysis page claim modals (founding dots)
+
+**What still works**: Waitlist logic (triggers at `isFull`), founding member benefits, page limits — all independent of display threshold.
+
+## D27: Homepage redesign — 4-section "Your" structure (Feb 2026)
+
+**Decision**: Complete homepage rebuild with 4 sections, each framed around "your" — Hero, YourPage, YourResults, UrgencyCloser.
+
+**Structure**:
+1. **Hero**: "You made the change. See what it did." + SitePreviewCard animation (headline change → notification → +23%)
+2. **YourPage**: Audit preview showing what Loupe sees (headline, findings, predictions)
+3. **YourResults**: Feature grid (timeline, verdicts, metrics, compounding history)
+4. **UrgencyCloser**: "Your next change is coming. This time, you'll know."
+
+**New components** (`src/components/landing/`):
+- `SitePreviewCard.tsx` — Animated hero visual
+- `YourPage.tsx` — Two-column audit preview
+- `YourResults.tsx` — Feature grid with ChangeTimeline, VerdictCard, MetricsCard, HistoryCard
+- `UrgencyCloser.tsx` — Final CTA with trust badges
+
+**Why**:
+- Previous homepage explained Loupe's process; new homepage shows outcomes
+- "Your page, through Loupe" vs "How it works" — outcome-focused, not mechanism-focused
+- Every section uses "your" framing to make examples feel personal
+- SitePreviewCard animation demonstrates the value loop in 3 seconds
+- Removed old pattern of showing "other people's scenarios" (via Lovable, via Bolt)
+
+**What was removed**:
+- Old HowItWorks sections (mechanism-focused)
+- ScenarioShowcase (third-party examples)
+- Gap section (alone vs with Loupe)
+- Hero orbs/decorative elements
+
+See `homepage-story.md` for copy rules and language guidelines.
+
+## D28: Refined Brutalism design system (Feb 2026)
+
+**Decision**: Visual overhaul from "Luminous Glass + Editorial Punch" to "Refined Brutalism" — cool gray SaaS feel with multi-color accent palette.
+
+**Color palette**:
+- Paper: `#F8FAFC` (cool gray background)
+- Ink: `#0F172A` (text)
+- Line: `#9AAABD` (borders)
+- Multi-color accents: coral, blue, violet, emerald, amber
+- Signal (primary CTA): coral (`#FF6B4A`)
+
+**Surface treatment**:
+- `.glass-card`: White bg, 2px solid border, 10px radius, `2px 2px 0` offset shadow
+- No blur effects (`backdrop-filter: blur()` removed)
+- No gradients on surfaces
+- Section colors via accent badges (blue for "Your page", violet for "Your results")
+
+**Why**:
+- Previous warm paper (#F7F4EC) felt dated; cool gray is cleaner SaaS
+- Multi-color accents allow visual variety without competing with content
+- Solid borders (not blurred) are easier to parse and more "honest"
+- Offset shadows add depth without complexity
+- Clean, confident, precise — matches the tool's personality
+
+**Key files updated**:
+- `src/app/globals.css` (all CSS variables and component classes)
+- `src/app/hero-bg.css` (removed orbs)
+- `.claude/agents/*.md` (ui-designer, frontend-developer, brand-guardian)
+- `.claude/skills/frontend-design/SKILL.md`

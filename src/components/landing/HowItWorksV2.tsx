@@ -129,7 +129,7 @@ function ChangeDiffVisual() {
 
         {/* After */}
         <div className="relative">
-          <div className="absolute left-[-14px] top-[7px] w-[8px] h-[8px] rounded-full bg-accent ring-2 ring-white/80 shadow-[0_0_8px_rgba(91,46,145,0.3)]" />
+          <div className="absolute left-[-14px] top-[7px] w-[8px] h-[8px] rounded-full bg-accent ring-2 ring-white/80 shadow-[0_0_8px_rgba(255,90,54,0.3)]" />
           <div className="flex items-center gap-2 mb-1">
             <p className="text-[11px] text-accent font-semibold">Jan 22</p>
             <span className="px-1.5 py-[1px] rounded-md bg-accent/10 text-[9px] font-bold text-accent uppercase tracking-wider">

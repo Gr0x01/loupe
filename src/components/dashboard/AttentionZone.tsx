@@ -30,7 +30,7 @@ export function AttentionZone({ pages, onDelete }: AttentionZoneProps) {
   });
 
   return (
-    <section className="mb-10">
+    <section className="mb-8">
       {/* Zone header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="zone-header">What needs attention</h2>
@@ -40,7 +40,7 @@ export function AttentionZone({ pages, onDelete }: AttentionZoneProps) {
       </div>
 
       {/* Cards */}
-      <div className="space-y-3">
+      <div className="dashboard-zone-surface">
         {sortedPages.map((page) => (
           <AttentionCard key={page.id} page={page} onDelete={onDelete} />
         ))}

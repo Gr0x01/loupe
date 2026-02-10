@@ -75,7 +75,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               width: 40,
               height: 40,
               borderRadius: 8,
-              background: "linear-gradient(135deg, #5b2e91 0%, #7c4dab 100%)",
+              background: "linear-gradient(135deg, #FF5A36 0%, #E64D2E 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -137,13 +137,13 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               display: "flex",
               alignItems: "center",
               gap: 12,
-              background: "linear-gradient(135deg, rgba(91,46,145,0.1) 0%, rgba(124,77,171,0.1) 100%)",
+              background: "linear-gradient(135deg, rgba(255,90,54,0.1) 0%, rgba(124,77,171,0.1) 100%)",
               padding: "16px 24px",
               borderRadius: 12,
-              border: "2px solid rgba(91,46,145,0.2)",
+              border: "2px solid rgba(255,90,54,0.2)",
             }}
           >
-            <span style={{ fontSize: 24, color: "#5b2e91" }}>+{impactRange}</span>
+            <span style={{ fontSize: 24, color: "#FF5A36" }}>+{impactRange}</span>
             <span style={{ fontSize: 20, color: "#64617a" }}>potential improvement</span>
           </div>
 
@@ -166,7 +166,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             left: 0,
             right: 0,
             height: 8,
-            background: "linear-gradient(90deg, #5b2e91 0%, #7c4dab 100%)",
+            background: "linear-gradient(90deg, #FF5A36 0%, #E64D2E 100%)",
           }}
         />
       </div>

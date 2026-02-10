@@ -58,7 +58,7 @@ export default async function Image() {
             left: 0,
             right: 0,
             height: 8,
-            background: "linear-gradient(90deg, #5b2e91 0%, #7c4dab 100%)",
+            background: "linear-gradient(90deg, #FF5A36 0%, #E64D2E 100%)",
           }}
         />
       </div>

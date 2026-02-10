@@ -141,6 +141,31 @@ Pick one. Maybe two. Not five. Brands with multiple personality disorder don't c
 
 Only after strategy is locked do we touch visuals. Aesthetics without strategy is decoration.
 
+### Loupe's Visual Identity: Soft Brutalism 2.0
+
+**Color Palette:**
+```
+Primary Accent:  #FF5A36 (Signal Orange) — action, energy, attention
+Background:      #F7F4EC (Paper-0) — warm, approachable, not sterile
+Text:            #111111 (Ink-900) — confident, readable
+Borders:         #1a1a1a (Line) — strong, structural
+Success:         #15803D — positive outcomes
+Warning:         #B45309 — caution, attention needed
+Danger:          #B91C1C — problems, errors
+```
+
+**Typography:**
+- **Headlines:** Space Grotesk 700 — geometric confidence
+- **Body:** Inter — clean readability
+- **Data/Code:** IBM Plex Mono — technical precision
+
+**Visual Principles:**
+- Solid surfaces, no glassmorphism
+- Strong borders (1.5-2px), minimal shadows
+- 8px border radius (12px max for larger elements)
+- Warm paper background, not cold gray
+- Signal orange replaces violet accent
+
 ### Logo
 - Does it work at 16px and 160px?
 - Is it distinctive in grayscale?

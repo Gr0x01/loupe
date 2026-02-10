@@ -109,7 +109,7 @@ export default function LoginPage() {
             &larr; Back to Loupe
           </Link>
           <div className="mt-8">
-            <div className="w-16 h-16 rounded-full bg-[rgba(91,46,145,0.1)] flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 rounded-full bg-[rgba(255,90,54,0.1)] flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
@@ -232,7 +232,7 @@ export default function LoginPage() {
               <button
                 onClick={() => setSent(false)}
                 className="text-accent text-sm font-medium mt-4
-                           hover:bg-[rgba(91,46,145,0.08)] px-3 py-1.5 rounded-lg
+                           hover:bg-[rgba(255,90,54,0.08)] px-3 py-1.5 rounded-lg
                            transition-colors duration-150"
               >
                 Use a different email

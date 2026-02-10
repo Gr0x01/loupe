@@ -57,7 +57,7 @@ const scenarios: Scenario[] = [
       "One line of copy. Measurable lift. Without Loupe, you might have changed it again next week.",
   },
   {
-    source: { label: "caught by Loupe", color: "rgba(91, 46, 145, 0.08)" },
+    source: { label: "caught by Loupe", color: "rgba(255, 90, 54, 0.08)" },
     title: "Your checkout flow quietly changed",
     detail: {
       label: "What changed",

@@ -22,7 +22,7 @@ Major repositioning from "website grader with scores" to "correlation layer with
 | 3 Chronicle | N+1 experience | **DONE** |
 | 4.1 Dashboard | Two-zone activity stream | **DONE** |
 | 5. Emails | Update templates | **DONE** |
-| 6. Landing Page | New positioning | Not started |
+| 6. Landing Page | New positioning | **DONE** |
 
 ### Phase 1.1 Completed
 - [x] Created canonical types file (`src/lib/types/analysis.ts`)
@@ -194,8 +194,37 @@ Full security review with fixes:
 
 See `architecture.md` Security section for details.
 
+### Phase 6 Completed (Homepage Redesign)
+
+**6.1 Homepage Structure:**
+- [x] 4-section "Your" structure: Hero, YourPage, YourResults, UrgencyCloser
+- [x] Hero with SitePreviewCard animation (headline change → notification → +23%)
+- [x] YourPage section — audit preview showing what Loupe sees
+- [x] YourResults section — feature grid with timeline, verdicts, metrics, history
+- [x] UrgencyCloser — final CTA with trust badges
+
+**6.2 New Components:**
+- [x] `SitePreviewCard.tsx` — animated hero visual
+- [x] `YourPage.tsx` — two-column audit preview
+- [x] `YourResults.tsx` — feature grid with ChangeTimeline, VerdictCard, MetricsCard, HistoryCard
+- [x] `UrgencyCloser.tsx` — final CTA
+
+**6.3 Refined Brutalism Design System:**
+- [x] Cool gray palette (paper-0: #F8FAFC)
+- [x] Multi-color accents (coral, blue, violet, emerald, amber)
+- [x] Solid 2px borders, 10px radius, offset shadows
+- [x] Removed blur effects and hero orbs
+
+**What was removed:**
+- Old HowItWorks sections
+- ScenarioShowcase
+- Gap section (alone vs with Loupe)
+- Hero decorative elements
+
+See `decisions.md` D27-D28 and `homepage-story.md` for details.
+
 ### Key Changes (remaining)
-- Landing page positioning (Phase 6)
+- None — Phase 2A complete
 
 ---
 

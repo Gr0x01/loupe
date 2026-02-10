@@ -1576,7 +1576,8 @@ export default function AnalysisPage() {
                   Free. No spam. Just drift alerts.
                 </p>
 
-                {foundingStatus && !foundingStatus.isFull && (
+                {/* Hide founding count until 10+ claimed for better social proof */}
+                {foundingStatus && !foundingStatus.isFull && foundingStatus.claimed >= 10 && (
                   <div className="mt-4 text-center">
                     <div className="flex items-center justify-center gap-0.5 mb-2">
                       {Array.from({ length: Math.min(foundingStatus.total, 50) }).map((_, i) => (
@@ -1872,7 +1873,7 @@ export default function AnalysisPage() {
                         <button
                           onClick={() => navigator.clipboard.writeText(headlineRewrite.suggested)}
                           className="absolute top-3 right-3 text-text-muted hover:text-accent transition-colors p-1 rounded-md
-                                     hover:bg-[rgba(91,46,145,0.08)] active:scale-[0.95]"
+                                     hover:bg-[rgba(255,90,54,0.08)] active:scale-[0.95]"
                           title="Copy headline"
                         >
                           <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1919,6 +1920,9 @@ export default function AnalysisPage() {
             changesSummary={analysis.changes_summary}
             deployContext={analysis.deploy_context}
             baselineDate={analysis.parent_structured_output ? analysis.created_at : undefined}
+            screenshotUrl={analysis.screenshot_url}
+            createdAt={analysis.created_at}
+            onScreenshotClick={() => setShowScreenshot(true)}
           />
         )}
 
@@ -1928,7 +1932,7 @@ export default function AnalysisPage() {
             {analysis.claim_status?.claimed_by_current_user ? (
               /* Current user already watching this domain */
               <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(91,46,145,0.1)] mb-4">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.1)] mb-4">
                   <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
@@ -1972,7 +1976,7 @@ export default function AnalysisPage() {
             ) : claimEmailSent ? (
               /* Post-submit state */
               <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(91,46,145,0.1)] mb-4">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.1)] mb-4">
                   <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
@@ -2037,8 +2041,8 @@ export default function AnalysisPage() {
                   </p>
                 )}
 
-                {/* Founding 50 */}
-                {foundingStatus && !foundingStatus.isFull && !analysis.changes_summary && (
+                {/* Founding 50 — hide until 10+ claimed for better social proof */}
+                {foundingStatus && !foundingStatus.isFull && foundingStatus.claimed >= 10 && !analysis.changes_summary && (
                   <div className="pt-4 border-t border-border-outer">
                     {/* Label */}
                     <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-2">

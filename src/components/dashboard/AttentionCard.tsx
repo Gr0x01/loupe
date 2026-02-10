@@ -17,15 +17,24 @@ export function AttentionCard({ page, onDelete }: AttentionCardProps) {
     onDelete(page.id);
   };
 
-  // Severity dot color
-  const severityColors = {
-    high: "bg-score-low",
-    medium: "bg-score-mid",
-    low: "bg-text-muted",
+  // Severity badge style
+  const severityStyles = {
+    high: {
+      badgeClass: "dashboard-severity-high",
+      label: "high",
+    },
+    medium: {
+      badgeClass: "dashboard-severity-medium",
+      label: "medium",
+    },
+    low: {
+      badgeClass: "dashboard-severity-low",
+      label: "low",
+    },
   };
-  const dotColor = attention_status.severity
-    ? severityColors[attention_status.severity]
-    : "bg-text-muted";
+  const severityStyle = attention_status.severity
+    ? severityStyles[attention_status.severity]
+    : null;
 
   // Link to analysis if exists, otherwise to page timeline
   const linkHref = page.last_scan?.id
@@ -35,37 +44,39 @@ export function AttentionCard({ page, onDelete }: AttentionCardProps) {
   return (
     <Link
       href={linkHref}
-      className="glass-card p-5 block hover:border-[rgba(91,46,145,0.15)] transition-all duration-150 group"
+      className="dashboard-attention-row group"
     >
-      <div className="flex items-start gap-4">
-        {/* Severity dot */}
-        <div className="flex-shrink-0 pt-1.5">
-          <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
-        </div>
-
+      <div className="flex items-start gap-3">
         {/* Content */}
         <div className="min-w-0 flex-1">
-          {/* Domain */}
-          <p className="text-sm text-text-muted font-mono truncate">
-            {getDomain(page.url)}
-          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Domain */}
+            <p className="text-xs text-text-secondary font-mono truncate">
+              {getDomain(page.url)}
+            </p>
+            {severityStyle && (
+              <span className={`dashboard-severity-badge ${severityStyle.badgeClass}`}>
+                {severityStyle.label}
+              </span>
+            )}
+          </div>
 
           {/* Headline */}
           {attention_status.headline && (
-            <h3 className="text-base font-semibold text-text-primary mt-1">
+            <h3 className="text-[0.95rem] leading-snug font-semibold text-text-primary mt-1">
               {attention_status.headline}
             </h3>
           )}
 
           {/* Subheadline */}
           {attention_status.subheadline && (
-            <p className="text-sm text-text-secondary mt-0.5">
+            <p className="text-[0.82rem] leading-relaxed text-text-secondary mt-1">
               {attention_status.subheadline}
             </p>
           )}
 
           {/* CTA */}
-          <p className="text-sm font-medium text-accent mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          <p className="dashboard-row-cta">
             See details &rarr;
           </p>
         </div>
@@ -73,7 +84,7 @@ export function AttentionCard({ page, onDelete }: AttentionCardProps) {
         {/* Delete button */}
         <button
           onClick={handleDeleteClick}
-          className="p-2 text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all duration-150 flex-shrink-0"
+          className="dashboard-row-delete p-1.5 text-text-muted hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-all duration-150 flex-shrink-0"
           title={`Delete ${displayName}`}
           aria-label={`Delete ${displayName}`}
         >

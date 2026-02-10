@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#5b2e91",
+    color: "#FF5A36",
   },
   domain: {
     fontSize: 12,
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   verdictLabel: {
     fontSize: 10,
     fontWeight: "bold",
-    color: "#5b2e91",
+    color: "#FF5A36",
     textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 8,
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   impactBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(91, 46, 145, 0.1)",
+    backgroundColor: "rgba(255, 90, 54, 0.1)",
     padding: "8 12",
     borderRadius: 6,
     alignSelf: "flex-start",
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   impactText: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#5b2e91",
+    color: "#FF5A36",
   },
   impactLabel: {
     fontSize: 10,
@@ -106,13 +106,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "bold",
     color: "#ffffff",
-    backgroundColor: "#5b2e91",
+    backgroundColor: "#FF5A36",
     padding: "4 8",
     borderRadius: 4,
     marginRight: 10,
   },
   findingImpactMedium: {
-    backgroundColor: "#7c4dab",
+    backgroundColor: "#E64D2E",
   },
   findingImpactLow: {
     backgroundColor: "#9d7dc0",
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   predictionBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(91, 46, 145, 0.08)",
+    backgroundColor: "rgba(255, 90, 54, 0.08)",
     padding: "6 10",
     borderRadius: 4,
     alignSelf: "flex-start",
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   predictionRange: {
     fontSize: 11,
     fontWeight: "bold",
-    color: "#5b2e91",
+    color: "#FF5A36",
   },
   predictionText: {
     fontSize: 10,
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   },
   footerCta: {
     fontSize: 10,
-    color: "#5b2e91",
+    color: "#FF5A36",
     fontWeight: "bold",
   },
   summarySection: {
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e8e6ec",
     borderLeftWidth: 3,
-    borderLeftColor: "#5b2e91",
+    borderLeftColor: "#FF5A36",
   },
   summaryText: {
     fontSize: 12,

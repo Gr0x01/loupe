@@ -50,7 +50,7 @@ export default function WaitlistPage() {
 
         {submitted ? (
           <div className="mt-8">
-            <div className="w-16 h-16 rounded-full bg-[rgba(91,46,145,0.1)] flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 rounded-full bg-[rgba(255,90,54,0.1)] flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>

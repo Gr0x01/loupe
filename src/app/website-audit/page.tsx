@@ -408,9 +408,9 @@ export default function WebsiteAuditPage() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-[#5B2E91]/5 border border-[#5B2E91]/20 rounded-xl">
+                <div className="p-4 bg-signal-subtle border border-signal-border rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold text-[#5B2E91] uppercase">Suggested Rewrite</span>
+                    <span className="text-xs font-semibold text-signal uppercase">Suggested Rewrite</span>
                   </div>
                   <p className="font-semibold text-[#111118] mb-1">Headline could be more specific</p>
                   <div className="space-y-2 text-sm">

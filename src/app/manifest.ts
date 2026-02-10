@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Ship fast. Catch drift. Monitor your pages for meaningful changes.",
     start_url: "/",
     display: "standalone",
-    background_color: "#faf9fb",
-    theme_color: "#5B2E91",
+    background_color: "#F7F4EC",
+    theme_color: "#FF5A36",
     icons: [
       {
         src: "/logo-square.png",

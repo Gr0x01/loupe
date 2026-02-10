@@ -187,7 +187,7 @@ export function ClaimModal({
           /* ========== Page Limit ========== */
           <div className="text-center">
             {/* Icon */}
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(91,46,145,0.08)] text-accent mb-5">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.08)] text-accent mb-5">
               <PagesIcon />
             </div>
 

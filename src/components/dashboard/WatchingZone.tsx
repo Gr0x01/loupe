@@ -28,7 +28,7 @@ export function WatchingZone({
 
       {/* Cards or empty message */}
       {pages.length > 0 ? (
-        <div className="glass-card p-2">
+        <div className="dashboard-zone-surface">
           {pages.map((page) => (
             <WatchingCard key={page.id} page={page} onDelete={onDelete} />
           ))}
@@ -46,12 +46,12 @@ export function WatchingZone({
         <button
           onClick={onAddPage}
           className="mt-4 group flex items-center gap-3 px-4 py-3 rounded-xl
-                     bg-[rgba(91,46,145,0.04)] border border-[rgba(91,46,145,0.12)]
-                     hover:bg-[rgba(91,46,145,0.08)] hover:border-[rgba(91,46,145,0.2)]
+                     bg-[rgba(255,90,54,0.04)] border border-[rgba(255,90,54,0.12)]
+                     hover:bg-[rgba(255,90,54,0.08)] hover:border-[rgba(255,90,54,0.2)]
                      transition-all"
         >
           <div className="flex items-center justify-center w-8 h-8 rounded-lg
-                          bg-[rgba(91,46,145,0.08)] group-hover:bg-[rgba(91,46,145,0.12)] transition-colors">
+                          bg-[rgba(255,90,54,0.08)] group-hover:bg-[rgba(255,90,54,0.12)] transition-colors">
             {/* Share icon */}
             <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -72,7 +72,7 @@ export function WatchingZone({
           onClick={onAddPage}
           className="mt-4 flex items-center gap-2 text-accent font-medium
                      hover:text-accent-hover transition-colors
-                     px-3 py-2 -ml-3 rounded-lg hover:bg-[rgba(91,46,145,0.05)]"
+                     px-3 py-2 -ml-3 rounded-lg hover:bg-[rgba(255,90,54,0.05)]"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

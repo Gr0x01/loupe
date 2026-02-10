@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Inter_Tight } from "next/font/google";
-import { Geist_Mono } from "next/font/google";
+import { Inter, Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { PostHogPageView } from "@/components/PostHogPageView";
 import SiteNav from "@/components/SiteNav";
@@ -8,18 +7,21 @@ import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
 import "./hero-bg.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+// Soft Brutalism 2.0 typography
+// Keep CSS variable names for compatibility with existing components
+const inter = Inter({
+  variable: "--font-dm-sans", // Body font
   subsets: ["latin"],
 });
 
-const interTight = Inter_Tight({
-  variable: "--font-instrument-serif",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-instrument-serif", // Headline font
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-geist-mono", // Mono font
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
 });
 
@@ -97,7 +99,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${interTight.variable} ${geistMono.variable} font-sans antialiased min-h-screen flex flex-col`}
+        className={`${inter.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable} font-sans antialiased min-h-screen flex flex-col`}
       >
         <PostHogProvider>
           <PostHogPageView />

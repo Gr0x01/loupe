@@ -9,19 +9,19 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// Brand colors
+// Brand colors — Soft Brutalism 2.0
 const colors = {
-  background: "#F5F5F7",
+  background: "#F7F4EC",
   card: "#FFFFFF",
-  accent: "#5B2E91",
-  textPrimary: "#111118",
-  textSecondary: "#55556D",
-  textMuted: "#8E8EA0",
-  scoreHigh: "#1A8C5B",
-  scoreMid: "#D4940A",
-  scoreLow: "#C23B3B",
-  border: "#E5E5EA",
-  borderSubtle: "#ECECF0",
+  accent: "#FF5A36",
+  textPrimary: "#111111",
+  textSecondary: "#555555",
+  textMuted: "#888888",
+  scoreHigh: "#15803D",
+  scoreMid: "#B45309",
+  scoreLow: "#B91C1C",
+  border: "#1a1a1a",
+  borderSubtle: "rgba(26, 26, 26, 0.12)",
 };
 
 // Typography stacks
