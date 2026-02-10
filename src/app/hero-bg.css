@@ -5,6 +5,17 @@
 .landing-hero {
   position: relative;
   overflow: hidden;
+  /* Extend background up behind the fixed nav */
+  margin-top: -80px;
+  padding-top: 176px; /* 80px margin compensation + 96px nav clearance */
+  padding-bottom: 180px;
+}
+
+@media (min-width: 768px) {
+  .landing-hero {
+    padding-top: 192px; /* 80px margin compensation + 112px nav clearance */
+    padding-bottom: 200px;
+  }
 }
 
 /* Background — subtle cool gray */

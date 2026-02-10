@@ -38,7 +38,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Hero -- Two-column layout with visual card on right */}
-      <section className="landing-hero px-4 pt-16 pb-20 md:pt-20 md:pb-24">
+      <section className="landing-hero px-4">
         <div className="landing-hero-bg" />
         <div className="landing-hero-dots" />
 
@@ -57,17 +57,17 @@ export default function Home() {
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 <span className="landing-hero-headline-1 block text-text-primary">
-                  Stop guessing after
+                  You made the change.
                 </span>
                 <span className="landing-hero-headline-2 block text-accent">
-                  each page change.
+                  See what it did.
                 </span>
               </h1>
 
               {/* Subheadline */}
               <p className="text-lg md:text-[1.15rem] text-text-primary mt-5 leading-[1.7] max-w-[38ch] landing-hero-subhead">
-                Paste your URL. Loupe tracks every page change and shows
-                whether it helped signups, hurt them, or needs more data.
+                You write the headline, hit deploy, move on. Loupe watches what
+                happens next and tells you if it{"\u00A0"}worked.
               </p>
 
               {/* Form */}
@@ -75,12 +75,12 @@ export default function Home() {
                 className="mt-8 max-w-lg landing-hero-form"
                 id="hero-form"
               >
-                <FreeAuditForm ctaText="Analyze my page" />
+                <FreeAuditForm ctaText="See what changed" />
               </div>
 
               {/* Trust line */}
-              <p className="text-sm text-text-muted mt-5 landing-hero-trust">
-                Free in beta. No signup. Results in 30 seconds.
+              <p className="text-base font-medium text-text-secondary mt-5 landing-hero-trust">
+                Free. No signup. Results in 30 seconds.
               </p>
 
               {/* Founding 50 counter — pill with progress bar, real data */}

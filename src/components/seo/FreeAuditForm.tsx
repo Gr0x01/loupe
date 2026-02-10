@@ -105,9 +105,7 @@ export default function FreeAuditForm({
             />
             <button
               type="submit"
-              disabled={!url.trim() || loading}
               className="btn-primary free-audit-submit px-6 py-2.5 text-sm
-                         disabled:opacity-30 disabled:cursor-not-allowed
                          flex-shrink-0 whitespace-nowrap"
             >
               {ctaText}

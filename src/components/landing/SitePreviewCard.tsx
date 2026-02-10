@@ -57,11 +57,16 @@ export default function SitePreviewCard() {
 
             {/* Subheadline placeholder */}
             <p className="site-preview-subheadline">
-              Loupe tracks this change and watches the signup impact.
+              Loupe catches what you almost missed and tracks the signup impact.
             </p>
 
             {/* CTA button placeholder */}
             <div className="site-preview-cta">Try it free</div>
+          </div>
+
+          {/* Right: placeholder image */}
+          <div className="site-preview-hero-image">
+            <div className="site-preview-image-icon" />
           </div>
         </div>
 
@@ -74,7 +79,7 @@ export default function SitePreviewCard() {
           }`}
         >
           <span className="site-preview-notif-dot" />
-          <span className="site-preview-notif-text">Change tracked</span>
+          <span className="site-preview-notif-text">What changed</span>
         </div>
       </div>
 

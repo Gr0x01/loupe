@@ -2584,7 +2584,7 @@ body.modal-open .site-nav {
   align-self: stretch;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 6px;
-  border: 2px solid var(--line-subtle);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
