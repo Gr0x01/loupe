@@ -81,6 +81,8 @@ export interface Change {
   before: string; // Previous value
   after: string; // New value
   detectedAt: string; // ISO timestamp
+  /** Scope of the change - for smart aggregation */
+  scope?: "element" | "section" | "page";
 }
 
 export interface ChronicleCorrelationMetric {
@@ -148,6 +150,8 @@ export interface ChangesSummary {
   };
   running_summary: string;
   tool_calls_made?: string[];
+  /** Internal: set when post-analysis pipeline failed */
+  _error?: string;
 }
 
 export interface DeployContext {

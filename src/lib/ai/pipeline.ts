@@ -333,11 +333,35 @@ Use these phrases when describing metric impacts:
 
 ## Your Three Tasks
 
-### 1. Detect What Changed
-Compare current vs. previous audit. For each change detected, output to the "changes" array:
-- What element changed
-- What it was before
-- What it is now
+### 1. Detect What Changed (Smart Aggregation)
+Compare current vs. previous audit. Your goal is **honest, useful tracking** — not fake granularity.
+
+**For incremental changes (1-3 elements modified):**
+- Itemize each change with before/after values
+- Set scope: "element"
+- Example: { element: "Your Headline", before: "Start free", after: "Get started free", scope: "element" }
+
+**For section-level changes (multiple related elements in one area):**
+- Aggregate to section level
+- Set scope: "section"
+- Example: { element: "Hero Section", description: "Complete hero overhaul", before: "3 decorative orbs + basic headline", after: "Clean layout with animated preview", scope: "section" }
+
+**For major redesigns (structural changes, new sections added/removed, layout restructured):**
+- Aggregate to page level
+- Set scope: "page"
+- Example: { element: "Page Redesign", description: "Homepage rebuilt with new structure", before: "6 sections with decorative elements", after: "5 sections with clean brutalist design", scope: "page" }
+
+**Aggregation Rules:**
+- If you can't meaningfully separate changes for correlation (e.g., 5+ related things changed at once), aggregate up
+- Don't pretend you can isolate impact when you can't — aggregate and be clear about the scope
+- When aggregated, before/after should describe the overall state change, not itemize each sub-change
+- Key specific changes can be noted in the "description" field
+
+For each change detected, output to the "changes" array:
+- What element changed (or section/page for aggregated changes)
+- What it was before (or overall previous state)
+- What it is now (or overall new state)
+- Scope: "element", "section", or "page"
 - Whether the change addresses a previous finding
 
 ### 2. Categorize Progress
@@ -388,14 +412,15 @@ The user cares about: "Did my change get me more customers?"
 ## Output Schema
 Return JSON matching this schema:
 {
-  "verdict": "<Punchy summary: 'You made 2 changes. One helped. One didn't move the needle.'>",
+  "verdict": "<Punchy summary: 'You made 2 changes. One helped.' OR 'Major redesign. Tracking overall impact.'>",
   "changes": [
     {
       "element": "<display-ready label>",
       "description": "<what changed>",
-      "before": "<previous value>",
-      "after": "<new value>",
-      "detectedAt": "<ISO timestamp or 'this scan'>"
+      "before": "<previous value or overall previous state>",
+      "after": "<new value or overall new state>",
+      "detectedAt": "<ISO timestamp or 'this scan'>",
+      "scope": "element" | "section" | "page"
     }
   ],
   "suggestions": [
@@ -467,6 +492,23 @@ Return JSON matching this schema:
 - watchingItems: Fixed items awaiting enough data (daysOfData < 7)
 - openItems: Previous findings not yet addressed
 - For first scans, openItems should list current findings with their ids
+
+## Correlation Language by Scope
+When correlating changes with metrics, adjust your language to match the scope:
+
+**Element-level (scope: "element"):**
+- "Your headline change helped — signups up 12%"
+- "CTA color didn't move the needle"
+
+**Section-level (scope: "section"):**
+- "Your hero overhaul is working — bounce rate down 15%"
+- "Since you redesigned the pricing section, time on page is up"
+
+**Page-level (scope: "page"):**
+- "Since your page redesign, conversions are up 23%"
+- "Major redesign. Tracking overall impact — check back in a few days"
+
+Be honest about what you can and can't isolate. Aggregated changes still get correlation, but against the aggregate.
 
 ## First Scan (No Previous Findings)
 If this is the first scan, return:
@@ -787,6 +829,12 @@ export async function runPostAnalysisPipeline(
   }
   if (!parsed.changes) {
     parsed.changes = [];
+  }
+  // Normalize scope field on each change (default to "element" if missing)
+  for (const change of parsed.changes) {
+    if (!change.scope) {
+      change.scope = "element";
+    }
   }
   if (!parsed.suggestions) {
     parsed.suggestions = [];

@@ -6,9 +6,11 @@ import { TimelineEntry } from "./TimelineEntry";
 interface WhatChangedSectionProps {
   changes: Change[];
   correlation: Correlation | null;
+  /** Internal: set when post-analysis failed */
+  hasError?: boolean;
 }
 
-export function WhatChangedSection({ changes, correlation }: WhatChangedSectionProps) {
+export function WhatChangedSection({ changes, correlation, hasError }: WhatChangedSectionProps) {
   if (changes.length === 0) {
     return (
       <section className="chronicle-section">
@@ -21,9 +23,15 @@ export function WhatChangedSection({ changes, correlation }: WhatChangedSectionP
           </h2>
         </div>
         <div className="glass-card p-6 text-center">
-          <p className="text-text-secondary">
-            No changes detected since your last scan. Your page is stable.
-          </p>
+          {hasError ? (
+            <p className="text-text-secondary">
+              Change detection unavailable for this scan. Your primary audit is still available above.
+            </p>
+          ) : (
+            <p className="text-text-secondary">
+              No changes detected since your last scan. Your page is stable.
+            </p>
+          )}
         </div>
       </section>
     );
@@ -43,17 +51,22 @@ export function WhatChangedSection({ changes, correlation }: WhatChangedSectionP
       {/* Timeline */}
       <div className="timeline">
         {changes.map((change, i) => {
-          // Try to find a correlation metric for this change
-          const matchingMetric = correlation?.metrics.find((m) => {
-            // Simple heuristic: match by element name similarity
-            return change.element.toLowerCase().includes(m.name.toLowerCase());
-          });
+          const isAggregated = change.scope === "section" || change.scope === "page";
+
+          // For element-level changes, try to match a specific metric
+          const matchingMetric = !isAggregated
+            ? correlation?.metrics.find((m) => {
+                return change.element.toLowerCase().includes(m.name.toLowerCase());
+              })
+            : undefined;
 
           return (
             <TimelineEntry
               key={`${i}-${change.element}-${change.detectedAt}`}
               change={change}
               correlation={matchingMetric}
+              // For aggregated changes, pass all metrics since we can't isolate impact
+              allMetrics={isAggregated && correlation?.hasEnoughData ? correlation.metrics : undefined}
             />
           );
         })}

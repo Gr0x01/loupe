@@ -378,7 +378,39 @@ export const analyzeUrl = inngest.createFunction(
               }
             }
           } catch (postAnalysisErr) {
-            console.error("Post-analysis pipeline failed (non-fatal):", postAnalysisErr);
+            // Structured logging for post-analysis failures
+            const errorDetails = {
+              analysisId,
+              url,
+              userId: analysis.user_id,
+              hasPreviousFindings: !!previousFindings,
+              hasDeployContext: !!deployContext,
+              hasAnalytics: !!analyticsCredentials,
+              hasDatabase: !!databaseCredentials,
+              error: postAnalysisErr instanceof Error ? {
+                message: postAnalysisErr.message,
+                name: postAnalysisErr.name,
+                stack: postAnalysisErr.stack?.split('\n').slice(0, 3).join('\n'),
+              } : String(postAnalysisErr),
+            };
+            console.error("Post-analysis pipeline failed:", JSON.stringify(errorDetails, null, 2));
+
+            // Store a minimal changes_summary so the UI knows post-analysis was attempted but failed
+            // Note: Use generic error code, not raw message (to avoid leaking internal details to client)
+            await supabase
+              .from("analyses")
+              .update({
+                changes_summary: {
+                  verdict: "Analysis complete. Change detection unavailable.",
+                  changes: [],
+                  suggestions: [],
+                  correlation: null,
+                  progress: { validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [] },
+                  running_summary: "Post-analysis failed. Primary audit is available.",
+                  _error: "post_analysis_failed",
+                },
+              })
+              .eq("id", analysisId);
           }
         }
 
