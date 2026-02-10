@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import SitePreviewCard from "@/components/landing/SitePreviewCard";
+import WorksWithStrip from "@/components/landing/WorksWithStrip";
 import YourPage from "@/components/landing/YourPage";
 import YourResults from "@/components/landing/YourResults";
 import UrgencyCloser from "@/components/landing/UrgencyCloser";
@@ -86,7 +87,8 @@ export default function Home() {
               </p>
 
               {/* Founding 50 counter — pill with progress bar, real data */}
-              {foundingData && !foundingData.isFull && (
+              {/* Hide until 10+ claimed for better social proof */}
+              {foundingData && !foundingData.isFull && foundingData.claimed >= 10 && (
                 <div className="mt-3 landing-hero-founding">
                   <div className="founding-counter-pill">
                     <div className="founding-counter-track">
@@ -96,7 +98,7 @@ export default function Home() {
                         style={{ width: "0%" }}
                       />
                     </div>
-                    <span className="text-[12px] font-medium text-accent">
+                    <span className="text-[12px] font-medium text-coral">
                       {foundingData.claimed} of {foundingData.total} founding
                       spots claimed
                     </span>
@@ -112,6 +114,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Works With -- Confidence strip */}
+      <WorksWithStrip />
 
       {/* Your Page -- What Loupe sees */}
       <YourPage />

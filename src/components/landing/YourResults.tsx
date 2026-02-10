@@ -90,14 +90,14 @@ function HistoryCard({
             changes
           </p>
         </div>
-        <div className="text-center p-3 rounded-xl bg-accent/5 border border-accent/20">
+        <div className="text-center p-3 rounded-xl bg-violet/5 border-2 border-violet/30">
           <p
-            className="text-xl font-semibold text-accent"
+            className="text-xl font-semibold text-violet"
             style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
             3
           </p>
-          <p className="text-[10px] text-accent/70 uppercase tracking-wide mt-0.5">
+          <p className="text-[10px] text-violet/70 uppercase tracking-wide mt-0.5">
             verdicts
           </p>
         </div>
@@ -106,7 +106,7 @@ function HistoryCard({
       {/* Timeline hint */}
       <div className="flex items-center gap-3 text-[10px] text-text-muted uppercase tracking-widest">
         <span>Jan 15</span>
-        <div className="flex-1 h-px bg-gradient-to-r from-border-subtle via-accent/20 to-border-subtle" />
+        <div className="flex-1 h-px bg-gradient-to-r from-line/30 via-violet/30 to-line/30" />
         <span>Today</span>
       </div>
     </div>
@@ -127,7 +127,7 @@ function MetricsCard({
     >
       <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-text-muted">
         <span>Today</span>
-        <span className="text-accent">Plain language</span>
+        <span className="text-blue">Plain language</span>
       </div>
       <div className="mt-4 space-y-3">
         <div className="flex items-center justify-between rounded-xl bg-bg-inset px-3 py-2">
@@ -222,7 +222,7 @@ function ChangeTimeline({
   return (
     <div className="relative pl-6">
       {/* Timeline line */}
-      <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-gradient-to-b from-text-muted/20 via-accent/30 to-text-muted/20" />
+      <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-gradient-to-b from-line/30 via-violet/40 to-line/30" />
 
       {/* Events */}
       <div className="space-y-6">
@@ -234,10 +234,10 @@ function ChangeTimeline({
           >
             {/* Dot */}
             <div
-              className={`absolute left-[-19px] top-[5px] w-[10px] h-[10px] rounded-full ring-2 ring-white/80 ${
+              className={`absolute left-[-19px] top-[5px] w-[10px] h-[10px] rounded-full border-2 ${
                 event.type === "change"
-                  ? "bg-accent shadow-[0_0_8px_rgba(91,46,145,0.4)]"
-                  : "bg-text-muted/30"
+                  ? "bg-violet border-violet-hover"
+                  : "bg-paper-100 border-line"
               }`}
             />
 
@@ -256,7 +256,7 @@ function ChangeTimeline({
                 {event.label}
               </p>
               {event.type === "change" && (
-                <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-accent/10 text-[9px] font-bold text-accent uppercase tracking-wider">
+                <span className="inline-block mt-1 px-1.5 py-0.5 rounded-md border border-violet/30 bg-violet/10 text-[9px] font-bold text-violet uppercase tracking-wider">
                   Changed
                 </span>
               )}
@@ -367,7 +367,7 @@ export default function YourResults() {
           className={`text-center mb-12 scroll-reveal ${revealed ? "revealed" : ""}`}
         >
           <div className="mb-4">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-violet bg-violet/5 text-[11px] font-semibold uppercase tracking-[0.18em] text-violet">
               Your results
             </span>
           </div>
@@ -513,7 +513,7 @@ export default function YourResults() {
         >
           <a
             href="#hero-form"
-            className="text-sm text-accent hover:text-accent/80 transition-colors"
+            className="text-sm text-violet hover:text-violet-hover transition-colors font-medium"
             onClick={(e) => {
               e.preventDefault();
               document

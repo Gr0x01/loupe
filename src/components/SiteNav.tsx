@@ -155,7 +155,7 @@ export default function SiteNav() {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden p-2 -mr-2 text-text-secondary hover:text-accent transition-colors rounded-lg hover:bg-[rgba(91,46,145,0.06)]"
+            className="md:hidden p-2 -mr-2 text-text-secondary hover:text-accent transition-colors rounded-lg hover:bg-[var(--coral-subtle)]"
             aria-label="Open menu"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,8 +200,8 @@ export default function SiteNav() {
                 href="/"
                 className={`text-base font-medium px-3 py-2 rounded-lg transition-colors ${
                   isActive("/")
-                    ? "text-accent bg-[rgba(91,46,145,0.06)]"
-                    : "text-text-secondary hover:text-accent hover:bg-[rgba(91,46,145,0.06)]"
+                    ? "text-accent bg-[var(--coral-subtle)]"
+                    : "text-text-secondary hover:text-accent hover:bg-[var(--coral-subtle)]"
                 }`}
               >
                 Home
@@ -211,8 +211,8 @@ export default function SiteNav() {
                   href="/dashboard"
                   className={`text-base font-medium px-3 py-2 rounded-lg transition-colors ${
                     isActive("/dashboard")
-                      ? "text-accent bg-[rgba(91,46,145,0.06)]"
-                      : "text-text-secondary hover:text-accent hover:bg-[rgba(91,46,145,0.06)]"
+                      ? "text-accent bg-[var(--coral-subtle)]"
+                      : "text-text-secondary hover:text-accent hover:bg-[var(--coral-subtle)]"
                   }`}
                 >
                   Your pages
@@ -223,8 +223,8 @@ export default function SiteNav() {
                   href="/settings/integrations"
                   className={`text-base font-medium px-3 py-2 rounded-lg transition-colors ${
                     isSettingsActive
-                      ? "text-accent bg-[rgba(91,46,145,0.06)]"
-                      : "text-text-secondary hover:text-accent hover:bg-[rgba(91,46,145,0.06)]"
+                      ? "text-accent bg-[var(--coral-subtle)]"
+                      : "text-text-secondary hover:text-accent hover:bg-[var(--coral-subtle)]"
                   }`}
                 >
                   Settings
@@ -232,7 +232,7 @@ export default function SiteNav() {
               ) : (
                 <Link
                   href="/login"
-                  className="text-base font-medium px-3 py-2 rounded-lg text-accent bg-[rgba(91,46,145,0.06)] mt-2"
+                  className="text-base font-medium px-3 py-2 rounded-lg text-accent bg-[var(--coral-subtle)] mt-2"
                 >
                   Sign in
                 </Link>

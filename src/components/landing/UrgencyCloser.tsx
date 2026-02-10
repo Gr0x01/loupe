@@ -29,7 +29,7 @@ export default function UrgencyCloser({
         }`}
       >
         {/* Eyebrow */}
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-emerald mb-5">
           You&apos;ll ship again this week
         </p>
 
@@ -64,7 +64,7 @@ export default function UrgencyCloser({
               height="14"
               viewBox="0 0 16 16"
               fill="none"
-              className="text-score-high"
+              className="text-emerald"
             >
               <path
                 d="M3 8.5l3.5 3.5 6.5-7"
@@ -82,7 +82,7 @@ export default function UrgencyCloser({
               height="14"
               viewBox="0 0 16 16"
               fill="none"
-              className="text-score-high"
+              className="text-emerald"
             >
               <path
                 d="M3 8.5l3.5 3.5 6.5-7"
@@ -100,7 +100,7 @@ export default function UrgencyCloser({
               height="14"
               viewBox="0 0 16 16"
               fill="none"
-              className="text-score-high"
+              className="text-emerald"
             >
               <path
                 d="M3 8.5l3.5 3.5 6.5-7"
@@ -114,10 +114,10 @@ export default function UrgencyCloser({
           </span>
         </div>
 
-        {/* Founding scarcity */}
-        {foundingData && !foundingData.isFull && (
+        {/* Founding scarcity — hide until 10+ claimed for better social proof */}
+        {foundingData && !foundingData.isFull && foundingData.claimed >= 10 && (
           <p className="text-sm text-text-muted mt-5">
-            <span className="text-accent font-medium">
+            <span className="text-coral font-medium">
               {foundingData.remaining}
             </span>{" "}
             of {foundingData.total} founding spots remaining.

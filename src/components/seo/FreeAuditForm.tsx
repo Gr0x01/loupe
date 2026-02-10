@@ -83,7 +83,7 @@ export default function FreeAuditForm({
         {loading && showLoadingInline ? (
           <div className="flex items-center justify-center py-3 px-3">
             <div className="flex items-center gap-3">
-              <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+              <div className="h-5 w-5 rounded-full border-2 border-coral border-t-transparent animate-spin" />
               <span className="text-lg text-text-secondary">
                 {LOADING_STEPS[loadingStep] || LOADING_STEPS[0]}
               </span>

@@ -23,7 +23,7 @@ export default function YourPage() {
             className={`relative scroll-reveal ${revealed ? "revealed" : ""}`}
             style={{ transitionDelay: "100ms" }}
           >
-            <div className="absolute -inset-6 rounded-[28px] bg-gradient-to-br from-accent/10 via-white/40 to-score-mid/10 blur-2xl opacity-70" />
+            <div className="absolute -inset-6 rounded-[28px] bg-gradient-to-br from-blue/10 via-white/40 to-amber/10 blur-2xl opacity-60" />
             <div className="relative glass-card-elevated p-6 md:p-7">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
@@ -49,25 +49,25 @@ export default function YourPage() {
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-score-mid/20 bg-score-mid/5 p-4">
+                <div className="rounded-xl border-2 border-amber bg-amber/5 p-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-score-mid">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-amber">
                       Prediction
                     </span>
-                    <span className="text-[11px] font-semibold text-score-mid">
+                    <span className="text-[11px] font-semibold text-amber">
                       +10–20% signups
                     </span>
                   </div>
                   <p className="text-sm text-text-primary mt-2">
                     Move your CTA above pricing.
                   </p>
-                  <div className="mt-3 h-2 rounded-full bg-bg-inset overflow-hidden">
-                    <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-score-mid/50 to-score-mid" />
+                  <div className="mt-3 h-2 rounded-full bg-paper-100 overflow-hidden">
+                    <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-amber/60 to-amber" />
                   </div>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-border-subtle bg-white/60 px-3 py-2">
+                  <div className="rounded-xl border-2 border-line bg-white px-3 py-2">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
                       Finding
                     </p>
@@ -75,7 +75,7 @@ export default function YourPage() {
                       CTA below pricing
                     </p>
                   </div>
-                  <div className="rounded-xl border border-border-subtle bg-white/60 px-3 py-2">
+                  <div className="rounded-xl border-2 border-line bg-white px-3 py-2">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
                       Finding
                     </p>
@@ -104,7 +104,7 @@ export default function YourPage() {
             style={{ transitionDelay: "200ms" }}
           >
             <div className="mb-4">
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-blue text-[11px] font-semibold uppercase tracking-[0.18em] text-blue bg-blue/5">
                 Your page
               </span>
             </div>
@@ -121,7 +121,7 @@ export default function YourPage() {
 
             <div className={`mt-6 space-y-3 scroll-reveal-stagger ${revealed ? "revealed" : ""}`}>
               <div className="glass-card p-4 flex items-start gap-3">
-                <div className="mt-1 w-2 h-2 rounded-full bg-score-mid shadow-[0_0_0_3px_rgba(212,148,10,0.12)]" />
+                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue border border-blue-hover" />
                 <div>
                   <p className="text-sm font-semibold text-text-primary">
                     Specific findings
@@ -132,7 +132,7 @@ export default function YourPage() {
                 </div>
               </div>
               <div className="glass-card p-4 flex items-start gap-3">
-                <div className="mt-1 w-2 h-2 rounded-full bg-score-mid shadow-[0_0_0_3px_rgba(212,148,10,0.12)]" />
+                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue border border-blue-hover" />
                 <div>
                   <p className="text-sm font-semibold text-text-primary">
                     Predictions attached
@@ -143,7 +143,7 @@ export default function YourPage() {
                 </div>
               </div>
               <div className="glass-card p-4 flex items-start gap-3">
-                <div className="mt-1 w-2 h-2 rounded-full bg-score-mid shadow-[0_0_0_3px_rgba(212,148,10,0.12)]" />
+                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue border border-blue-hover" />
                 <div>
                   <p className="text-sm font-semibold text-text-primary">
                     Written for builders
@@ -158,7 +158,7 @@ export default function YourPage() {
             <div className="mt-6">
               <a
                 href="#hero-form"
-                className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
+                className="inline-flex items-center gap-2 text-sm font-medium text-blue hover:text-blue-hover transition-colors"
                 onClick={(e) => {
                   e.preventDefault();
                   document
