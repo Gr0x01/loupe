@@ -41,9 +41,6 @@ export default function Home() {
       <section className="landing-hero px-4 pt-16 pb-20 md:pt-20 md:pb-24">
         <div className="landing-hero-bg" />
         <div className="landing-hero-dots" />
-        <div className="landing-hero-orb-1" />
-        <div className="landing-hero-orb-2" />
-        <div className="landing-hero-orb-3" />
 
         <div className="w-full max-w-6xl mx-auto landing-hero-content">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">

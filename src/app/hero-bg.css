@@ -1,5 +1,5 @@
 /* ===== LANDING PAGE HERO BACKGROUND TREATMENT ===== */
-/* Refined Brutalism: Decorative pill shapes with multiple colors */
+/* Soft Brutalism: clean structured backdrop, no floating ornaments */
 
 /* Hero section wrapper */
 .landing-hero {
@@ -13,7 +13,13 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(180deg, var(--paper-0) 0%, var(--paper-100) 100%);
+  background:
+    linear-gradient(
+      176deg,
+      rgba(241, 245, 249, 0.96) 0%,
+      rgba(226, 232, 240, 0.75) 56%,
+      rgba(241, 245, 249, 0.96) 100%
+    );
 }
 
 /* Dot grid pattern — subtle texture */
@@ -22,104 +28,11 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: 0.3;
-}
-
-/* ===== DECORATIVE PILL SHAPES ===== */
-/* Floating geometric elements with thick borders and multiple colors */
-
-.landing-hero-orb-1,
-.landing-hero-orb-2,
-.landing-hero-orb-3 {
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-  border-radius: 999px;
-  border: 2px solid var(--line);
-}
-
-/* Coral pill — top right */
-.landing-hero-orb-1 {
-  display: block;
-  top: 8%;
-  right: 8%;
-  width: 80px;
-  height: 140px;
-  background: var(--coral-subtle);
-  border-color: var(--coral);
-  transform: rotate(15deg);
-  animation: float-slow 8s ease-in-out infinite;
-}
-
-/* Blue circle — top left area */
-.landing-hero-orb-2 {
-  display: block;
-  top: 15%;
-  left: 5%;
-  width: 60px;
-  height: 60px;
-  background: var(--blue-subtle);
-  border-color: var(--blue);
-  animation: float-slow 10s ease-in-out infinite reverse;
-}
-
-/* Violet pill — bottom left */
-.landing-hero-orb-3 {
-  display: block;
-  bottom: 15%;
-  left: 12%;
-  width: 100px;
-  height: 40px;
-  background: var(--violet-subtle);
-  border-color: var(--violet);
-  transform: rotate(-8deg);
-  animation: float-slow 9s ease-in-out infinite;
-  animation-delay: -3s;
-}
-
-/* Additional decorative shapes via pseudo-elements */
-.landing-hero::before {
-  content: '';
-  position: absolute;
-  top: 35%;
-  right: 3%;
-  width: 50px;
-  height: 50px;
-  border: 2px solid var(--emerald);
-  border-radius: 12px;
-  background: var(--emerald-subtle);
-  transform: rotate(12deg);
-  pointer-events: none;
-  z-index: 0;
-  animation: float-slow 7s ease-in-out infinite;
-  animation-delay: -2s;
-}
-
-.landing-hero::after {
-  content: '';
-  position: absolute;
-  bottom: 25%;
-  right: 15%;
-  width: 30px;
-  height: 30px;
-  border: 2px solid var(--amber);
-  border-radius: 50%;
-  background: var(--amber-subtle);
-  pointer-events: none;
-  z-index: 0;
-  animation: float-slow 6s ease-in-out infinite reverse;
-  animation-delay: -4s;
-}
-
-@keyframes float-slow {
-  0%, 100% {
-    transform: translateY(0) rotate(var(--rotation, 0deg));
-  }
-  50% {
-    transform: translateY(-12px) rotate(var(--rotation, 0deg));
-  }
+  background-image:
+    linear-gradient(to right, rgba(100, 116, 139, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 116, 139, 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.32;
 }
 
 /* Headline text decoration — underline highlight */
@@ -151,31 +64,8 @@
   z-index: 1;
 }
 
-/* Mobile adjustments — fewer shapes, smaller */
+/* Mobile adjustments */
 @media (max-width: 768px) {
-  .landing-hero-orb-1 {
-    width: 50px;
-    height: 90px;
-    top: 5%;
-    right: 5%;
-  }
-
-  .landing-hero-orb-2 {
-    width: 40px;
-    height: 40px;
-    top: 10%;
-    left: 3%;
-  }
-
-  .landing-hero-orb-3 {
-    display: none;
-  }
-
-  .landing-hero::before,
-  .landing-hero::after {
-    display: none;
-  }
-
   .landing-hero-dots {
     opacity: 0.2;
   }

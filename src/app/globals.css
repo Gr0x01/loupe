@@ -14,9 +14,9 @@
   --paper-100: #F1F5F9;
   --paper-200: #E2E8F0;
 
-  /* Line — Borders (medium gray, not black) */
-  --line: #CBD5E1;
-  --line-subtle: rgba(148, 163, 184, 0.25);
+  /* Line — Borders (darker gray, never black) */
+  --line: #9AAABD;
+  --line-subtle: rgba(100, 116, 139, 0.34);
 
   /* Multi-color accent palette */
   --coral: #FF6B4A;
@@ -146,29 +146,32 @@ body {
 .glass-card {
   background: #FFFFFF;
   border: 2px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14);
   transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .glass-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 rgba(51, 65, 85, 0.17);
 }
 
 /* Elevated — hero sections, score cards */
 .glass-card-elevated {
   background: #FFFFFF;
   border: 2px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.16);
 }
 
 /* Active/selected card */
 .glass-card-active {
   background: #FFFFFF;
   border: 2px solid var(--signal);
-  border-radius: 12px;
-  box-shadow: 0 0 0 4px var(--signal-subtle);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 3px var(--signal-subtle),
+    2px 2px 0 rgba(248, 90, 56, 0.16);
 }
 
 /* ===== FINDING CARD VARIANTS ===== */
@@ -201,15 +204,16 @@ body {
   color: white;
   font-weight: 600;
   padding: 12px 24px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 2px solid var(--coral-hover);
+  box-shadow: 2px 2px 0 rgba(248, 90, 56, 0.2);
   transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .btn-primary:hover {
   background: var(--signal-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 74, 0.25);
+  box-shadow: 3px 3px 0 rgba(248, 90, 56, 0.24);
 }
 
 .btn-primary:active {
@@ -221,8 +225,9 @@ body {
   color: var(--ink-700);
   font-weight: 500;
   padding: 12px 20px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 2px solid var(--line);
+  box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.12);
   transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -1058,7 +1063,8 @@ body.modal-open .site-nav {
   padding: 0 20px;
   background: #FFFFFF;
   border: 2px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 0 rgba(51, 65, 85, 0.1);
 }
 
 /* Logo wrapper with hover effect */
@@ -2121,13 +2127,14 @@ body.modal-open .site-nav {
 
 .free-audit-shell {
   background: #FFFFFF;
-  border-radius: 16px;
+  border-radius: 12px;
   border: 2px solid var(--line);
   padding: 8px;
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.12);
 }
 
 .free-audit-input {
-  border-radius: 10px;
+  border-radius: 8px;
   border: 2px solid var(--line-subtle);
   background: #FFFFFF;
   transition: border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -2235,14 +2242,13 @@ body.modal-open .site-nav {
 /* ===== SITE PREVIEW CARD (Cropped page + floating impact tile) ===== */
 .site-preview-wrapper {
   position: relative;
-  filter: drop-shadow(0 14px 34px rgba(15, 23, 42, 0.1))
-    drop-shadow(0 2px 8px rgba(15, 23, 42, 0.05));
+  filter: drop-shadow(4px 4px 0 rgba(51, 65, 85, 0.12));
 }
 
 .site-preview-canvas {
   background: #FFFFFF;
   border: 2px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 20px 24px 24px;
   position: relative;
   overflow: visible; /* allow notification to peek out */
@@ -2255,8 +2261,8 @@ body.modal-open .site-nav {
   padding: 10px 12px;
   margin: -20px -24px 16px;
   background: rgba(0, 0, 0, 0.03);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  border-radius: 16px 16px 0 0;
+  border-bottom: 2px solid rgba(100, 116, 139, 0.2);
+  border-radius: 12px 12px 0 0;
 }
 
 /* Traffic light dots */
@@ -2301,7 +2307,8 @@ body.modal-open .site-nav {
   width: 180px;
   align-self: stretch;
   background: rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
+  border-radius: 6px;
+  border: 2px solid var(--line-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2391,6 +2398,8 @@ body.modal-open .site-nav {
   font-weight: 600;
   padding: 10px 20px;
   border-radius: 8px;
+  border: 2px solid var(--ink-700);
+  box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.18);
 }
 
 /* Notification badge - Loupe detecting the change (blue accent) */
@@ -2403,7 +2412,7 @@ body.modal-open .site-nav {
   gap: 6px;
   background: var(--blue);
   border: 2px solid var(--blue-hover);
-  border-radius: 20px;
+  border-radius: 12px;
   padding: 7px 14px;
 }
 
@@ -2434,12 +2443,12 @@ body.modal-open .site-nav {
   transform: translateX(70%) rotate(2deg);
   background: #FFFFFF;
   border: 2px solid var(--emerald);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 16px 28px;
   min-width: 180px;
   text-align: center;
   z-index: 10;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
+  box-shadow: 3px 3px 0 rgba(5, 150, 105, 0.16);
 }
 
 .site-preview-metric-label {
@@ -2511,8 +2520,9 @@ body.modal-open .site-nav {
   gap: 10px;
   background: #FFFFFF;
   border: 2px solid var(--line);
-  border-radius: 20px;
+  border-radius: 12px;
   padding: 8px 16px 8px 10px;
+  box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.1);
 }
 
 .founding-counter-track {
@@ -2577,10 +2587,10 @@ body.modal-open .site-nav {
 /* ===== SCROLL REVEAL SYSTEM ===== */
 .scroll-reveal {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(12px);
   transition:
-    opacity 600ms cubic-bezier(0, 0, 0.2, 1),
-    transform 600ms cubic-bezier(0, 0, 0.2, 1);
+    opacity 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .scroll-reveal.revealed {
@@ -2591,10 +2601,10 @@ body.modal-open .site-nav {
 /* Stagger children on reveal */
 .scroll-reveal-stagger > * {
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(10px);
   transition:
-    opacity 500ms ease-out,
-    transform 500ms ease-out;
+    opacity 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .scroll-reveal-stagger.revealed > *:nth-child(1) {
@@ -2626,10 +2636,10 @@ body.modal-open .site-nav {
 /* Individual child reveal (uses inline transitionDelay) */
 .scroll-reveal-child {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(8px);
   transition:
-    opacity 500ms ease-out,
-    transform 500ms ease-out;
+    opacity 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .scroll-reveal-child.revealed,
 .scroll-reveal.revealed .scroll-reveal-child {
