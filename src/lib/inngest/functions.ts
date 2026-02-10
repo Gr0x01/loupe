@@ -113,17 +113,26 @@ export const analyzeUrl = inngest.createFunction(
         let previousRunningSummary = null;
 
         if (parentAnalysisId) {
-          const { data: parent } = await supabase
+          const { data: parent, error: parentError } = await supabase
             .from("analyses")
             .select("structured_output, changes_summary")
             .eq("id", parentAnalysisId)
             .single();
 
-          if (parent?.structured_output) {
+          if (parentError) {
+            console.error(`Failed to fetch parent analysis ${parentAnalysisId}:`, parentError);
+          } else if (!parent) {
+            console.warn(`Parent analysis ${parentAnalysisId} not found`);
+          } else if (!parent.structured_output) {
+            console.warn(`Parent analysis ${parentAnalysisId} has no structured_output`);
+          } else {
             previousFindings = parent.structured_output;
             previousRunningSummary =
               (parent.changes_summary as ChangesSummary | null)?.running_summary ?? null;
+            console.log(`Loaded previousFindings from parent ${parentAnalysisId}`);
           }
+        } else {
+          console.log(`No parentAnalysisId for analysis ${analysisId}`);
         }
 
         // Fetch deploy context if this analysis was triggered by a deploy
@@ -301,24 +310,22 @@ export const analyzeUrl = inngest.createFunction(
               }
             );
 
-            // Store results
-            const updateData: { changes_summary?: ChangesSummary; analytics_correlation?: ChangesSummary } = {};
-
-            if (previousFindings) {
-              updateData.changes_summary = changesSummary;
-            }
+            // Store results - always save changes_summary when post-analysis runs
+            const updateData: { changes_summary?: ChangesSummary; analytics_correlation?: ChangesSummary } = {
+              changes_summary: changesSummary,
+            };
 
             if (analyticsCredentials || databaseCredentials) {
               // Also store in analytics_correlation for dedicated access
               updateData.analytics_correlation = changesSummary;
             }
 
-            if (Object.keys(updateData).length > 0) {
-              await supabase
-                .from("analyses")
-                .update(updateData)
-                .eq("id", analysisId);
-            }
+            console.log(`Storing changes_summary for ${analysisId}: ${changesSummary.changes?.length || 0} changes, previousFindings: ${!!previousFindings}`);
+
+            await supabase
+              .from("analyses")
+              .update(updateData)
+              .eq("id", analysisId);
 
             // Check for correlation unlock: watching item became validated
             if (parentAnalysisId && changesSummary?.progress?.validatedItems?.length) {
