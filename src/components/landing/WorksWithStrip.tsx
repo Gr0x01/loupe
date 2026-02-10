@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Image from "next/image";
 
-const categories = [
+const groups = [
   {
-    label: "Build with",
+    label: "Build",
     tools: [
       { name: "Lovable", src: "/logos/lovable.svg" },
       { name: "Bolt", src: "/logos/bolt.svg" },
@@ -14,7 +13,7 @@ const categories = [
     ],
   },
   {
-    label: "Deploy to",
+    label: "Deploy",
     tools: [
       { name: "Vercel", src: "/logos/vercel.svg" },
       { name: "Netlify", src: "/logos/netlify.svg" },
@@ -23,7 +22,7 @@ const categories = [
     ],
   },
   {
-    label: "Track with",
+    label: "Measure",
     tools: [
       { name: "PostHog", src: "/logos/posthog.svg" },
       { name: "Google Analytics", src: "/logos/ga4.svg" },
@@ -34,80 +33,66 @@ const categories = [
 ];
 
 export default function WorksWithStrip() {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIsAnimating(true);
-      setTimeout(() => {
-        setActiveIndex((prev) => (prev + 1) % categories.length);
-        setIsAnimating(false);
-      }, 200);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, []);
-
-  const current = categories[activeIndex];
-
   return (
-    <section className="bg-ink-900 py-8 md:py-10">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="flex flex-col items-center gap-5">
-          {/* Category label */}
-          <span
-            className={`text-ink-300 text-sm font-semibold uppercase tracking-[0.12em] transition-opacity duration-200 ${
-              isAnimating ? "opacity-0" : "opacity-100"
-            }`}
+    <section className="bg-ink-900 py-7 md:py-9 border-y border-white/10">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="text-center max-w-3xl mx-auto">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-300">
+            No stack migration
+          </p>
+          <h2
+            className="mt-2 text-[clamp(1.4rem,2.8vw,2rem)] text-white leading-[1.15] tracking-[-0.01em]"
+            style={{ fontFamily: "var(--font-instrument-serif)" }}
           >
-            {current.label}
-          </span>
-
-          {/* Logos row */}
-          <div
-            className={`flex items-center justify-center gap-8 md:gap-12 transition-all duration-200 ${
-              isAnimating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
-            }`}
-          >
-            {current.tools.map((tool) => (
-              <div
-                key={tool.name}
-                className="flex items-center justify-center h-8 md:h-10"
-                title={tool.name}
-              >
-                <Image
-                  src={tool.src}
-                  alt={tool.name}
-                  width={100}
-                  height={40}
-                  className="h-6 md:h-8 w-auto max-w-[100px] md:max-w-[120px] object-contain brightness-0 invert opacity-80 hover:opacity-100 transition-opacity"
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Category dots */}
-          <div className="flex items-center justify-center gap-2 mt-2">
-            {categories.map((cat, i) => (
-              <button
-                key={cat.label}
-                onClick={() => {
-                  setIsAnimating(true);
-                  setTimeout(() => {
-                    setActiveIndex(i);
-                    setIsAnimating(false);
-                  }, 200);
-                }}
-                className={`h-1.5 rounded-full transition-all duration-200 ${
-                  i === activeIndex
-                    ? "bg-signal w-5"
-                    : "bg-ink-600 w-1.5 hover:bg-ink-400"
-                }`}
-                aria-label={`Show ${cat.label} tools`}
-              />
-            ))}
-          </div>
+            Works with how you already ship
+          </h2>
+          <p className="mt-2 text-[0.98rem] text-ink-200 leading-relaxed">
+            Start with one URL. Connect tools later for deeper correlation.
+          </p>
+          <p className="mt-1 text-sm text-ink-300">
+            Build with AI tools, deploy anywhere, and track outcomes with your
+            current analytics stack.
+          </p>
         </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+          {groups.map((group) => (
+            <div
+              key={group.label}
+              className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-300">
+                {group.label}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {group.tools.map((tool) => (
+                  <div
+                    key={tool.name}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-2.5 py-1.5"
+                    title={tool.name}
+                  >
+                    <div className="h-4 w-4 flex items-center justify-center shrink-0">
+                      <Image
+                        src={tool.src}
+                        alt={tool.name}
+                        width={16}
+                        height={16}
+                        className="h-3.5 w-3.5 object-contain brightness-0 invert opacity-90"
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-white leading-none whitespace-nowrap">
+                      {tool.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-4 text-center text-sm text-ink-300">
+          GitHub deploy tracking is supported in-app for technical founders.
+        </p>
       </div>
     </section>
   );

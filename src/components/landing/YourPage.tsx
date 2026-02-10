@@ -16,40 +16,45 @@ export default function YourPage() {
       <div className="w-full max-w-6xl mx-auto">
         <div
           ref={ref}
-          className="grid lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-14 items-center"
+          className="grid lg:grid-cols-[0.95fr_1.05fr] gap-10 lg:gap-14 items-start"
         >
-          {/* Left: Audit preview */}
+          {/* Visual: Audit preview */}
           <div
-            className={`relative scroll-reveal ${revealed ? "revealed" : ""}`}
+            className={`relative scroll-reveal lg:order-2 ${revealed ? "revealed" : ""}`}
             style={{ transitionDelay: "100ms" }}
           >
             <div className="absolute -inset-6 rounded-[28px] bg-gradient-to-br from-blue/10 via-white/40 to-amber/10 blur-2xl opacity-60" />
             <div className="relative glass-card-elevated p-6 md:p-7">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-                  Audit preview
+                  Change brief
                 </span>
                 <span className="text-[10px] text-text-muted">Today</span>
               </div>
 
               <div className="mt-4 space-y-4">
-                <div className="rounded-xl bg-bg-inset p-4">
+                <div className="rounded-lg bg-bg-inset/70 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-                    Your headline
+                    Detected change
                   </p>
-                  <p
-                    className="text-[1.05rem] text-text-primary leading-snug mt-2"
-                    style={{ fontFamily: "var(--font-instrument-serif)" }}
-                  >
-                    Ship your idea in minutes
-                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-sm text-text-muted line-through decoration-score-low/70">
+                      Start free trial
+                    </p>
+                    <p
+                      className="text-[1.05rem] text-text-primary leading-snug"
+                      style={{ fontFamily: "var(--font-instrument-serif)" }}
+                    >
+                      Get started free
+                    </p>
+                  </div>
                   <p className="text-xs text-text-secondary mt-2 leading-relaxed">
-                    Benefit-led, but &ldquo;idea&rdquo; is vague. Specific outcomes
-                    convert better.
+                    Loupe flags this as a meaningful message change, not just a
+                    visual diff.
                   </p>
                 </div>
 
-                <div className="rounded-xl border-2 border-amber bg-amber/5 p-4">
+                <div className="rounded-lg bg-amber/5 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-amber">
                       Prediction
@@ -59,48 +64,34 @@ export default function YourPage() {
                     </span>
                   </div>
                   <p className="text-sm text-text-primary mt-2">
-                    Move your CTA above pricing.
+                    Likely outcome over 7 days if this change stays live.
                   </p>
                   <div className="mt-3 h-2 rounded-full bg-paper-100 overflow-hidden">
                     <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-amber/60 to-amber" />
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="rounded-xl border-2 border-line bg-white px-3 py-2">
+                <div className="rounded-lg bg-white/80 p-4">
+                  <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-                      Finding
+                      What to do next
                     </p>
-                    <p className="text-xs text-text-secondary mt-1">
-                      CTA below pricing
-                    </p>
+                    <span className="text-[10px] font-semibold text-blue">
+                      Priority 1
+                    </span>
                   </div>
-                  <div className="rounded-xl border-2 border-line bg-white px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-                      Finding
-                    </p>
-                    <p className="text-xs text-text-secondary mt-1">
-                      Social proof hidden
-                    </p>
-                  </div>
+                  <p className="text-sm text-text-primary mt-2">
+                    Move social proof above pricing so visitors see trust cues
+                    before decision friction.
+                  </p>
                 </div>
               </div>
             </div>
-
-            <div className="absolute -right-6 -bottom-6 hidden md:block glass-card p-4 max-w-[220px]">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-                Loupe note
-              </p>
-              <p className="text-xs text-text-secondary mt-2 leading-relaxed">
-                Most visitors never reach testimonials. Move social proof above
-                pricing.
-              </p>
-            </div>
           </div>
 
-          {/* Right: Copy and takeaways */}
+          {/* Copy and takeaways */}
           <div
-            className={`scroll-reveal ${revealed ? "revealed" : ""}`}
+            className={`scroll-reveal lg:order-1 ${revealed ? "revealed" : ""}`}
             style={{ transitionDelay: "200ms" }}
           >
             <div className="mb-4">
@@ -115,41 +106,41 @@ export default function YourPage() {
               Your page, through Loupe
             </h2>
             <p className="text-[1.05rem] text-text-secondary mt-4 leading-relaxed max-w-xl">
-              Loupe reads your headline, layout, and CTA. You get specific findings —
-              not a generic checklist.
+              Loupe shows what changed, why it matters, and what to fix next.
+              Each suggestion includes predicted impact so you can prioritize fast.
             </p>
 
-            <div className={`mt-6 space-y-3 scroll-reveal-stagger ${revealed ? "revealed" : ""}`}>
-              <div className="glass-card p-4 flex items-start gap-3">
-                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue border border-blue-hover" />
+            <div className={`mt-6 space-y-4 scroll-reveal-stagger ${revealed ? "revealed" : ""}`}>
+              <div className="flex items-start gap-3">
+                <div className="mt-2 w-2 h-2 rounded-full bg-blue border border-blue-hover" />
                 <div>
                   <p className="text-sm font-semibold text-text-primary">
-                    Specific findings
+                    Exact change callouts
                   </p>
                   <p className="text-sm text-text-secondary mt-1">
-                    Concrete notes on what to fix — not vague advice.
+                    Headline, CTA, layout, and trust signals in plain language.
                   </p>
                 </div>
               </div>
-              <div className="glass-card p-4 flex items-start gap-3">
-                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue border border-blue-hover" />
+              <div className="flex items-start gap-3">
+                <div className="mt-2 w-2 h-2 rounded-full bg-blue border border-blue-hover" />
                 <div>
                   <p className="text-sm font-semibold text-text-primary">
-                    Predictions attached
+                    Predicted impact ranges
                   </p>
                   <p className="text-sm text-text-secondary mt-1">
-                    Every suggestion comes with what it could change.
+                    Know what is likely to move signups before you ship.
                   </p>
                 </div>
               </div>
-              <div className="glass-card p-4 flex items-start gap-3">
-                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue border border-blue-hover" />
+              <div className="flex items-start gap-3">
+                <div className="mt-2 w-2 h-2 rounded-full bg-blue border border-blue-hover" />
                 <div>
                   <p className="text-sm font-semibold text-text-primary">
-                    Written for builders
+                    Clear next step
                   </p>
                   <p className="text-sm text-text-secondary mt-1">
-                    Plain language you can act on in minutes.
+                    Copy-paste-ready suggestions you can apply in minutes.
                   </p>
                 </div>
               </div>
@@ -166,7 +157,7 @@ export default function YourPage() {
                     ?.scrollIntoView({ behavior: "smooth" });
                 }}
               >
-                See what Loupe finds on your page
+                See what changed on your page
                 <span aria-hidden="true">→</span>
               </a>
             </div>

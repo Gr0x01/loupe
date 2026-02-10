@@ -57,17 +57,17 @@ export default function Home() {
                 style={{ fontFamily: "var(--font-instrument-serif)" }}
               >
                 <span className="landing-hero-headline-1 block text-text-primary">
-                  You made the change.
+                  Stop guessing after
                 </span>
                 <span className="landing-hero-headline-2 block text-accent">
-                  See what it&nbsp;did.
+                  each page change.
                 </span>
               </h1>
 
               {/* Subheadline */}
-              <p className="text-lg md:text-[1.15rem] text-text-secondary mt-5 leading-[1.7] max-w-[38ch] landing-hero-subhead">
-                You write the headline, hit deploy, move on. Loupe watches
-                what happens next and tells you if it&nbsp;worked.
+              <p className="text-lg md:text-[1.15rem] text-text-primary mt-5 leading-[1.7] max-w-[38ch] landing-hero-subhead">
+                Paste your URL. Loupe tracks every page change and shows
+                whether it helped signups, hurt them, or needs more data.
               </p>
 
               {/* Form */}
@@ -75,7 +75,7 @@ export default function Home() {
                 className="mt-8 max-w-lg landing-hero-form"
                 id="hero-form"
               >
-                <FreeAuditForm />
+                <FreeAuditForm ctaText="Analyze my page" />
               </div>
 
               {/* Trust line */}

@@ -19,9 +19,9 @@ export default function SitePreviewCard() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 900),
-      setTimeout(() => setPhase(2), 1800),
-      setTimeout(() => setPhase(3), 2400),
+      setTimeout(() => setPhase(1), 700),
+      setTimeout(() => setPhase(2), 1400),
+      setTimeout(() => setPhase(3), 2000),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -42,7 +42,7 @@ export default function SitePreviewCard() {
                   phase >= 1 ? "struck" : ""
                 }`}
               >
-                Start your free trial
+                Start free trial
               </p>
               <p
                 className={`site-preview-headline-new transition-all duration-700 ease-out ${
@@ -57,16 +57,11 @@ export default function SitePreviewCard() {
 
             {/* Subheadline placeholder */}
             <p className="site-preview-subheadline">
-              Build and ship your product in days, not months.
+              Loupe tracks this change and watches the signup impact.
             </p>
 
             {/* CTA button placeholder */}
             <div className="site-preview-cta">Try it free</div>
-          </div>
-
-          {/* Right: image placeholder */}
-          <div className="site-preview-hero-image">
-            <div className="site-preview-image-icon" />
           </div>
         </div>
 
@@ -79,7 +74,7 @@ export default function SitePreviewCard() {
           }`}
         >
           <span className="site-preview-notif-dot" />
-          <span className="site-preview-notif-text">Headline changed</span>
+          <span className="site-preview-notif-text">Change tracked</span>
         </div>
       </div>
 
@@ -91,11 +86,11 @@ export default function SitePreviewCard() {
             : "opacity-0 translate-y-4"
         }`}
       >
-        <p className="site-preview-metric-label">After change</p>
+        <p className="site-preview-metric-label">After 7 days</p>
         <p className={`site-preview-metric ${phase >= 3 ? "pulse" : ""}`}>
           +23%
         </p>
-        <p className="site-preview-metric-sub">signups</p>
+        <p className="site-preview-metric-sub">more signups</p>
       </div>
     </div>
   );
