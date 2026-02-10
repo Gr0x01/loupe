@@ -146,9 +146,19 @@ Solo founders and small teams (1-5 devs) shipping web products. They:
 
 ## Positioning
 
-"When metrics move, know why."
+### Celebration + Curiosity → Compounding Intelligence
 
-You change your page constantly — deploys, CMS updates, AI-generated code. Loupe watches every change, correlates with your metrics, and tells you what worked and what didn't. No manual A/B testing, no spreadsheets, no guessing.
+**Acquisition (celebration + curiosity):** Solo founders ship fast — that's the hard part. Loupe celebrates their velocity and closes the loop: "You made the change. See what it did." Supportive tone, not fear-based. We have their back.
+
+**Activation (supportive):** "Your next change is coming. This time, you'll know." Future-focused, helpful — not guilt-tripping.
+
+**Retention (compounding):** Show accumulated intelligence — scan counts, prediction accuracy, calibration progress, "since we started watching" summaries. Every scan makes Loupe sharper for their page.
+
+**Category:** Change Intelligence — connecting what you ship to what happens next.
+
+**One-liner:** "Loupe learns what works for your site — by watching every change and measuring what it did."
+
+See `vision.md` for full positioning details, headline hierarchy, and "Only" statement.
 
 ## What Loupe Catches
 

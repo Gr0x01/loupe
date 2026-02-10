@@ -79,15 +79,12 @@ export default function FreeAuditForm({
 
   return (
     <form onSubmit={handleSubmit} className={className}>
-      <div
-        className="bg-surface-solid rounded-2xl border border-border-subtle p-4
-                    shadow-[0_2px_8px_rgba(17,17,24,0.06),0_1px_2px_rgba(17,17,24,0.04)]"
-      >
+      <div className="free-audit-shell">
         {loading && showLoadingInline ? (
           <div className="flex items-center justify-center py-3 px-3">
             <div className="flex items-center gap-3">
               <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-              <span className="text-text-secondary text-lg">
+              <span className="text-lg text-text-secondary">
                 {LOADING_STEPS[loadingStep] || LOADING_STEPS[0]}
               </span>
             </div>
@@ -100,13 +97,13 @@ export default function FreeAuditForm({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://yoursite.com"
-              className="flex-1 bg-transparent text-text-primary placeholder-text-muted
-                         text-lg px-3 py-3 outline-none"
+              className="free-audit-input flex-1 text-base px-4 py-2.5 outline-none
+                         text-text-primary placeholder-text-muted"
             />
             <button
               type="submit"
               disabled={!url.trim() || loading}
-              className="btn-primary px-8 py-3
+              className="btn-primary free-audit-submit px-6 py-2.5 text-sm
                          disabled:opacity-30 disabled:cursor-not-allowed
                          flex-shrink-0 whitespace-nowrap"
             >
@@ -116,7 +113,7 @@ export default function FreeAuditForm({
         )}
       </div>
       {error && (
-        <p className="text-sm text-score-low mt-3 text-center">{error}</p>
+        <p className="text-sm mt-3 text-center text-score-low">{error}</p>
       )}
     </form>
   );

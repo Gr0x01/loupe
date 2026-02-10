@@ -3,48 +3,40 @@
 import { useState, useEffect } from "react";
 
 /**
- * CorrelationCard - Hero "money shot" showing page change -> metric impact
- * Designed as the visual centerpiece of the landing page hero.
- * Shows a mini browser chrome with a before/after change, then the metric correlation.
+ * HeroVisual (replaces CorrelationCard v2)
+ *
+ * Shows a simplified website mockup with animated Loupe notification toasts.
+ * Communicates the value prop in a single glance:
+ * "Loupe watches your site and tells you what changed and whether it helped."
+ *
+ * Animation sequence (after initial delay):
+ *   0.8s  — "Watching" badge fades in
+ *   1.2s  — Headline bars briefly highlight (scan moment)
+ *   1.8s  — Notification #1 slides up: "Headline changed"
+ *   3.2s  — Notification #2 slides up: "Signups +23%"
+ *   4.2s  — Rest state, watching dot pulses
  */
 
-function MiniSparkline({ positive }: { positive: boolean }) {
-  const color = positive ? "var(--score-high)" : "var(--score-low)";
-  const d = positive
-    ? "M0 24 Q8 24 12 20 Q16 16 20 18 Q24 20 28 14 Q32 8 36 10 Q40 12 44 4 Q48 0 48 0"
-    : "M0 4 Q4 4 8 6 Q12 8 16 10 Q20 12 24 14 Q28 16 32 18 Q36 20 40 22 Q44 24 48 24";
-
-  return (
-    <svg
-      viewBox="0 0 48 28"
-      className="w-full h-7"
-      fill="none"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id={`spark-${positive}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={d + " L48 28 L0 28 Z"} fill={`url(#spark-${positive})`} />
-      <path d={d} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function CorrelationCard() {
-  const [revealed, setRevealed] = useState(false);
+  const [phase, setPhase] = useState(0);
 
   useEffect(() => {
-    const timer = setTimeout(() => setRevealed(true), 1800);
-    return () => clearTimeout(timer);
+    // Delay start to let hero text stagger in first
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    timers.push(setTimeout(() => setPhase(1), 800));   // Watching badge
+    timers.push(setTimeout(() => setPhase(2), 1200));  // Headline highlight
+    timers.push(setTimeout(() => setPhase(3), 1800));  // Notification 1
+    timers.push(setTimeout(() => setPhase(4), 3200));  // Notification 2
+    timers.push(setTimeout(() => setPhase(5), 4200));  // Rest
+
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   return (
-    <div className="correlation-card-hero w-full max-w-[420px]">
+    <div className="hero-visual w-full max-w-[440px]">
       {/* Browser chrome */}
-      <div className="correlation-card-chrome">
+      <div className="hero-visual-chrome">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-[rgba(0,0,0,0.08)]" />
           <div className="w-2.5 h-2.5 rounded-full bg-[rgba(0,0,0,0.08)]" />
@@ -55,99 +47,152 @@ export default function CorrelationCard() {
             yoursite.com
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-score-high" />
-          <span className="text-[10px] text-text-muted font-medium">Watching</span>
-        </div>
+        {/* Empty right side for balance */}
+        <div className="w-16" />
       </div>
 
-      {/* Card body */}
-      <div className="correlation-card-body">
-        {/* The change detection */}
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-5 h-5 rounded-md bg-accent/10 flex items-center justify-center">
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-                <path d="M2 8h12M8 2v12" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+      {/* Mockup body — relative for positioned notifications */}
+      <div className="hero-visual-body relative overflow-hidden">
+        {/* Watching badge — top right */}
+        <div
+          className={`absolute top-3 right-3 z-10 flex items-center gap-1.5
+            bg-[rgba(255,255,255,0.8)] backdrop-blur-[12px]
+            border border-[rgba(0,0,0,0.06)] rounded-full
+            py-1 px-2.5 transition-opacity duration-300
+            ${phase >= 1 ? "opacity-100" : "opacity-0"}`}
+        >
+          <span
+            className={`relative flex h-1.5 w-1.5 ${
+              phase >= 5 ? "" : ""
+            }`}
+          >
+            {phase >= 5 && (
+              <span className="absolute inline-flex h-full w-full rounded-full bg-score-high opacity-40 animate-ping" />
+            )}
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-score-high" />
+          </span>
+          <span className="text-[10px] font-medium text-text-muted">
+            Watching
+          </span>
+        </div>
+
+        {/* Website mockup content — abstract placeholder bars */}
+        <div className="pt-10 pb-6 px-5">
+          {/* Nav placeholder */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="h-2 w-16 rounded-full bg-[rgba(0,0,0,0.07)]" />
+            <div className="flex gap-3">
+              <div className="h-1.5 w-10 rounded-full bg-[rgba(0,0,0,0.04)]" />
+              <div className="h-1.5 w-10 rounded-full bg-[rgba(0,0,0,0.04)]" />
+              <div className="h-1.5 w-8 rounded-full bg-[rgba(0,0,0,0.04)]" />
             </div>
-            <span className="text-xs font-semibold text-accent uppercase tracking-wide">
-              Change detected
-            </span>
-            <span className="text-[10px] text-text-muted ml-auto">Jan 28</span>
           </div>
 
-          <div className="bg-bg-inset rounded-xl p-4">
-            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-2">
-              Hero headline
-            </p>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-text-muted line-through decoration-text-muted/30">
-                &ldquo;Start your free trial&rdquo;
-              </span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-accent">
-                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span className="text-sm font-semibold text-text-primary">
-                &ldquo;Ship your idea today&rdquo;
-              </span>
+          {/* Hero headline placeholder — these highlight during scan */}
+          <div className="space-y-2 mb-3">
+            <div
+              className={`h-3 w-[75%] rounded-full transition-colors duration-600 ${
+                phase === 2
+                  ? "hero-mockup-highlight-bar"
+                  : "bg-[rgba(0,0,0,0.08)]"
+              }`}
+            />
+            <div
+              className={`h-3 w-[55%] rounded-full transition-colors duration-600 ${
+                phase === 2
+                  ? "hero-mockup-highlight-bar"
+                  : "bg-[rgba(0,0,0,0.08)]"
+              }`}
+            />
+          </div>
+
+          {/* Subhead placeholder */}
+          <div className="h-2 w-[65%] rounded-full bg-[rgba(0,0,0,0.04)] mb-4" />
+
+          {/* CTA button placeholder */}
+          <div className="h-7 w-24 rounded-lg bg-accent/10 border border-accent/15 mb-7" />
+
+          {/* Body text placeholder */}
+          <div className="space-y-2 mb-6">
+            <div className="h-1.5 w-[90%] rounded-full bg-[rgba(0,0,0,0.04)]" />
+            <div className="h-1.5 w-[80%] rounded-full bg-[rgba(0,0,0,0.04)]" />
+            <div className="h-1.5 w-[70%] rounded-full bg-[rgba(0,0,0,0.04)]" />
+          </div>
+
+          {/* Section 2 hint */}
+          <div className="pt-5 border-t border-[rgba(0,0,0,0.04)]">
+            <div className="h-2.5 w-[60%] rounded-full bg-[rgba(0,0,0,0.06)] mb-3" />
+            <div className="space-y-2">
+              <div className="h-1.5 w-[85%] rounded-full bg-[rgba(0,0,0,0.03)]" />
+              <div className="h-1.5 w-[75%] rounded-full bg-[rgba(0,0,0,0.03)]" />
             </div>
           </div>
         </div>
 
-        {/* Metric impact - the punchline */}
-        <div
-          className={`transition-all duration-700 ${
-            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-          }`}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-5 h-5 rounded-md bg-score-high/10 flex items-center justify-center">
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-                <path d="M2 14L6 8l3 4 5-10" stroke="var(--score-high)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <span className="text-xs font-semibold text-score-high uppercase tracking-wide">
-              Since this change
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {/* Bounce rate */}
-            <div className="bg-bg-inset rounded-xl p-4">
-              <MiniSparkline positive={true} />
-              <p
-                className="text-2xl font-bold text-score-high mt-2"
-                style={{ fontFamily: "var(--font-instrument-serif)" }}
-              >
-                -12%
-              </p>
-              <p className="text-xs text-text-secondary mt-0.5">bounce rate</p>
-            </div>
-
-            {/* Signups */}
-            <div className="bg-bg-inset rounded-xl p-4">
-              <MiniSparkline positive={true} />
-              <p
-                className="text-2xl font-bold text-score-high mt-2"
+        {/* Notification toasts — positioned bottom-right, stacked */}
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
+          {/* Notification #2 — Impact (appears second, stacks on top) */}
+          <div
+            className={`hero-notif hero-notif-impact ${
+              phase >= 4 ? "hero-notif-visible" : ""
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-score-high flex-shrink-0" />
+              <span className="text-[12px] text-text-secondary font-medium">
+                Signups
+              </span>
+              <span
+                className="text-[14px] font-bold text-score-high"
                 style={{ fontFamily: "var(--font-instrument-serif)" }}
               >
                 +23%
-              </p>
-              <p className="text-xs text-text-secondary mt-0.5">signups</p>
+              </span>
             </div>
+            <p className="text-[10px] text-text-muted mt-0.5 ml-3.5">
+              since this change
+            </p>
           </div>
-        </div>
 
-        {/* Bottom attribution */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border-subtle">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-accent/20 flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+          {/* Notification #1 — Change detected (appears first, below) */}
+          <div
+            className={`hero-notif hero-notif-change ${
+              phase >= 3 ? "hero-notif-visible" : ""
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
+              <span className="text-[10px] font-semibold text-accent uppercase tracking-wide">
+                Headline changed
+              </span>
+              <span className="text-[10px] text-text-muted ml-auto">
+                2h ago
+              </span>
             </div>
-            <span className="text-[10px] text-text-muted font-medium">Loupe</span>
+            <div className="flex items-center gap-2 ml-3.5">
+              <span className="text-[11px] text-text-muted line-through decoration-text-muted/30 truncate">
+                Start your free trial
+              </span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="flex-shrink-0 text-accent"
+              >
+                <path
+                  d="M3 8h10M9 4l4 4-4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-[11px] font-medium text-text-primary truncate">
+                Ship your idea today
+              </span>
+            </div>
           </div>
-          <span className="text-[10px] text-text-muted">7 day correlation window</span>
         </div>
       </div>
     </div>

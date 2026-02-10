@@ -1,43 +1,82 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
-import CorrelationCard from "@/components/landing/CorrelationCard";
-import ScenarioCarousel from "@/components/landing/ScenarioCarousel";
-import AudienceCards from "@/components/landing/AudienceCards";
+import SitePreviewCard from "@/components/landing/SitePreviewCard";
+import YourPage from "@/components/landing/YourPage";
+import YourResults from "@/components/landing/YourResults";
+import UrgencyCloser from "@/components/landing/UrgencyCloser";
 
 export default function Home() {
+  const foundingFillRef = useRef<HTMLDivElement>(null);
+  const [foundingData, setFoundingData] = useState<{
+    claimed: number;
+    total: number;
+    remaining: number;
+    isFull: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/founding-status")
+      .then((res) => res.json())
+      .then((data) => setFoundingData(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!foundingData || !foundingFillRef.current) return;
+    const pct = Math.round((foundingData.claimed / foundingData.total) * 100);
+    const raf = requestAnimationFrame(() => {
+      if (foundingFillRef.current) {
+        foundingFillRef.current.style.width = `${pct}%`;
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [foundingData]);
+
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Hero -- Two-column layout with visual card on right */}
       <section className="landing-hero px-4 pt-16 pb-20 md:pt-20 md:pb-24">
-        {/* Decorative background layers */}
-        <div className="landing-hero-bg" aria-hidden="true" />
-        <div className="landing-hero-dots" aria-hidden="true" />
-        <div className="landing-hero-orb-1" aria-hidden="true" />
-        <div className="landing-hero-orb-2" aria-hidden="true" />
-        <div className="landing-hero-orb-3" aria-hidden="true" />
+        <div className="landing-hero-bg" />
+        <div className="landing-hero-dots" />
+        <div className="landing-hero-orb-1" />
+        <div className="landing-hero-orb-2" />
+        <div className="landing-hero-orb-3" />
 
-        {/* Content sits above decorative layers */}
-        <div className="landing-hero-content w-full max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div className="w-full max-w-6xl mx-auto landing-hero-content">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">
             {/* Left column -- Copy + CTA */}
             <div className="max-w-xl">
+              {/* Qualifier */}
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted mb-5 landing-hero-qualifier">
+                For founders who ship fast
+              </p>
+
               {/* Headline */}
               <h1
-                className="text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.1] tracking-tight text-text-primary font-semibold"
+                className="text-[clamp(2rem,4.5vw,2.85rem)] leading-[1.15] tracking-[-0.02em] landing-hero-headline-depth"
                 style={{ fontFamily: "var(--font-instrument-serif)" }}
               >
-                <span className="landing-hero-headline-1 block">Your headline changed.</span>
-                <span className="landing-hero-headline-2 block text-accent">Signups jumped 23%.</span>
+                <span className="landing-hero-headline-1 block text-text-primary">
+                  You made the change.
+                </span>
+                <span className="landing-hero-headline-2 block text-accent">
+                  See what it&nbsp;did.
+                </span>
               </h1>
 
               {/* Subheadline */}
-              <p className="text-xl text-text-secondary mt-6 leading-relaxed landing-hero-subhead">
-                You ship fast. Loupe watches what that does to your&nbsp;numbers.
+              <p className="text-lg md:text-[1.15rem] text-text-secondary mt-5 leading-[1.7] max-w-[38ch] landing-hero-subhead">
+                You write the headline, hit deploy, move on. Loupe watches
+                what happens next and tells you if it&nbsp;worked.
               </p>
 
               {/* Form */}
-              <div className="mt-10 max-w-lg landing-hero-form">
+              <div
+                className="mt-8 max-w-lg landing-hero-form"
+                id="hero-form"
+              >
                 <FreeAuditForm />
               </div>
 
@@ -45,40 +84,43 @@ export default function Home() {
               <p className="text-sm text-text-muted mt-5 landing-hero-trust">
                 Free. No signup. Results in 30 seconds.
               </p>
+
+              {/* Founding 50 counter — pill with progress bar, real data */}
+              {foundingData && !foundingData.isFull && (
+                <div className="mt-3 landing-hero-founding">
+                  <div className="founding-counter-pill">
+                    <div className="founding-counter-track">
+                      <div
+                        ref={foundingFillRef}
+                        className="founding-counter-fill"
+                        style={{ width: "0%" }}
+                      />
+                    </div>
+                    <span className="text-[12px] font-medium text-accent">
+                      {foundingData.claimed} of {foundingData.total} founding
+                      spots claimed
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Right column -- CorrelationCard "money shot" */}
-            <div className="flex justify-center lg:justify-end landing-hero-card">
-              <CorrelationCard />
+            {/* Right column -- Site mockup with Loupe notifications */}
+            <div className="flex justify-center lg:justify-end landing-hero-card lg:pt-8">
+              <SitePreviewCard />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Scenario Carousel -- "What Loupe Catches" */}
-      <ScenarioCarousel />
+      {/* Your Page -- What Loupe sees */}
+      <YourPage />
 
-      {/* Audience Cards -- "Built for how you ship" */}
-      <AudienceCards />
+      {/* Your Results -- Did that change work? */}
+      <YourResults />
 
-      {/* Closing CTA */}
-      <section className="bg-bg-inset px-4 py-20 md:py-24 border-t border-border-subtle">
-        <div className="w-full max-w-2xl mx-auto text-center">
-          <h2
-            className="text-[clamp(1.75rem,4vw,2.5rem)] text-text-primary mb-4"
-            style={{
-              fontFamily: "var(--font-instrument-serif)",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Ship fast. We&apos;ll catch what you miss.
-          </h2>
-          <p className="text-text-secondary mb-8">
-            Free audit, no signup. See what Loupe finds in 30 seconds.
-          </p>
-          <FreeAuditForm />
-        </div>
-      </section>
+      {/* Urgency Closer -- Final push with dark treatment */}
+      <UrgencyCloser foundingData={foundingData} />
     </div>
   );
 }

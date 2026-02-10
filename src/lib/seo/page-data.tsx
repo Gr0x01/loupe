@@ -471,7 +471,7 @@ export const toolPageData: Record<AITool, ToolPageData> = {
           "You've iterated so many times you can't remember what the hero said when it was converting.",
       },
       {
-        title: "Quality is a coin flip",
+        title: "Quality varies wildly",
         description:
           "One prompt gives you gold. The next gives you 'Welcome to our innovative solution platform.'",
       },

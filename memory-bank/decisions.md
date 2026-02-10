@@ -343,3 +343,30 @@ Prompt explicitly tells LLM: "Supabase provides REAL business outcomes, not prox
 - Global feedback aggregation (too noisy, different pages have different contexts)
 - "I'll fix this" tracking (doesn't help calibration — we need to know if we were RIGHT, not if user will act)
 - Feedback on collapsed cards (requires engagement to provide feedback)
+
+## D25: Positioning shift — Celebration + Curiosity + Compounding (Feb 2026)
+
+**Decision**: Reposition from fear/opportunity-cost messaging to a supportive, celebratory tone. We have their back.
+
+**The insight**: Solo founders ship fast — that's the hard part. The missing piece is knowing what worked. Loupe closes that loop with curiosity, not fear.
+
+**Three positioning layers**:
+1. **Celebration + curiosity (acquisition):** "You made the change. See what it did." Celebrate their velocity, invite them to see results. Supportive, not judgmental.
+2. **Supportive (activation):** "Your next change is coming. This time, you'll know." Future-focused, helpful — not guilt-tripping.
+3. **Compounding intelligence (retention):** Show accumulating value. Scan counts, prediction accuracy, calibration. Every scan makes Loupe sharper for their page.
+
+**Category**: Change Intelligence — Loupe connects what you ship to what happens next. Not a category to evangelize aggressively, but a frame to use consistently.
+
+**Reframe**: From detective (reactive, "what happened") to supportive partner (proactive, "here's what it did, here's what to try next").
+
+**What we avoid**:
+- "Coin flip" / gambling metaphors — feels negative
+- Fear-based framing ("you're losing money", "costing you signups")
+- Punching down at founders for not tracking changes
+- Making the reader feel bad about their current workflow
+
+**Why the shift**:
+- Original opportunity-cost framing felt punishing, not supportive
+- Our ICP is already doing the hard work (shipping) — we're here to help them see results
+- Celebration + curiosity converts better than fear for builders who are proud of their velocity
+- Tone should match the product experience: helpful advisor, not judgmental auditor

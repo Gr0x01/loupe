@@ -374,41 +374,87 @@ Most users won't connect PostHog/GA4. The product must be valuable anyway.
 
 ## Positioning
 
-**Old:** Score-focused grading language
-**New:** Outcome-focused validation language
+### Strategic Frame: Opportunity Cost → Compounding Intelligence
 
-Loupe isn't a monitoring tool or a website grader. It's a **prediction and validation layer**.
+Loupe is not a monitoring tool or a website grader. It's a **compounding intelligence layer** for your site.
+
+**The positioning operates on three levels:**
+
+**1. Curiosity + Celebration (acquisition — the hook):** Solo founders ship fast. That's the hard part. Loupe celebrates their velocity and invites curiosity: "You made the change. See what it did." The tone is supportive — we have their back. They're already doing the work; Loupe helps them see the results. No fear, no guilt about not tracking. Just: you shipped something, here's what happened.
+
+**2. Painkiller (activation):** Lead with loss and urgency at the point of conversion. The user is losing signups right now because of changes they didn't notice. Frame as ongoing threat, not episodic — like Norton (you MIGHT be hacked at any time), not like Tylenol (take when it hurts).
+
+**3. Compounding Intelligence (retention):** Once inside, show the accumulating intelligence. Scan counts, prediction accuracy, calibration progress, "since we started watching" summaries. The product gets smarter about YOUR site with every scan. Canceling means losing that accumulated context.
+
+**The key insight:** Most founders are making changes in the dark. Some changes help. Some hurt. Most do nothing. Without knowing which is which, they can't compound the wins. Loupe turns every change into a data point, so the NEXT change is smarter. That's not protection from loss — that's acceleration toward potential.
+
+This maps to Sarah Tavel's framework:
+- **Accruing benefit:** Calibration loop, running summaries, validated predictions, correlation history
+- **Mounting loss:** Timeline history, validated findings, calibrated LLM context, integration data
+
+### The Reframe: Detective → Growth Advisor
+
+**Old mental model:** Loupe is a detective you call after the crime (reactive, defensive).
+**New mental model:** Loupe is a growth advisor that turns every change into a lesson and every lesson into better revenue (proactive, offensive).
+
+The difference:
+- Detective: "Your headline change hurt you." (damage report)
+- Advisor: "Your headline change added 30 signups/month. Here's what to try next to keep compounding." (growth engine)
+
+The product already delivers this — Chronicle tracks validated wins, predictions point to what's next, calibration makes every suggestion smarter. The messaging needs to lead with the upside gap, not just the downside risk.
 
 ### Headline Hierarchy (ranked by strength)
 
-1. **"Did that change work?"** (PRIMARY)
+**Acquisition headlines (celebration + curiosity — for landing page, ads, cold traffic):**
+
+1. **"You made the change. See what it did."** (PRIMARY — curiosity)
+   - Celebrates their velocity, invites them to see the outcome
+   - Supportive tone — we're here to help, not judge
+   - Works for both ICPs
+
+2. **"Your page, through Loupe"** (SECTION — for "what you get")
+   - Makes it feel personal — YOUR page, not generic advice
+   - Mirror framing: see yourself reflected back
+
+3. **"Your next change is coming. This time, you'll know."** (CLOSER)
+   - Future-focused, supportive
+   - Positions Loupe as having their back
+
+4. **"Did that change work?"** (SEGMENT-SPECIFIC)
    - Meets users in their internal monologue
-   - Question they're already asking themselves
-   - Works for both vibe coders and technical founders
+   - Strong for the audit experience specifically
 
-2. **"See what changed. See what it did."** (SUPPORTING)
-   - Clear cause-and-effect
-   - Easy to understand
-   - Good for subheads
+**Retention headlines (compounding — for onboarding, emails, dashboard):**
 
-3. **"When metrics move, know why"** (SEGMENT-SPECIFIC)
-   - Assumes users are watching metrics
-   - Better for technical founders
-   - Use in targeted content, not universal messaging
+5. **"The longer Loupe watches, the smarter it gets."**
+   - Directly communicates accruing benefit
+   - Great for onboarding or "why stay" moments
 
-4. ~~"The missing link between deploys and conversions"~~ (RETIRED)
-   - "Deploys" is developer language
-   - Alienates vibe coders who don't deploy
+6. **"What changed. What it did. What to do next."**
+   - Three-beat rhythm mapping to the full value loop
+   - "What to do next" = proactive advisor frame
 
 ### One-liner
-"Loupe tracks what changes on your site and shows you whether it helped or hurt."
+"Loupe learns what works for your site — by watching every change and measuring what it did."
 
 ### The "Only" Statement
-> "Loupe is the only tool that shows you whether your changes actually worked — by connecting what changed on your site to what happened to your numbers."
+> "Loupe is the only tool that learns what works for YOUR site — by connecting every page change to your actual numbers, and using that history to tell you what to do next."
 
-Note: "your numbers" instead of "your metrics" — accessible language for vibe coders.
+"Learns" (compounding), "YOUR site" (personalization), "history" (accumulated value), "what to do next" (proactive advisor).
 
-Website graders give scores. Analytics tools show numbers. Loupe connects changes to outcomes.
+### Category: Change Intelligence
+
+Loupe owns the **Change Intelligence** category:
+
+- **Change monitoring** (VisualPing) = what changed
+- **Web analytics** (PostHog/GA4) = what are the numbers
+- **CRO tools** (VWO/Optimizely) = formal A/B experiments
+- **Change Intelligence** (Loupe) = which change caused which movement, and what to do next
+
+Don't lead with the category name. Let it emerge naturally:
+> "Loupe is change intelligence for your site — connecting what you ship to what happens next."
+
+Use the phrase consistently across touchpoints until people use it to describe us.
 
 ---
 

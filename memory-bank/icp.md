@@ -117,20 +117,46 @@ Loupe targets solo founders and small teams ($500-$10k MRR) who are shipping fas
 
 ## Language & Messaging
 
+### Opportunity Cost Framing (Acquisition)
+
+Solo founders ship fast — that's the hard part. The missing piece is knowing what worked. They make changes, move on, and never find out which ones helped. Loupe closes that loop: you made the change, here's what it did. Supportive, not judgmental. We have their back.
+
+Every touchpoint must pass two litmus tests:
+1. "What would have happened WITHOUT Loupe?" → "I'd keep making changes in the dark."
+2. "What am I NOT capturing?" → "There's $1,500/mo of growth I'm leaving on the table because I don't know what works."
+
+**Opportunity cost patterns:**
+- Gap framing: "You're at X. You could be at 4X. The difference is knowing which changes work."
+- Curiosity: "See what it did." / "Find out which ones helped."
+- Traffic-adjusted numbers: "~30 more signups/month" (not "bounce rate -8-15%")
+- Compounding: "Every scan makes Loupe sharper for your page."
+
+**Painkiller patterns (activation moments):**
+- Counterfactual: "Here's what you almost missed" (not "here's what changed")
+- Future pain anticipation: "Your page will change again. Next time, you'll know if it helped."
+- Blame the source: "Your AI changed your headline without telling you"
+- Active protection: "Nothing slipped past you" (not "nothing happened")
+
+**Compounding patterns (Retention):**
+- "Scan #7 — based on 45 days of history"
+- "2nd prediction Loupe validated for this page"
+- "Since we started watching: 3 changes validated, 12 scans of context"
+- "Your findings get more relevant over time"
+
 **Words that resonate:**
-- "Did that change work?" — the question they're already asking
+- "What you almost missed" — urgency + counterfactual
 - "What changed" — simple, clear
 - "While you were shipping" — acknowledges their hustle
-- "The stuff you miss" — non-judgmental
-- "Customer-facing" — frames the stakes
-- "See if it helped" — outcome-focused
+- "Cost you signups" — makes the stakes concrete
+- "Gets smarter" — communicates compounding value
+- "What to do next" — proactive advisor frame
 
 **Words to avoid:**
 - "Visual regression" — too technical, wrong frame
 - "QA" — sounds like enterprise, not their world
 - "Monitoring" alone — too generic, sounds like uptime
 - "AI-powered" — overused, means nothing
-- "Correlation layer" — internal language, not customer language
+- "Correlation layer" / "Change Intelligence" — internal language, don't lead with category name
 
 **Vibe coder translations:**
 When writing for vibe coders, translate technical metrics:
@@ -138,11 +164,13 @@ When writing for vibe coders, translate technical metrics:
 - "Conversion rate" → "people signing up"
 - "Time on page" → "how long people stick around"
 - "CTR" → "people clicking"
+- "Bounce rate -8-15%" → "~30 more signups/month" (traffic-adjusted)
 Lead with plain language, add metric in parentheses for technical founders.
 
 **Tone:**
 - Direct, not salesy
 - Founder-to-founder
+- Lead with what they're losing, not what they could gain
 - Acknowledge the chaos, don't add to it
 - Show don't tell — the product demo is the pitch
 
