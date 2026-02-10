@@ -35,62 +35,54 @@ export class SupabaseAdapter {
   }
 
   /**
-   * Get schema info including tables, columns, and row counts
+   * Get schema info including tables and row counts
+   * Uses OpenAPI endpoint to discover all tables, then queries row counts
    */
   async getSchema(): Promise<SupabaseSchemaInfo> {
     const tables: SupabaseTableInfo[] = [];
+    const key = this.credentials.serviceRoleKey || this.credentials.anonKey;
 
-    // Try to get table list from information_schema
-    const { data: tableList, error: tableError } = await this.client
-      .from("information_schema.tables" as "information_schema")
-      .select("table_name")
-      .eq("table_schema", "public")
-      .eq("table_type", "BASE TABLE")
-      .limit(50);
+    // Fetch OpenAPI spec to discover tables (Swagger 2.0 format)
+    const openApiResponse = await fetch(`${this.credentials.projectUrl}/rest/v1/`, {
+      headers: {
+        apikey: key!,
+        Authorization: `Bearer ${key}`,
+        Accept: "application/openapi+json",
+      },
+    });
 
-    if (tableError) {
-      // RLS might be blocking - return empty schema
-      return {
-        tables: [],
-        cached_at: new Date().toISOString(),
-      };
+    if (!openApiResponse.ok) {
+      return { tables: [], cached_at: new Date().toISOString() };
     }
 
-    // Get row counts and column info for each table
-    for (const row of tableList || []) {
-      const tableName = (row as { table_name: string }).table_name;
+    let tableNames: string[] = [];
+    try {
+      const spec = await openApiResponse.json();
 
-      // Skip internal tables
-      if (
-        tableName.startsWith("_") ||
-        tableName.startsWith("pg_") ||
-        tableName === "schema_migrations"
-      ) {
-        continue;
+      if (spec.paths && typeof spec.paths === "object") {
+        tableNames = Object.keys(spec.paths)
+          .filter((path) => path !== "/" && !path.startsWith("/rpc/"))
+          .map((path) => path.replace(/^\//, ""));
       }
+    } catch {
+      return { tables: [], cached_at: new Date().toISOString() };
+    }
 
+    // Get row counts for discovered tables
+    for (const tableName of tableNames) {
       try {
-        // Get row count
-        const { count } = await this.client
+        const { count, error } = await this.client
           .from(tableName)
           .select("*", { count: "exact", head: true });
 
-        // Get column info
-        const { data: columns } = await this.client
-          .from("information_schema.columns" as "information_schema")
-          .select("column_name, data_type")
-          .eq("table_schema", "public")
-          .eq("table_name", tableName);
-
-        tables.push({
-          schema: "public",
-          name: tableName,
-          row_count: count || 0,
-          columns: (columns || []).map((c) => ({
-            name: (c as { column_name: string; data_type: string }).column_name,
-            type: (c as { column_name: string; data_type: string }).data_type,
-          })),
-        });
+        if (!error) {
+          tables.push({
+            schema: "public",
+            name: tableName,
+            row_count: count || 0,
+            columns: [],
+          });
+        }
       } catch {
         // Skip tables we can't access
       }
@@ -219,8 +211,8 @@ export class SupabaseAdapter {
   }
 
   /**
-   * Get recent rows from a table (for LLM context)
-   * Only returns column names and types, not actual data for privacy
+   * Get table structure (for LLM context)
+   * Column info extracted from OpenAPI spec, row count from direct query
    */
   async getTableStructure(tableName: string): Promise<{
     columns: { name: string; type: string }[];
@@ -230,21 +222,44 @@ export class SupabaseAdapter {
       throw new Error(`Invalid table name: ${tableName}`);
     }
 
-    const { data: columns } = await this.client
-      .from("information_schema.columns" as "information_schema")
-      .select("column_name, data_type")
-      .eq("table_schema", "public")
-      .eq("table_name", tableName);
+    // Get column info from OpenAPI spec
+    const key = this.credentials.serviceRoleKey || this.credentials.anonKey;
+    let columns: { name: string; type: string }[] = [];
+
+    try {
+      const restResponse = await fetch(`${this.credentials.projectUrl}/rest/v1/`, {
+        headers: {
+          apikey: key!,
+          Authorization: `Bearer ${key}`,
+          Accept: "application/openapi+json",
+        },
+      });
+
+      if (restResponse.ok) {
+        const openApiSpec = await restResponse.json();
+        // OpenAPI spec has table definitions under "definitions" key
+        const tableDefinition = openApiSpec.definitions?.[tableName];
+        if (tableDefinition?.properties) {
+          columns = Object.entries(tableDefinition.properties).map(
+            ([name, prop]) => ({
+              name,
+              type: (prop as { type?: string; format?: string }).format ||
+                (prop as { type?: string }).type ||
+                "unknown",
+            })
+          );
+        }
+      }
+    } catch {
+      // Column info unavailable, continue with just row count
+    }
 
     const { count } = await this.client
       .from(tableName)
       .select("*", { count: "exact", head: true });
 
     return {
-      columns: (columns || []).map((c) => ({
-        name: (c as { column_name: string; data_type: string }).column_name,
-        type: (c as { column_name: string; data_type: string }).data_type,
-      })),
+      columns,
       row_count: count || 0,
     };
   }

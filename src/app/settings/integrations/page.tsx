@@ -1389,18 +1389,29 @@ function SettingsContent() {
                     </div>
                   </div>
 
-                  {!integrations.supabase.has_schema_access && (
+                  {/* Show warning only for anon key with no tables - service role sees everything */}
+                  {integrations.supabase.key_type === "anon" && integrations.supabase.tables.length === 0 && (
                     <div className="glass-card p-4 bg-score-mid/5 border-l-4 border-score-mid mb-4">
                       <p className="text-sm text-text-primary font-medium">We might be missing some tables</p>
                       <p className="text-sm text-text-secondary mt-1">
-                        We can only see tables your app&apos;s frontend can access. If you have tables like orders or signups that need authentication, we can&apos;t see them yet.
+                        With an Anon Key, we can only see tables your app&apos;s frontend can access. If you have tables like orders or signups that need authentication, we can&apos;t see them.
                       </p>
                       <button
                         onClick={() => setShowSupabaseConnect(true)}
                         className="text-sm text-accent font-medium mt-2 hover:text-accent-hover transition-colors"
                       >
-                        Reconnect with full access
+                        Reconnect with Service Role Key
                       </button>
+                    </div>
+                  )}
+
+                  {/* For service role key with no tables, it means database is empty */}
+                  {integrations.supabase.key_type === "service_role" && integrations.supabase.tables.length === 0 && (
+                    <div className="glass-card p-4 bg-bg-inset mb-4">
+                      <p className="text-sm text-text-primary font-medium">No tables found</p>
+                      <p className="text-sm text-text-secondary mt-1">
+                        Your database doesn&apos;t have any tables in the public schema yet. Once you create tables like &quot;users&quot; or &quot;orders&quot;, we&apos;ll track them automatically.
+                      </p>
                     </div>
                   )}
 

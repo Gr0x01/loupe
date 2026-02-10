@@ -80,36 +80,46 @@ export async function POST(req: NextRequest) {
     let hasSchemaAccess = false;
 
     if (schemaError) {
-      // RPC doesn't exist, try direct schema query
-      // This will work with service role key or if user has granted access
-      const { data: pgTables, error: pgError } = await testClient
-        .from("information_schema.tables" as "information_schema")
-        .select("table_name")
-        .eq("table_schema", "public")
-        .limit(50);
+      // RPC doesn't exist - use OpenAPI endpoint to discover tables
+      // Supabase/PostgREST returns Swagger 2.0 spec with all table paths
+      const openApiResponse = await fetch(`${normalizedUrl}/rest/v1/`, {
+        headers: {
+          apikey: keyToUse,
+          Authorization: `Bearer ${keyToUse}`,
+          Accept: "application/openapi+json",
+        },
+      });
 
-      if (pgError) {
-        // Can't access schema directly, try to list tables via REST
-        // Make a simple health check instead
-        const healthCheck = await fetch(`${normalizedUrl}/rest/v1/`, {
-          headers: {
-            apikey: keyToUse,
-            Authorization: `Bearer ${keyToUse}`,
-          },
-        });
+      if (!openApiResponse.ok) {
+        return NextResponse.json(
+          { error: "Could not connect to Supabase project. Please check your credentials." },
+          { status: 400 }
+        );
+      }
 
-        if (!healthCheck.ok) {
-          return NextResponse.json(
-            { error: "Could not connect to Supabase project. Please check your credentials." },
-            { status: 400 }
-          );
+      try {
+        const spec = await openApiResponse.json();
+
+        // Extract table names from paths (Swagger 2.0 format)
+        // Paths look like: { "/": {...}, "/tablename": {...}, "/rpc/funcname": {...} }
+        if (spec.paths && typeof spec.paths === "object") {
+          const tableNames = Object.keys(spec.paths)
+            .filter((path) =>
+              path !== "/" && // Skip root introspection endpoint
+              !path.startsWith("/rpc/") // Skip RPC functions
+            )
+            .map((path) => path.replace(/^\//, "")); // Remove leading slash
+
+          schemaInfo.tables = tableNames;
+          hasSchemaAccess = true;
+        } else {
+          // Unexpected response format
+          console.error("Unexpected OpenAPI response format:", Object.keys(spec));
+          hasSchemaAccess = false;
         }
-
-        // Connection works but no schema access (likely RLS blocking)
+      } catch (parseError) {
+        console.error("Failed to parse Supabase OpenAPI response:", parseError);
         hasSchemaAccess = false;
-      } else {
-        hasSchemaAccess = true;
-        schemaInfo.tables = (pgTables || []).map((t: { table_name: string }) => t.table_name);
       }
     } else {
       hasSchemaAccess = true;
