@@ -54,6 +54,16 @@ export interface AnalyticsProvider {
     previousDays: number
   ): Promise<PeriodComparison>;
 
+  /** Compare metrics between two absolute date periods (for correlation) */
+  comparePeriodsAbsolute(
+    metric: "pageviews" | "unique_visitors" | "bounce_rate" | "conversions",
+    pageUrl: string,
+    beforeStart: Date,
+    beforeEnd: Date,
+    afterStart: Date,
+    afterEnd: Date
+  ): Promise<PeriodComparison>;
+
   /** Get active A/B tests/experiments with variant distribution */
   getExperiments(days: number): Promise<ExperimentsResult>;
 }

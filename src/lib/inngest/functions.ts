@@ -1,7 +1,7 @@
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
-import { runAnalysisPipeline, runPostAnalysisPipeline } from "@/lib/ai/pipeline";
+import { runAnalysisPipeline, runPostAnalysisPipeline, runQuickDiff } from "@/lib/ai/pipeline";
 import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -10,8 +10,11 @@ import {
   correlationUnlockedEmail,
   dailyDigestEmail,
 } from "@/lib/email/templates";
-import type { ChangesSummary, ChronicleSuggestion } from "@/lib/types/analysis";
+import type { ChangesSummary, ChronicleSuggestion, DetectedChange } from "@/lib/types/analysis";
 import { safeDecrypt } from "@/lib/crypto";
+import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
+import { correlateChange } from "@/lib/analytics/correlation";
+import { createProvider } from "@/lib/analytics/provider";
 
 /**
  * Extract top suggestion from changes_summary (Chronicle) or structured_output (initial audit)
@@ -280,8 +283,38 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
-        // Run post-analysis if we have previous findings OR analytics OR database OR deploy context OR user feedback
-        if (previousFindings || analyticsCredentials || databaseCredentials || deployContext || userFeedback?.length) {
+        // Fetch pending changes (watching status) for LLM revert detection
+        let pendingChanges: {
+          id: string;
+          element: string;
+          before_value: string;
+          after_value: string;
+          scope: "element" | "section" | "page";
+          first_detected_at: string;
+        }[] | null = null;
+
+        if (pageForFeedback) {
+          const { data: watchingChanges } = await supabase
+            .from("detected_changes")
+            .select("id, element, before_value, after_value, scope, first_detected_at")
+            .eq("page_id", pageForFeedback.id)
+            .eq("status", "watching")
+            .limit(20); // Cap to prevent prompt bloat
+
+          if (watchingChanges && watchingChanges.length > 0) {
+            pendingChanges = watchingChanges.map((c) => ({
+              id: c.id,
+              element: c.element,
+              before_value: c.before_value,
+              after_value: c.after_value,
+              scope: c.scope as "element" | "section" | "page",
+              first_detected_at: c.first_detected_at,
+            }));
+          }
+        }
+
+        // Run post-analysis if we have previous findings OR analytics OR database OR deploy context OR user feedback OR pending changes
+        if (previousFindings || analyticsCredentials || databaseCredentials || deployContext || userFeedback?.length || pendingChanges?.length) {
           try {
             const changesSummary = await runPostAnalysisPipeline(
               {
@@ -293,6 +326,7 @@ export const analyzeUrl = inngest.createFunction(
                 previousRunningSummary,
                 deployContext,
                 userFeedback,
+                pendingChanges,
               },
               {
                 supabase,
@@ -349,6 +383,7 @@ export const analyzeUrl = inngest.createFunction(
                     const { subject, html } = correlationUnlockedEmail({
                       pageUrl: url,
                       analysisId,
+                      changeId: newlyValidated.id, // For dashboard deep link
                       change: {
                         element: newlyValidated.element,
                         before: relatedChange?.before ?? "",
@@ -414,19 +449,85 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
-        // 6. Update pages.last_scan_id
-        await supabase
-          .from("pages")
-          .update({ last_scan_id: analysisId })
-          .eq("user_id", analysis.user_id)
-          .eq("url", url);
-
-        // 7. Send email notification (for scheduled/deploy scans only)
+        // 6. Fetch full analysis data for subsequent steps
         const { data: fullAnalysis } = await supabase
           .from("analyses")
           .select("trigger_type, deploy_id, changes_summary, structured_output")
           .eq("id", analysisId)
           .single();
+
+        // 6a. Update pages.last_scan_id (and stable_baseline_id when appropriate)
+        const pageUpdate: { last_scan_id: string; stable_baseline_id?: string } = {
+          last_scan_id: analysisId,
+        };
+
+        // Set stable_baseline_id for daily/weekly scans, OR for deploy scans when no baseline exists
+        // This fixes the "stale baseline loop" where deploy fallback to full analysis never establishes a baseline
+        const isScheduledScan = fullAnalysis?.trigger_type === "daily" || fullAnalysis?.trigger_type === "weekly";
+        const isDeployFallback = fullAnalysis?.trigger_type === "deploy";
+
+        if (isScheduledScan) {
+          // Scheduled scans always update the baseline
+          pageUpdate.stable_baseline_id = analysisId;
+        } else if (isDeployFallback) {
+          // Deploy fallback: check if page has no baseline, set one to prevent infinite fallback loop
+          const { data: currentPage } = await supabase
+            .from("pages")
+            .select("stable_baseline_id")
+            .eq("user_id", analysis.user_id)
+            .eq("url", url)
+            .single();
+
+          if (!currentPage?.stable_baseline_id) {
+            pageUpdate.stable_baseline_id = analysisId;
+          }
+        }
+
+        const { data: updatedPage, error: pageUpdateError } = await supabase
+          .from("pages")
+          .update(pageUpdate)
+          .eq("user_id", analysis.user_id)
+          .eq("url", url)
+          .select("id")
+          .single();
+
+        if (pageUpdateError) {
+          console.error(`Failed to update page for analysis ${analysisId}:`, pageUpdateError);
+        }
+
+        // 6b. Reconcile detected_changes: mark reverted based on LLM analysis
+        const analysisChangesSummary = fullAnalysis?.changes_summary as ChangesSummary | null;
+        if (analysisChangesSummary?.revertedChangeIds?.length && pendingChanges?.length) {
+          // Validate: only allow IDs that we actually sent to the LLM
+          const sentIds = new Set(pendingChanges.map((c) => c.id));
+          const validRevertedIds = analysisChangesSummary.revertedChangeIds
+            .filter((id): id is string => typeof id === "string" && id.length > 0 && id.length < 100)
+            .filter((id) => sentIds.has(id))
+            .slice(0, 50); // Cap at reasonable limit
+
+          // LLM identified changes that were reverted (page shows BEFORE value, not AFTER)
+          for (const revertedId of validRevertedIds) {
+            const { error: revertError } = await supabase
+              .from("detected_changes")
+              .update({
+                status: "reverted",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", revertedId)
+              .eq("user_id", analysis.user_id) // Ownership check
+              .eq("status", "watching"); // Only revert things currently watching
+
+            if (revertError) {
+              console.error(`Failed to mark change ${revertedId} as reverted:`, revertError);
+            }
+          }
+
+          if (validRevertedIds.length > 0) {
+            console.log(`Marked ${validRevertedIds.length} changes as reverted for analysis ${analysisId}`);
+          }
+        }
+
+        // 7. Send email notification (for scheduled/deploy scans only)
 
         if (fullAnalysis?.trigger_type === "deploy") {
           // Get user email + preferences
@@ -718,7 +819,14 @@ export const scheduledScanDaily = inngest.createFunction(
 
 /**
  * Deploy detected — triggered by GitHub webhook on push to main
- * Waits for Vercel deploy, then scans all pages linked to the repo
+ *
+ * NEW BEHAVIOR (lightweight detection):
+ * 1. Wait 45s for Vercel deploy
+ * 2. For each page: get baseline, check staleness
+ * 3. If stale/missing baseline → run full analysis (establishes baseline)
+ * 4. Otherwise → quick Haiku diff against baseline
+ * 5. If changes detected → create detected_changes record, send "watching" notification
+ * 6. No full analysis on every deploy (saves ~$0.05/page/deploy)
  */
 export const deployDetected = inngest.createFunction(
   {
@@ -727,7 +835,7 @@ export const deployDetected = inngest.createFunction(
   },
   { event: "deploy/detected" },
   async ({ event, step }) => {
-    const { deployId, repoId, userId } = event.data as {
+    const { deployId, userId } = event.data as {
       deployId: string;
       repoId: string;
       userId: string;
@@ -748,18 +856,17 @@ export const deployDetected = inngest.createFunction(
         .eq("id", deployId);
     });
 
-    // Find all pages for this user (free tier = 1 domain, all pages deploy from same repo)
+    // Find all pages for this user
     const pages = await step.run("find-pages", async () => {
       const { data } = await supabase
         .from("pages")
-        .select("id, url, last_scan_id")
+        .select("id, url, last_scan_id, stable_baseline_id")
         .eq("user_id", userId);
 
       return data || [];
     });
 
     if (pages.length === 0) {
-      // No pages linked to this repo yet
       await supabase
         .from("deploys")
         .update({ status: "complete" })
@@ -768,55 +875,124 @@ export const deployDetected = inngest.createFunction(
       return { scanned: 0, message: "No pages found for user" };
     }
 
-    // Create analyses for each page
-    const results = await step.run("create-deploy-analyses", async () => {
-      const created: { pageId: string; analysisId: string }[] = [];
+    // Process each page
+    const results = await step.run("detect-changes", async () => {
+      const processed: { pageId: string; hadChanges: boolean; usedFullAnalysis: boolean }[] = [];
 
       for (const page of pages) {
-        const { data: newAnalysis, error: insertError } = await supabase
-          .from("analyses")
-          .insert({
-            url: page.url,
-            user_id: userId,
-            parent_analysis_id: page.last_scan_id,
-            deploy_id: deployId,
-            trigger_type: "deploy",
-            status: "pending",
-          })
-          .select("id")
-          .single();
+        try {
+          // 1. Get stable baseline
+          const baseline = await getStableBaseline(supabase, page.id);
 
-        if (insertError || !newAnalysis) {
-          console.error(`Failed to create analysis for page ${page.id}:`, insertError);
-          continue;
+          // 2. Staleness check: if no baseline or >14 days old, run full analysis
+          if (isBaselineStale(baseline)) {
+            // Fall back to full analysis to establish baseline
+            const { data: newAnalysis } = await supabase
+              .from("analyses")
+              .insert({
+                url: page.url,
+                user_id: userId,
+                parent_analysis_id: page.last_scan_id,
+                deploy_id: deployId,
+                trigger_type: "deploy",
+                status: "pending",
+              })
+              .select("id")
+              .single();
+
+            if (newAnalysis) {
+              // Trigger full analysis
+              await inngest.send({
+                name: "analysis/created",
+                data: {
+                  analysisId: newAnalysis.id,
+                  url: page.url,
+                  parentAnalysisId: page.last_scan_id || undefined,
+                },
+              });
+            }
+
+            processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: true });
+            continue;
+          }
+
+          // At this point, baseline is guaranteed non-null (stale check passed)
+          if (!baseline) {
+            // TypeScript guard - should never reach here
+            processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false });
+            continue;
+          }
+
+          // 3. Screenshot current page
+          const { base64: currentScreenshot } = await captureScreenshot(page.url);
+
+          // 4. Quick Haiku diff against baseline
+          const diffResult = await runQuickDiff(baseline.screenshot_url, currentScreenshot);
+
+          if (!diffResult.hasChanges || diffResult.changes.length === 0) {
+            // No changes detected
+            processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false });
+            continue;
+          }
+
+          // 5. Record detected changes (with dedup via unique index)
+          for (const change of diffResult.changes) {
+            try {
+              await supabase.from("detected_changes").insert({
+                page_id: page.id,
+                user_id: userId,
+                element: change.element,
+                scope: change.scope,
+                before_value: change.before,
+                after_value: change.after,
+                description: change.description || null,
+                deploy_id: deployId,
+                status: "watching",
+                first_detected_at: new Date().toISOString(),
+              });
+            } catch (insertErr) {
+              // Unique constraint violation = already recorded today, skip
+              if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
+                console.error("Failed to insert detected_change:", insertErr);
+              }
+            }
+          }
+
+          // 6. Send "watching" notification
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email, email_notifications")
+            .eq("id", userId)
+            .single();
+
+          if (profile?.email && profile.email_notifications) {
+            // Send a lightweight "watching" email
+            const primaryChange = diffResult.changes[0];
+            const { subject, html } = changeDetectedEmail({
+              pageUrl: page.url,
+              analysisId: baseline.id, // Link to baseline for context
+              triggerType: "deploy",
+              primaryChange: {
+                element: primaryChange.element,
+                before: primaryChange.before,
+                after: primaryChange.after,
+              },
+              additionalChangesCount: diffResult.changes.length - 1,
+              correlation: {
+                hasEnoughData: false, // Always watching for deploy
+              },
+            });
+            sendEmail({ to: profile.email, subject, html }).catch(console.error);
+          }
+
+          processed.push({ pageId: page.id, hadChanges: true, usedFullAnalysis: false });
+        } catch (err) {
+          console.error(`Deploy detection failed for page ${page.id}:`, err);
+          processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false });
         }
-
-        created.push({ pageId: page.id, analysisId: newAnalysis.id });
       }
 
-      return created;
-    });
-
-    // Trigger scans
-    await step.run("trigger-deploy-scans", async () => {
-      for (const { analysisId } of results) {
-        const { data: analysis } = await supabase
-          .from("analyses")
-          .select("url, parent_analysis_id")
-          .eq("id", analysisId)
-          .single();
-
-        if (analysis) {
-          await inngest.send({
-            name: "analysis/created",
-            data: {
-              analysisId,
-              url: analysis.url,
-              parentAnalysisId: analysis.parent_analysis_id || undefined,
-            },
-          });
-        }
-      }
+      return processed;
     });
 
     // Mark deploy complete
@@ -827,7 +1003,15 @@ export const deployDetected = inngest.createFunction(
         .eq("id", deployId);
     });
 
-    return { scanned: results.length, deployId };
+    const changesDetected = results.filter((r) => r.hadChanges).length;
+    const fullAnalysisRun = results.filter((r) => r.usedFullAnalysis).length;
+
+    return {
+      scanned: results.length,
+      changesDetected,
+      fullAnalysisRun,
+      deployId,
+    };
   }
 );
 
@@ -950,5 +1134,234 @@ export const dailyScanDigest = inngest.createFunction(
     });
 
     return { sent: results };
+  }
+);
+
+/**
+ * Correlation unlock cron — checks watching changes every 6 hours.
+ *
+ * For each watching change with 7+ days of data:
+ * 1. Get user's analytics provider
+ * 2. Query analytics with absolute date windows
+ * 3. Update status to validated/regressed/inconclusive
+ * 4. Send correlation unlocked email if improved
+ */
+export const checkCorrelations = inngest.createFunction(
+  {
+    id: "check-correlations",
+    retries: 1,
+  },
+  { cron: "0 */6 * * *" }, // Every 6 hours
+  async ({ step }) => {
+    const supabase = createServiceClient();
+
+    // Find watching changes with 7+ days of data
+    const readyChanges = await step.run("find-ready-changes", async () => {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data, error } = await supabase
+        .from("detected_changes")
+        .select(`
+          id, page_id, user_id, element, element_type, scope,
+          before_value, after_value, description, first_detected_at,
+          first_detected_analysis_id,
+          pages!inner(url)
+        `)
+        .eq("status", "watching")
+        .lte("first_detected_at", sevenDaysAgo.toISOString());
+
+      if (error) {
+        console.error("Failed to fetch ready changes:", error);
+        return [];
+      }
+
+      return data || [];
+    });
+
+    if (readyChanges.length === 0) {
+      return { processed: 0, reason: "no changes ready for correlation" };
+    }
+
+    // Group changes by user_id to avoid N+1 integration queries
+    const changesByUser = new Map<string, typeof readyChanges>();
+    for (const change of readyChanges) {
+      const existing = changesByUser.get(change.user_id) || [];
+      existing.push(change);
+      changesByUser.set(change.user_id, existing);
+    }
+
+    // Process changes grouped by user
+    const results = await step.run("correlate-changes", async () => {
+      let validated = 0;
+      let regressed = 0;
+      let inconclusive = 0;
+
+      for (const [userId, userChanges] of changesByUser) {
+        // Fetch integrations ONCE per user
+        const { data: posthogIntegration } = await supabase
+          .from("integrations")
+          .select("access_token, provider_account_id, metadata")
+          .eq("user_id", userId)
+          .eq("provider", "posthog")
+          .maybeSingle();
+
+        const { data: ga4Integration } = await supabase
+          .from("integrations")
+          .select("id, access_token, metadata")
+          .eq("user_id", userId)
+          .eq("provider", "ga4")
+          .maybeSingle();
+
+        // If no analytics connected, mark all this user's changes as inconclusive
+        if (!posthogIntegration && !ga4Integration) {
+          for (const change of userChanges) {
+            await supabase
+              .from("detected_changes")
+              .update({
+                status: "inconclusive",
+                correlation_metrics: { reason: "analytics_disconnected" },
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", change.id);
+            inconclusive++;
+          }
+          continue;
+        }
+
+        // Create provider ONCE per user
+        let provider;
+        if (posthogIntegration) {
+          provider = await createProvider("posthog", {
+            apiKey: safeDecrypt(posthogIntegration.access_token),
+            projectId: posthogIntegration.provider_account_id,
+            host: posthogIntegration.metadata?.host,
+          });
+        } else if (ga4Integration?.metadata?.property_id) {
+          provider = await createProvider("ga4", {
+            accessToken: safeDecrypt(ga4Integration.access_token),
+            refreshToken: safeDecrypt(ga4Integration.metadata.refresh_token),
+            tokenExpiresAt: ga4Integration.metadata.token_expires_at,
+            propertyId: ga4Integration.metadata.property_id,
+            integrationId: ga4Integration.id,
+          }, { supabase });
+        }
+
+        if (!provider) {
+          for (const change of userChanges) {
+            await supabase
+              .from("detected_changes")
+              .update({
+                status: "inconclusive",
+                correlation_metrics: { reason: "provider_creation_failed" },
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", change.id);
+            inconclusive++;
+          }
+          continue;
+        }
+
+        // Fetch profile ONCE per user for email notifications
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("email, email_notifications")
+          .eq("id", userId)
+          .single();
+
+        // Process all this user's changes with the same provider
+        for (const change of userChanges) {
+          try {
+            // Build DetectedChange type from database record
+            const detectedChange: DetectedChange = {
+              id: change.id,
+              page_id: change.page_id,
+              user_id: change.user_id,
+              element: change.element,
+              element_type: change.element_type,
+              scope: change.scope as "element" | "section" | "page",
+              before_value: change.before_value,
+              after_value: change.after_value,
+              description: change.description,
+              first_detected_at: change.first_detected_at,
+              status: "watching",
+              created_at: change.first_detected_at,
+              updated_at: change.first_detected_at,
+            };
+
+            // Run correlation
+            const pageUrl = (change.pages as unknown as { url: string }).url;
+            const result = await correlateChange(detectedChange, provider, pageUrl);
+
+            // Update status
+            const newStatus = result.metrics.overall_assessment === "improved"
+              ? "validated"
+              : result.metrics.overall_assessment === "regressed"
+              ? "regressed"
+              : "inconclusive";
+
+            await supabase
+              .from("detected_changes")
+              .update({
+                status: newStatus,
+                correlation_metrics: result.metrics,
+                correlation_unlocked_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", change.id);
+
+            if (newStatus === "validated") validated++;
+            else if (newStatus === "regressed") regressed++;
+            else inconclusive++;
+
+            // Send email if significant improvement
+            if (result.metrics.overall_assessment === "improved") {
+              if (userProfile?.email && userProfile.email_notifications) {
+                // Get the primary improved metric
+                const improvedMetric = result.metrics.metrics.find(
+                  (m) => m.assessment === "improved"
+                );
+
+                const { subject, html } = correlationUnlockedEmail({
+                  pageUrl,
+                  analysisId: change.first_detected_analysis_id || change.id,
+                  changeId: change.id, // For dashboard deep link
+                  change: {
+                    element: change.element,
+                    before: change.before_value,
+                    after: change.after_value,
+                    changedAt: new Date(change.first_detected_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    }),
+                  },
+                  metric: improvedMetric
+                    ? {
+                        friendlyName: improvedMetric.name,
+                        change: `${improvedMetric.change_percent > 0 ? "+" : ""}${improvedMetric.change_percent}%`,
+                      }
+                    : {
+                        friendlyName: "metrics",
+                        change: "improved",
+                      },
+                });
+
+                sendEmail({ to: userProfile.email, subject, html }).catch(console.error);
+              }
+            }
+          } catch (err) {
+            console.error(`Correlation check failed for change ${change.id}:`, err);
+            // Don't update status — will retry next cron run
+          }
+        }
+      }
+
+      return { validated, regressed, inconclusive };
+    });
+
+    return {
+      processed: readyChanges.length,
+      ...results,
+    };
   }
 );

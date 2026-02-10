@@ -125,6 +125,74 @@ export interface WatchingItem {
   title: string;
   daysOfData: number; // How many days collected
   daysNeeded: number; // Typically 7-14
+  firstDetectedAt?: string; // ISO timestamp - when change was first detected
+}
+
+// ============================================
+// Detected Changes (persistent change tracking)
+// ============================================
+
+export type DetectedChangeStatus =
+  | "watching"      // Collecting data, awaiting correlation
+  | "validated"     // Metrics improved after change
+  | "regressed"     // Metrics worsened after change
+  | "inconclusive"  // Not enough data or neutral result
+  | "reverted";     // Change was undone in subsequent deploy
+
+export interface DetectedChange {
+  id: string;
+  page_id: string;
+  user_id: string;
+
+  // Change identification
+  element: string;
+  element_type?: string;
+  scope: "element" | "section" | "page";
+
+  // Before/after state
+  before_value: string;
+  after_value: string;
+  description?: string;
+
+  // Timing (anchor for correlation)
+  first_detected_at: string;
+  first_detected_analysis_id?: string;
+
+  // Correlation tracking
+  status: DetectedChangeStatus;
+  correlation_metrics?: CorrelationMetrics;
+  correlation_unlocked_at?: string;
+
+  // Source context
+  deploy_id?: string;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CorrelationMetrics {
+  metrics: Array<{
+    name: string;
+    before: number;
+    after: number;
+    change_percent: number;
+    assessment: "improved" | "regressed" | "neutral";
+  }>;
+  overall_assessment: "improved" | "regressed" | "neutral";
+  reason?: string; // e.g., "analytics_disconnected"
+}
+
+// Absolute period comparison for correlation (not relative days)
+export interface AbsolutePeriodComparison {
+  metric: string;
+  before_start: string; // ISO date
+  before_end: string;
+  after_start: string;
+  after_end: string;
+  before_value: number;
+  after_value: number;
+  change_percent: number;
+  direction: "up" | "down" | "flat";
 }
 
 export interface OpenItem {
@@ -150,6 +218,8 @@ export interface ChangesSummary {
   };
   running_summary: string;
   tool_calls_made?: string[];
+  /** IDs of pending changes that were reverted (from LLM revert detection) */
+  revertedChangeIds?: string[];
   /** Internal: set when post-analysis pipeline failed */
   _error?: string;
 }
@@ -209,6 +279,23 @@ export interface ClaimStatus {
 }
 
 // ============================================
+// Quick Diff types (lightweight deploy detection)
+// ============================================
+
+export interface QuickDiffChange {
+  element: string;
+  scope: "element" | "section" | "page";
+  before: string;
+  after: string;
+  description?: string;
+}
+
+export interface QuickDiffResult {
+  hasChanges: boolean;
+  changes: QuickDiffChange[];
+}
+
+// ============================================
 // Dashboard zone types
 // ============================================
 
@@ -239,4 +326,21 @@ export interface DashboardPageData {
     created_at: string;
   } | null;
   attention_status: AttentionStatus;
+}
+
+// ============================================
+// API Response types
+// ============================================
+
+export interface ChangesApiResponse {
+  changes: (DetectedChange & { domain?: string; page_name?: string })[];
+  stats: {
+    totalValidated: number;
+    totalRegressed: number;
+    cumulativeImprovement: number;
+  };
+  pagination: {
+    nextCursor?: string;
+    hasMore: boolean;
+  };
 }

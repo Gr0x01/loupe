@@ -506,6 +506,144 @@ export class PostHogAdapter implements AnalyticsProvider {
     };
   }
 
+  /**
+   * Compare metrics between two absolute date periods.
+   * Used for correlation: compare 7 days before change vs 7 days after.
+   */
+  async comparePeriodsAbsolute(
+    metric: "pageviews" | "unique_visitors" | "bounce_rate" | "conversions",
+    pageUrl: string,
+    beforeStart: Date,
+    beforeEnd: Date,
+    afterStart: Date,
+    afterEnd: Date
+  ): Promise<PeriodComparison> {
+    const domain = this.sanitizeUrl(pageUrl);
+
+    // Format dates for HogQL: toDateTime('2024-01-28 00:00:00')
+    const formatDateTime = (d: Date) => d.toISOString().replace("T", " ").slice(0, 19);
+
+    if (metric === "bounce_rate") {
+      return this.compareBounceRateAbsolute(domain, beforeStart, beforeEnd, afterStart, afterEnd);
+    }
+
+    let selectExpr: string;
+    let eventFilter = "event = '$pageview'";
+
+    switch (metric) {
+      case "pageviews":
+        selectExpr = "count()";
+        break;
+      case "unique_visitors":
+        selectExpr = "count(DISTINCT person_id)";
+        break;
+      case "conversions":
+        eventFilter = "event IN ('$purchase', 'purchase', 'signup', 'sign_up', 'conversion')";
+        selectExpr = "count()";
+        break;
+    }
+
+    // Query before period
+    const beforeQuery = `
+      SELECT ${selectExpr} AS value
+      FROM events
+      WHERE ${eventFilter}
+        AND properties.$current_url LIKE '%${domain}%'
+        AND timestamp >= toDateTime('${formatDateTime(beforeStart)}')
+        AND timestamp < toDateTime('${formatDateTime(beforeEnd)}')
+    `;
+
+    // Query after period
+    const afterQuery = `
+      SELECT ${selectExpr} AS value
+      FROM events
+      WHERE ${eventFilter}
+        AND properties.$current_url LIKE '%${domain}%'
+        AND timestamp >= toDateTime('${formatDateTime(afterStart)}')
+        AND timestamp < toDateTime('${formatDateTime(afterEnd)}')
+    `;
+
+    const [beforeResult, afterResult] = await Promise.all([
+      this.query(beforeQuery),
+      this.query(afterQuery),
+    ]);
+
+    const before = Number(beforeResult.results?.[0]?.[0]) || 0;
+    const after = Number(afterResult.results?.[0]?.[0]) || 0;
+
+    const changePercent =
+      before === 0 ? (after > 0 ? 100 : 0) : ((after - before) / before) * 100;
+
+    return {
+      metric,
+      current_period: Math.round(after),
+      previous_period: Math.round(before),
+      change_percent: Math.round(changePercent * 10) / 10,
+      direction: changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat",
+    };
+  }
+
+  private async compareBounceRateAbsolute(
+    domain: string,
+    beforeStart: Date,
+    beforeEnd: Date,
+    afterStart: Date,
+    afterEnd: Date
+  ): Promise<PeriodComparison> {
+    const formatDateTime = (d: Date) => d.toISOString().replace("T", " ").slice(0, 19);
+
+    // Query before period bounce rate
+    const beforeQuery = `
+      SELECT countIf(session_pageviews = 1) * 100.0 / count() AS bounce_rate
+      FROM (
+        SELECT
+          $session_id AS session_id,
+          count() AS session_pageviews
+        FROM events
+        WHERE event = '$pageview'
+          AND properties.$current_url LIKE '%${domain}%'
+          AND timestamp >= toDateTime('${formatDateTime(beforeStart)}')
+          AND timestamp < toDateTime('${formatDateTime(beforeEnd)}')
+        GROUP BY session_id
+      )
+    `;
+
+    // Query after period bounce rate
+    const afterQuery = `
+      SELECT countIf(session_pageviews = 1) * 100.0 / count() AS bounce_rate
+      FROM (
+        SELECT
+          $session_id AS session_id,
+          count() AS session_pageviews
+        FROM events
+        WHERE event = '$pageview'
+          AND properties.$current_url LIKE '%${domain}%'
+          AND timestamp >= toDateTime('${formatDateTime(afterStart)}')
+          AND timestamp < toDateTime('${formatDateTime(afterEnd)}')
+        GROUP BY session_id
+      )
+    `;
+
+    const [beforeResult, afterResult] = await Promise.all([
+      this.query(beforeQuery),
+      this.query(afterQuery),
+    ]);
+
+    const before = Number(beforeResult.results?.[0]?.[0]) || 0;
+    const after = Number(afterResult.results?.[0]?.[0]) || 0;
+
+    const changePercent =
+      before === 0 ? (after > 0 ? 100 : 0) : ((after - before) / before) * 100;
+
+    return {
+      metric: "bounce_rate",
+      current_period: Math.round(after * 10) / 10,
+      previous_period: Math.round(before * 10) / 10,
+      change_percent: Math.round(changePercent * 10) / 10,
+      direction: changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat",
+    };
+  }
+
   async getExperiments(days: number): Promise<ExperimentsResult> {
     const safeDays = this.clampDays(days);
 

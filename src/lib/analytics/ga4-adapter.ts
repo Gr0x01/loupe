@@ -474,6 +474,93 @@ export class GA4Adapter implements AnalyticsProvider {
     };
   }
 
+  /**
+   * Compare metrics between two absolute date periods.
+   * Used for correlation: compare 7 days before change vs 7 days after.
+   */
+  async comparePeriodsAbsolute(
+    metric: "pageviews" | "unique_visitors" | "bounce_rate" | "conversions",
+    pageUrl: string,
+    beforeStart: Date,
+    beforeEnd: Date,
+    afterStart: Date,
+    afterEnd: Date
+  ): Promise<PeriodComparison> {
+    const domain = this.extractDomain(pageUrl);
+
+    // Map metric names
+    const metricMap: Record<string, string> = {
+      pageviews: "screenPageViews",
+      unique_visitors: "totalUsers",
+      bounce_rate: "bounceRate",
+      conversions: "conversions",
+    };
+
+    const ga4Metric = metricMap[metric];
+
+    // Query for before period (using YYYY-MM-DD format)
+    const beforeResponse = await this.runReport({
+      dateRanges: [{
+        startDate: this.formatDate(beforeStart),
+        endDate: this.formatDate(beforeEnd),
+      }],
+      dimensions: [],
+      metrics: [{ name: ga4Metric }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "hostName",
+          stringFilter: {
+            matchType: "CONTAINS",
+            value: domain,
+          },
+        },
+      },
+    });
+
+    // Query for after period
+    const afterResponse = await this.runReport({
+      dateRanges: [{
+        startDate: this.formatDate(afterStart),
+        endDate: this.formatDate(afterEnd),
+      }],
+      dimensions: [],
+      metrics: [{ name: ga4Metric }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "hostName",
+          stringFilter: {
+            matchType: "CONTAINS",
+            value: domain,
+          },
+        },
+      },
+    });
+
+    let before = Number(beforeResponse.rows?.[0]?.metricValues?.[0]?.value) || 0;
+    let after = Number(afterResponse.rows?.[0]?.metricValues?.[0]?.value) || 0;
+
+    // Handle bounce rate formatting
+    if (metric === "bounce_rate") {
+      before = Math.round(before * 1000) / 10;
+      after = Math.round(after * 1000) / 10;
+    } else {
+      before = Math.round(before);
+      after = Math.round(after);
+    }
+
+    const changePercent = before === 0
+      ? (after > 0 ? 100 : 0)
+      : ((after - before) / before) * 100;
+
+    return {
+      metric,
+      current_period: after,
+      previous_period: before,
+      change_percent: Math.round(changePercent * 10) / 10,
+      direction: changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat",
+    };
+  }
+
   async getExperiments(days: number): Promise<ExperimentsResult> {
     const safeDays = Math.max(1, Math.min(90, Math.floor(days)));
 
