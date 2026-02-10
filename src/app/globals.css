@@ -1994,6 +1994,129 @@ body.modal-open .site-nav {
   border-top: 1px solid rgba(51, 65, 85, 0.08);
 }
 
+/* ===== DASHBOARD RESULTS ZONE ===== */
+.results-zone-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 100px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #059669;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .results-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.result-card {
+  display: block;
+  background: #FFFFFF;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.08);
+  padding: 1rem 1.25rem;
+  padding-left: calc(1.25rem - 3px);
+  border-left-width: 3px;
+  transition: background-color 160ms ease, transform 160ms ease;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.result-card:hover {
+  background: var(--paper-100);
+  transform: translateY(-1px);
+}
+
+.result-card:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.result-card-validated {
+  border-left-color: #10B981;
+}
+
+.result-card-regressed {
+  border-left-color: #F87171;
+}
+
+.result-card-element {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.result-card-change {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+
+.result-card-change .before {
+  text-decoration: line-through;
+}
+
+.result-card-change .arrow {
+  margin: 0 0.25rem;
+  color: var(--ink-400);
+}
+
+.result-card-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.result-card-percent {
+  font-family: var(--font-instrument-serif);
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.result-card-percent-up {
+  color: #059669;
+}
+
+.result-card-percent-down {
+  color: #DC2626;
+}
+
+.result-card-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.result-card-highlight {
+  animation: result-highlight 1.5s ease-out;
+}
+
+@keyframes result-highlight {
+  0% {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4);
+  }
+  100% {
+    box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.08);
+  }
+}
+
 /* ===== FINDING FEEDBACK ===== */
 .finding-feedback {
   display: flex;

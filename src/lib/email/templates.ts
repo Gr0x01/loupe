@@ -362,6 +362,7 @@ export function allQuietEmail({
 interface CorrelationUnlockedEmailParams {
   pageUrl: string;
   analysisId: string;
+  changeId: string; // detected_change ID for dashboard deep link
   change: {
     element: string;
     before: string;
@@ -385,11 +386,13 @@ interface CorrelationUnlockedEmailParams {
 export function correlationUnlockedEmail({
   pageUrl,
   analysisId,
+  changeId,
   change,
   metric,
   topSuggestion,
 }: CorrelationUnlockedEmailParams): { subject: string; html: string } {
-  const resultsUrl = `https://getloupe.io/analysis/${analysisId}`;
+  // Deep link to dashboard with win highlighted
+  const resultsUrl = `https://getloupe.io/dashboard?win=${encodeURIComponent(changeId)}`;
 
   const subject = `Your ${change.element.toLowerCase()} change helped`;
 
@@ -452,7 +455,7 @@ export function correlationUnlockedEmail({
       <tr>
         <td>
           <a class="cta-button" href="${resultsUrl}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 24px; border-radius: 10px;">
-            See what worked
+            See your results
           </a>
         </td>
       </tr>

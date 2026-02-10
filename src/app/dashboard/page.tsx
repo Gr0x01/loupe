@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ShareModal from "@/components/ShareModal";
 import { PageLoader } from "@/components/PageLoader";
-import type { DashboardPageData } from "@/lib/types/analysis";
+import type { DashboardPageData, DetectedChange, ChangesApiResponse } from "@/lib/types/analysis";
 import { getDomain } from "@/lib/utils/url";
 import {
   AttentionZone,
   WatchingZone,
+  ResultsZone,
   EmptySuccessState,
   EmptyOnboardingState,
 } from "@/components/dashboard";
@@ -176,8 +177,9 @@ function DeleteConfirmModal({
   );
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pages, setPages] = useState<DashboardPageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -188,22 +190,43 @@ export default function DashboardPage() {
   const [deleteTarget, setDeleteTarget] = useState<DashboardPageData | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Results zone state
+  const [results, setResults] = useState<(DetectedChange & { domain?: string })[]>([]);
+  const [resultsStats, setResultsStats] = useState<ChangesApiResponse["stats"]>({
+    totalValidated: 0,
+    totalRegressed: 0,
+    cumulativeImprovement: 0,
+  });
+  const highlightWinId = searchParams.get("win") || undefined;
+
   const fetchPages = useCallback(async () => {
     try {
-      const res = await fetch("/api/pages");
-      if (res.status === 401) {
+      // Fetch pages and validated changes in parallel
+      const [pagesRes, changesRes] = await Promise.all([
+        fetch("/api/pages"),
+        fetch("/api/changes"),
+      ]);
+
+      if (pagesRes.status === 401) {
         router.push("/login?redirect=/dashboard");
         return;
       }
-      if (!res.ok) {
+      if (!pagesRes.ok) {
         setError("Failed to load pages");
         return;
       }
-      const data = await res.json();
-      const pageList = data.pages || [];
+      const pagesData = await pagesRes.json();
+      const pageList = pagesData.pages || [];
       setPages(pageList);
       // Update limits based on page count (max is fetched when trying to add)
       setUserLimits((prev) => ({ ...prev, current: pageList.length }));
+
+      // Load changes (don't fail dashboard if this fails)
+      if (changesRes.ok) {
+        const changesData: ChangesApiResponse = await changesRes.json();
+        setResults(changesData.changes || []);
+        setResultsStats(changesData.stats);
+      }
     } catch {
       setError("Failed to load pages");
     } finally {
@@ -364,8 +387,15 @@ export default function DashboardPage() {
           <EmptyOnboardingState />
         ) : (
           <>
-            {/* Show success state if no attention items */}
-            {attentionPages.length === 0 && watchingPages.length > 0 && (
+            {/* Results zone — validated/regressed changes at TOP */}
+            <ResultsZone
+              changes={results}
+              stats={resultsStats}
+              highlightId={highlightWinId}
+            />
+
+            {/* Show success state if no attention items and no results */}
+            {attentionPages.length === 0 && watchingPages.length > 0 && results.length === 0 && (
               <EmptySuccessState />
             )}
 
@@ -407,5 +437,13 @@ export default function DashboardPage() {
         pageName={deleteTarget?.name || getDomain(deleteTarget?.url || "")}
       />
     </>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <DashboardContent />
+    </Suspense>
   );
 }
