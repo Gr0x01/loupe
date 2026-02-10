@@ -80,7 +80,7 @@ export default function Home() {
 
               {/* Trust line */}
               <p className="text-sm text-text-muted mt-5 landing-hero-trust">
-                Free. No signup. Results in 30 seconds.
+                Free in beta. No signup. Results in 30 seconds.
               </p>
 
               {/* Founding 50 counter — pill with progress bar, real data */}

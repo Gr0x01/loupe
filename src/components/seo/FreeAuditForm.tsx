@@ -14,6 +14,8 @@ const LOADING_STEPS = [
 interface FreeAuditFormProps {
   /** Optional custom CTA text for the button */
   ctaText?: string;
+  /** Optional custom placeholder for URL input */
+  placeholder?: string;
   /** Optional className for the outer wrapper */
   className?: string;
   /** Show loading state inline (default) or redirect immediately */
@@ -22,6 +24,7 @@ interface FreeAuditFormProps {
 
 export default function FreeAuditForm({
   ctaText = "Audit my page",
+  placeholder = "https://yoursite.com",
   className = "",
   showLoadingInline = true,
 }: FreeAuditFormProps) {
@@ -96,7 +99,7 @@ export default function FreeAuditForm({
               inputMode="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://yoursite.com"
+              placeholder={placeholder}
               className="free-audit-input flex-1 text-base px-4 py-2.5 outline-none
                          text-text-primary placeholder-text-muted"
             />

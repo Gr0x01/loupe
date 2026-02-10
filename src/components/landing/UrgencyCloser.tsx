@@ -30,7 +30,7 @@ export default function UrgencyCloser({
       >
         {/* Eyebrow */}
         <p className="text-xs font-semibold uppercase tracking-[0.1em] text-emerald mb-5">
-          You&apos;ll ship again this week
+          You ship. Loupe watches.
         </p>
 
         {/* Headline */}
@@ -43,76 +43,27 @@ export default function UrgencyCloser({
         >
           Your next change is coming.
           <br />
-          This time, you&apos;ll know.
+          This time, you won&apos;t have to babysit it.
         </h2>
 
         {/* Subhead */}
         <p className="text-[1.05rem] md:text-[1.12rem] text-text-secondary mb-8 max-w-lg mx-auto leading-relaxed">
-          Start with a free audit. It becomes the baseline Loupe watches against.
+          Start with a free audit. Loupe sets your baseline, watches for meaningful
+          changes, and tells you what to do next.
         </p>
 
         {/* Form */}
         <div className="max-w-lg mx-auto">
-          <FreeAuditForm />
+          <FreeAuditForm ctaText="Start free audit" placeholder="yourapp.com" />
         </div>
 
-        {/* Trust badges */}
-        <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
-          <span className="flex items-center gap-1.5 text-sm text-text-muted">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="text-emerald"
-            >
-              <path
-                d="M3 8.5l3.5 3.5 6.5-7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            No signup
-          </span>
-          <span className="flex items-center gap-1.5 text-sm text-text-muted">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="text-emerald"
-            >
-              <path
-                d="M3 8.5l3.5 3.5 6.5-7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            No credit card
-          </span>
-          <span className="flex items-center gap-1.5 text-sm text-text-muted">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="text-emerald"
-            >
-              <path
-                d="M3 8.5l3.5 3.5 6.5-7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Results in 30 seconds
-          </span>
-        </div>
+        <p className="mt-5 text-sm text-text-muted">
+          Free in beta • No signup • No credit card
+        </p>
+
+        <p className="mt-3 text-xs text-text-secondary uppercase tracking-[0.08em]">
+          Built for Lovable/Bolt builders and GitHub/Vercel teams.
+        </p>
 
         {/* Founding scarcity — hide until 10+ claimed for better social proof */}
         {foundingData && !foundingData.isFull && foundingData.claimed >= 10 && (
