@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TIER_INFO, TIER_LIMITS, type SubscriptionTier } from "@/lib/permissions";
 
@@ -34,11 +34,14 @@ interface PricingCardProps {
   tier: SubscriptionTier;
   isAnnual: boolean;
   isPopular?: boolean;
+  currentTier?: SubscriptionTier | null;
+  isLoggedIn: boolean;
   onSelect: () => void;
   loading?: boolean;
 }
 
-function PricingCard({ tier, isAnnual, isPopular, onSelect, loading }: PricingCardProps) {
+function PricingCard({ tier, isAnnual, isPopular, currentTier, isLoggedIn, onSelect, loading }: PricingCardProps) {
+  const isCurrentPlan = currentTier === tier;
   const info = TIER_INFO[tier];
   const limits = TIER_LIMITS[tier];
   const price = isAnnual ? info.annualPrice / 12 : info.monthlyPrice;
@@ -50,7 +53,11 @@ function PricingCard({ tier, isAnnual, isPopular, onSelect, loading }: PricingCa
         isPopular ? "border-2 border-signal" : ""
       }`}
     >
-      {isPopular && (
+      {isCurrentPlan ? (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-emerald text-white text-xs font-semibold rounded-full">
+          Current Plan
+        </span>
+      ) : isPopular && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-signal text-white text-xs font-semibold rounded-full">
           Most Popular
         </span>
@@ -139,13 +146,26 @@ function PricingCard({ tier, isAnnual, isPopular, onSelect, loading }: PricingCa
         )}
       </ul>
 
-      {tier === "free" ? (
+      {isCurrentPlan ? (
         <Link
-          href="/login"
+          href="/settings/billing"
           className="btn-secondary w-full text-center py-3"
         >
-          Get Started Free
+          Manage Plan
         </Link>
+      ) : tier === "free" ? (
+        isLoggedIn ? (
+          <span className="block w-full py-3 text-center text-ink-400">
+            Free tier
+          </span>
+        ) : (
+          <Link
+            href="/login"
+            className="btn-secondary w-full text-center py-3"
+          >
+            Get Started Free
+          </Link>
+        )
       ) : (
         <button
           onClick={onSelect}
@@ -166,6 +186,24 @@ function PricingCard({ tier, isAnnual, isPopular, onSelect, loading }: PricingCa
 export default function PricingPage() {
   const [isAnnual, setIsAnnual] = useState(true);
   const [loading, setLoading] = useState<SubscriptionTier | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentTier, setCurrentTier] = useState<SubscriptionTier | null>(null);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/profile");
+        if (res.ok) {
+          const profile = await res.json();
+          setIsLoggedIn(true);
+          setCurrentTier(profile.subscription_tier || "free");
+        }
+      } catch {
+        // Not logged in
+      }
+    }
+    checkAuth();
+  }, []);
 
   async function handleSelect(tier: SubscriptionTier) {
     if (tier === "free") return;
@@ -207,12 +245,21 @@ export default function PricingPage() {
           <Link href="/" className="font-bold text-xl text-ink-900">
             Loupe
           </Link>
-          <Link
-            href="/login"
-            className="text-ink-700 hover:text-ink-900 font-medium"
-          >
-            Sign in
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="text-ink-700 hover:text-ink-900 font-medium"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="text-ink-700 hover:text-ink-900 font-medium"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </header>
 
@@ -267,6 +314,8 @@ export default function PricingPage() {
               tier={tier}
               isAnnual={isAnnual}
               isPopular={tier === "starter"}
+              currentTier={currentTier}
+              isLoggedIn={isLoggedIn}
               onSelect={() => handleSelect(tier)}
               loading={loading === tier}
             />
