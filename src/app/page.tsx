@@ -6,6 +6,7 @@ import SitePreviewCard from "@/components/landing/SitePreviewCard";
 import WorksWithStrip from "@/components/landing/WorksWithStrip";
 import YourPage from "@/components/landing/YourPage";
 import YourResults from "@/components/landing/YourResults";
+import YourIntegrations from "@/components/landing/YourIntegrations";
 import UrgencyCloser from "@/components/landing/UrgencyCloser";
 
 export default function Home() {
@@ -120,6 +121,9 @@ export default function Home() {
 
       {/* Your Results -- Did that change work? */}
       <YourResults />
+
+      {/* Your Integrations -- Why connect your tools */}
+      <YourIntegrations />
 
       {/* Urgency Closer -- Final push with dark treatment */}
       <UrgencyCloser foundingData={foundingData} />
