@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface StableBaseline {
   id: string;
   screenshot_url: string;
+  mobile_screenshot_url: string | null;
   created_at: Date;
   trigger_type: string;
 }
@@ -46,7 +47,7 @@ export async function getStableBaseline(
   if (page.stable_baseline_id) {
     const { data: baseline } = await supabase
       .from("analyses")
-      .select("id, screenshot_url, created_at, trigger_type")
+      .select("id, screenshot_url, mobile_screenshot_url, created_at, trigger_type")
       .eq("id", page.stable_baseline_id)
       .eq("status", "complete")
       .single();
@@ -55,6 +56,7 @@ export async function getStableBaseline(
       return {
         id: baseline.id,
         screenshot_url: baseline.screenshot_url,
+        mobile_screenshot_url: baseline.mobile_screenshot_url ?? null,
         created_at: new Date(baseline.created_at),
         trigger_type: baseline.trigger_type,
       };
@@ -64,7 +66,7 @@ export async function getStableBaseline(
   // Priority 2: Last daily/weekly scan
   const { data: scheduledScan } = await supabase
     .from("analyses")
-    .select("id, screenshot_url, created_at, trigger_type")
+    .select("id, screenshot_url, mobile_screenshot_url, created_at, trigger_type")
     .eq("url", page.url)
     .eq("user_id", page.user_id)
     .eq("status", "complete")
@@ -78,6 +80,7 @@ export async function getStableBaseline(
     return {
       id: scheduledScan.id,
       screenshot_url: scheduledScan.screenshot_url,
+      mobile_screenshot_url: scheduledScan.mobile_screenshot_url ?? null,
       created_at: new Date(scheduledScan.created_at),
       trigger_type: scheduledScan.trigger_type,
     };
@@ -89,7 +92,7 @@ export async function getStableBaseline(
 
   const { data: oldAnalysis } = await supabase
     .from("analyses")
-    .select("id, screenshot_url, created_at, trigger_type")
+    .select("id, screenshot_url, mobile_screenshot_url, created_at, trigger_type")
     .eq("url", page.url)
     .eq("user_id", page.user_id)
     .eq("status", "complete")
@@ -103,6 +106,7 @@ export async function getStableBaseline(
     return {
       id: oldAnalysis.id,
       screenshot_url: oldAnalysis.screenshot_url,
+      mobile_screenshot_url: oldAnalysis.mobile_screenshot_url ?? null,
       created_at: new Date(oldAnalysis.created_at),
       trigger_type: oldAnalysis.trigger_type || "manual",
     };

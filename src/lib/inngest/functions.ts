@@ -79,34 +79,56 @@ export const analyzeUrl = inngest.createFunction(
     });
 
     // Step 2: Screenshot + upload (expensive, isolated to prevent re-capture on LLM failure)
-    const { screenshotUrl, base64, metadata } = await step.run(
+    const { screenshotUrl, mobileScreenshotUrl, base64, mobileBase64, metadata } = await step.run(
       "capture-screenshot",
       async () => {
-        const result = await captureScreenshot(url);
-        const uploadedUrl = await uploadScreenshot(supabase, analysisId, result.base64);
+        // Capture desktop + mobile in parallel
+        const [desktop, mobileResult] = await Promise.all([
+          captureScreenshot(url),
+          captureScreenshot(url, { width: 390 }).catch((err) => {
+            console.warn(`Mobile screenshot failed for ${url}:`, err);
+            return null;
+          }),
+        ]);
+
+        // Upload both in parallel (mobile only if captured)
+        const uploadPromises: [Promise<string>, Promise<string> | null] = [
+          uploadScreenshot(supabase, analysisId, desktop.base64),
+          mobileResult ? uploadScreenshot(supabase, analysisId, mobileResult.base64, "mobile") : null,
+        ];
+        const [uploadedUrl, mobileUploadedUrl] = await Promise.all(
+          uploadPromises.map((p) => p ?? Promise.resolve(null))
+        );
+
         return {
-          screenshotUrl: uploadedUrl,
-          base64: result.base64,
-          metadata: result.metadata,
+          screenshotUrl: uploadedUrl!,
+          mobileScreenshotUrl: mobileUploadedUrl,
+          base64: desktop.base64,
+          mobileBase64: mobileResult?.base64 ?? null,
+          metadata: desktop.metadata,
         };
       }
     );
 
     // Step 3: LLM analysis
     const { output, structured } = await step.run("llm-analysis", async () => {
-      return runAnalysisPipeline(base64, url, metadata);
+      return runAnalysisPipeline(base64, url, metadata, mobileBase64 ?? undefined);
     });
 
     // Step 4: Save results
     await step.run("save-results", async () => {
+      const updateData: Record<string, unknown> = {
+        status: "complete",
+        screenshot_url: screenshotUrl,
+        output,
+        structured_output: structured,
+      };
+      if (mobileScreenshotUrl) {
+        updateData.mobile_screenshot_url = mobileScreenshotUrl;
+      }
       await supabase
         .from("analyses")
-        .update({
-          status: "complete",
-          screenshot_url: screenshotUrl,
-          output,
-          structured_output: structured,
-        })
+        .update(updateData)
         .eq("id", analysisId);
     });
 
@@ -901,11 +923,26 @@ export const deployDetected = inngest.createFunction(
             continue;
           }
 
-          // 3. Screenshot current page
-          const { base64: currentScreenshot } = await captureScreenshot(page.url);
+          // 3. Screenshot current page (desktop + mobile in parallel if baseline has mobile)
+          const [desktopResult, mobileResult] = await Promise.all([
+            captureScreenshot(page.url),
+            baseline.mobile_screenshot_url
+              ? captureScreenshot(page.url, { width: 390 }).catch((err) => {
+                  console.warn(`Mobile screenshot failed for ${page.url}:`, err);
+                  return null;
+                })
+              : Promise.resolve(null),
+          ]);
+          const currentScreenshot = desktopResult.base64;
+          const currentMobileScreenshot = mobileResult?.base64 ?? null;
 
-          // 4. Quick Haiku diff against baseline
-          const diffResult = await runQuickDiff(baseline.screenshot_url, currentScreenshot);
+          // 4. Quick Haiku diff against baseline (with mobile if both exist)
+          const diffResult = await runQuickDiff(
+            baseline.screenshot_url,
+            currentScreenshot,
+            baseline.mobile_screenshot_url,
+            currentMobileScreenshot
+          );
 
           if (!diffResult.hasChanges || diffResult.changes.length === 0) {
             // No changes detected

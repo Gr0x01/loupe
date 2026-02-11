@@ -45,7 +45,8 @@ export interface ScreenshotResult {
  * Returns base64 JPEG + structured metadata from the rendered DOM.
  */
 export async function captureScreenshot(
-  url: string
+  url: string,
+  options?: { width?: number }
 ): Promise<ScreenshotResult> {
   // SSRF protection: validate URL before sending to screenshot service
   const validation = validateUrl(url);
@@ -54,6 +55,9 @@ export async function captureScreenshot(
   }
 
   const params = new URLSearchParams({ url });
+  if (options?.width) {
+    params.set("width", String(options.width));
+  }
   const response = await fetch(
     `${SCREENSHOT_URL}/screenshot-and-extract?${params}`,
     {
@@ -85,10 +89,16 @@ export async function captureScreenshot(
 export async function uploadScreenshot(
   supabase: any,
   analysisId: string,
-  base64: string
+  base64: string,
+  suffix?: string
 ): Promise<string> {
+  if (suffix && !/^[a-z0-9_-]+$/i.test(suffix)) {
+    throw new Error(`Invalid screenshot suffix: ${suffix}`);
+  }
   const buffer = Buffer.from(base64, "base64");
-  const path = `analyses/${analysisId}.jpg`;
+  const path = suffix
+    ? `analyses/${analysisId}_${suffix}.jpg`
+    : `analyses/${analysisId}.jpg`;
 
   const { error } = await supabase.storage
     .from("screenshots")

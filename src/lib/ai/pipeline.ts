@@ -66,6 +66,13 @@ const SYSTEM_PROMPT = `You are an observant analyst who notices what founders mi
 
 **Gestalt Principles**: Proximity, contrast, alignment. Is spacing consistent? Typography clean?
 
+**Mobile Experience**: Does the page work at mobile viewport (390px)?
+- Is the CTA visible above the fold on mobile?
+- Does text remain readable without zooming?
+- Are tap targets large enough?
+- Does navigation collapse appropriately?
+- Is mobile a thoughtful adaptation or just a squeezed desktop?
+
 ## FriendlyText Translation Table
 When writing predictions, use these human-friendly phrases with emotional stakes:
 | Metric | Direction | FriendlyText |
@@ -219,27 +226,41 @@ function formatMetadataForPrompt(metadata: PageMetadata): string {
 export async function runAnalysisPipeline(
   screenshotBase64: string,
   url: string,
-  metadata?: PageMetadata
+  metadata?: PageMetadata,
+  mobileScreenshotBase64?: string
 ): Promise<AnalysisResult> {
   const metadataText = metadata
     ? `\n\n${formatMetadataForPrompt(metadata)}`
     : "";
+
+  const imageLabel = mobileScreenshotBase64
+    ? "First image is desktop. Second image is mobile (390px viewport). "
+    : "";
+
+  const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [
+    {
+      type: "text",
+      text: `Analyze this web page (${url}). ${imageLabel}Evaluate the marketing effectiveness and design quality. Return your analysis as JSON.${metadataText}`,
+    },
+    {
+      type: "image",
+      image: screenshotBase64,
+    },
+  ];
+
+  if (mobileScreenshotBase64) {
+    contentParts.push({
+      type: "image",
+      image: mobileScreenshotBase64,
+    });
+  }
 
   const { text } = await generateText({
     model: google("gemini-3-pro-preview"),
     messages: [
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: `Analyze this web page (${url}). Evaluate the marketing effectiveness and design quality. Return your analysis as JSON.${metadataText}`,
-          },
-          {
-            type: "image",
-            image: screenshotBase64,
-          },
-        ],
+        content: contentParts,
       },
     ],
     system: SYSTEM_PROMPT,
@@ -984,27 +1005,35 @@ import type { QuickDiffResult } from "@/lib/types/analysis";
  */
 export async function runQuickDiff(
   baselineScreenshotUrl: string,
-  currentScreenshotBase64: string
+  currentScreenshotBase64: string,
+  baselineMobileUrl?: string | null,
+  currentMobileBase64?: string | null
 ): Promise<QuickDiffResult> {
+  const hasMobile = baselineMobileUrl && currentMobileBase64;
+
+  const promptText = hasMobile
+    ? "Compare these screenshots of the same webpage. Images 1-2 are DESKTOP (baseline then current). Images 3-4 are MOBILE 390px (baseline then current). Identify what changed."
+    : "Compare these two screenshots of the same webpage. The first image is the BASELINE (previous state). The second image is the CURRENT state. Identify what changed.";
+
+  const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [
+    { type: "text", text: promptText },
+    { type: "image", image: baselineScreenshotUrl },
+    { type: "image", image: currentScreenshotBase64 },
+  ];
+
+  if (hasMobile) {
+    contentParts.push(
+      { type: "image", image: baselineMobileUrl },
+      { type: "image", image: currentMobileBase64 }
+    );
+  }
+
   const { text } = await generateText({
     model: anthropic("claude-3-5-haiku-latest"),
     messages: [
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Compare these two screenshots of the same webpage. The first image is the BASELINE (previous state). The second image is the CURRENT state. Identify what changed.",
-          },
-          {
-            type: "image",
-            image: baselineScreenshotUrl,
-          },
-          {
-            type: "image",
-            image: currentScreenshotBase64,
-          },
-        ],
+        content: contentParts,
       },
     ],
     system: QUICK_DIFF_PROMPT,
