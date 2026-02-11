@@ -48,9 +48,11 @@ export default function Home() {
             {/* Left column -- Copy + CTA */}
             <div className="max-w-xl md:max-w-lg lg:max-w-xl md:text-left">
               {/* Qualifier */}
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted mb-5 landing-hero-qualifier">
-                For founders who ship fast
-              </p>
+              <div className="mb-5 landing-hero-qualifier">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-coral bg-coral/5 text-[11px] font-semibold uppercase tracking-[0.18em] text-coral">
+                  For founders who ship fast
+                </span>
+              </div>
 
               {/* Headline */}
               <h1

@@ -29,9 +29,11 @@ export default function UrgencyCloser({
         }`}
       >
         {/* Eyebrow */}
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-emerald mb-5">
-          You ship. Loupe watches.
-        </p>
+        <div className="mb-5">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-coral bg-coral/5 text-[11px] font-semibold uppercase tracking-[0.18em] text-coral">
+            You ship. Loupe watches.
+          </span>
+        </div>
 
         {/* Headline */}
         <h2
