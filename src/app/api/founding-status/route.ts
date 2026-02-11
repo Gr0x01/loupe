@@ -25,12 +25,20 @@ export async function GET() {
     const claimed = count ?? 0;
     const remaining = Math.max(0, FOUNDING_50_CAP - claimed);
 
-    return NextResponse.json({
-      claimed,
-      total: FOUNDING_50_CAP,
-      isFull: claimed >= FOUNDING_50_CAP,
-      remaining,
-    });
+    return NextResponse.json(
+      {
+        claimed,
+        total: FOUNDING_50_CAP,
+        isFull: claimed >= FOUNDING_50_CAP,
+        remaining,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      }
+    );
   } catch (err) {
     console.error("Founding status error:", err);
     return NextResponse.json(

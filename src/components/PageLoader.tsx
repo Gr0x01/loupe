@@ -1,8 +1,7 @@
-"use client";
-
 /**
  * Skeleton loading component for page content.
  * Use this for initial data fetches across the app.
+ * Pure JSX — no "use client" needed so Next.js can render it as server HTML.
  */
 export function PageLoader() {
   return (

@@ -1,6 +1,6 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
+import type { Metadata } from "next";
+import { createServiceClient } from "@/lib/supabase/server";
+import { FOUNDING_50_CAP } from "@/lib/constants";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import SitePreviewCard from "@/components/landing/SitePreviewCard";
 import WorksWithStrip from "@/components/landing/WorksWithStrip";
@@ -8,33 +8,45 @@ import YourPage from "@/components/landing/YourPage";
 import YourResults from "@/components/landing/YourResults";
 import YourIntegrations from "@/components/landing/YourIntegrations";
 import UrgencyCloser from "@/components/landing/UrgencyCloser";
+import FoundingCounter from "@/components/landing/FoundingCounter";
 
-export default function Home() {
-  const foundingFillRef = useRef<HTMLDivElement>(null);
-  const [foundingData, setFoundingData] = useState<{
+export const revalidate = 300;
+
+export const metadata: Metadata = {
+  title: "Loupe — See what your last deploy actually did",
+  description:
+    "You make the change, hit deploy, move on. Loupe watches what happens next and tells you if it worked. Free audit in 30 seconds.",
+};
+
+export default async function Home() {
+  let foundingData: {
     claimed: number;
     total: number;
     remaining: number;
     isFull: boolean;
-  } | null>(null);
+  } | null = null;
 
-  useEffect(() => {
-    fetch("/api/founding-status")
-      .then((res) => res.json())
-      .then((data) => setFoundingData(data))
-      .catch(() => {});
-  }, []);
+  try {
+    // Service client needed: public count-only query (head: true, no row data).
+    // Do NOT add column selections or remove head: true without switching to anon client.
+    const supabase = createServiceClient();
+    const { count, error } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("is_founding_50", true);
 
-  useEffect(() => {
-    if (!foundingData || !foundingFillRef.current) return;
-    const pct = Math.round((foundingData.claimed / foundingData.total) * 100);
-    const raf = requestAnimationFrame(() => {
-      if (foundingFillRef.current) {
-        foundingFillRef.current.style.width = `${pct}%`;
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [foundingData]);
+    if (!error) {
+      const claimed = count ?? 0;
+      foundingData = {
+        claimed,
+        total: FOUNDING_50_CAP,
+        isFull: claimed >= FOUNDING_50_CAP,
+        remaining: Math.max(0, FOUNDING_50_CAP - claimed),
+      };
+    }
+  } catch {
+    // Founding data is non-critical — render page without it
+  }
 
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -89,21 +101,10 @@ export default function Home() {
               {/* Founding 50 counter — pill with progress bar, real data */}
               {/* Hide until 10+ claimed for better social proof */}
               {foundingData && !foundingData.isFull && foundingData.claimed >= 10 && (
-                <div className="mt-3 landing-hero-founding">
-                  <div className="founding-counter-pill">
-                    <div className="founding-counter-track">
-                      <div
-                        ref={foundingFillRef}
-                        className="founding-counter-fill"
-                        style={{ width: "0%" }}
-                      />
-                    </div>
-                    <span className="text-[12px] font-medium text-coral">
-                      {foundingData.claimed} of {foundingData.total} founding
-                      spots claimed
-                    </span>
-                  </div>
-                </div>
+                <FoundingCounter
+                  claimed={foundingData.claimed}
+                  total={foundingData.total}
+                />
               )}
             </div>
 
