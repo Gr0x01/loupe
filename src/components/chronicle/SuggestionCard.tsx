@@ -11,6 +11,11 @@ interface SuggestionCardProps {
 export function SuggestionCard({ suggestion, defaultExpanded = false }: SuggestionCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
+  const impactHint = {
+    high: "Biggest expected lift",
+    medium: "Worth testing next",
+    low: "Lower urgency",
+  }[suggestion.impact];
 
   const toggleExpanded = () => setExpanded(!expanded);
 
@@ -36,38 +41,38 @@ export function SuggestionCard({ suggestion, defaultExpanded = false }: Suggesti
 
   return (
     <div
-      className="evaluation-card group"
+      className="evaluation-card suggestion-card group"
       onClick={toggleExpanded}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-expanded={expanded}
     >
-      {/* Header - always visible */}
-      <div className="flex items-start gap-3 p-4">
-        {/* Arrow indicator */}
-        <span className="text-accent text-lg font-bold mt-0.5">&rarr;</span>
+      <div className="suggestion-card-header">
+        <span
+          className={`suggestion-card-accent suggestion-card-accent-${suggestion.impact}`}
+          aria-hidden="true"
+        />
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="suggestion-card-main">
+          <div className="suggestion-card-title-row">
             <p
-              className="text-[1.0625rem] font-semibold text-text-primary leading-snug"
+              className="suggestion-card-title"
               style={{ fontFamily: "var(--font-display)" }}
             >
               {suggestion.title}
             </p>
             <span className={impactBadgeClass}>{suggestion.impact}</span>
           </div>
-          <div className="flex items-center gap-2 mt-1.5">
+          <div className="suggestion-card-meta">
             <span className="element-badge">{suggestion.element}</span>
+            <span className="suggestion-card-meta-separator" />
+            <span className="suggestion-card-meta-text">{impactHint}</span>
           </div>
         </div>
 
-        {/* Chevron */}
         <svg
-          className={`w-5 h-5 text-text-muted transition-transform duration-200 flex-shrink-0 ${
-            expanded ? "rotate-180" : ""
-          }`}
+          className={`suggestion-card-chevron ${expanded ? "rotate-180" : ""}`}
           viewBox="0 0 20 20"
           fill="none"
           stroke="currentColor"
@@ -79,40 +84,35 @@ export function SuggestionCard({ suggestion, defaultExpanded = false }: Suggesti
         </svg>
       </div>
 
-      {/* Expandable content */}
-      <div
-        className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <div className="px-4 pb-4 pt-1 space-y-4 border-t border-border-outer mt-2">
-          {/* Observation */}
-          {suggestion.observation && (
-            <div className="pt-3">
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-                What we noticed
+      <div className={`suggestion-card-content ${expanded ? "suggestion-card-content-open" : ""}`}>
+        <div className="suggestion-card-content-inner">
+          <div className="suggestion-card-details-grid">
+            {suggestion.observation && (
+              <div className="suggestion-detail">
+                <p className="suggestion-detail-label">
+                  What we noticed
+                </p>
+                <p className="suggestion-detail-text">
+                  {suggestion.observation}
+                </p>
+              </div>
+            )}
+
+            <div className="suggestion-detail">
+              <p className="suggestion-detail-label">
+                Expected impact
               </p>
-              <p className="text-[0.9375rem] text-text-secondary leading-relaxed">
-                {suggestion.observation}
+              <p className="suggestion-impact-line" style={{ fontFamily: "var(--font-display)" }}>
+                {suggestion.prediction.friendlyText}
+                <span className="suggestion-impact-range">
+                  {" "}
+                  ({suggestion.prediction.direction === "up" ? "+" : "-"}
+                  {suggestion.prediction.range})
+                </span>
               </p>
             </div>
-          )}
-
-          {/* Prediction */}
-          <div>
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-              Expected impact
-            </p>
-            <p
-              className="text-[0.9375rem] text-text-primary leading-relaxed"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {suggestion.prediction.friendlyText} ({suggestion.prediction.direction === "up" ? "+" : "-"}
-              {suggestion.prediction.range})
-            </p>
           </div>
 
-          {/* Suggested fix */}
           <div className="fix-block">
             <div className="fix-block-header">
               <span className="fix-block-label">Try this</span>

@@ -109,6 +109,25 @@ Each scan tracks:
 - Email preferences
 - Domain context (company, ICP, brand voice) — future
 
+### 6. Demo Pages (Public)
+Showcase Loupe's ideal state with mock data for "xyz.io". No auth required.
+
+**`/demo`** — Demo Dashboard
+- Results Zone: 3 validated wins (+23% conversions, -12% bounce, +38% time on page)
+- Attention Zone: 1 low-severity suggestion
+- Watching Zone: 3 stable pages
+- Link to demo scan report
+
+**`/demo/analysis`** — Demo Scan Report (Chronicle view)
+- Page header with scan picker (Scan 16 of 20)
+- Verdict: "You polished the timeline and added logos, but ignored the messaging friction."
+- Progress gauges: 1 watching, 3 open
+- Deploy context showing commit trigger
+- Changes caught section with 2 detected changes
+- "Your next move" with 3 prioritized suggestions
+
+**Implementation:** Uses real components with `demo` prop that renders static (non-navigable) versions. Ensures demos always match actual UI.
+
 ## Progressive Value
 
 | Without integrations | With integrations |

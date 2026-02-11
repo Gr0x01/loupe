@@ -39,7 +39,7 @@ export function ChronicleHero({
   return (
     <div className="chronicle-hero-new">
       <div className="chronicle-hero-content">
-        {/* Verdict - the star (now a true headline) */}
+        <p className="chronicle-hero-label">Latest read</p>
         <h1
           className="chronicle-hero-verdict-new"
           style={{ fontFamily: "var(--font-display)" }}
@@ -47,7 +47,6 @@ export function ChronicleHero({
           {verdict}
         </h1>
 
-        {/* Date context */}
         <p className="chronicle-hero-context">
           Since {sinceDate}
           {triggerLabel && (
@@ -59,8 +58,8 @@ export function ChronicleHero({
         </p>
       </div>
 
-      {/* Progress gauges on the right */}
       <div className="chronicle-hero-gauges">
+        <p className="chronicle-hero-gauges-label">Momentum</p>
         <ProgressGauges
           validated={progress.validated}
           watching={progress.watching}

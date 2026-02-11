@@ -27,7 +27,7 @@ export function NextMoveSection({
             Your next move
           </h2>
         </div>
-        <div className="glass-card p-6 text-center">
+        <div className="chronicle-empty-card">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(16,185,129,0.1)] mb-4">
             <svg
               className="w-6 h-6 text-emerald"
@@ -60,39 +60,35 @@ export function NextMoveSection({
 
   return (
     <section className="chronicle-section">
-      <div className="chronicle-section-header">
-        <h2
-          className="text-2xl font-bold text-text-primary"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Your next move
-        </h2>
-        {suggestions.length > 0 && (
-          <p className="text-sm text-text-muted mt-1">
-            Prioritized by expected impact
-          </p>
-        )}
+      <div className="chronicle-section-header chronicle-section-header-inline">
+        <div>
+          <h2
+            className="text-2xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Your next move
+          </h2>
+          {suggestions.length > 0 && (
+            <p className="text-sm text-text-muted mt-1">
+              Prioritized by expected impact
+            </p>
+          )}
+        </div>
+        <span className="next-move-count">
+          {suggestions.length} recommendation{suggestions.length === 1 ? "" : "s"}
+        </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="next-move-stack">
         {visibleSuggestions.map((suggestion, index) => (
-          <div key={`${suggestion.element}-${suggestion.title}`} className="relative">
-            {/* Priority dot - only for high/medium */}
-            {(suggestion.impact === "high" || suggestion.impact === "medium") && (
-              <span
-                className={`priority-dot priority-dot-${suggestion.impact}`}
-                title={`${suggestion.impact} impact`}
-              />
-            )}
-            <SuggestionCard
-              suggestion={suggestion}
-              defaultExpanded={index === 0}
-            />
-          </div>
+          <SuggestionCard
+            key={`${suggestion.element}-${suggestion.title}`}
+            suggestion={suggestion}
+            defaultExpanded={index === 0}
+          />
         ))}
       </div>
 
-      {/* See all link */}
       {hasMore && !showAll && (
         <button
           onClick={() => setShowAll(true)}

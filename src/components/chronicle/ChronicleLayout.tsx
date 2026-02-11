@@ -43,10 +43,9 @@ export function ChronicleLayout({
   const watchingItems = changesSummary.progress.watchingItems || [];
 
   return (
-    <div>
-      {/* Hero section - redesigned */}
-      <section className="py-6 lg:py-8">
-        <div className="glass-card-elevated p-6 lg:p-8">
+    <div className="chronicle-layout">
+      <section className="chronicle-hero-section">
+        <div className="glass-card-elevated chronicle-hero-card">
           <ChronicleHero
             verdict={changesSummary.verdict}
             baselineDate={baselineDate}
@@ -58,12 +57,11 @@ export function ChronicleLayout({
             }}
           />
 
-          {/* Deploy context (if present) */}
           {deployContext && (
-            <div className="mt-4 pt-4 border-t border-border-outer">
-              <div className="flex items-center gap-3 text-sm">
+            <div className="chronicle-deploy-context">
+              <div className="chronicle-deploy-context-row">
                 <svg
-                  className="w-4 h-4 text-text-muted"
+                  className="w-4 h-4 text-text-muted flex-shrink-0"
                   viewBox="0 0 16 16"
                   fill="none"
                   stroke="currentColor"
@@ -72,21 +70,22 @@ export function ChronicleLayout({
                   <circle cx="8" cy="8" r="3" />
                   <path d="M8 1v4M8 11v4M1 8h4M11 8h4" strokeLinecap="round" />
                 </svg>
-                <span className="text-text-muted">
-                  Triggered by deploy{" "}
-                  <span className="font-mono text-text-secondary">
+                <span className="chronicle-deploy-context-label">
+                  Triggered by deploy
+                  {" "}
+                  <span className="chronicle-deploy-context-sha">
                     {deployContext.commit_sha.slice(0, 7)}
                   </span>
-                  {" "}{timeAgo(deployContext.commit_timestamp)}
+                  {" "}
+                  {timeAgo(deployContext.commit_timestamp)}
                 </span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Snapshot collapsible - tucked below hero */}
         {screenshotUrl && (
-          <div className="mt-3">
+          <div className="chronicle-snapshot-shell">
             <SnapshotCollapsible
               screenshotUrl={screenshotUrl}
               pageUrl={url}
@@ -102,9 +101,8 @@ export function ChronicleLayout({
         <WinBanner validatedItems={validatedItems} />
       )}
 
-      <hr className="section-divider" />
+      <hr className="section-divider chronicle-divider" />
 
-      {/* Unified timeline - Changes + Validated + Watching */}
       <UnifiedTimeline
         changes={changesSummary.changes}
         validatedItems={validatedItems}
@@ -112,17 +110,15 @@ export function ChronicleLayout({
         hasError={!!changesSummary._error}
       />
 
-      <hr className="section-divider" />
+      <hr className="section-divider chronicle-divider" />
 
-      {/* Your next move - Suggestions */}
       <NextMoveSection suggestions={changesSummary.suggestions} />
 
-      {/* Running summary (if present) */}
       {changesSummary.running_summary && (
         <>
-          <hr className="section-divider" />
+          <hr className="section-divider chronicle-divider" />
           <section className="chronicle-section">
-            <div className="glass-card p-6">
+            <div className="chronicle-summary-card">
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
                 Summary
               </p>

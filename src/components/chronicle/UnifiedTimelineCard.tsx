@@ -37,6 +37,19 @@ function getStatusLabel(type: TimelineItemType, daysRemaining?: number): string 
   }
 }
 
+function getTypeLabel(type: TimelineItemType): string {
+  switch (type) {
+    case "validated":
+      return "Validated";
+    case "regressed":
+      return "Regressed";
+    case "watching":
+      return "Watching";
+    default:
+      return "Changed";
+  }
+}
+
 export function UnifiedTimelineCard({
   id,
   type,
@@ -50,39 +63,47 @@ export function UnifiedTimelineCard({
   detectedAt,
 }: UnifiedTimelineCardProps) {
   const statusLabel = getStatusLabel(type, daysRemaining);
+  const typeLabel = getTypeLabel(type);
   const formattedDate = formatDate(detectedAt);
+  const hasDiff = Boolean(before && after);
 
   return (
-    <div
+    <article
       id={id}
       className={`unified-timeline-card unified-timeline-card-${type}`}
     >
-      {/* Left border is handled by CSS class */}
-
-      {/* Header: Element name + change badge (if validated/regressed) */}
       <div className="unified-timeline-card-header">
-        <span className="unified-timeline-card-element">{element}</span>
-        {change && (
-          <span
-            className={`unified-timeline-card-change ${
-              type === "validated"
-                ? "unified-timeline-card-change-positive"
-                : "unified-timeline-card-change-negative"
-            }`}
-          >
-            {type === "validated" ? "\u2191" : "\u2193"}
-            {change.replace(/[+-]/, "")}
+        <div className="unified-timeline-card-heading">
+          <span className="unified-timeline-card-element">{element}</span>
+          {title && (
+            <p className="unified-timeline-card-title">{title}</p>
+          )}
+        </div>
+        <div className="unified-timeline-card-meta">
+          <span className={`unified-timeline-card-state unified-timeline-card-state-${type}`}>
+            {typeLabel}
           </span>
-        )}
-        {type === "watching" && (
-          <span className="unified-timeline-card-watching-indicator">
-            <span className="unified-timeline-card-pulse" />
-          </span>
-        )}
+          {change && (
+            <span
+              className={`unified-timeline-card-delta ${
+                type === "validated"
+                  ? "unified-timeline-card-delta-positive"
+                  : "unified-timeline-card-delta-negative"
+              }`}
+            >
+              {type === "validated" ? "\u2191" : "\u2193"}
+              {change.replace(/[+-]/, "")}
+            </span>
+          )}
+          {type === "watching" && (
+            <span className="unified-timeline-card-watching-indicator">
+              <span className="unified-timeline-card-pulse" />
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Before/After (for changes with text diff) */}
-      {before && after && (
+      {hasDiff && (
         <div className="unified-timeline-card-diff">
           <span className="unified-timeline-card-before">&ldquo;{before}&rdquo;</span>
           <span className="unified-timeline-card-arrow">&rarr;</span>
@@ -90,17 +111,10 @@ export function UnifiedTimelineCard({
         </div>
       )}
 
-      {/* Title (description of change) */}
-      {title && !before && !after && (
-        <p className="unified-timeline-card-title">{title}</p>
-      )}
-
-      {/* Friendly text for validated items */}
       {friendlyText && (
         <p className="unified-timeline-card-friendly">{friendlyText}</p>
       )}
 
-      {/* Footer: Date + status */}
       <div className="unified-timeline-card-footer">
         {formattedDate && (
           <span className="unified-timeline-card-date">Changed {formattedDate}</span>
@@ -112,6 +126,6 @@ export function UnifiedTimelineCard({
           </>
         )}
       </div>
-    </div>
+    </article>
   );
 }

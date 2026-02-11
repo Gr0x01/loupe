@@ -10,9 +10,10 @@ interface ResultsZoneProps {
     cumulativeImprovement: number;
   };
   highlightId?: string;
+  demo?: boolean;
 }
 
-export function ResultsZone({ changes, stats, highlightId }: ResultsZoneProps) {
+export function ResultsZone({ changes, stats, highlightId, demo = false }: ResultsZoneProps) {
   // Don't render if no results
   if (changes.length === 0) return null;
 
@@ -49,12 +50,13 @@ export function ResultsZone({ changes, stats, highlightId }: ResultsZoneProps) {
             key={change.id}
             change={change}
             highlight={change.id === highlightId}
+            demo={demo}
           />
         ))}
       </div>
 
-      {/* See all link */}
-      {showSeeAll && (
+      {/* See all link - hide in demo mode */}
+      {showSeeAll && !demo && (
         <div className="mt-4 text-center">
           <Link
             href="/results"

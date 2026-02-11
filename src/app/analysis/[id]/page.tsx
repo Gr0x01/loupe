@@ -1655,29 +1655,26 @@ export default function AnalysisPage() {
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
         {/* Page context banner — shown when analysis belongs to a registered page */}
         {pageCtx && (
-          <div className="pt-6 pb-2">
+          <div className="analysis-context-shell pt-6 pb-3">
             {/* Chronicle scans: Page-centric header */}
             {isChronicle ? (
-              <div className="space-y-3">
-                {/* Domain as hero */}
-                <h1
-                  className="text-2xl lg:text-3xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {getDomain(analysis.url)}
-                </h1>
-
-                {/* Scan picker + History */}
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-text-muted">
+              <div className="analysis-context-bar">
+                <div className="analysis-context-main">
+                  <p className="analysis-context-label">Tracked page</p>
+                  <h1
+                    className="analysis-context-domain"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {getDomain(analysis.url)}
+                  </h1>
+                  <div className="analysis-context-meta">
+                    <span className="analysis-context-pill">
                       Since{" "}
                       {new Date(pageCtx.baseline_date).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                       })}
                     </span>
-                    <span className="text-text-muted">&middot;</span>
                     <ScanPicker
                       currentScanNumber={pageCtx.scan_number}
                       totalScans={pageCtx.total_scans}
@@ -1685,14 +1682,14 @@ export default function AnalysisPage() {
                       currentAnalysisId={analysis.id}
                     />
                   </div>
-
-                  <Link
-                    href={`/pages/${pageCtx.page_id}`}
-                    className="text-sm text-text-muted hover:text-accent transition-colors"
-                  >
-                    History
-                  </Link>
                 </div>
+
+                <Link
+                  href={`/pages/${pageCtx.page_id}`}
+                  className="analysis-context-link"
+                >
+                  View history
+                </Link>
               </div>
             ) : (
               /* Initial audit: Original header style */

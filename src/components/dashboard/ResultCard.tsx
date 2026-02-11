@@ -8,6 +8,7 @@ import { track } from "@/lib/analytics/track";
 interface ResultCardProps {
   change: DetectedChange & { domain?: string };
   highlight?: boolean;
+  demo?: boolean;
 }
 
 /**
@@ -60,7 +61,7 @@ function getPrimaryMetric(change: DetectedChange): {
   return { change: pct, name, isPositive };
 }
 
-export function ResultCard({ change, highlight = false }: ResultCardProps) {
+export function ResultCard({ change, highlight = false, demo = false }: ResultCardProps) {
   const isValidated = change.status === "validated";
   const metric = getPrimaryMetric(change);
 
@@ -75,18 +76,17 @@ export function ResultCard({ change, highlight = false }: ResultCardProps) {
     : `/dashboard`;
 
   const handleClick = () => {
+    if (demo) return;
     track("correlation_viewed", {
       domain: change.domain || "unknown",
       status: isValidated ? "validated" : "regressed",
     });
   };
 
-  return (
-    <Link
-      href={linkHref}
-      onClick={handleClick}
-      className={`result-card ${isValidated ? "result-card-validated" : "result-card-regressed"} ${highlight ? "result-card-highlight" : ""}`}
-    >
+  const className = `result-card ${isValidated ? "result-card-validated" : "result-card-regressed"} ${highlight ? "result-card-highlight" : ""} ${demo ? "cursor-default" : ""}`;
+
+  const content = (
+    <>
       {/* Element label */}
       <p className="result-card-element">{change.element}</p>
 
@@ -111,6 +111,16 @@ export function ResultCard({ change, highlight = false }: ResultCardProps) {
           </span>
         </div>
       )}
+    </>
+  );
+
+  if (demo) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <Link href={linkHref} onClick={handleClick} className={className}>
+      {content}
     </Link>
   );
 }

@@ -4,17 +4,18 @@ import { getDomain } from "@/lib/utils/url";
 
 interface AttentionCardProps {
   page: DashboardPageData;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
+  demo?: boolean;
 }
 
-export function AttentionCard({ page, onDelete }: AttentionCardProps) {
+export function AttentionCard({ page, onDelete, demo = false }: AttentionCardProps) {
   const displayName = page.name || getDomain(page.url);
   const { attention_status } = page;
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onDelete(page.id);
+    onDelete?.(page.id);
   };
 
   // Severity badge style
@@ -41,47 +42,46 @@ export function AttentionCard({ page, onDelete }: AttentionCardProps) {
     ? `/analysis/${page.last_scan.id}`
     : `/pages/${page.id}`;
 
-  return (
-    <Link
-      href={linkHref}
-      className="dashboard-attention-row group"
-    >
-      <div className="flex items-start gap-3">
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Domain */}
-            <p className="text-xs text-text-secondary font-mono truncate">
-              {getDomain(page.url)}
-            </p>
-            {severityStyle && (
-              <span className={`dashboard-severity-badge ${severityStyle.badgeClass}`}>
-                {severityStyle.label}
-              </span>
-            )}
-          </div>
+  const className = `dashboard-attention-row group ${demo ? "cursor-default" : ""}`;
 
-          {/* Headline */}
-          {attention_status.headline && (
-            <h3 className="text-[0.95rem] leading-snug font-semibold text-text-primary mt-1">
-              {attention_status.headline}
-            </h3>
-          )}
-
-          {/* Subheadline */}
-          {attention_status.subheadline && (
-            <p className="text-[0.82rem] leading-relaxed text-text-secondary mt-1">
-              {attention_status.subheadline}
-            </p>
-          )}
-
-          {/* CTA */}
-          <p className="dashboard-row-cta">
-            See details &rarr;
+  const content = (
+    <div className="flex items-start gap-3">
+      {/* Content */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Domain */}
+          <p className="text-xs text-text-secondary font-mono truncate">
+            {getDomain(page.url)}
           </p>
+          {severityStyle && (
+            <span className={`dashboard-severity-badge ${severityStyle.badgeClass}`}>
+              {severityStyle.label}
+            </span>
+          )}
         </div>
 
-        {/* Delete button */}
+        {/* Headline */}
+        {attention_status.headline && (
+          <h3 className="text-[0.95rem] leading-snug font-semibold text-text-primary mt-1">
+            {attention_status.headline}
+          </h3>
+        )}
+
+        {/* Subheadline */}
+        {attention_status.subheadline && (
+          <p className="text-[0.82rem] leading-relaxed text-text-secondary mt-1">
+            {attention_status.subheadline}
+          </p>
+        )}
+
+        {/* CTA */}
+        <p className="dashboard-row-cta">
+          See details &rarr;
+        </p>
+      </div>
+
+      {/* Delete button - hide in demo mode */}
+      {!demo && (
         <button
           onClick={handleDeleteClick}
           className="dashboard-row-delete p-1.5 text-text-muted hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-all duration-150 flex-shrink-0"
@@ -97,7 +97,17 @@ export function AttentionCard({ page, onDelete }: AttentionCardProps) {
             />
           </svg>
         </button>
-      </div>
+      )}
+    </div>
+  );
+
+  if (demo) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <Link href={linkHref} className={className}>
+      {content}
     </Link>
   );
 }

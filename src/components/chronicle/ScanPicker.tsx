@@ -119,8 +119,11 @@ export function ScanPicker({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        <span className="scan-picker-label">
-          Scan {currentScanNumber} of {totalScans}
+        <span className="scan-picker-trigger-text">
+          <span className="scan-picker-label">Recent scan</span>
+          <span className="scan-picker-value">
+            Scan {currentScanNumber} of {totalScans}
+          </span>
         </span>
         <svg
           className={`scan-picker-chevron ${isOpen ? "scan-picker-chevron-open" : ""}`}

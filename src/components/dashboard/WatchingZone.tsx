@@ -3,16 +3,18 @@ import { WatchingCard } from "./WatchingCard";
 
 interface WatchingZoneProps {
   pages: DashboardPageData[];
-  onDelete: (id: string) => void;
-  onAddPage: () => void;
-  isAtLimit: boolean;
+  onDelete?: (id: string) => void;
+  onAddPage?: () => void;
+  isAtLimit?: boolean;
+  demo?: boolean;
 }
 
 export function WatchingZone({
   pages,
   onDelete,
   onAddPage,
-  isAtLimit,
+  isAtLimit = false,
+  demo = false,
 }: WatchingZoneProps) {
   return (
     <section>
@@ -30,7 +32,7 @@ export function WatchingZone({
       {pages.length > 0 ? (
         <div className="dashboard-zone-surface">
           {pages.map((page) => (
-            <WatchingCard key={page.id} page={page} onDelete={onDelete} />
+            <WatchingCard key={page.id} page={page} onDelete={onDelete} demo={demo} />
           ))}
         </div>
       ) : (
@@ -41,8 +43,8 @@ export function WatchingZone({
         </p>
       )}
 
-      {/* Add page button - different treatment based on limit */}
-      {isAtLimit ? (
+      {/* Add page button - hide in demo mode */}
+      {!demo && (isAtLimit ? (
         <button
           onClick={onAddPage}
           className="mt-4 group flex items-center gap-3 px-4 py-3 rounded-xl
@@ -84,7 +86,7 @@ export function WatchingZone({
           </svg>
           Watch another page
         </button>
-      )}
+      ))}
     </section>
   );
 }

@@ -3,10 +3,11 @@ import { AttentionCard } from "./AttentionCard";
 
 interface AttentionZoneProps {
   pages: DashboardPageData[];
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
+  demo?: boolean;
 }
 
-export function AttentionZone({ pages, onDelete }: AttentionZoneProps) {
+export function AttentionZone({ pages, onDelete, demo = false }: AttentionZoneProps) {
   if (pages.length === 0) return null;
 
   // Sort by severity (high → medium → low), then by recency
@@ -42,7 +43,7 @@ export function AttentionZone({ pages, onDelete }: AttentionZoneProps) {
       {/* Cards */}
       <div className="dashboard-zone-surface">
         {sortedPages.map((page) => (
-          <AttentionCard key={page.id} page={page} onDelete={onDelete} />
+          <AttentionCard key={page.id} page={page} onDelete={onDelete} demo={demo} />
         ))}
       </div>
     </section>

@@ -137,17 +137,27 @@ export function UnifiedTimeline({
 
   return (
     <section className="chronicle-section">
-      <div className="chronicle-section-header">
-        <h2
-          className="text-2xl font-bold text-text-primary"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Changes we caught
-        </h2>
+      <div className="chronicle-section-header chronicle-section-header-inline">
+        <div>
+          <h2
+            className="text-2xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Changes we caught
+          </h2>
+          <p className="text-sm text-text-muted mt-1">
+            Grouped by signal strength, newest scan first
+          </p>
+        </div>
+        {!isEmpty && (
+          <span className="timeline-count">
+            {allItems.length} change{allItems.length === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
 
       {isEmpty ? (
-        <div className="glass-card p-6 text-center">
+        <div className="chronicle-empty-card text-center">
           {hasError ? (
             <p className="text-text-secondary">
               Change detection unavailable for this scan.
