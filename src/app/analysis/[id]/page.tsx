@@ -2124,34 +2124,11 @@ export default function AnalysisPage() {
           />
         )}
 
-        {/* Zone 6: Claim CTA */}
+        {/* Zone 6: Claim CTA — not shown when current user owns this page */}
+        {!analysis.claim_status?.claimed_by_current_user && (
         <section id="claim-cta" className="py-10">
           <div className="glass-card-elevated p-6 md:p-8 max-w-[540px] mx-auto">
-            {analysis.claim_status?.claimed_by_current_user ? (
-              /* Current user already watching this domain */
-              <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.1)] mb-4">
-                  <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <p
-                  className="text-2xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  You&apos;re tracking this page
-                </p>
-                <p className="text-base text-text-secondary mt-2 mb-4">
-                  Make your changes. We&apos;ll re-scan and show you what improved.
-                </p>
-                <Link
-                  href={`/pages/${analysis.claim_status.claimed_page_id}`}
-                  className="btn-primary inline-block"
-                >
-                  View your page history
-                </Link>
-              </div>
-            ) : analysis.claim_status?.is_claimed ? (
+            {analysis.claim_status?.is_claimed ? (
               /* Domain already claimed by another user */
               <div className="text-center py-4">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(0,0,0,0.05)] mb-4">
@@ -2303,6 +2280,7 @@ export default function AnalysisPage() {
             </Link>
           </div>
         </section>
+        )}
       </div>
 
       {/* Screenshot modal */}
