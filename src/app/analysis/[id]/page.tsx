@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
 import { track } from "@/lib/analytics/track";
+import { useAnalysis } from "@/lib/hooks/use-data";
 import type {
   PageContext,
   DeployContextAPI,
@@ -1294,13 +1295,22 @@ export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const previewLoading = searchParams.get("preview") === "loading";
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+
+  // Use SWR hook for analysis fetching with automatic polling
+  const { data: analysis, error: analysisError, isLoading } = useAnalysis(id);
+  const error = analysisError?.message || "";
+
   const [progress, setProgress] = useState(0);
   const [stageIndex, setStageIndex] = useState(0);
   const [exampleIndex, setExampleIndex] = useState(0);
   const loadingStartTime = useRef(Date.now());
   const hasTrackedCompletion = useRef(false);
-  const [error, setError] = useState("");
+
+  // Reset tracking ref when navigating between analyses
+  useEffect(() => {
+    hasTrackedCompletion.current = false;
+  }, [id]);
+
   const [showScreenshot, setShowScreenshot] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimEmail, setClaimEmail] = useState("");
@@ -1314,7 +1324,6 @@ export default function AnalysisPage() {
     remaining: number;
     isFull: boolean;
   } | null>(null);
-  const [isInitialFetch, setIsInitialFetch] = useState(true);
   const [claimModalType, setClaimModalType] = useState<ClaimModalType>(null);
 
   // Check for already_claimed URL param (from auth callback redirect)
@@ -1377,53 +1386,20 @@ export default function AnalysisPage() {
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  const fetchAnalysis = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/analysis/${id}`);
-      if (!res.ok) {
-        setError("Analysis not found");
-        setIsInitialFetch(false);
-        return null;
-      }
-      const data: Analysis = await res.json();
-      setAnalysis(data);
-      setIsInitialFetch(false);
-      return data;
-    } catch {
-      setError("Failed to load analysis");
-      setIsInitialFetch(false);
-      return null;
-    }
-  }, [id]);
-
-  // Poll for results
+  // Track audit completion (fires once when analysis completes)
   useEffect(() => {
-    let stopped = false;
-    async function poll() {
-      const data = await fetchAnalysis();
-      if (data && (data.status === "complete" || data.status === "failed")) {
-        stopped = true;
-        // Track audit completion (only once)
-        if (
-          data.status === "complete" &&
-          data.structured_output &&
-          !hasTrackedCompletion.current
-        ) {
-          hasTrackedCompletion.current = true;
-          track("audit_completed", {
-            findings_count: data.structured_output.findingsCount ?? 0,
-            impact_range: data.structured_output.projectedImpactRange ?? "0%",
-          });
-        }
-      }
+    if (
+      analysis?.status === "complete" &&
+      analysis?.structured_output &&
+      !hasTrackedCompletion.current
+    ) {
+      hasTrackedCompletion.current = true;
+      track("audit_completed", {
+        findings_count: analysis.structured_output.findingsCount ?? 0,
+        impact_range: analysis.structured_output.projectedImpactRange ?? "0%",
+      });
     }
-    poll();
-    const interval = setInterval(() => {
-      if (!stopped) poll();
-      else clearInterval(interval);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [fetchAnalysis]);
+  }, [analysis?.status, analysis?.structured_output]);
 
   // Steady progress animation (no looping, no fast jumps)
   useEffect(() => {
@@ -1478,7 +1454,7 @@ export default function AnalysisPage() {
   }
 
   // Skeleton loader for initial content fetch (before we know the status)
-  if (isInitialFetch && !analysis) {
+  if (isLoading && !analysis) {
     return <PageLoader />;
   }
 
@@ -1829,7 +1805,7 @@ export default function AnalysisPage() {
                           Changed files
                         </p>
                         <ul className="space-y-0.5">
-                          {analysis.deploy_context.changed_files.slice(0, 3).map((file, i) => (
+                          {analysis.deploy_context.changed_files.slice(0, 3).map((file: string, i: number) => (
                             <li key={i} className="text-xs font-mono text-text-secondary truncate">
                               {file}
                             </li>
