@@ -14,6 +14,7 @@ import {
   type SubscriptionTier,
   type SubscriptionStatus,
 } from "@/lib/permissions";
+import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -400,6 +401,21 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Track page claim in PostHog
+    captureEvent(user.id, "page_claimed", {
+      domain: parsedUrl.hostname,
+      url: normalizedUrl,
+      tier: effectiveTier,
+      page_number: currentPageCount + 1,
+      is_founding_50: isFounder || wasJustMarkedFounder,
+    });
+    identifyUser(user.id, {
+      subscription_tier: effectiveTier,
+      is_founding_50: isFounder || wasJustMarkedFounder,
+      pages_count: currentPageCount + 1,
+    });
+    await flushEvents();
 
     return NextResponse.json({ page });
   } catch (err) {

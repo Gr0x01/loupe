@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe, getTierFromPriceId, VALID_PAID_TIERS } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/server";
+import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
 
 /**
  * POST /api/billing/webhook
@@ -114,6 +115,18 @@ async function handleCheckoutCompleted(
   }
 
   console.log(`Upgraded user ${userId} to ${tier} (${period})`);
+
+  // Track in PostHog
+  identifyUser(userId, {
+    subscription_tier: tier,
+    subscription_status: "active",
+    billing_period: period || "monthly",
+  });
+  captureEvent(userId, "subscription_started", {
+    tier,
+    billing_period: period || "monthly",
+  });
+  await flushEvents();
 }
 
 /**
@@ -164,6 +177,20 @@ async function handleSubscriptionUpdated(
   }
 
   console.log(`Updated subscription for user ${userId}: status=${status}`);
+
+  // Track in PostHog
+  const identifyProps: Record<string, unknown> = { subscription_status: status };
+  if (tierInfo) {
+    identifyProps.subscription_tier = tierInfo.tier;
+    identifyProps.billing_period = tierInfo.period;
+  }
+  identifyUser(userId, identifyProps);
+  captureEvent(userId, "subscription_updated", {
+    status,
+    tier: tierInfo?.tier,
+    billing_period: tierInfo?.period,
+  });
+  await flushEvents();
 }
 
 /**
@@ -197,6 +224,14 @@ async function handleSubscriptionDeleted(
   }
 
   console.log(`Downgraded user ${userId} to free tier after subscription deletion`);
+
+  // Track in PostHog
+  identifyUser(userId, {
+    subscription_tier: "free",
+    subscription_status: "canceled",
+  });
+  captureEvent(userId, "subscription_canceled", {});
+  await flushEvents();
 }
 
 /**
@@ -242,4 +277,9 @@ async function handlePaymentFailed(
   }
 
   console.log(`Set user ${profile.id} to past_due after payment failure`);
+
+  // Track in PostHog
+  identifyUser(profile.id, { subscription_status: "past_due" });
+  captureEvent(profile.id, "payment_failed", {});
+  await flushEvents();
 }

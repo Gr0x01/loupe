@@ -56,10 +56,29 @@ export function track<T extends EventName>(
  * Identify a user in PostHog.
  * Silently fails if PostHog is not available.
  */
-export function identify(userId: string, traits?: { email?: string }): void {
+export function identify(
+  userId: string,
+  traits?: Record<string, unknown>
+): void {
   try {
     if (typeof window !== "undefined" && posthog?.identify) {
       posthog.identify(userId, traits);
+    }
+  } catch {
+    // Analytics should never break the app
+  }
+}
+
+/**
+ * Set person properties on the current user without re-identifying.
+ * Use this when you learn new info about a user mid-session (e.g. after fetching profile).
+ */
+export function setPersonProperties(
+  properties: Record<string, unknown>
+): void {
+  try {
+    if (typeof window !== "undefined" && posthog?.people?.set) {
+      posthog.people.set(properties);
     }
   } catch {
     // Analytics should never break the app

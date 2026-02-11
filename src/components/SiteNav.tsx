@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { identify, reset, track } from "@/lib/analytics/track";
+import { identify, reset, track, setPersonProperties } from "@/lib/analytics/track";
 
 export default function SiteNav() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -36,6 +36,20 @@ export default function SiteNav() {
       // Identify user on initial load if authenticated
       if (user) {
         identify(user.id, { email: user.email });
+        // Fetch profile to set tier and other person properties
+        fetch("/api/profile")
+          .then((res) => res.ok ? res.json() : null)
+          .then((profile) => {
+            if (profile) {
+              setPersonProperties({
+                subscription_tier: profile.subscription_tier || "free",
+                subscription_status: profile.subscription_status || null,
+                is_founding_50: profile.is_founding_50 || false,
+                billing_period: profile.billing_period || null,
+              });
+            }
+          })
+          .catch(() => { /* analytics should never break the app */ });
       }
     });
 

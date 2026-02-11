@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import { FOUNDING_50_CAP } from "@/lib/constants";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -235,12 +236,46 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
+  // Helper: identify user in PostHog after successful auth
+  async function identifyAuthenticatedUser(user: { id: string; email?: string; created_at: string }) {
+    const isNewUser = Date.now() - new Date(user.created_at).getTime() < 60000;
+
+    // Fetch profile for tier info
+    const serviceClient = createServiceClient();
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("subscription_tier, subscription_status, is_founding_50")
+      .eq("id", user.id)
+      .single();
+
+    identifyUser(user.id, {
+      email: user.email,
+      subscription_tier: profile?.subscription_tier || "free",
+      subscription_status: profile?.subscription_status || null,
+      is_founding_50: profile?.is_founding_50 || false,
+    });
+
+    if (isNewUser) {
+      captureEvent(user.id, "user_signed_up", {
+        method: code ? "google" : "magic_link",
+      });
+    } else {
+      captureEvent(user.id, "user_logged_in", {
+        method: code ? "google" : "magic_link",
+      });
+    }
+
+    await flushEvents();
+  }
+
   // OAuth flow — exchange code for session
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        await identifyAuthenticatedUser(user);
+
         // Check founding 50 cap — redirect to waitlist if full and not a founder
         const waitlistRedirect = await checkFoundingCapAndRedirect(redirectTo, user.id);
         if (waitlistRedirect) {
@@ -270,6 +305,8 @@ export async function GET(request: NextRequest) {
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        await identifyAuthenticatedUser(user);
+
         // Check founding 50 cap — redirect to waitlist if full and not a founder
         const waitlistRedirect = await checkFoundingCapAndRedirect(redirectTo, user.id);
         if (waitlistRedirect) {

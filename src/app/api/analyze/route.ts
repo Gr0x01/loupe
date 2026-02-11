@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import { validateUrl, isBlockedDomain } from "@/lib/url-validation";
+import { captureEvent, flushEvents } from "@/lib/posthog-server";
 
 const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -98,6 +99,15 @@ export async function POST(req: NextRequest) {
       name: "analysis/created",
       data: { analysisId: data.id, url: parsedUrl.toString() },
     });
+
+    // Track audit server-side (captures both logged-in and anonymous audits)
+    if (userId) {
+      captureEvent(userId, "audit_started_server", {
+        domain: parsedUrl.hostname,
+        url: parsedUrl.toString(),
+      });
+      await flushEvents();
+    }
 
     return NextResponse.json({ id: data.id });
   } catch (err) {
