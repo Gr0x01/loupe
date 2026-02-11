@@ -369,8 +369,8 @@ export default function PricingPage() {
                 Do you offer refunds?
               </h3>
               <p className="text-ink-500">
-                We offer a full refund within 14 days of your first payment if
-                Loupe isn&apos;t right for you. Contact us at hello@getloupe.io.
+                We offer a full refund within 30 days of your first payment if
+                Loupe isn&apos;t right for you. Contact us at team@getloupe.io.
               </p>
             </div>
           </div>

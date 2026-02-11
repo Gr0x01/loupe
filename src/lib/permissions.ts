@@ -143,6 +143,6 @@ export const TIER_INFO: Record<SubscriptionTier, {
     name: "Pro",
     monthlyPrice: 29,
     annualPrice: 290,
-    description: "For teams tracking multiple products",
+    description: "For founders tracking every page",
   },
 } as const;

@@ -94,7 +94,7 @@ export default function SiteFooter() {
               vs Visualping
             </Link>
             <a
-              href="mailto:hello@getloupe.io"
+              href="mailto:team@getloupe.io"
               className="hover:text-accent transition-colors"
             >
               Contact
