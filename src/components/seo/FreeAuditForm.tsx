@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { track } from "@/lib/analytics/track";
 
 const LOADING_STEPS = [
   "Checking your page...",
@@ -57,6 +58,9 @@ export default function FreeAuditForm({
 
     setLoading(true);
     setError("");
+
+    // Track audit start
+    track("audit_started", { source: "homepage" });
 
     try {
       const res = await fetch("/api/analyze", {

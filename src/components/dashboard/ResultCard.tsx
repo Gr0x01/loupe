@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import type { DetectedChange } from "@/lib/types/analysis";
 import { formatDistanceToNow } from "@/lib/utils/date";
+import { track } from "@/lib/analytics/track";
 
 interface ResultCardProps {
   change: DetectedChange & { domain?: string };
@@ -71,9 +74,17 @@ export function ResultCard({ change, highlight = false }: ResultCardProps) {
     ? `/analysis/${change.first_detected_analysis_id}?highlight=correlation`
     : `/dashboard`;
 
+  const handleClick = () => {
+    track("correlation_viewed", {
+      domain: change.domain || "unknown",
+      status: isValidated ? "validated" : "regressed",
+    });
+  };
+
   return (
     <Link
       href={linkHref}
+      onClick={handleClick}
       className={`result-card ${isValidated ? "result-card-validated" : "result-card-regressed"} ${highlight ? "result-card-highlight" : ""}`}
     >
       {/* Element label */}

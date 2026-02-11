@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { identify, reset, track } from "@/lib/analytics/track";
 
 export default function SiteNav() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -28,17 +29,35 @@ export default function SiteNav() {
   }, []);
 
   useEffect(() => {
-    // Check auth state
+    // Check auth state and identify user if logged in
     supabase.auth.getUser().then(({ data: { user } }) => {
       setIsAuthenticated(!!user);
       setAuthChecked(true);
+      // Identify user on initial load if authenticated
+      if (user) {
+        identify(user.id, { email: user.email });
+      }
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session?.user);
+
+      // Identify or reset based on auth event
+      if (event === "SIGNED_IN" && session?.user) {
+        identify(session.user.id, { email: session.user.email });
+        // Track signup completion only for new accounts (created in last 60 seconds)
+        const createdAt = new Date(session.user.created_at).getTime();
+        const isNewUser = Date.now() - createdAt < 60000;
+        if (isNewUser) {
+          const method = session.user.app_metadata?.provider === "google" ? "google" : "magic_link";
+          track("signup_completed", { method });
+        }
+      } else if (event === "SIGNED_OUT") {
+        reset();
+      }
     });
 
     return () => subscription.unsubscribe();

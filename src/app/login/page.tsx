@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { track } from "@/lib/analytics/track";
 
 interface FoundingStatus {
   claimed: number;
@@ -36,6 +37,9 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
+    // Track login attempt
+    track("login_started", { method: "magic_link" });
+
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
@@ -54,6 +58,9 @@ export default function LoginPage() {
   }
 
   async function handleGoogle() {
+    // Track login attempt
+    track("login_started", { method: "google" });
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
