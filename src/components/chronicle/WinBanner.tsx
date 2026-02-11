@@ -7,23 +7,59 @@ interface WinBannerProps {
 }
 
 /**
- * Get the best win to highlight (highest percentage change)
+ * Metrics where lower values are better (e.g., bounce_rate down = good)
+ */
+const LOWER_IS_BETTER_METRICS = new Set([
+  "bounce_rate",
+  "exit_rate",
+  "load_time",
+  "error_rate",
+]);
+
+/**
+ * Parse the numeric change value from a string like "-12%" or "+8.5%"
+ * Assumes the number appears at the start of the string.
+ */
+function parseChange(item: ValidatedItem): number {
+  return parseFloat(item.change.replace(/[^-0-9.]/g, "")) || 0;
+}
+
+/**
+ * Determine if a metric change represents a win
+ * For most metrics, positive change = win
+ * For "lower is better" metrics, negative change = win
+ */
+function isWin(item: ValidatedItem): boolean {
+  const changeNum = parseChange(item);
+  const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(item.metric);
+  return lowerIsBetter ? changeNum < 0 : changeNum > 0;
+}
+
+/**
+ * Get the magnitude of improvement (absolute value, sign-normalized)
+ */
+function getImprovementMagnitude(item: ValidatedItem): number {
+  const changeNum = parseChange(item);
+  const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(item.metric);
+  // For lower-is-better, a negative change is positive improvement
+  return lowerIsBetter ? -changeNum : changeNum;
+}
+
+/**
+ * Get the best win to highlight (highest improvement magnitude)
  */
 function getBestWin(items: ValidatedItem[]): ValidatedItem | null {
   if (items.length === 0) return null;
 
-  // Filter to only positive changes first
-  const positiveItems = items.filter((item) => {
-    const changeNum = parseFloat(item.change.replace(/[^-0-9.]/g, "")) || 0;
-    return changeNum > 0;
-  });
+  // Filter to only actual wins (considering metric direction)
+  const wins = items.filter(isWin);
 
-  if (positiveItems.length === 0) return null;
+  if (wins.length === 0) return null;
 
-  return positiveItems.reduce((best, current) => {
-    const bestChange = parseFloat(best.change.replace(/[^-0-9.]/g, "")) || 0;
-    const currentChange = parseFloat(current.change.replace(/[^-0-9.]/g, "")) || 0;
-    return currentChange > bestChange ? current : best;
+  return wins.reduce((best, current) => {
+    const bestMagnitude = getImprovementMagnitude(best);
+    const currentMagnitude = getImprovementMagnitude(current);
+    return currentMagnitude > bestMagnitude ? current : best;
   });
 }
 

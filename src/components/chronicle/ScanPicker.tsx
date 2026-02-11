@@ -67,7 +67,7 @@ export function ScanPicker({
       const res = await fetch(`/api/pages/${pageId}/history?limit=5`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
-      cacheRef.current = data.analyses || [];
+      cacheRef.current = data.history || [];
       setHistory(cacheRef.current);
     } catch {
       setError(true);

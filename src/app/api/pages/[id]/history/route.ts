@@ -7,11 +7,14 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * GET /api/pages/[id]/history - Get scan history for a page
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const parsed = parseInt(searchParams.get("limit") || "100", 10);
+    const limit = Math.min(Math.max(Number.isNaN(parsed) ? 100 : parsed, 1), 100);
 
     if (!UUID_REGEX.test(id)) {
       return NextResponse.json({ error: "Invalid page ID" }, { status: 400 });
@@ -65,11 +68,14 @@ export async function GET(
     };
 
     const analysisRows = (analyses || []) as AnalysisChainRow[];
+    const limitedRows = analysisRows.slice(0, limit);
 
     // Format the history with status and changes preview
-    const history = analysisRows.map((analysis, index) => ({
+    // scan_number is relative to total, not limited results
+    const totalCount = analysisRows.length;
+    const history = limitedRows.map((analysis, index) => ({
       id: analysis.id,
-      scan_number: analysisRows.length - index,
+      scan_number: totalCount - index,
       status: analysis.status,
       progress: analysis.changes_summary?.progress ?? null,
       created_at: analysis.created_at,
@@ -79,7 +85,7 @@ export async function GET(
     return NextResponse.json({
       page,
       history,
-      total_scans: history.length,
+      total_scans: totalCount,
     }, {
       headers: {
         "Cache-Control": "private, max-age=30, stale-while-revalidate=120",

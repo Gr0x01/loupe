@@ -28,6 +28,26 @@ export function isUnauthorizedError(error: unknown): error is UnauthorizedError 
   return error instanceof UnauthorizedError;
 }
 
+/**
+ * Get a human-friendly error message based on HTTP status
+ */
+function getErrorMessage(status: number): string {
+  switch (status) {
+    case 400:
+      return "Invalid request";
+    case 403:
+      return "Access denied";
+    case 404:
+      return "Not found";
+    case 429:
+      return "Too many requests";
+    case 500:
+      return "Server error";
+    default:
+      return "Request failed";
+  }
+}
+
 // Fetcher with typed error handling
 // Uses cache: "no-cache" to bypass browser HTTP cache on SWR revalidation
 // (Cache-Control headers still work for CDN/proxy caching)
@@ -37,7 +57,7 @@ const fetcher = async (url: string) => {
     throw new UnauthorizedError();
   }
   if (!res.ok) {
-    throw new FetchError("Fetch failed", res.status);
+    throw new FetchError(getErrorMessage(res.status), res.status);
   }
   return res.json();
 };

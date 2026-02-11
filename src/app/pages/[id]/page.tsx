@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
 import { track } from "@/lib/analytics/track";
-import { usePageHistory, isUnauthorizedError } from "@/lib/hooks/use-data";
+import { usePageHistory, isUnauthorizedError, FetchError } from "@/lib/hooks/use-data";
 import type { ScanHistoryItem } from "@/lib/types/pages";
 
 function getDomain(url: string): string {
@@ -220,8 +220,15 @@ export default function PageTimelinePage() {
     }
   };
 
-  // Combine error display
-  const displayError = actionError || (historyError && !isUnauthorizedError(historyError) ? "Failed to load page" : "");
+  // Combine error display with granular messaging
+  const getHistoryErrorMessage = (): string => {
+    if (!historyError || isUnauthorizedError(historyError)) return "";
+    if (historyError instanceof FetchError) {
+      return historyError.status === 404 ? "Page not found" : historyError.message;
+    }
+    return "Failed to load page";
+  };
+  const displayError = actionError || getHistoryErrorMessage();
 
   if (isLoading) {
     return <PageLoader />;
