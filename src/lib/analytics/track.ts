@@ -10,12 +10,13 @@ import posthog from "posthog-js";
 
 // Event definitions with typed properties
 type TrackEvents = {
-  // Acquisition
-  audit_started: { source: "homepage" | "dashboard" | "page_detail" };
-  audit_completed: { findings_count: number; impact_range: string };
+  // Acquisition — visitor → audit
+  audit_started: { source: "homepage" | "dashboard" | "page_detail"; url: string; domain: string };
+  audit_completed: { domain: string; url: string; findings_count: number; impact_range: string };
+  audit_viewed: { domain: string; url: string; is_owner: boolean };
 
-  // Activation
-  page_claimed: { domain: string };
+  // Activation — audit → signup → claim
+  page_claimed: { domain: string; url: string };
   login_started: { method: "magic_link" | "google" };
   signup_completed: { method: "magic_link" | "google" };
   page_tracked: { domain: string; is_first_page: boolean };
@@ -23,8 +24,8 @@ type TrackEvents = {
   // Retention / Engagement
   rescan_triggered: { domain: string };
   correlation_viewed: { domain: string; status: "validated" | "regressed" };
-  suggestion_copied: { element_type: string };
-  finding_feedback_submitted: { feedback_type: "accurate" | "inaccurate" };
+  suggestion_copied: { element_type: string; domain: string };
+  finding_feedback_submitted: { feedback_type: "accurate" | "inaccurate"; domain: string };
 
   // Feature Adoption
   integration_connected: { type: "github" | "posthog" | "ga4" | "supabase" };

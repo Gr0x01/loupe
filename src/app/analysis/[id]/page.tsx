@@ -562,7 +562,9 @@ function ExpandedFindingCard({
   feedback,
   onFeedback,
   analysisId,
+  domain,
 }: {
+  domain: string;
   finding: Finding;
   onToggle: () => void;
   feedback: FindingFeedbackType;
@@ -613,7 +615,7 @@ function ExpandedFindingCard({
         }),
       });
       if (res.ok) {
-        track("finding_feedback_submitted", { feedback_type: "accurate" });
+        track("finding_feedback_submitted", { feedback_type: "accurate", domain });
         onFeedback("accurate");
       }
     } catch (err) {
@@ -642,7 +644,7 @@ function ExpandedFindingCard({
         }),
       });
       if (res.ok) {
-        track("finding_feedback_submitted", { feedback_type: "inaccurate" });
+        track("finding_feedback_submitted", { feedback_type: "inaccurate", domain });
         onFeedback("inaccurate", trimmed);
         setShowInaccurateInput(false);
       }
@@ -656,7 +658,7 @@ function ExpandedFindingCard({
     e.stopPropagation();
     navigator.clipboard.writeText(finding.suggestion);
     setSuggestionCopied(true);
-    track("suggestion_copied", { element_type: finding.elementType });
+    track("suggestion_copied", { element_type: finding.elementType, domain });
     setTimeout(() => setSuggestionCopied(false), 2000);
   };
 
@@ -870,7 +872,7 @@ function ExpandedFindingCard({
 }
 
 // Findings Section for new format - 2-column grid layout
-function FindingsSection({ findings, analysisId }: { findings: Finding[]; analysisId: string }) {
+function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]; analysisId: string; domain: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Lift feedback state so it persists across card collapse/expand
   const [feedbackMap, setFeedbackMap] = useState<Record<string, FindingFeedbackType>>({});
@@ -917,6 +919,7 @@ function FindingsSection({ findings, analysisId }: { findings: Finding[]; analys
                   feedback={feedback}
                   onFeedback={(type) => handleFeedback(finding.id, type)}
                   analysisId={analysisId}
+                  domain={domain}
                 />
               ) : (
                 <CollapsedFindingCard
@@ -1391,12 +1394,26 @@ export default function AnalysisPage() {
   const [exampleIndex, setExampleIndex] = useState(0);
   const loadingStartTime = useRef(Date.now());
   const hasTrackedCompletion = useRef(false);
+  const hasTrackedView = useRef(false);
 
-  // Reset tracking ref when navigating between analyses
+  // Reset tracking refs when navigating between analyses
   useEffect(() => {
     hasTrackedCompletion.current = false;
+    hasTrackedView.current = false;
     claimSubmittedRef.current = false;
   }, [id]);
+
+  // Track audit page view (fires once per analysis load)
+  useEffect(() => {
+    if (analysis?.status === "complete" && !hasTrackedView.current) {
+      hasTrackedView.current = true;
+      track("audit_viewed", {
+        domain: getDomain(analysis.url),
+        url: analysis.url,
+        is_owner: analysis.claim_status === "owner",
+      });
+    }
+  }, [analysis]);
 
   const [showScreenshot, setShowScreenshot] = useState<false | "desktop" | "mobile">(false);
   const [claimLoading, setClaimLoading] = useState(false);
@@ -1458,7 +1475,7 @@ export default function AnalysisPage() {
       if (res.ok) {
         setClaimEmailSent(true);
         // Track page claim attempt (activation moment)
-        track("page_claimed", { domain: getDomain(analysis.url) });
+        track("page_claimed", { domain: getDomain(analysis.url), url: analysis.url });
       } else {
         const data = await res.json();
         console.error("Claim link error:", data.error);
@@ -1486,6 +1503,8 @@ export default function AnalysisPage() {
     ) {
       hasTrackedCompletion.current = true;
       track("audit_completed", {
+        domain: getDomain(analysis.url),
+        url: analysis.url,
         findings_count: analysis.structured_output.findingsCount ?? 0,
         impact_range: analysis.structured_output.projectedImpactRange ?? "0%",
       });
@@ -1504,7 +1523,7 @@ export default function AnalysisPage() {
           }).then((res) => {
             if (res.ok) {
               setClaimEmailSent(true);
-              track("page_claimed", { domain: getDomain(analysis.url) });
+              track("page_claimed", { domain: getDomain(analysis.url), url: analysis.url });
             } else {
               // Claim failed — save as lead so email isn't lost
               claimSubmittedRef.current = false;
@@ -2006,7 +2025,7 @@ export default function AnalysisPage() {
         {/* Findings Section */}
         {s.findings && s.findings.length > 0 && (
           <>
-            <FindingsSection findings={s.findings} analysisId={analysis.id} />
+            <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} />
             <hr className="section-divider" />
           </>
         )}

@@ -60,13 +60,16 @@ export default function FreeAuditForm({
     setError("");
 
     // Track audit start
-    track("audit_started", { source: "homepage" });
+    const trimmedUrl = url.trim();
+    let domain = trimmedUrl;
+    try { domain = new URL(trimmedUrl.startsWith("http") ? trimmedUrl : `https://${trimmedUrl}`).hostname; } catch { /* use raw */ }
+    track("audit_started", { source: "homepage", url: trimmedUrl, domain });
 
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: trimmedUrl }),
       });
 
       const data = await res.json();
