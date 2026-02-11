@@ -992,6 +992,15 @@ Dashboard page
 
 ## Security
 
+### Security Headers
+**File:** `next.config.ts`
+
+All responses include security headers:
+- `X-Content-Type-Options: nosniff` — Prevents MIME type sniffing
+- `X-Frame-Options: DENY` — Prevents clickjacking
+- `Referrer-Policy: strict-origin-when-cross-origin` — Controls referrer leakage
+- `X-XSS-Protection: 1; mode=block` — Legacy XSS filter
+
 ### SSRF Protection
 All user-provided URLs are validated before being passed to external services:
 - **Screenshot service** (`src/lib/screenshot.ts`) — `validateUrl()` blocks:
@@ -1004,19 +1013,35 @@ All user-provided URLs are validated before being passed to external services:
 - **Note:** DNS rebinding remains a theoretical risk; screenshot service should also enforce at network level
 
 ### Credential Encryption
-Integration credentials (API keys, OAuth tokens) are encrypted at rest:
-- **Utility:** `src/lib/crypto.ts` — AES-256-GCM encryption
+**All** integration credentials are encrypted at rest using AES-256-GCM:
+
+| Credential | Encrypt Location | Decrypt Location |
+|------------|------------------|------------------|
+| GA4 `access_token` | ga4/callback, ga4/select-property, google-oauth.ts | google-oauth.ts, ga4/route.ts (revoke) |
+| GA4 `refresh_token` (metadata) | ga4/callback, google-oauth.ts | google-oauth.ts |
+| GitHub `access_token` | github/callback | github/route.ts, github/repos/[id]/route.ts |
+| GitHub `webhook_secret` | github/setup, github/repos | webhooks/github/route.ts |
+| PostHog `access_token` | posthog/connect | inngest/functions.ts |
+| Supabase `access_token` | supabase/connect | inngest/functions.ts |
+
+- **Utility:** `src/lib/crypto.ts` — `safeEncrypt()`/`safeDecrypt()`
 - **Format:** `enc:<base64>` prefix for reliable detection
 - **Env var:** `ENCRYPTION_KEY` (64 hex chars / 32 bytes)
-- **Migration:** `safeEncrypt`/`safeDecrypt` handle plaintext→encrypted transition
-- **Affected routes:** supabase/connect, posthog/connect, ga4/callback, github/callback
-- **Decryption:** inngest/functions.ts, analytics/ga4-adapter.ts
+- **Migration:** `safeDecrypt` handles plaintext→encrypted transition gracefully
+- **Error handling:** Token persist failures throw (prevents silent data loss)
 
 ### Authentication & Authorization
 - **Feedback route** (`/api/feedback`) — Requires auth + ownership verification
 - **Analysis route** (`/api/analysis/[id]`) — Private analyses (with user_id) only visible to owner
 - **Rescan route** (`/api/rescan`) — Verifies user owns parent analysis
 - **Pages route** (`/api/pages`) — RLS enforces user_id scoping
+- **History route** (`/api/pages/[id]/history`) — Validates user_id on each analysis in chain walk
+
+### API Data Exposure
+Sensitive metadata is NOT exposed in API responses:
+- **GA4:** Email address omitted from `/api/integrations` response
+- **Supabase:** Project ref omitted; only `project_name` returned
+- **GitHub:** Only username/avatar exposed, not tokens
 
 ### Rate Limiting
 - **Anonymous routes** (`/api/analyze`) — IP-based via Supabase RPC (5/hour)
@@ -1035,7 +1060,7 @@ User feedback is sanitized before injection into LLM prompts:
 
 ### Other Protections
 - **OAuth CSRF** — State tokens in httpOnly cookies for GA4/GitHub
-- **Webhook verification** — GitHub webhooks validated via HMAC-SHA256
+- **Webhook verification** — GitHub webhooks validated via HMAC-SHA256 (secret encrypted at rest)
 - **SQL injection** — Supabase SDK parameterizes; table names validated via regex
 - **XSS** — React escaping; no dangerouslySetInnerHTML with user input
 - **Open redirect** — Magic link validates redirect against allowed origins
