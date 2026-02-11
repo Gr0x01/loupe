@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
+import { validateUrl } from "@/lib/url-validation";
 
 const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
 
-    // URL validation
+    // URL validation with SSRF protection
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url.startsWith("http") ? url : `https://${url}`);
@@ -39,22 +40,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
-    // Block non-HTTP protocols and internal/private hosts (SSRF protection)
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-    }
-    const hostname = parsedUrl.hostname;
-    if (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "0.0.0.0" ||
-      hostname.startsWith("10.") ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("172.") ||
-      hostname === "169.254.169.254" ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal")
-    ) {
+    const validation = validateUrl(parsedUrl.toString());
+    if (!validation.valid) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 

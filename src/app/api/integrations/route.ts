@@ -12,15 +12,43 @@ export async function GET() {
 
   const serviceClient = createServiceClient();
 
-  // Get GitHub integration
-  const { data: github } = await serviceClient
-    .from("integrations")
-    .select("id, provider_account_id, metadata, created_at")
-    .eq("user_id", user.id)
-    .eq("provider", "github")
-    .maybeSingle();
+  // Parallel fetch all integrations for better performance
+  const results = await Promise.all([
+    serviceClient
+      .from("integrations")
+      .select("id, provider_account_id, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("provider", "github")
+      .maybeSingle(),
+    serviceClient
+      .from("integrations")
+      .select("id, provider_account_id, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("provider", "posthog")
+      .maybeSingle(),
+    serviceClient
+      .from("integrations")
+      .select("id, provider_account_id, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("provider", "ga4")
+      .maybeSingle(),
+    serviceClient
+      .from("integrations")
+      .select("id, provider_account_id, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("provider", "supabase")
+      .maybeSingle(),
+  ]);
 
-  // Get connected repos if GitHub is connected
+  // Log any query errors (data will be null, treated as "not connected")
+  const providers = ["github", "posthog", "ga4", "supabase"];
+  results.forEach(({ error }, i) => {
+    if (error) console.error(`Integration query for ${providers[i]} failed:`, error);
+  });
+
+  const [{ data: github }, { data: posthog }, { data: ga4 }, { data: supabaseIntegration }] = results;
+
+  // Repos query depends on github result, so stays sequential
   let repos: { id: string; full_name: string; default_branch: string }[] = [];
   if (github) {
     const { data: repoData } = await serviceClient
@@ -29,30 +57,6 @@ export async function GET() {
       .eq("user_id", user.id);
     repos = repoData || [];
   }
-
-  // Get PostHog integration
-  const { data: posthog } = await serviceClient
-    .from("integrations")
-    .select("id, provider_account_id, metadata, created_at")
-    .eq("user_id", user.id)
-    .eq("provider", "posthog")
-    .maybeSingle();
-
-  // Get GA4 integration
-  const { data: ga4 } = await serviceClient
-    .from("integrations")
-    .select("id, provider_account_id, metadata, created_at")
-    .eq("user_id", user.id)
-    .eq("provider", "ga4")
-    .maybeSingle();
-
-  // Get Supabase integration
-  const { data: supabaseIntegration } = await serviceClient
-    .from("integrations")
-    .select("id, provider_account_id, metadata, created_at")
-    .eq("user_id", user.id)
-    .eq("provider", "supabase")
-    .maybeSingle();
 
   return NextResponse.json({
     github: github ? {

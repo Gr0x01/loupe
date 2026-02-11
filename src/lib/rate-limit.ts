@@ -101,4 +101,10 @@ export const RATE_LIMITS = {
   claimLink: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   // Changes: 120 reads per hour (dashboard refreshes)
   changes: { windowMs: 60 * 60 * 1000, maxRequests: 120 },
+  // Share credit: 5 per hour per user (prevent bonus page farming)
+  shareCredit: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
+  // Leads: 10 per hour per IP (unauthenticated, abuse prevention)
+  leads: { windowMs: 60 * 60 * 1000, maxRequests: 10 },
+  // Magic link: 5 per hour per IP (prevent email spam)
+  magicLink: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
 } as const;

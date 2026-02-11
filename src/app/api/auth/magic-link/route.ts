@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // IP-based rate limit: 5 per hour (prevent email spam)
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    if (!ip) {
+      return NextResponse.json({ error: "Unable to process request" }, { status: 400 });
+    }
+    const rateLimit = checkRateLimit(`ip:${ip}:magic-link`, RATE_LIMITS.magicLink);
+    if (!rateLimit.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const { email, redirectTo } = await req.json();
 
     if (!email || typeof email !== "string") {
@@ -10,7 +21,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate redirectTo is on our own origin (prevent open redirect)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
+    // Require NEXT_PUBLIC_APP_URL to be set - don't fall back to Host header (spoofable)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      console.error("NEXT_PUBLIC_APP_URL not configured");
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
     const allowedOrigin = new URL(appUrl).origin;
     let safeRedirect: string | undefined;
     if (redirectTo && typeof redirectTo === "string") {

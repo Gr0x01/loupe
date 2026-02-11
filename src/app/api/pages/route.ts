@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { FOUNDING_50_CAP, BASE_PAGE_LIMIT } from "@/lib/constants";
+import { BASE_PAGE_LIMIT } from "@/lib/constants";
 import type {
   AttentionStatus,
   ChangesSummary,
   AnalysisResult,
 } from "@/lib/types/analysis";
 import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
+import { validateUrl } from "@/lib/url-validation";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -217,7 +218,11 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ pages: pagesFormatted });
+    return NextResponse.json({ pages: pagesFormatted }, {
+      headers: {
+        "Cache-Control": "private, max-age=10, stale-while-revalidate=60",
+      },
+    });
   } catch (err) {
     console.error("Pages GET error:", err);
     return NextResponse.json(
@@ -269,22 +274,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
-    // Block non-HTTP protocols and internal hosts
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-    }
-    const hostname = parsedUrl.hostname;
-    if (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "0.0.0.0" ||
-      hostname.startsWith("10.") ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("172.") ||
-      hostname === "169.254.169.254" ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal")
-    ) {
+    // SSRF protection with shared validation
+    const validation = validateUrl(parsedUrl.toString());
+    if (!validation.valid) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
@@ -337,21 +329,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If this is the user's first page and founding 50 cap not reached, mark as founding member
+    // If this is the user's first page and not already a founder, attempt atomic claim
     let wasJustMarkedFounder = false;
     if (currentPageCount === 0 && !isFounder) {
-      const { count: founderCount } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("is_founding_50", true);
-
-      if ((founderCount ?? 0) < FOUNDING_50_CAP) {
-        await supabase
-          .from("profiles")
-          .update({ is_founding_50: true })
-          .eq("id", user.id);
-        wasJustMarkedFounder = true;
-      }
+      // Atomic RPC prevents race condition when multiple requests try to claim simultaneously
+      const { data: claimed } = await supabase.rpc("claim_founding_50", {
+        p_user_id: user.id,
+      });
+      wasJustMarkedFounder = claimed === true;
     }
 
     // Check if user has an existing analysis for this URL to link

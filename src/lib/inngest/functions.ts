@@ -60,7 +60,7 @@ export const analyzeUrl = inngest.createFunction(
     retries: 2,
   },
   { event: "analysis/created" },
-  async ({ event }) => {
+  async ({ event, step }) => {
     const { analysisId, url, parentAnalysisId } = event.data as {
       analysisId: string;
       url: string;
@@ -68,31 +68,36 @@ export const analyzeUrl = inngest.createFunction(
     };
     const supabase = createServiceClient();
 
-    // Mark as processing
-    await supabase
-      .from("analyses")
-      .update({ status: "processing" })
-      .eq("id", analysisId);
-
     try {
-      // 1. Screenshot + metadata extraction
-      const { base64, metadata } = await captureScreenshot(url);
+      // Step 1: Mark as processing
+      await step.run("mark-processing", async () => {
+      await supabase
+        .from("analyses")
+        .update({ status: "processing" })
+        .eq("id", analysisId);
+    });
 
-      // 2. Upload screenshot to storage
-      const screenshotUrl = await uploadScreenshot(
-        supabase,
-        analysisId,
-        base64
-      );
+    // Step 2: Screenshot + upload (expensive, isolated to prevent re-capture on LLM failure)
+    const { screenshotUrl, base64, metadata } = await step.run(
+      "capture-screenshot",
+      async () => {
+        const result = await captureScreenshot(url);
+        const uploadedUrl = await uploadScreenshot(supabase, analysisId, result.base64);
+        return {
+          screenshotUrl: uploadedUrl,
+          base64: result.base64,
+          metadata: result.metadata,
+        };
+      }
+    );
 
-      // 3. Run LLM analysis with screenshot + metadata
-      const { output, structured } = await runAnalysisPipeline(
-        base64,
-        url,
-        metadata
-      );
+    // Step 3: LLM analysis
+    const { output, structured } = await step.run("llm-analysis", async () => {
+      return runAnalysisPipeline(base64, url, metadata);
+    });
 
-      // 4. Save results
+    // Step 4: Save results
+    await step.run("save-results", async () => {
       await supabase
         .from("analyses")
         .update({
@@ -102,7 +107,10 @@ export const analyzeUrl = inngest.createFunction(
           structured_output: structured,
         })
         .eq("id", analysisId);
+    });
 
+    // Step 5: Fetch integrations and run post-analysis
+    await step.run("post-analysis", async () => {
       // 5. Run unified post-analysis pipeline (comparison + analytics correlation)
       const { data: analysis } = await supabase
         .from("analyses")
@@ -638,11 +646,12 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
       }
+    });
 
       return { success: true, analysisId };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error";
+      // Mark analysis as failed so it doesn't stay in "processing" forever
+      const message = error instanceof Error ? error.message : "Unknown error";
       await supabase
         .from("analyses")
         .update({ status: "failed", error_message: message })
@@ -651,6 +660,85 @@ export const analyzeUrl = inngest.createFunction(
     }
   }
 );
+
+/**
+ * Shared logic for scheduled scans (daily/weekly).
+ * Creates analyses and triggers Inngest events for each page.
+ */
+async function runScheduledScans(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  step: any,
+  frequency: "daily" | "weekly"
+): Promise<{ scanned: number }> {
+  const supabase = createServiceClient();
+
+  // Get all pages due for scan
+  const { data: pages, error } = await supabase
+    .from("pages")
+    .select("id, user_id, url, last_scan_id")
+    .eq("scan_frequency", frequency);
+
+  if (error) {
+    console.error(`Failed to fetch pages for ${frequency} scan:`, error);
+    throw error;
+  }
+
+  if (!pages || pages.length === 0) {
+    return { scanned: 0 };
+  }
+
+  // Create analyses for each page
+  const results = await step.run(`create-${frequency}-analyses`, async () => {
+    const created: { pageId: string; analysisId: string }[] = [];
+
+    for (const page of pages) {
+      const { data: newAnalysis, error: insertError } = await supabase
+        .from("analyses")
+        .insert({
+          url: page.url,
+          user_id: page.user_id,
+          parent_analysis_id: page.last_scan_id,
+          trigger_type: frequency,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !newAnalysis) {
+        console.error(`Failed to create analysis for page ${page.id}:`, insertError);
+        continue;
+      }
+
+      created.push({ pageId: page.id, analysisId: newAnalysis.id });
+    }
+
+    return created;
+  });
+
+  // Send Inngest events for each analysis (in separate step for durability)
+  await step.run(`trigger-${frequency}-scans`, async () => {
+    for (const { analysisId } of results) {
+      const { data: analysis } = await supabase
+        .from("analyses")
+        .select("url, parent_analysis_id")
+        .eq("id", analysisId)
+        .single();
+
+      if (analysis) {
+        await inngest.send({
+          name: "analysis/created",
+          data: {
+            analysisId,
+            url: analysis.url,
+            parentAnalysisId: analysis.parent_analysis_id || undefined,
+          },
+        });
+      }
+    }
+  });
+
+  return { scanned: results.length };
+}
 
 /**
  * Scheduled scan function — runs weekly on Monday 9am UTC
@@ -663,75 +751,7 @@ export const scheduledScan = inngest.createFunction(
   },
   { cron: "0 9 * * 1" }, // Monday 9am UTC
   async ({ step }) => {
-    const supabase = createServiceClient();
-
-    // Get all pages due for weekly scan
-    const { data: pages, error } = await supabase
-      .from("pages")
-      .select("id, user_id, url, last_scan_id")
-      .eq("scan_frequency", "weekly");
-
-    if (error) {
-      console.error("Failed to fetch pages for scheduled scan:", error);
-      throw error;
-    }
-
-    if (!pages || pages.length === 0) {
-      return { scanned: 0 };
-    }
-
-    // Create analyses for each page and trigger scans
-    const results = await step.run("create-scheduled-analyses", async () => {
-      const created: { pageId: string; analysisId: string }[] = [];
-
-      for (const page of pages) {
-        // Create analysis with parent chain
-        const { data: newAnalysis, error: insertError } = await supabase
-          .from("analyses")
-          .insert({
-            url: page.url,
-            user_id: page.user_id,
-            parent_analysis_id: page.last_scan_id,
-            trigger_type: "weekly",
-            status: "pending",
-          })
-          .select("id")
-          .single();
-
-        if (insertError || !newAnalysis) {
-          console.error(`Failed to create analysis for page ${page.id}:`, insertError);
-          continue;
-        }
-
-        created.push({ pageId: page.id, analysisId: newAnalysis.id });
-      }
-
-      return created;
-    });
-
-    // Send Inngest events for each analysis (in separate step for durability)
-    await step.run("trigger-scans", async () => {
-      for (const { analysisId } of results) {
-        const { data: analysis } = await supabase
-          .from("analyses")
-          .select("url, parent_analysis_id")
-          .eq("id", analysisId)
-          .single();
-
-        if (analysis) {
-          await inngest.send({
-            name: "analysis/created",
-            data: {
-              analysisId,
-              url: analysis.url,
-              parentAnalysisId: analysis.parent_analysis_id || undefined,
-            },
-          });
-        }
-      }
-    });
-
-    return { scanned: results.length };
+    return runScheduledScans(step, "weekly");
   }
 );
 
@@ -746,74 +766,7 @@ export const scheduledScanDaily = inngest.createFunction(
   },
   { cron: "0 9 * * *" }, // Daily 9am UTC
   async ({ step }) => {
-    const supabase = createServiceClient();
-
-    // Get all pages due for daily scan
-    const { data: pages, error } = await supabase
-      .from("pages")
-      .select("id, user_id, url, last_scan_id")
-      .eq("scan_frequency", "daily");
-
-    if (error) {
-      console.error("Failed to fetch pages for daily scan:", error);
-      throw error;
-    }
-
-    if (!pages || pages.length === 0) {
-      return { scanned: 0 };
-    }
-
-    // Create analyses for each page and trigger scans
-    const results = await step.run("create-daily-analyses", async () => {
-      const created: { pageId: string; analysisId: string }[] = [];
-
-      for (const page of pages) {
-        const { data: newAnalysis, error: insertError } = await supabase
-          .from("analyses")
-          .insert({
-            url: page.url,
-            user_id: page.user_id,
-            parent_analysis_id: page.last_scan_id,
-            trigger_type: "daily",
-            status: "pending",
-          })
-          .select("id")
-          .single();
-
-        if (insertError || !newAnalysis) {
-          console.error(`Failed to create analysis for page ${page.id}:`, insertError);
-          continue;
-        }
-
-        created.push({ pageId: page.id, analysisId: newAnalysis.id });
-      }
-
-      return created;
-    });
-
-    // Send Inngest events for each analysis
-    await step.run("trigger-daily-scans", async () => {
-      for (const { analysisId } of results) {
-        const { data: analysis } = await supabase
-          .from("analyses")
-          .select("url, parent_analysis_id")
-          .eq("id", analysisId)
-          .single();
-
-        if (analysis) {
-          await inngest.send({
-            name: "analysis/created",
-            data: {
-              analysisId,
-              url: analysis.url,
-              parentAnalysisId: analysis.parent_analysis_id || undefined,
-            },
-          });
-        }
-      }
-    });
-
-    return { scanned: results.length };
+    return runScheduledScans(step, "daily");
   }
 );
 
