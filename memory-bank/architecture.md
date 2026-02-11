@@ -52,7 +52,7 @@ User enters URL → POST /api/analyze
 - **Browser crash recovery** — 30s health check interval, auto-relaunches dead browser instances
 
 ### Endpoints
-- `GET /screenshot-and-extract?url=<url>&proxy=<true|false>` — capture screenshot + extract metadata, returns JSON `{screenshot, metadata}`
+- `GET /screenshot-and-extract?url=<url>&proxy=<true|false>&width=<px>` — capture screenshot + extract metadata, returns JSON `{screenshot, metadata}`. Optional `width` param sets viewport width (default: 1280, mobile: 390).
 - `GET /screenshot?url=<url>&proxy=<true|false>` — capture screenshot, returns JPEG binary
 - `GET /health` — health check
 
@@ -84,6 +84,7 @@ analyses (
   deploy_id uuid FK deploys ON DELETE SET NULL,  -- links to triggering deploy (if deploy-triggered)
   trigger_type text,                -- 'manual' | 'daily' | 'weekly' | 'deploy' | null (initial audit)
   screenshot_url text,
+  mobile_screenshot_url text,     -- 390px viewport screenshot (nullable, added Feb 2026)
   output text,                    -- formatted markdown report
   structured_output jsonb,        -- { verdict, findings[], suggestions[], summary } — see LLM Layer for schema
   changes_summary jsonb,          -- post-analysis results (changes, suggestions, correlation, progress)
@@ -211,7 +212,7 @@ deploys (
 ```
 
 ### Storage
-- `screenshots` bucket (public) — stores `analyses/{id}.jpg`
+- `screenshots` bucket (public) — stores `analyses/{id}.jpg` (desktop) and `analyses/{id}_mobile.jpg` (390px mobile)
 
 ### RPC Functions
 - `create_analysis_if_allowed(p_ip, p_url, p_email, p_window_minutes, p_max_requests, p_user_id)` — atomic rate-limited insert. Returns `{id}` on success or `{error: "rate_limit_exceeded"}` if IP exceeds limit within window. Optional `p_user_id` associates analysis with logged-in user.
@@ -288,7 +289,8 @@ Output:
 ```
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
-- `runAnalysisPipeline(screenshotBase64, url, metadata)` — Main audit with vision
+- `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision. Sends both desktop and mobile images when available, with mobile experience evaluation in system prompt.
+- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff. Sends 2 images (desktop only) or 4 images (desktop + mobile) depending on baseline availability.
 - `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation
 - `formatUserFeedback(feedback)` — Formats user feedback for LLM context (with prompt injection protection)
 
@@ -723,10 +725,10 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
 - `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id.
-- `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
+- `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
 
@@ -776,7 +778,7 @@ src/
 │   │   ├── client.ts               # Browser client (anon key)
 │   │   ├── server.ts               # Cookie-based client + service role client
 │   │   └── proxy.ts                # updateSession() for proxy
-│   ├── screenshot.ts               # Vultr service client + Supabase upload
+│   ├── screenshot.ts               # Vultr service client (with width option) + Supabase upload (with suffix)
 │   ├── posthog-api.ts              # PostHog HogQL client + metrics fetcher
 │   ├── types/
 │   │   └── analysis.ts             # Canonical type definitions (Finding, Prediction, etc.)
@@ -808,14 +810,14 @@ npm run dev                    # Next.js on port 3002
 
 | Component | Cost |
 |-----------|------|
-| Screenshot (proxy bandwidth) | ~$0.0002 (100KB × $2/GB) |
+| Screenshots (2× proxy bandwidth: desktop + mobile) | ~$0.0004 |
 | Supabase storage | negligible |
-| Gemini 3 Pro vision call (main audit) | ~$0.03 |
+| Gemini 3 Pro vision call (main audit, 2 images) | ~$0.04 |
 | Gemini 3 Pro post-analysis (comparison + correlation) | ~$0.03 |
 | PostHog API | Free (within rate limits) |
-| **Total per analysis** | **~$0.06** |
+| **Total per analysis** | **~$0.07** |
 
-Note: Post-analysis only runs on re-scans or when analytics connected. First anonymous audits are ~$0.03.
+Note: Post-analysis only runs on re-scans or when analytics connected. First anonymous audits are ~$0.04. Mobile screenshot adds ~$0.01 per analysis (extra image in LLM call + proxy bandwidth).
 
 ## Cost Estimates Per User
 
@@ -877,6 +879,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 ### Key Components
 
 **Stable Baseline (`src/lib/analysis/baseline.ts`):**
+- Interface includes `mobile_screenshot_url: string | null` (backward compatible with old baselines)
 - Priority 1: `pages.stable_baseline_id` (explicit baseline from daily/weekly scan)
 - Priority 2: Last daily/weekly scan that completed
 - Priority 3: Most recent complete analysis 24h+ old
@@ -886,6 +889,8 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 **Quick Diff (`src/lib/ai/pipeline.ts: runQuickDiff`):**
 - Uses Claude Haiku for fast, cheap vision comparison
 - Compares baseline screenshot URL vs current screenshot base64
+- Sends 2 images (desktop only) or 4 images (desktop + mobile) when baseline has mobile
+- Mobile capture skipped if baseline lacks `mobile_screenshot_url` (avoids wasted work)
 - Returns `QuickDiffResult` with changes array (element, scope, before, after)
 - Aggregates changes appropriately (element/section/page scope)
 
@@ -1072,11 +1077,13 @@ User feedback is sanitized before injection into LLM prompts:
 
 ### Subscription Tiers
 
-| Tier | Price | Pages | Scans | Analytics | Mobile |
-|------|-------|-------|-------|-----------|--------|
+| Tier | Price | Pages | Scans | Analytics | Mobile View |
+|------|-------|-------|-------|-----------|-------------|
 | Free | $0 | 1 | Weekly | 0 | No |
 | Starter | $12/mo ($120/yr) | 3 | Daily + Deploy | 1 | No |
 | Pro | $29/mo ($290/yr) | 10 | Daily + Deploy | Unlimited | Yes |
+
+Note: "Mobile View" refers to viewport-based access gate (`MobileUpgradeGate`). Mobile screenshots are captured and analyzed for ALL tiers — the LLM always sees both viewports. The Pro gate controls whether users can view mobile-specific UI, not whether mobile analysis happens.
 
 ### Database Fields (profiles table)
 ```sql

@@ -300,6 +300,31 @@ Free audit → Track page → First correlation proves it works → Upgrade
 - Hidden when empty — appears organically on first correlation
 - Max 4 cards in grid, "See all X results" link if more
 
+### Mobile Screenshots (Feb 2026)
+
+Added 390px mobile viewport screenshot to the full pipeline: capture → store → LLM analysis → UI display.
+
+**Pipeline changes:**
+- [x] DB migration: `mobile_screenshot_url text` nullable column on `analyses`
+- [x] `captureScreenshot()` accepts optional `width` param; `uploadScreenshot()` accepts `suffix` (stored as `{id}_mobile.jpg`)
+- [x] `analyzeUrl` captures desktop + mobile in parallel (`Promise.all`), mobile failure non-fatal (try/catch)
+- [x] `runAnalysisPipeline()` sends both images to LLM with labels; system prompt includes "Mobile Experience" evaluation section
+- [x] `runQuickDiff()` sends 2 or 4 images depending on baseline mobile availability
+- [x] `deployDetected` captures mobile only when baseline has it (avoids wasted work), parallel capture
+- [x] `StableBaseline` interface includes `mobile_screenshot_url`, all 3 select queries updated
+
+**UI changes:**
+- [x] `HeroScreenshot` shows desktop (browser chrome) + mobile (phone frame) side by side
+- [x] `ScreenshotModal` has Desktop/Mobile toggle tabs with `aria-pressed`
+- [x] `showScreenshot` state: `false | "desktop" | "mobile"` (opens modal to correct view)
+- [x] `SnapshotCollapsible` shows mobile phone frame alongside desktop when expanded
+- [x] Image error handling on all screenshot elements (graceful hide on broken URL)
+- [x] Click targets use `<button>` elements for keyboard accessibility
+
+**Backward compatible:** Old analyses with `NULL` mobile_screenshot_url render exactly as before.
+
+**Note:** Mobile screenshots are captured for ALL tiers (not gated). The "Mobile" Pro feature in pricing refers to viewport-based access gate (`MobileUpgradeGate`), not screenshot capture. Consider gating LLM mobile image sending by tier to save ~$0.01/analysis for Free/Starter.
+
 ### Key Changes (remaining)
 - None — Phase 2A complete
 
@@ -530,3 +555,4 @@ Build after learning from first 50 users.
 - Mobile app
 - Deploy previews (scan staging before merge)
 - Embedded findings for trend analysis
+- Mobile screenshot LLM cost gated by tier (all tiers currently get mobile analysis)
