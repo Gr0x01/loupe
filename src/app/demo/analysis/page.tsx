@@ -14,10 +14,7 @@ import { ChronicleLayout } from "@/components/chronicle";
 // Mock Data for xyz.io Demo Analysis
 // ============================================
 
-const mockUrl = "https://xyz.io";
-
 const mockBaselineDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-const mockCreatedAt = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
 
 const mockDeployContext: DeployContextAPI = {
   commit_sha: "a3f82b1c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
@@ -147,10 +144,6 @@ function DemoScanPicker() {
 
 export default function DemoAnalysisPage() {
   const domain = "xyz.io";
-  const baselineFormatted = new Date(mockBaselineDate).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
 
   return (
     <main className="min-h-screen text-text-primary">
@@ -171,29 +164,33 @@ export default function DemoAnalysisPage() {
                 <span className="analysis-context-badge">Demo</span>
               </div>
               <div className="analysis-context-meta">
-                <span className="analysis-context-pill">Since {baselineFormatted}</span>
                 <DemoScanPicker />
+                <Link
+                  href="/demo"
+                  className="analysis-context-link"
+                >
+                  Back to dashboard
+                </Link>
               </div>
             </div>
 
-            <Link
-              href="/demo"
-              className="analysis-context-link"
-            >
-              Back to demo dashboard
-            </Link>
+            <div className="analysis-context-thumb-corner">
+              <img
+                src="/demo-screenshot.png"
+                alt="Page screenshot"
+                className="analysis-context-thumb-img"
+              />
+            </div>
+
+            <span className="analysis-context-date">Feb 10</span>
           </div>
         </div>
 
         <ChronicleLayout
-          url={mockUrl}
           changesSummary={mockChangesSummary}
           deployContext={mockDeployContext}
           baselineDate={mockBaselineDate}
-          screenshotUrl="/demo-screenshot.png"
-          createdAt={mockCreatedAt}
           triggerType="deploy"
-          onScreenshotClick={() => {}}
         />
 
         {/* CTA Section */}

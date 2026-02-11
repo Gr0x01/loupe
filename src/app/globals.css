@@ -4070,8 +4070,9 @@ body.modal-open .site-nav {
 }
 
 .analysis-context-bar {
+  position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1.25rem;
   padding: 1rem 1.25rem;
@@ -4079,6 +4080,14 @@ body.modal-open .site-nav {
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.analysis-context-date {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 1rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .analysis-context-main {
@@ -4097,6 +4106,28 @@ body.modal-open .site-nav {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.analysis-context-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.analysis-context-breadcrumb a {
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.analysis-context-breadcrumb a:hover {
+  color: var(--accent);
+}
+
+.analysis-context-breadcrumb span:last-child {
+  color: var(--text-secondary);
 }
 
 .analysis-context-domain {
@@ -4168,6 +4199,32 @@ body.modal-open .site-nav {
   border-color: var(--line);
   color: var(--text-primary);
   transform: translateY(-1px);
+}
+
+.analysis-context-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.analysis-context-thumb-corner {
+  width: 72px;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1.5px solid rgba(100, 116, 139, 0.22);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.analysis-context-thumb-corner:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  transform: scale(1.02);
 }
 
 /* Chronicle shell */
@@ -4570,6 +4627,7 @@ body.modal-open .site-nav {
   border-radius: 8px;
   padding: 0.92rem 1rem;
   transition: all 160ms ease;
+  max-width: 580px;
 }
 
 .unified-timeline-card:hover {
@@ -4771,10 +4829,10 @@ body.modal-open .site-nav {
   align-items: center;
   justify-content: space-between;
   gap: 0.45rem;
-  padding: 0.35rem 0.55rem;
+  padding: 0.45rem 0.8rem;
   border-radius: 8px;
-  border: 1px solid rgba(100, 116, 139, 0.24);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  background: rgba(255, 255, 255, 0.75);
   transition: all 150ms ease;
 }
 
@@ -4783,10 +4841,9 @@ body.modal-open .site-nav {
 }
 
 .scan-picker-trigger-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .scan-picker-label {

@@ -1658,9 +1658,14 @@ export default function AnalysisPage() {
           <div className="analysis-context-shell pt-6 pb-3">
             {/* Chronicle scans: Page-centric header */}
             {isChronicle ? (
+              <>
+              <nav className="analysis-context-breadcrumb">
+                <Link href="/dashboard">Your pages</Link>
+                <span>/</span>
+                <span>{getDomain(analysis.url)}</span>
+              </nav>
               <div className="analysis-context-bar">
                 <div className="analysis-context-main">
-                  <p className="analysis-context-label">Tracked page</p>
                   <h1
                     className="analysis-context-domain"
                     style={{ fontFamily: "var(--font-display)" }}
@@ -1668,29 +1673,43 @@ export default function AnalysisPage() {
                     {getDomain(analysis.url)}
                   </h1>
                   <div className="analysis-context-meta">
-                    <span className="analysis-context-pill">
-                      Since{" "}
-                      {new Date(pageCtx.baseline_date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
                     <ScanPicker
                       currentScanNumber={pageCtx.scan_number}
                       totalScans={pageCtx.total_scans}
                       pageId={pageCtx.page_id}
                       currentAnalysisId={analysis.id}
                     />
+                    <Link
+                      href={`/pages/${pageCtx.page_id}`}
+                      className="analysis-context-link"
+                    >
+                      View history
+                    </Link>
                   </div>
                 </div>
 
-                <Link
-                  href={`/pages/${pageCtx.page_id}`}
-                  className="analysis-context-link"
-                >
-                  View history
-                </Link>
+                {analysis.screenshot_url && (
+                  <button
+                    onClick={() => setShowScreenshot(true)}
+                    className="analysis-context-thumb-corner"
+                    title="View screenshot"
+                  >
+                    <img
+                      src={analysis.screenshot_url}
+                      alt="Page screenshot"
+                      className="analysis-context-thumb-img"
+                    />
+                  </button>
+                )}
+
+                <span className="analysis-context-date">
+                  {new Date(analysis.created_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
               </div>
+              </>
             ) : (
               /* Initial audit: Original header style */
               <div className="space-y-2">
@@ -1961,14 +1980,10 @@ export default function AnalysisPage() {
         {/* Chronicle Layout for new format N+1 scans */}
         {analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
           <ChronicleLayout
-            url={analysis.url}
             changesSummary={analysis.changes_summary}
             deployContext={analysis.deploy_context}
             baselineDate={pageCtx?.baseline_date}
-            screenshotUrl={analysis.screenshot_url}
-            createdAt={analysis.created_at}
             triggerType={analysis.trigger_type}
-            onScreenshotClick={() => setShowScreenshot(true)}
           />
         )}
 

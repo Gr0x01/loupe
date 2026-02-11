@@ -2,20 +2,15 @@
 
 import type { ChangesSummary, DeployContextAPI } from "@/lib/types/analysis";
 import { ChronicleHero } from "./ChronicleHero";
-import { SnapshotCollapsible } from "./SnapshotCollapsible";
 import { WinBanner } from "./WinBanner";
 import { UnifiedTimeline } from "./UnifiedTimeline";
 import { NextMoveSection } from "./NextMoveSection";
 
 interface ChronicleLayoutProps {
-  url: string;
   changesSummary: ChangesSummary;
   deployContext?: DeployContextAPI | null;
   baselineDate?: string;
-  screenshotUrl?: string | null;
-  createdAt?: string;
   triggerType?: "manual" | "daily" | "weekly" | "deploy" | null;
-  onScreenshotClick?: () => void;
 }
 
 function timeAgo(dateStr: string) {
@@ -30,14 +25,10 @@ function timeAgo(dateStr: string) {
 }
 
 export function ChronicleLayout({
-  url,
   changesSummary,
   deployContext,
   baselineDate,
-  screenshotUrl,
-  createdAt,
   triggerType,
-  onScreenshotClick,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -83,17 +74,6 @@ export function ChronicleLayout({
             </div>
           )}
         </div>
-
-        {screenshotUrl && (
-          <div className="chronicle-snapshot-shell">
-            <SnapshotCollapsible
-              screenshotUrl={screenshotUrl}
-              pageUrl={url}
-              createdAt={createdAt}
-              onViewFull={onScreenshotClick}
-            />
-          </div>
-        )}
       </section>
 
       {/* Win banner (if validated items with positive correlation) */}
