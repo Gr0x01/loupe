@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { safeDecrypt } from "@/lib/crypto";
 
 // DELETE /api/integrations/github - disconnect GitHub entirely
 export async function DELETE() {
@@ -35,12 +36,14 @@ export async function DELETE() {
     for (const repo of repos) {
       if (repo.webhook_id) {
         try {
+          // Decrypt token before API call (may be encrypted with enc: prefix)
+          const accessToken = safeDecrypt(integration.access_token);
           await fetch(
             `https://api.github.com/repos/${repo.full_name}/hooks/${repo.webhook_id}`,
             {
               method: "DELETE",
               headers: {
-                "Authorization": `Bearer ${integration.access_token}`,
+                "Authorization": `Bearer ${accessToken}`,
                 "Accept": "application/vnd.github.v3+json",
               },
             }

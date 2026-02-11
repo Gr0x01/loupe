@@ -56,6 +56,8 @@ export async function GET(
     while (currentId && !seenIds.has(currentId)) {
       seenIds.add(currentId);
 
+      // Security: verify each analysis in chain belongs to this user
+      // (protects against crafted parent_analysis_id chains)
       const { data: analysis } = await supabase
         .from("analyses")
         .select(`
@@ -64,10 +66,17 @@ export async function GET(
           status,
           changes_summary,
           created_at,
-          parent_analysis_id
+          parent_analysis_id,
+          user_id
         `)
         .eq("id", currentId)
         .single();
+
+      // Stop chain walk if analysis doesn't belong to user
+      // (allows null user_id for legacy analyses pre-auth)
+      if (analysis && analysis.user_id && analysis.user_id !== user.id) {
+        break;
+      }
 
       if (analysis) {
         analyses.push(analysis);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { safeDecrypt } from "@/lib/crypto";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -45,12 +46,14 @@ export async function DELETE(
   // Delete webhook from GitHub (best effort)
   if (repo.webhook_id && integration?.access_token) {
     try {
+      // Decrypt token before API call (may be encrypted with enc: prefix)
+      const accessToken = safeDecrypt(integration.access_token);
       await fetch(
         `https://api.github.com/repos/${repo.full_name}/hooks/${repo.webhook_id}`,
         {
           method: "DELETE",
           headers: {
-            "Authorization": `Bearer ${integration.access_token}`,
+            "Authorization": `Bearer ${accessToken}`,
             "Accept": "application/vnd.github.v3+json",
           },
         }

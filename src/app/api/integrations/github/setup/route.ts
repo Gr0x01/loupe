@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { getInstallationToken, listInstallationRepos } from "@/lib/github/app";
+import { safeEncrypt } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -165,7 +166,7 @@ export async function GET(request: NextRequest) {
               }
             }
 
-            // Store repo
+            // Store repo (encrypt webhook secret)
             await serviceClient.from("repos").insert({
               user_id: user.id,
               integration_id: integration.id,
@@ -173,7 +174,7 @@ export async function GET(request: NextRequest) {
               full_name: repo.full_name,
               default_branch: repo.default_branch,
               webhook_id: webhookId,
-              webhook_secret: webhookSecret,
+              webhook_secret: safeEncrypt(webhookSecret),
             });
           }
         }

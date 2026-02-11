@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { listInstallationRepos, createRepoWebhook, deleteRepoWebhook } from "@/lib/github/app";
+import { safeEncrypt } from "@/lib/crypto";
 
 // Validate repo fullName format (owner/repo) to prevent path manipulation
 const REPO_FULLNAME_REGEX = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
@@ -162,6 +163,7 @@ export async function POST(request: NextRequest) {
 
   // Store in repos table
   try {
+    // Encrypt webhook secret before storing
     const { data: repo, error: insertError } = await serviceClient
       .from("repos")
       .insert({
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         default_branch: defaultBranch,
         webhook_id: webhookId,
-        webhook_secret: webhookSecret,
+        webhook_secret: safeEncrypt(webhookSecret),
       })
       .select("id, full_name, default_branch")
       .single();

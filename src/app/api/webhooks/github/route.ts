@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import crypto from "crypto";
+import { safeDecrypt } from "@/lib/crypto";
 
 // Verify GitHub webhook signature
 function verifySignature(payload: string, signature: string | null, secret: string): boolean {
@@ -60,7 +61,9 @@ export async function POST(request: NextRequest) {
 
   // Verify signature (use empty string if no repo to prevent timing attacks)
   // Return same response for missing repo or bad signature to prevent enumeration
-  if (!repo || !verifySignature(payload, signature, repo.webhook_secret)) {
+  // Decrypt webhook_secret before verification
+  const decryptedSecret = repo ? safeDecrypt(repo.webhook_secret) : "";
+  if (!repo || !verifySignature(payload, signature, decryptedSecret)) {
     if (!repo) {
       console.log(`Webhook received for unknown repo: ${body.repository.full_name}`);
     } else {

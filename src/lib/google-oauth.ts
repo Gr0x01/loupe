@@ -2,6 +2,8 @@
  * Google OAuth utilities for GA4 integration
  */
 
+import { safeEncrypt, safeDecrypt } from "@/lib/crypto";
+
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const GA4_ADMIN_API_URL = "https://analyticsadmin.googleapis.com/v1beta";
@@ -187,30 +189,41 @@ export async function getValidAccessToken(
 
   // Check if token needs refresh
   if (!metadata.refresh_token || !isTokenExpired(metadata.token_expires_at || 0)) {
-    return { accessToken: integration.access_token, updated: false };
+    // Decrypt token before returning (may be encrypted with enc: prefix)
+    return { accessToken: safeDecrypt(integration.access_token), updated: false };
   }
 
+  // Decrypt refresh token before using (may be encrypted)
+  const decryptedRefreshToken = safeDecrypt(metadata.refresh_token);
+
   // Refresh the token
-  const newTokens = await refreshGoogleToken(metadata.refresh_token);
+  const newTokens = await refreshGoogleToken(decryptedRefreshToken);
   const newExpiresAt = Date.now() + newTokens.expires_in * 1000;
 
-  // Update stored tokens
+  // Update stored tokens (encrypt before storing)
   const { error: updateError } = await (supabase.from("integrations") as {
     update: (data: object) => { eq: (col: string, val: string) => Promise<{ error: unknown }> };
   })
     .update({
-      access_token: newTokens.access_token,
+      access_token: safeEncrypt(newTokens.access_token),
       metadata: {
         ...metadata,
         token_expires_at: newExpiresAt,
-        refresh_token: newTokens.refresh_token || metadata.refresh_token,
+        // Encrypt new refresh token if provided, otherwise keep existing encrypted one
+        refresh_token: newTokens.refresh_token
+          ? safeEncrypt(newTokens.refresh_token)
+          : metadata.refresh_token,
       },
       updated_at: new Date().toISOString(),
     })
     .eq("id", integration.id);
 
   if (updateError) {
+    // Critical: If we fail to persist the new token, the old refresh token in DB
+    // may already be invalidated by Google. Throwing prevents the caller from
+    // using a token that won't be available on the next request.
     console.error("Failed to persist refreshed token:", updateError);
+    throw new Error("Failed to save refreshed token - please reconnect GA4");
   }
 
   return { accessToken: newTokens.access_token, updated: true };

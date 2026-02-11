@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageLoader } from "@/components/PageLoader";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics/track";
 
 interface GitHubRepo {
   id: number;
@@ -33,7 +34,6 @@ interface GA4Integration {
   connected: boolean;
   property_id: string | null;
   property_name: string | null;
-  email: string;
   pending_property_selection: boolean;
   connected_at: string;
 }
@@ -46,8 +46,7 @@ interface GA4Property {
 
 interface SupabaseIntegration {
   connected: boolean;
-  project_ref: string;
-  project_url: string;
+  project_name: string;
   key_type: "anon" | "service_role";
   has_schema_access: boolean;
   tables: string[];
@@ -258,6 +257,8 @@ function PostHogConnectModal({
         return;
       }
 
+      // Track successful connection
+      track("integration_connected", { type: "posthog" });
       onSuccess();
       onClose();
     } catch {
@@ -593,6 +594,8 @@ function SupabaseConnectModal({
         return;
       }
 
+      // Track successful connection
+      track("integration_connected", { type: "supabase" });
       onSuccess();
       onClose();
     } catch {
@@ -842,6 +845,19 @@ function SettingsContent() {
     }
   }, [pendingParam, loading]);
 
+  // Track integration connected events from OAuth callbacks (only once per session)
+  const hasTrackedOAuth = useRef(false);
+  useEffect(() => {
+    if (hasTrackedOAuth.current) return;
+    if (successParam === "github") {
+      hasTrackedOAuth.current = true;
+      track("integration_connected", { type: "github" });
+    } else if (successParam === "ga4") {
+      hasTrackedOAuth.current = true;
+      track("integration_connected", { type: "ga4" });
+    }
+  }, [successParam]);
+
   const handleToggleEmailNotifications = async () => {
     setTogglingEmail(true);
     const newValue = !emailNotifications;
@@ -905,6 +921,9 @@ function SettingsContent() {
         setError(data.error || "Failed to connect repo");
         return;
       }
+
+      // Track repo connection
+      track("github_repo_connected", { repo_name: repo.full_name });
 
       setShowAddRepo(false);
       await fetchIntegrations();
@@ -1278,7 +1297,7 @@ function SettingsContent() {
                             {integrations.ga4.property_name || `Property ${integrations.ga4.property_id}`}
                           </p>
                           <p className="text-xs text-text-muted">
-                            {integrations.ga4.email}
+                            Connected via Google
                           </p>
                         </>
                       ) : (
@@ -1287,7 +1306,7 @@ function SettingsContent() {
                             Property not selected
                           </p>
                           <p className="text-xs text-text-muted">
-                            {integrations.ga4.email}
+                            Connected via Google
                           </p>
                         </>
                       )}
@@ -1378,7 +1397,7 @@ function SettingsContent() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-text-primary truncate">
-                        {integrations.supabase.project_ref}.supabase.co
+                        {integrations.supabase.project_name}
                       </p>
                       <p className="text-xs text-text-muted">
                         {integrations.supabase.key_type === "service_role"

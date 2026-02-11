@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/lib/google-oauth";
+import { safeEncrypt } from "@/lib/crypto";
 
 const GA4_DATA_API_URL = "https://analyticsdata.googleapis.com/v1beta";
 
@@ -91,10 +92,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     // Update integration with selected property
+    // Note: accessToken is decrypted, must re-encrypt before storing
     const { error: updateError } = await serviceClient
       .from("integrations")
       .update({
-        access_token: accessToken,
+        access_token: safeEncrypt(accessToken),
         metadata: {
           ...current?.metadata,
           property_id,

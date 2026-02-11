@@ -72,14 +72,14 @@ export async function GET() {
       connected: true,
       property_id: ga4.metadata?.property_id || null,
       property_name: ga4.metadata?.property_name || null,
-      email: ga4.metadata?.email,
+      // Note: email intentionally omitted for privacy
       pending_property_selection: !ga4.metadata?.property_id,
       connected_at: ga4.created_at,
     } : null,
     supabase: supabaseIntegration ? {
       connected: true,
-      project_ref: supabaseIntegration.provider_account_id,
-      project_url: supabaseIntegration.metadata?.project_url,
+      // Note: project_ref intentionally omitted - only expose project name
+      project_name: supabaseIntegration.metadata?.project_name || "Connected project",
       key_type: supabaseIntegration.metadata?.key_type || "anon",
       has_schema_access: supabaseIntegration.metadata?.has_schema_access ?? false,
       tables: supabaseIntegration.metadata?.tables || [],

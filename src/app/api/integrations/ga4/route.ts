@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { revokeGoogleToken } from "@/lib/google-oauth";
+import { safeDecrypt } from "@/lib/crypto";
 
 // DELETE /api/integrations/ga4 - disconnect GA4
 export async function DELETE() {
@@ -22,8 +23,9 @@ export async function DELETE() {
     .maybeSingle();
 
   // Revoke token with Google (best effort)
+  // Note: access_token is encrypted in DB, must decrypt before sending to Google
   if (integration?.access_token) {
-    await revokeGoogleToken(integration.access_token);
+    await revokeGoogleToken(safeDecrypt(integration.access_token));
   }
 
   const { error } = await serviceClient
