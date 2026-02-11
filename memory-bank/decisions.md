@@ -448,3 +448,61 @@ See `homepage-story.md` for copy rules and language guidelines.
 - `src/app/hero-bg.css` (removed orbs)
 - `.claude/agents/*.md` (ui-designer, frontend-developer, brand-guardian)
 - `.claude/skills/frontend-design/SKILL.md`
+
+## D29: Pricing tiers — 4-tier structure (Feb 2026)
+
+**Decision**: Four pricing tiers based on competitor research and margin analysis. Supersedes D6 and D16.
+
+**Tiers**:
+
+| | **Free** | **Starter** | **Pro** | **Business** |
+|---|:---:|:---:|:---:|:---:|
+| **Price** | $0 | $12/mo | $29/mo | $79/mo |
+| **Pages** | 1 | 3 | 10 | 25 |
+| **Scans** | Weekly | Daily + Deploy | Daily + Deploy | Daily + Deploy |
+| **Integrations** | — | 1 analytics + GitHub | All | All |
+| **Alerts** | Email | Email | Email + Slack | Email + Slack |
+| **Mobile** | — | — | ✓ | ✓ |
+| **Support** | Community | Community | Email | Priority |
+| **Team seats** | — | — | — | 3 |
+
+**Page limits**: Total pages across any domains (not per-domain). User with 3-page limit can track 3 pages on one domain, or 1 page each on 3 domains — their choice.
+
+**Competitor research** (Feb 2026):
+- VisualPing: Free (5 pages) → $10/mo (25 pages) → $50/mo → $100+/mo
+- ChangeTower: Free → $9/mo (500 URLs) → $299/mo enterprise
+- Hexometer: $12/mo starting
+- UptimeRobot: $10-14/mo
+
+**Margin analysis**:
+
+| Tier | Price | Est. Monthly Cost | Margin |
+|------|-------|-------------------|--------|
+| Starter | $12 | ~$1.30 | 89% |
+| Pro | $29 | ~$5.40 | 81% |
+| Business | $79 | ~$18.50 | 77% |
+
+Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 deploys/month.
+
+**Value ladder**:
+- Free → Starter: "I want daily scans" or "more pages"
+- Starter → Pro: "I need Supabase integration" or "mobile access"
+- Pro → Business: "I need my team on this"
+
+**Why these prices**:
+- $12 entry: Validated by market (VisualPing $10, ChangeTower $9, Hexometer $12)
+- $29 mid-tier: Sweet spot for solo founders ($1-10k MRR)
+- $79 business: Room for team features without enterprise complexity
+- Mobile as paid differentiator: Low effort, natural upgrade path
+
+**Open for later**:
+- Deploy scan caps on Starter (currently unlimited)
+- Overage pricing vs hard limits
+
+**Implemented (Feb 11, 2026)**:
+- Stripe integration with checkout, portal, webhooks
+- Annual discount: 17% off ($120/yr Starter, $290/yr Pro)
+- Business tier deferred — launching with Free/Starter/Pro only
+- Slack alerts marked as "Coming soon" on Pro tier
+- Mobile access gated by viewport check + tier
+- Founding 50 users migrated to Starter tier (grandfathered)

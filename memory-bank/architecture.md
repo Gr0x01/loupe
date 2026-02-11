@@ -1065,3 +1065,70 @@ User feedback is sanitized before injection into LLM prompts:
 - **XSS** — React escaping; no dangerouslySetInnerHTML with user input
 - **Open redirect** — Magic link validates redirect against allowed origins
 - **UUID validation** — All ID params validated before queries
+
+---
+
+## Billing & Subscriptions (Stripe)
+
+### Subscription Tiers
+
+| Tier | Price | Pages | Scans | Analytics | Mobile |
+|------|-------|-------|-------|-----------|--------|
+| Free | $0 | 1 | Weekly | 0 | No |
+| Starter | $12/mo ($120/yr) | 3 | Daily + Deploy | 1 | No |
+| Pro | $29/mo ($290/yr) | 10 | Daily + Deploy | Unlimited | Yes |
+
+### Database Fields (profiles table)
+```sql
+subscription_tier text NOT NULL DEFAULT 'free',  -- 'free' | 'starter' | 'pro'
+stripe_customer_id text,
+stripe_subscription_id text,
+subscription_status text DEFAULT 'active',  -- 'active' | 'past_due' | 'canceled'
+billing_period text  -- 'monthly' | 'annual'
+```
+
+### Permissions Module (`src/lib/permissions.ts`)
+- `getPageLimit(tier, bonusPages)` — Returns max pages for tier + bonus
+- `canConnectAnalytics(tier, currentCount)` — Checks analytics integration limit
+- `canUseDeployScans(tier)` — Returns true for Starter/Pro
+- `canAccessMobile(tier)` — Returns true for Pro only
+- `validateScanFrequency(tier, requested)` — Coerces scan frequency based on tier
+
+### API Routes
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/billing/checkout` | POST | Create Stripe Checkout session |
+| `/api/billing/portal` | POST | Create Customer Portal session |
+| `/api/billing/webhook` | POST | Handle Stripe webhook events |
+
+### Stripe Webhook Events
+
+| Event | Action |
+|-------|--------|
+| `checkout.session.completed` | Set tier, customer_id, subscription_id, status=active |
+| `customer.subscription.updated` | Update tier/status if plan changed |
+| `customer.subscription.deleted` | Downgrade to free, clear subscription_id |
+| `invoice.payment_failed` | Set status to past_due |
+
+### Env Vars
+```
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_STARTER_MONTHLY=price_...
+STRIPE_PRICE_STARTER_ANNUAL=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_PRO_ANNUAL=price_...
+```
+
+### Founding 50 Grandfathering
+Users with `is_founding_50=true` were migrated to `subscription_tier='starter'` during the pricing tier migration. They get Starter benefits (3 pages, daily scans, 1 analytics) without a Stripe subscription.
+
+### Key Files
+- `src/lib/stripe.ts` — Stripe client, price ID mapping, checkout/portal helpers
+- `src/lib/permissions.ts` — Tier limits and permission checks
+- `src/app/api/billing/` — Checkout, portal, webhook routes
+- `src/app/pricing/page.tsx` — Public pricing comparison
+- `src/app/settings/billing/page.tsx` — Subscription management
+- `src/components/UpgradePrompt.tsx` — Reusable upgrade CTA
+- `src/components/MobileUpgradeGate.tsx` — Viewport-based tier gate

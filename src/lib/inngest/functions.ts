@@ -15,6 +15,7 @@ import { safeDecrypt } from "@/lib/crypto";
 import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
 import { correlateChange } from "@/lib/analytics/correlation";
 import { createProvider } from "@/lib/analytics/provider";
+import { canUseDeployScans, type SubscriptionTier } from "@/lib/permissions";
 
 /**
  * Extract top suggestion from changes_summary (Chronicle) or structured_output (initial audit)
@@ -797,6 +798,30 @@ export const deployDetected = inngest.createFunction(
     };
 
     const supabase = createServiceClient();
+
+    // Check user's tier - skip deploy scans for free tier
+    const userTier = await step.run("check-tier", async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("subscription_tier")
+        .eq("id", userId)
+        .single();
+
+      return (profile?.subscription_tier as SubscriptionTier) || "free";
+    });
+
+    if (!canUseDeployScans(userTier)) {
+      // Mark deploy as complete but skip scanning
+      await supabase
+        .from("deploys")
+        .update({ status: "complete" })
+        .eq("id", deployId);
+
+      return {
+        scanned: 0,
+        message: "Deploy scans not available on free tier",
+      };
+    }
 
     // Wait for Vercel to deploy (simple fixed delay for MVP)
     await step.sleep("wait-for-vercel", "45s");

@@ -17,7 +17,17 @@ export async function GET() {
   const serviceClient = createServiceClient();
   const { data: profile, error } = await serviceClient
     .from("profiles")
-    .select("email, email_notifications, bonus_pages, is_founding_50")
+    .select(`
+      email,
+      email_notifications,
+      bonus_pages,
+      is_founding_50,
+      subscription_tier,
+      subscription_status,
+      billing_period,
+      stripe_customer_id,
+      stripe_subscription_id
+    `)
     .eq("id", user.id)
     .single();
 

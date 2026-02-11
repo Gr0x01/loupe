@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { BASE_PAGE_LIMIT } from "@/lib/constants";
 import type {
   AttentionStatus,
   ChangesSummary,
@@ -8,6 +7,13 @@ import type {
 } from "@/lib/types/analysis";
 import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
 import { validateUrl } from "@/lib/url-validation";
+import {
+  getPageLimit,
+  getEffectiveTier,
+  validateScanFrequency,
+  type SubscriptionTier,
+  type SubscriptionStatus,
+} from "@/lib/permissions";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -283,16 +289,19 @@ export async function POST(req: NextRequest) {
     const supabase = createServiceClient();
     const normalizedUrl = parsedUrl.toString();
 
-    // Get user profile to check page limit and founding status
+    // Get user profile to check page limit and tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("bonus_pages, is_founding_50")
+      .select("bonus_pages, is_founding_50, subscription_tier, subscription_status")
       .eq("id", user.id)
       .single();
 
     const bonusPages = profile?.bonus_pages ?? 0;
     const isFounder = profile?.is_founding_50 ?? false;
-    const maxPages = BASE_PAGE_LIMIT + bonusPages;
+    const rawTier = (profile?.subscription_tier as SubscriptionTier) || "free";
+    const status = profile?.subscription_status as SubscriptionStatus | null;
+    const tier = getEffectiveTier(rawTier, status);
+    const maxPages = getPageLimit(tier, bonusPages);
 
     // Count current pages
     const { count: pageCount } = await supabase
@@ -302,13 +311,28 @@ export async function POST(req: NextRequest) {
 
     const currentPageCount = pageCount ?? 0;
 
+    // If this is the user's first page and not already a founder, attempt atomic claim
+    // Do this BEFORE the page limit check so we use the correct tier limits
+    let wasJustMarkedFounder = false;
+    if (currentPageCount === 0 && !isFounder) {
+      // Atomic RPC prevents race condition when multiple requests try to claim simultaneously
+      const { data: claimed } = await supabase.rpc("claim_founding_50", {
+        p_user_id: user.id,
+      });
+      wasJustMarkedFounder = claimed === true;
+    }
+
+    // Calculate effective tier and page limit (accounting for just-claimed founding status)
+    const effectiveTier: SubscriptionTier = wasJustMarkedFounder ? "starter" : tier;
+    const effectiveMaxPages = getPageLimit(effectiveTier, bonusPages);
+
     // Check page limit
-    if (currentPageCount >= maxPages) {
+    if (currentPageCount >= effectiveMaxPages) {
       return NextResponse.json(
         {
           error: "page_limit_reached",
           current: currentPageCount,
-          max: maxPages,
+          max: effectiveMaxPages,
         },
         { status: 403 }
       );
@@ -329,16 +353,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If this is the user's first page and not already a founder, attempt atomic claim
-    let wasJustMarkedFounder = false;
-    if (currentPageCount === 0 && !isFounder) {
-      // Atomic RPC prevents race condition when multiple requests try to claim simultaneously
-      const { data: claimed } = await supabase.rpc("claim_founding_50", {
-        p_user_id: user.id,
-      });
-      wasJustMarkedFounder = claimed === true;
-    }
-
     // Check if user has an existing analysis for this URL to link
     const { data: existingAnalysis } = await supabase
       .from("analyses")
@@ -350,16 +364,13 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .single();
 
-    // Determine scan frequency: Founding 50 get daily, others get weekly
-    const validFrequencies = ["weekly", "daily", "manual"];
-    let frequency: string;
-    if (scan_frequency && validFrequencies.includes(scan_frequency)) {
-      frequency = scan_frequency;
-    } else {
-      // Default: daily for founding members, weekly for others
-      const effectivelyFounder = isFounder || wasJustMarkedFounder;
-      frequency = effectivelyFounder ? "daily" : "weekly";
-    }
+    // Determine scan frequency based on tier
+    // Free tier can only use weekly; Starter/Pro can use daily
+    // Founding 50 are on Starter tier, so they get daily
+    const frequency = validateScanFrequency(
+      effectiveTier,
+      scan_frequency || (effectiveTier === "free" ? "weekly" : "daily")
+    );
 
     // Create page record
     const { data: page, error } = await supabase

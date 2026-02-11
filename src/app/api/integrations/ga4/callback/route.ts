@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForTokens, getGoogleUserInfo } from "@/lib/google-oauth";
 import { safeEncrypt } from "@/lib/crypto";
+import { canConnectAnalytics, type SubscriptionTier } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -46,6 +47,38 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const serviceClient = createServiceClient();
+
+    // Check user's tier and analytics limit
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .single();
+
+    const tier = (profile?.subscription_tier as SubscriptionTier) || "free";
+
+    // Count existing analytics integrations
+    const { count: analyticsCount } = await serviceClient
+      .from("integrations")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .in("provider", ["posthog", "ga4", "supabase"]);
+
+    // Check if GA4 is already connected (updating doesn't count against limit)
+    const { data: existingGa4 } = await serviceClient
+      .from("integrations")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("provider", "ga4")
+      .maybeSingle();
+
+    // If not already connected and at limit, block
+    if (!existingGa4 && !canConnectAnalytics(tier, analyticsCount || 0)) {
+      redirectUrl.searchParams.set("error", "analytics_limit");
+      return NextResponse.redirect(redirectUrl);
+    }
+
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/ga4/callback`;
 
     // Exchange code for tokens
@@ -59,7 +92,6 @@ export async function GET(request: NextRequest) {
 
     // Store in integrations table (upsert)
     // Initially property_id is null - user will select it in the next step
-    const serviceClient = createServiceClient();
     const { error: upsertError } = await serviceClient
       .from("integrations")
       .upsert({

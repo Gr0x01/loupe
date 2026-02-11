@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { validateCredentials } from "@/lib/posthog-api";
 import { safeEncrypt } from "@/lib/crypto";
+import { canConnectAnalytics, type SubscriptionTier } from "@/lib/permissions";
 
 /**
  * POST /api/integrations/posthog/connect
@@ -42,13 +43,41 @@ export async function POST(req: NextRequest) {
 
     const serviceClient = createServiceClient();
 
-    // Check if PostHog is already connected
+    // Check user's tier and analytics limit
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .single();
+
+    const tier = (profile?.subscription_tier as SubscriptionTier) || "free";
+
+    // Count existing analytics integrations (posthog, ga4, supabase)
+    const { count: analyticsCount } = await serviceClient
+      .from("integrations")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .in("provider", ["posthog", "ga4", "supabase"]);
+
+    // Check if PostHog is already connected (updating doesn't count against limit)
     const { data: existing } = await serviceClient
       .from("integrations")
       .select("id")
       .eq("user_id", user.id)
       .eq("provider", "posthog")
       .maybeSingle();
+
+    // If not already connected and at limit, block
+    if (!existing && !canConnectAnalytics(tier, analyticsCount || 0)) {
+      return NextResponse.json(
+        {
+          error: "analytics_limit_reached",
+          message: "Upgrade to connect more analytics integrations",
+          upgrade_url: "/pricing",
+        },
+        { status: 403 }
+      );
+    }
 
     if (existing) {
       // Update existing integration

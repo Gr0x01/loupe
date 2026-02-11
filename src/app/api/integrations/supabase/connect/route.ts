@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { safeEncrypt } from "@/lib/crypto";
+import { canConnectAnalytics, type SubscriptionTier } from "@/lib/permissions";
 
 /**
  * POST /api/integrations/supabase/connect
@@ -32,6 +33,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Either Anon Key or Service Role Key is required" },
         { status: 400 }
+      );
+    }
+
+    const serviceClient = createServiceClient();
+
+    // Check user's tier and analytics limit
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .single();
+
+    const tier = (profile?.subscription_tier as SubscriptionTier) || "free";
+
+    // Count existing analytics integrations
+    const { count: analyticsCount } = await serviceClient
+      .from("integrations")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .in("provider", ["posthog", "ga4", "supabase"]);
+
+    // Check if Supabase is already connected (updating doesn't count against limit)
+    const { data: existingSupabase } = await serviceClient
+      .from("integrations")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("provider", "supabase")
+      .maybeSingle();
+
+    // If not already connected and at limit, block
+    if (!existingSupabase && !canConnectAnalytics(tier, analyticsCount || 0)) {
+      return NextResponse.json(
+        {
+          error: "analytics_limit_reached",
+          message: "Upgrade to connect more analytics integrations",
+          upgrade_url: "/pricing",
+        },
+        { status: 403 }
       );
     }
 
@@ -138,16 +177,6 @@ export async function POST(req: NextRequest) {
     // Extract project ref from URL
     const projectRef = new URL(normalizedUrl).hostname.split(".")[0];
 
-    const serviceClient = createServiceClient();
-
-    // Check if Supabase is already connected
-    const { data: existing } = await serviceClient
-      .from("integrations")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("provider", "supabase")
-      .maybeSingle();
-
     const integrationData = {
       provider_account_id: projectRef,
       access_token: safeEncrypt(keyToUse),
@@ -161,12 +190,12 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    if (existing) {
+    if (existingSupabase) {
       // Update existing integration
       const { error: updateError } = await serviceClient
         .from("integrations")
         .update(integrationData)
-        .eq("id", existing.id);
+        .eq("id", existingSupabase.id);
 
       if (updateError) {
         console.error("Failed to update Supabase integration:", updateError);
