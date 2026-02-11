@@ -77,8 +77,8 @@ export function setPersonProperties(
   properties: Record<string, unknown>
 ): void {
   try {
-    if (typeof window !== "undefined" && posthog?.people?.set) {
-      posthog.people.set(properties);
+    if (typeof window !== "undefined" && posthog?.setPersonProperties) {
+      posthog.setPersonProperties(properties);
     }
   } catch {
     // Analytics should never break the app

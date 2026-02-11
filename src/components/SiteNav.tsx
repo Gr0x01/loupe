@@ -29,27 +29,33 @@ export default function SiteNav() {
   }, []);
 
   useEffect(() => {
+    // Identify user in PostHog with full profile properties
+    const identifyWithProfile = async (userId: string, email?: string) => {
+      // Identify immediately with email so events are attributed
+      identify(userId, { email });
+      // Then enrich with profile data
+      try {
+        const res = await fetch("/api/profile");
+        if (res.ok) {
+          const profile = await res.json();
+          setPersonProperties({
+            subscription_tier: profile.subscription_tier || "free",
+            subscription_status: profile.subscription_status || null,
+            is_founding_50: profile.is_founding_50 || false,
+            billing_period: profile.billing_period || null,
+          });
+        }
+      } catch {
+        // Analytics should never break the app
+      }
+    };
+
     // Check auth state and identify user if logged in
     supabase.auth.getUser().then(({ data: { user } }) => {
       setIsAuthenticated(!!user);
       setAuthChecked(true);
-      // Identify user on initial load if authenticated
       if (user) {
-        identify(user.id, { email: user.email });
-        // Fetch profile to set tier and other person properties
-        fetch("/api/profile")
-          .then((res) => res.ok ? res.json() : null)
-          .then((profile) => {
-            if (profile) {
-              setPersonProperties({
-                subscription_tier: profile.subscription_tier || "free",
-                subscription_status: profile.subscription_status || null,
-                is_founding_50: profile.is_founding_50 || false,
-                billing_period: profile.billing_period || null,
-              });
-            }
-          })
-          .catch(() => { /* analytics should never break the app */ });
+        identifyWithProfile(user.id, user.email);
       }
     });
 
@@ -59,9 +65,8 @@ export default function SiteNav() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session?.user);
 
-      // Identify or reset based on auth event
       if (event === "SIGNED_IN" && session?.user) {
-        identify(session.user.id, { email: session.user.email });
+        identifyWithProfile(session.user.id, session.user.email);
         // Track signup completion only for new accounts (created in last 60 seconds)
         const createdAt = new Date(session.user.created_at).getTime();
         const isNewUser = Date.now() - createdAt < 60000;
