@@ -17,9 +17,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, source, analysis_id, url } = body;
 
-    // Validate email format
+    // Validate email — partial emails (must have @) allowed from loading screen
+    if (!email || typeof email !== "string" || email.length > 254) {
+      return NextResponse.json({ error: "Valid email required" }, { status: 400 });
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
+    const isPartial = source === "loading_partial" || source === "loading_claim_failed";
+    if (!isPartial && !emailRegex.test(email)) {
+      return NextResponse.json({ error: "Valid email required" }, { status: 400 });
+    }
+    if (isPartial && !/^[^\s@]+@/.test(email)) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
     }
 

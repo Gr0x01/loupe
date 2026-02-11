@@ -40,6 +40,7 @@ interface Analysis {
   url: string;
   status: "pending" | "processing" | "complete" | "failed";
   screenshot_url: string | null;
+  mobile_screenshot_url: string | null;
   structured_output: AnalysisResult["structured"] | null;
   error_message: string | null;
   created_at: string;
@@ -213,50 +214,97 @@ function VerdictDisplay({
 // Hero Screenshot - floats in corner as visual proof
 function HeroScreenshot({
   url,
+  mobileUrl,
   pageUrl,
   domain,
   createdAt,
-  onClick,
+  onDesktopClick,
+  onMobileClick,
 }: {
   url: string;
+  mobileUrl?: string | null;
   pageUrl: string;
   domain: string;
   createdAt: string;
-  onClick: () => void;
+  onDesktopClick: () => void;
+  onMobileClick?: () => void;
 }) {
+  const [desktopError, setDesktopError] = useState(false);
+  const [mobileError, setMobileError] = useState(false);
+
+  if (desktopError) return null;
+
   return (
-    <div className="w-[260px]">
-      <div
-        className="hero-screenshot-wrapper cursor-pointer group"
-        onClick={onClick}
-      >
-        <div className="hero-screenshot">
-          {/* Browser chrome */}
-          <div className="browser-chrome flex items-center gap-1.5 rounded-t-lg py-2 px-3">
-            <div className="flex gap-1">
-              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-            </div>
-            <span className="text-[10px] text-text-muted font-mono ml-1.5 truncate">
-              {getDomain(pageUrl)}
-            </span>
-          </div>
-          {/* Screenshot */}
-          <div className="relative overflow-hidden rounded-b-lg">
-            <img
-              src={url}
-              alt={`Screenshot of ${pageUrl}`}
-              className="w-full h-auto max-h-[180px] object-cover object-top"
-            />
-            {/* Hover overlay */}
-            <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm">
-                View full
+    <div className={mobileUrl && !mobileError ? "w-[300px]" : "w-[260px]"}>
+      <div className="flex gap-3 items-end">
+        {/* Desktop screenshot */}
+        <button
+          className="hero-screenshot-wrapper cursor-pointer group flex-1 appearance-none bg-transparent border-none p-0 text-left"
+          onClick={onDesktopClick}
+        >
+          <div className="hero-screenshot">
+            {/* Browser chrome */}
+            <div className="browser-chrome flex items-center gap-1.5 rounded-t-lg py-2 px-3">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
+                <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
+                <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
+              </div>
+              <span className="text-[10px] text-text-muted font-mono ml-1.5 truncate">
+                {getDomain(pageUrl)}
               </span>
             </div>
+            {/* Screenshot */}
+            <div className="relative overflow-hidden rounded-b-lg">
+              <img
+                src={url}
+                alt={`Desktop screenshot of ${pageUrl}`}
+                className="w-full h-auto max-h-[180px] object-cover object-top"
+                onError={() => setDesktopError(true)}
+              />
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 px-2 py-1 rounded shadow-sm">
+                  View full
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        </button>
+
+        {/* Mobile screenshot */}
+        {mobileUrl && !mobileError && (
+          <button
+            className="w-[90px] cursor-pointer group flex-shrink-0 appearance-none bg-transparent border-none p-0"
+            onClick={onMobileClick}
+          >
+            {/* Phone frame */}
+            <div className="border-[1.5px] border-[var(--line)] rounded-[10px] overflow-hidden bg-white">
+              {/* Notch indicator */}
+              <div className="flex justify-center py-1">
+                <div className="w-8 h-1 rounded-full bg-[rgba(0,0,0,0.08)]" />
+              </div>
+              {/* Screenshot */}
+              <div className="relative overflow-hidden">
+                <img
+                  src={mobileUrl}
+                  alt={`Mobile screenshot of ${pageUrl}`}
+                  className="w-full h-auto max-h-[150px] object-cover object-top"
+                  onError={() => setMobileError(true)}
+                />
+                <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
+                    View
+                  </span>
+                </div>
+              </div>
+              {/* Bottom bar */}
+              <div className="flex justify-center py-1">
+                <div className="w-6 h-0.5 rounded-full bg-[rgba(0,0,0,0.08)]" />
+              </div>
+            </div>
+          </button>
+        )}
       </div>
       {/* Caption */}
       <p className="text-[11px] text-text-muted text-center mt-2">
@@ -271,7 +319,8 @@ interface NewHeroSectionProps {
   domain: string;
   createdAt: string;
   screenshotUrl: string | null;
-  onScreenshotClick: () => void;
+  mobileScreenshotUrl?: string | null;
+  onScreenshotClick: (view: "desktop" | "mobile") => void;
   claimStatus?: ClaimStatus;
   onShareLink: () => void;
   linkCopied: boolean;
@@ -290,6 +339,7 @@ function NewHeroSection({
   domain,
   createdAt,
   screenshotUrl,
+  mobileScreenshotUrl,
   onScreenshotClick,
   claimStatus,
   onShareLink,
@@ -313,10 +363,12 @@ function NewHeroSection({
             <div className="hidden lg:block float-right ml-8 mb-4">
               <HeroScreenshot
                 url={screenshotUrl}
+                mobileUrl={mobileScreenshotUrl}
                 pageUrl={pageUrl}
                 domain={domain}
                 createdAt={createdAt}
-                onClick={onScreenshotClick}
+                onDesktopClick={() => onScreenshotClick("desktop")}
+                onMobileClick={() => onScreenshotClick("mobile")}
               />
             </div>
           )}
@@ -1225,14 +1277,19 @@ function PdfDownloadButton({
 
 function ScreenshotModal({
   url,
+  mobileUrl,
   pageUrl,
+  initialView = "desktop",
   onClose,
 }: {
   url: string;
+  mobileUrl?: string | null;
   pageUrl: string;
+  initialView?: "desktop" | "mobile";
   onClose: () => void;
 }) {
   const [isClosing, setIsClosing] = useState(false);
+  const [activeView, setActiveView] = useState<"desktop" | "mobile">(initialView);
 
   // Hide site nav when modal is open
   useEffect(() => {
@@ -1256,13 +1313,15 @@ function ScreenshotModal({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [handleClose]);
 
+  const currentUrl = activeView === "mobile" && mobileUrl ? mobileUrl : url;
+
   return (
     <div
       className={`screenshot-modal-overlay ${isClosing ? "closing" : ""}`}
       onClick={handleClose}
     >
       <div
-        className={`screenshot-modal-content ${isClosing ? "closing" : ""}`}
+        className={`screenshot-modal-content ${isClosing ? "closing" : ""}${activeView === "mobile" ? " max-w-[420px]" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="browser-chrome flex items-center justify-between sticky top-0 rounded-t-[20px]">
@@ -1272,9 +1331,36 @@ function ScreenshotModal({
               <div className="browser-dot" />
               <div className="browser-dot" />
             </div>
-            <span className="text-xs text-text-muted font-mono ml-2 truncate">
-              {getDomain(pageUrl)}
-            </span>
+            {mobileUrl ? (
+              <div className="flex items-center gap-1 ml-2" role="group" aria-label="Screenshot viewport">
+                <button
+                  onClick={() => setActiveView("desktop")}
+                  aria-pressed={activeView === "desktop"}
+                  className={`text-xs font-medium px-2 py-0.5 rounded transition-colors ${
+                    activeView === "desktop"
+                      ? "text-text-primary bg-[rgba(0,0,0,0.06)]"
+                      : "text-text-muted hover:text-text-primary"
+                  }`}
+                >
+                  Desktop
+                </button>
+                <button
+                  onClick={() => setActiveView("mobile")}
+                  aria-pressed={activeView === "mobile"}
+                  className={`text-xs font-medium px-2 py-0.5 rounded transition-colors ${
+                    activeView === "mobile"
+                      ? "text-text-primary bg-[rgba(0,0,0,0.06)]"
+                      : "text-text-muted hover:text-text-primary"
+                  }`}
+                >
+                  Mobile
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs text-text-muted font-mono ml-2 truncate">
+                {getDomain(pageUrl)}
+              </span>
+            )}
           </div>
           <button
             onClick={handleClose}
@@ -1283,7 +1369,7 @@ function ScreenshotModal({
             Close
           </button>
         </div>
-        <img src={url} alt={`Screenshot of ${pageUrl}`} className="w-full rounded-b-[20px]" />
+        <img src={currentUrl} alt={`${activeView === "mobile" ? "Mobile" : "Desktop"} screenshot of ${pageUrl}`} className="w-full rounded-b-[20px]" />
       </div>
     </div>
   );
@@ -1309,11 +1395,15 @@ export default function AnalysisPage() {
   // Reset tracking ref when navigating between analyses
   useEffect(() => {
     hasTrackedCompletion.current = false;
+    claimSubmittedRef.current = false;
   }, [id]);
 
-  const [showScreenshot, setShowScreenshot] = useState(false);
+  const [showScreenshot, setShowScreenshot] = useState<false | "desktop" | "mobile">(false);
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimEmail, setClaimEmail] = useState("");
+  const claimEmailRef = useRef(claimEmail);
+  claimEmailRef.current = claimEmail;
+  const claimSubmittedRef = useRef(false);
   const [claimEmailSent, setClaimEmailSent] = useState(false);
   const [claimError, setClaimError] = useState("");
   const [deployExpanded, setDeployExpanded] = useState(false);
@@ -1352,7 +1442,8 @@ export default function AnalysisPage() {
 
   const handleClaimEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!claimEmail || !analysis) return;
+    if (!claimEmail || !analysis || claimSubmittedRef.current) return;
+    claimSubmittedRef.current = true;
     setClaimLoading(true);
     setClaimError("");
     try {
@@ -1386,7 +1477,7 @@ export default function AnalysisPage() {
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  // Track audit completion (fires once when analysis completes)
+  // Track audit completion + auto-submit email if typed during loading
   useEffect(() => {
     if (
       analysis?.status === "complete" &&
@@ -1398,8 +1489,53 @@ export default function AnalysisPage() {
         findings_count: analysis.structured_output.findingsCount ?? 0,
         impact_range: analysis.structured_output.projectedImpactRange ?? "0%",
       });
+
+      // Auto-handle email typed during loading screen
+      const email = claimEmailRef.current.trim();
+      if (email && !claimSubmittedRef.current) {
+        const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        if (isValid) {
+          // Valid email — auto-submit claim link
+          claimSubmittedRef.current = true;
+          fetch("/api/auth/claim-link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, analysisId: analysis.id }),
+          }).then((res) => {
+            if (res.ok) {
+              setClaimEmailSent(true);
+              track("page_claimed", { domain: getDomain(analysis.url) });
+            } else {
+              // Claim failed — save as lead so email isn't lost
+              claimSubmittedRef.current = false;
+              return fetch("/api/leads", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  email,
+                  source: "loading_claim_failed",
+                  analysis_id: analysis.id,
+                  url: analysis.url,
+                }),
+              });
+            }
+          }).catch(() => {});
+        } else if (email.includes("@")) {
+          // Partial email with @ — save as lead for follow-up
+          fetch("/api/leads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              source: "loading_partial",
+              analysis_id: analysis.id,
+              url: analysis.url,
+            }),
+          }).catch(() => {});
+        }
+      }
     }
-  }, [analysis?.status, analysis?.structured_output]);
+  }, [analysis?.status, analysis?.structured_output, analysis?.id, analysis?.url]);
 
   // Steady progress animation (no looping, no fast jumps)
   useEffect(() => {
@@ -1690,7 +1826,7 @@ export default function AnalysisPage() {
 
                 {analysis.screenshot_url && (
                   <button
-                    onClick={() => setShowScreenshot(true)}
+                    onClick={() => setShowScreenshot("desktop")}
                     className="analysis-context-thumb-corner"
                     title="View screenshot"
                   >
@@ -1850,7 +1986,8 @@ export default function AnalysisPage() {
           domain={getDomain(analysis.url)}
           createdAt={analysis.created_at}
           screenshotUrl={analysis.screenshot_url}
-          onScreenshotClick={() => setShowScreenshot(true)}
+          mobileScreenshotUrl={analysis.mobile_screenshot_url}
+          onScreenshotClick={(view) => setShowScreenshot(view)}
           claimStatus={analysis.claim_status}
           onShareLink={handleShareLink}
           linkCopied={linkCopied}
@@ -2172,7 +2309,9 @@ export default function AnalysisPage() {
       {showScreenshot && analysis.screenshot_url && (
         <ScreenshotModal
           url={analysis.screenshot_url}
+          mobileUrl={analysis.mobile_screenshot_url}
           pageUrl={analysis.url}
+          initialView={showScreenshot}
           onClose={() => setShowScreenshot(false)}
         />
       )}
