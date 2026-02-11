@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
+import { track } from "@/lib/analytics/track";
 import type {
   PageContext,
   DeployContextAPI,
@@ -549,7 +550,7 @@ function ExpandedFindingCard({
     if (submitting) return;
     setSubmitting(true);
     try {
-      await fetch("/api/feedback", {
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -558,7 +559,10 @@ function ExpandedFindingCard({
           feedbackType: "accurate",
         }),
       });
-      onFeedback("accurate");
+      if (res.ok) {
+        track("finding_feedback_submitted", { feedback_type: "accurate" });
+        onFeedback("accurate");
+      }
     } catch (err) {
       console.error("Feedback error:", err);
     }
@@ -574,7 +578,7 @@ function ExpandedFindingCard({
     if (!trimmed || submitting) return;
     setSubmitting(true);
     try {
-      await fetch("/api/feedback", {
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -584,8 +588,11 @@ function ExpandedFindingCard({
           feedbackText: trimmed,
         }),
       });
-      onFeedback("inaccurate", trimmed);
-      setShowInaccurateInput(false);
+      if (res.ok) {
+        track("finding_feedback_submitted", { feedback_type: "inaccurate" });
+        onFeedback("inaccurate", trimmed);
+        setShowInaccurateInput(false);
+      }
     } catch (err) {
       console.error("Feedback error:", err);
     }
@@ -596,6 +603,7 @@ function ExpandedFindingCard({
     e.stopPropagation();
     navigator.clipboard.writeText(finding.suggestion);
     setSuggestionCopied(true);
+    track("suggestion_copied", { element_type: finding.elementType });
     setTimeout(() => setSuggestionCopied(false), 2000);
   };
 
@@ -1126,6 +1134,9 @@ function PdfDownloadButton({
       document.body.removeChild(a);
       URL.revokeObjectURL(downloadUrl);
 
+      // Track PDF download
+      track("pdf_downloaded", { domain });
+
       setShowModal(false);
     } catch (err) {
       console.error("PDF generation error:", err);
@@ -1288,6 +1299,7 @@ export default function AnalysisPage() {
   const [stageIndex, setStageIndex] = useState(0);
   const [exampleIndex, setExampleIndex] = useState(0);
   const loadingStartTime = useRef(Date.now());
+  const hasTrackedCompletion = useRef(false);
   const [error, setError] = useState("");
   const [showScreenshot, setShowScreenshot] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
@@ -1345,6 +1357,8 @@ export default function AnalysisPage() {
       });
       if (res.ok) {
         setClaimEmailSent(true);
+        // Track page claim attempt (activation moment)
+        track("page_claimed", { domain: getDomain(analysis.url) });
       } else {
         const data = await res.json();
         console.error("Claim link error:", data.error);
@@ -1359,6 +1373,7 @@ export default function AnalysisPage() {
   const handleShareLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setLinkCopied(true);
+    track("share_link_copied", { context: "analysis" });
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
@@ -1388,6 +1403,18 @@ export default function AnalysisPage() {
       const data = await fetchAnalysis();
       if (data && (data.status === "complete" || data.status === "failed")) {
         stopped = true;
+        // Track audit completion (only once)
+        if (
+          data.status === "complete" &&
+          data.structured_output &&
+          !hasTrackedCompletion.current
+        ) {
+          hasTrackedCompletion.current = true;
+          track("audit_completed", {
+            findings_count: data.structured_output.findingsCount ?? 0,
+            impact_range: data.structured_output.projectedImpactRange ?? "0%",
+          });
+        }
       }
     }
     poll();
@@ -1652,41 +1679,35 @@ export default function AnalysisPage() {
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
         {/* Page context banner — shown when analysis belongs to a registered page */}
         {pageCtx && (
-          <div className="pt-6 pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <Link
-                  href={`/pages/${pageCtx.page_id}`}
-                  className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1.5"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  {pageCtx.page_name || getDomain(analysis.url)}
-                </Link>
-                <span className="text-text-muted">/</span>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-text-primary">
-                    Scan #{pageCtx.scan_number}
-                  </span>
-                  {/* Trigger type indicator */}
-                  {analysis.deploy_context ? (
+          <div className="pt-6 pb-2 space-y-2">
+            {/* Breadcrumb — just two segments */}
+            <nav className="flex items-center gap-2 text-sm">
+              <Link
+                href="/dashboard"
+                className="text-text-muted hover:text-accent transition-colors"
+              >
+                Your pages
+              </Link>
+              <span className="text-text-muted">/</span>
+              <span className="text-text-primary">
+                {getDomain(analysis.url)}
+              </span>
+            </nav>
+
+            {/* Page header — scan info left, actions right */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold text-text-primary">
+                  Scan #{pageCtx.scan_number}
+                </span>
+                {analysis.deploy_context ? (
+                  <>
+                    <span className="text-text-muted">·</span>
                     <button
                       onClick={() => setDeployExpanded(!deployExpanded)}
-                      className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent transition-colors mt-0.5"
+                      className="flex items-center gap-1 text-text-muted hover:text-accent transition-colors"
                     >
-                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <circle cx="8" cy="8" r="3" />
-                        <path d="M8 1v4M8 11v4M1 8h4M11 8h4" strokeLinecap="round" />
-                      </svg>
-                      <span>Triggered by deploy</span>
-                      <span className="font-mono text-text-secondary">{analysis.deploy_context.commit_sha.slice(0, 7)}</span>
+                      <span>Deploy {analysis.deploy_context.commit_sha.slice(0, 7)}</span>
                       <svg
                         className={`w-3 h-3 transition-transform ${deployExpanded ? 'rotate-180' : ''}`}
                         viewBox="0 0 16 16"
@@ -1697,27 +1718,35 @@ export default function AnalysisPage() {
                         <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </button>
-                  ) : analysis.trigger_type && analysis.trigger_type !== "manual" ? (
-                    <span className="flex items-center gap-1.5 text-xs text-text-muted mt-0.5">
-                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <circle cx="8" cy="8" r="6" />
-                        <path d="M8 4v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      <span>
-                        {analysis.trigger_type === "daily" && "Daily scan"}
-                        {analysis.trigger_type === "weekly" && "Weekly scan"}
-                      </span>
+                  </>
+                ) : analysis.trigger_type && analysis.trigger_type !== "manual" ? (
+                  <>
+                    <span className="text-text-muted">·</span>
+                    <span className="text-text-muted">
+                      {analysis.trigger_type === "daily" && "Daily scan"}
+                      {analysis.trigger_type === "weekly" && "Weekly scan"}
                     </span>
-                  ) : null}
-                </div>
+                  </>
+                ) : null}
+                <span className="text-text-muted">·</span>
+                <span className="text-text-muted">
+                  {new Date(analysis.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
               </div>
 
-              {/* Prev/Next navigation */}
+              {/* Actions — History + Prev/Next */}
               <div className="flex items-center gap-2">
+                <Link
+                  href={`/pages/${pageCtx.page_id}`}
+                  className="text-sm text-text-muted hover:text-accent transition-colors"
+                >
+                  History
+                </Link>
+                <span className="text-border-subtle">·</span>
                 {pageCtx.prev_analysis_id ? (
                   <Link
                     href={`/analysis/${pageCtx.prev_analysis_id}`}
-                    className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1"
+                    className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1725,12 +1754,12 @@ export default function AnalysisPage() {
                     Prev
                   </Link>
                 ) : (
-                  <span className="text-sm text-text-muted py-1.5 px-3 opacity-50">Prev</span>
+                  <span className="text-sm text-text-muted opacity-50">Prev</span>
                 )}
                 {pageCtx.next_analysis_id ? (
                   <Link
                     href={`/analysis/${pageCtx.next_analysis_id}`}
-                    className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1"
+                    className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
                   >
                     Next
                     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1738,14 +1767,14 @@ export default function AnalysisPage() {
                     </svg>
                   </Link>
                 ) : (
-                  <span className="text-sm text-text-muted py-1.5 px-3 opacity-50">Next</span>
+                  <span className="text-sm text-text-muted opacity-50">Next</span>
                 )}
               </div>
             </div>
 
             {/* Deploy context expanded dropdown */}
             {analysis.deploy_context && deployExpanded && (
-              <div className="mt-3 glass-card p-4 max-w-md">
+              <div className="glass-card p-4 max-w-md">
                 <p className="font-medium text-text-primary text-sm">
                   &ldquo;{analysis.deploy_context.commit_message}&rdquo;
                 </p>

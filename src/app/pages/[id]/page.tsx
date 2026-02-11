@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
+import { track } from "@/lib/analytics/track";
 
 interface PageInfo {
   id: string;
@@ -224,6 +225,10 @@ export default function PageTimelinePage() {
 
     setError(""); // Clear previous errors
     setRescanLoading(true);
+
+    // Track rescan trigger
+    track("rescan_triggered", { domain: getDomain(data.page.url) });
+
     try {
       // Get the latest complete scan as parent
       const latestComplete = data.history.find((s) => s.status === "complete");
@@ -291,16 +296,37 @@ export default function PageTimelinePage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 pt-4 pb-8">
-      {/* Breadcrumb */}
-      <Link
-        href="/dashboard"
-        className="text-sm text-text-muted hover:text-accent transition-colors inline-flex items-center gap-1 mb-6"
-      >
-        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M13 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Dashboard
-      </Link>
+      {/* Breadcrumb — just two segments */}
+      <nav className="flex items-center gap-2 text-sm mb-2">
+        <Link
+          href="/dashboard"
+          className="text-text-muted hover:text-accent transition-colors"
+        >
+          Your pages
+        </Link>
+        <span className="text-text-muted">/</span>
+        <span className="text-text-primary">
+          {getDomain(page.url)}
+        </span>
+      </nav>
+
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1
+          className="text-lg font-semibold text-text-primary"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          History
+        </h1>
+        {latestComplete && (
+          <Link
+            href={`/analysis/${latestComplete.id}`}
+            className="text-sm text-text-muted hover:text-accent transition-colors"
+          >
+            Latest scan
+          </Link>
+        )}
+      </div>
 
       {/* Page Info Card */}
       <div className="glass-card p-4 sm:p-5 mb-4">
@@ -309,12 +335,11 @@ export default function PageTimelinePage() {
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {/* Page info */}
             <div className="min-w-0 flex-1">
-              <h1
-                className="text-lg sm:text-xl font-semibold text-text-primary truncate"
-                style={{ fontFamily: "var(--font-display)" }}
+              <p
+                className="text-base font-medium text-text-primary truncate"
               >
                 {displayName}
-              </h1>
+              </p>
               <p className="text-xs text-text-muted font-mono mt-1 truncate">
                 {page.url}
               </p>

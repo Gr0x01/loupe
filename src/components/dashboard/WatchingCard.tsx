@@ -28,9 +28,14 @@ export function WatchingCard({ page, onDelete }: WatchingCardProps) {
     ? `Stable - checked ${lastChecked}`
     : "No scans yet";
 
+  // Link to latest scan if available, otherwise fall back to history
+  const href = page.last_scan?.id
+    ? `/analysis/${page.last_scan.id}`
+    : `/pages/${page.id}`;
+
   return (
     <Link
-      href={`/pages/${page.id}`}
+      href={href}
       className="dashboard-watching-row group"
     >
       <div className="min-w-0 flex-1">
