@@ -38,60 +38,38 @@ export async function GET(
       return NextResponse.json({ error: "Page not found" }, { status: 404 });
     }
 
-    // Build history by following the last_scan_id chain
-    // This handles cases where analyses may have been created before user auth
-    const analyses: Array<{
+    // Single RPC call replaces N+1 while loop
+    // The RPC function walks the parent_analysis_id chain with user_id security check
+    const { data: analyses, error: chainError } = await supabase.rpc("get_analysis_chain", {
+      p_start_id: page.last_scan_id,
+      p_user_id: user.id,
+    });
+
+    if (chainError) {
+      console.error("Failed to fetch analysis chain:", chainError);
+      return NextResponse.json(
+        { error: "Failed to fetch history" },
+        { status: 500 }
+      );
+    }
+
+
+    // Type for the RPC response
+    type AnalysisChainRow = {
       id: string;
       url: string;
       status: string;
       changes_summary: { progress?: unknown } | null;
       created_at: string;
       parent_analysis_id: string | null;
-    }> = [];
+    };
 
-    // Start from last_scan_id and follow parent_analysis_id chain
-    let currentId = page.last_scan_id;
-    const seenIds = new Set<string>();
-
-    while (currentId && !seenIds.has(currentId)) {
-      seenIds.add(currentId);
-
-      // Security: verify each analysis in chain belongs to this user
-      // (protects against crafted parent_analysis_id chains)
-      const { data: analysis } = await supabase
-        .from("analyses")
-        .select(`
-          id,
-          url,
-          status,
-          changes_summary,
-          created_at,
-          parent_analysis_id,
-          user_id
-        `)
-        .eq("id", currentId)
-        .single();
-
-      // Stop chain walk if analysis doesn't belong to user
-      // (allows null user_id for legacy analyses pre-auth)
-      if (analysis && analysis.user_id && analysis.user_id !== user.id) {
-        break;
-      }
-
-      if (analysis) {
-        analyses.push(analysis);
-        currentId = analysis.parent_analysis_id;
-      } else {
-        break;
-      }
-    }
-
-    console.log("[history] Found", analyses.length, "analyses via last_scan_id chain");
+    const analysisRows = (analyses || []) as AnalysisChainRow[];
 
     // Format the history with status and changes preview
-    const history = analyses.map((analysis, index) => ({
+    const history = analysisRows.map((analysis, index) => ({
       id: analysis.id,
-      scan_number: (analyses?.length || 0) - index,
+      scan_number: analysisRows.length - index,
       status: analysis.status,
       progress: analysis.changes_summary?.progress ?? null,
       created_at: analysis.created_at,
@@ -102,6 +80,10 @@ export async function GET(
       page,
       history,
       total_scans: history.length,
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+      },
     });
   } catch (err) {
     console.error("Page history GET error:", err);

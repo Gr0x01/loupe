@@ -1,43 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
 import { track } from "@/lib/analytics/track";
-
-interface PageInfo {
-  id: string;
-  url: string;
-  name: string | null;
-  scan_frequency: string;
-  repo_id: string | null;
-  created_at: string;
-}
-
-interface ScanHistory {
-  id: string;
-  scan_number: number;
-  status: string;
-  progress: {
-    validated?: number;
-    watching?: number;
-    open?: number;
-    // Legacy fields for compatibility
-    total_original?: number;
-    resolved?: number;
-    persisting?: number;
-    new_issues?: number;
-  } | null;
-  created_at: string;
-  is_baseline: boolean;
-}
-
-interface PageData {
-  page: PageInfo;
-  history: ScanHistory[];
-  total_scans: number;
-}
+import { usePageHistory, isUnauthorizedError } from "@/lib/hooks/use-data";
+import type { ScanHistoryItem } from "@/lib/types/pages";
 
 function getDomain(url: string): string {
   try {
@@ -67,7 +36,7 @@ function timeAgo(dateStr: string): string {
 }
 
 
-function ScanCard({ scan }: { scan: ScanHistory }) {
+function ScanCard({ scan }: { scan: ScanHistoryItem }) {
   const isComplete = scan.status === "complete";
   const isPending = scan.status === "pending" || scan.status === "processing";
 
@@ -152,14 +121,23 @@ interface IntegrationsState {
 export default function PageTimelinePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [data, setData] = useState<PageData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  // SWR hook for page history with polling when pending
+  const { data, error: historyError, isLoading, mutate } = usePageHistory(id);
+
   const [rescanLoading, setRescanLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
   const [integrations, setIntegrations] = useState<IntegrationsState>({
     github: { connected: false },
     posthog: { connected: false },
   });
+
+  // Redirect on auth error
+  useEffect(() => {
+    if (isUnauthorizedError(historyError)) {
+      router.push("/login?redirect=/pages/" + id);
+    }
+  }, [historyError, router, id]);
 
   // Fetch integrations status
   useEffect(() => {
@@ -167,10 +145,10 @@ export default function PageTimelinePage() {
       try {
         const res = await fetch("/api/integrations");
         if (res.ok) {
-          const data = await res.json();
+          const result = await res.json();
           setIntegrations({
-            github: { connected: data.github?.connected || false },
-            posthog: { connected: data.posthog?.connected || false },
+            github: { connected: result.github?.connected || false },
+            posthog: { connected: result.posthog?.connected || false },
           });
         }
       } catch (err) {
@@ -180,50 +158,22 @@ export default function PageTimelinePage() {
     fetchIntegrations();
   }, []);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/pages/${id}/history`);
-      if (res.status === 401) {
-        router.push("/login?redirect=/pages/" + id);
-        return;
-      }
-      if (res.status === 404) {
-        setError("Page not found");
-        return;
-      }
-      if (!res.ok) {
-        setError("Failed to load page");
-        return;
-      }
-      const result = await res.json();
-      setData(result);
-    } catch {
-      setError("Failed to load page");
-    } finally {
-      setLoading(false);
-    }
-  }, [id, router]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
   // Poll if there's a pending/processing scan
   useEffect(() => {
     if (!data) return;
     const hasPending = data.history.some(
-      (s) => s.status === "pending" || s.status === "processing"
+      (s: ScanHistoryItem) => s.status === "pending" || s.status === "processing"
     );
     if (!hasPending) return;
 
-    const interval = setInterval(fetchData, 5000);
+    const interval = setInterval(() => mutate(), 5000);
     return () => clearInterval(interval);
-  }, [data, fetchData]);
+  }, [data, mutate]);
 
   const handleRescan = async () => {
     if (!data || data.history.length === 0) return;
 
-    setError(""); // Clear previous errors
+    setActionError(""); // Clear previous errors
     setRescanLoading(true);
 
     // Track rescan trigger
@@ -231,10 +181,10 @@ export default function PageTimelinePage() {
 
     try {
       // Get the latest complete scan as parent
-      const latestComplete = data.history.find((s) => s.status === "complete");
+      const latestComplete = data.history.find((s: ScanHistoryItem) => s.status === "complete");
       if (!latestComplete) {
         // No complete scan, trigger a fresh analysis
-        setError("No complete scan to compare against");
+        setActionError("No complete scan to compare against");
         setRescanLoading(false);
         return;
       }
@@ -254,31 +204,34 @@ export default function PageTimelinePage() {
 
       if (!res.ok) {
         console.error("Rescan failed:", result.error);
-        setError(result.error || "Failed to start re-scan");
+        setActionError(result.error || "Failed to start re-scan");
         return;
       }
 
       if (result.id) {
         // Refresh to show new scan
-        await fetchData();
+        await mutate();
       }
     } catch (err) {
       console.error("Rescan error:", err);
-      setError("Failed to start re-scan");
+      setActionError("Failed to start re-scan");
     } finally {
       setRescanLoading(false);
     }
   };
 
-  if (loading) {
+  // Combine error display
+  const displayError = actionError || (historyError && !isUnauthorizedError(historyError) ? "Failed to load page" : "");
+
+  if (isLoading) {
     return <PageLoader />;
   }
 
-  if (error || !data) {
+  if ((displayError || !data) && !isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center">
-          <p className="text-text-secondary text-lg">{error || "Page not found"}</p>
+          <p className="text-text-secondary text-lg">{displayError || "Page not found"}</p>
           <Link href="/dashboard" className="btn-primary mt-4 inline-block">
             Back to dashboard
           </Link>
@@ -286,6 +239,9 @@ export default function PageTimelinePage() {
       </div>
     );
   }
+
+  // Guard for TypeScript (data is guaranteed non-null after error check)
+  if (!data) return null;
 
   const { page, history, total_scans } = data;
   const displayName = page.name || getDomain(page.url);

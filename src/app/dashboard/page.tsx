@@ -1,12 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import ShareModal from "@/components/ShareModal";
 import { PageLoader } from "@/components/PageLoader";
 import type { DashboardPageData, DetectedChange, ChangesApiResponse } from "@/lib/types/analysis";
 import { getDomain } from "@/lib/utils/url";
+import { usePages, useChanges, isUnauthorizedError } from "@/lib/hooks/use-data";
+import { ToastProvider, useToast } from "@/components/Toast";
 import {
   AttentionZone,
   WatchingZone,
@@ -180,9 +182,22 @@ function DeleteConfirmModal({
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [pages, setPages] = useState<DashboardPageData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  // SWR hooks for data fetching with caching
+  const { data: pagesData, error: pagesError, isLoading: pagesLoading, mutate: mutatePages } = usePages();
+  const { data: changesData } = useChanges();
+
+  // Derived state from SWR
+  const pages = pagesData?.pages || [];
+  const results = changesData?.changes || [];
+  const resultsStats = changesData?.stats || {
+    totalValidated: 0,
+    totalRegressed: 0,
+    cumulativeImprovement: 0,
+  };
+
+  const { toastError } = useToast();
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
@@ -190,53 +205,19 @@ function DashboardContent() {
   const [deleteTarget, setDeleteTarget] = useState<DashboardPageData | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Results zone state
-  const [results, setResults] = useState<(DetectedChange & { domain?: string })[]>([]);
-  const [resultsStats, setResultsStats] = useState<ChangesApiResponse["stats"]>({
-    totalValidated: 0,
-    totalRegressed: 0,
-    cumulativeImprovement: 0,
-  });
   const highlightWinId = searchParams.get("win") || undefined;
 
-  const fetchPages = useCallback(async () => {
-    try {
-      // Fetch pages and validated changes in parallel
-      const [pagesRes, changesRes] = await Promise.all([
-        fetch("/api/pages"),
-        fetch("/api/changes"),
-      ]);
-
-      if (pagesRes.status === 401) {
-        router.push("/login?redirect=/dashboard");
-        return;
-      }
-      if (!pagesRes.ok) {
-        setError("Failed to load pages");
-        return;
-      }
-      const pagesData = await pagesRes.json();
-      const pageList = pagesData.pages || [];
-      setPages(pageList);
-      // Update limits based on page count (max is fetched when trying to add)
-      setUserLimits((prev) => ({ ...prev, current: pageList.length }));
-
-      // Load changes (don't fail dashboard if this fails)
-      if (changesRes.ok) {
-        const changesData: ChangesApiResponse = await changesRes.json();
-        setResults(changesData.changes || []);
-        setResultsStats(changesData.stats);
-      }
-    } catch {
-      setError("Failed to load pages");
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
-
+  // Redirect on auth error
   useEffect(() => {
-    fetchPages();
-  }, [fetchPages]);
+    if (isUnauthorizedError(pagesError)) {
+      router.push("/login?redirect=/dashboard");
+    }
+  }, [pagesError, router]);
+
+  // Update limits when pages change
+  useEffect(() => {
+    setUserLimits((prev) => ({ ...prev, current: pages.length }));
+  }, [pages.length]);
 
   const handleAddPage = async (url: string, name: string) => {
     setAddLoading(true);
@@ -264,14 +245,14 @@ function DashboardContent() {
       }
 
       if (!res.ok) {
-        setError("Failed to add page");
+        toastError("Failed to add page");
         return;
       }
 
       setShowAddModal(false);
-      await fetchPages();
+      await mutatePages(); // Revalidate SWR cache
     } catch {
-      setError("Failed to add page");
+      toastError("Failed to add page");
     } finally {
       setAddLoading(false);
     }
@@ -306,15 +287,15 @@ function DashboardContent() {
         method: "DELETE",
       });
       if (!res.ok) {
-        setDeleteTarget(null); // Close modal so user sees error
-        setError("Failed to delete page");
+        setDeleteTarget(null); // Close modal so user sees toast
+        toastError("Failed to delete page");
         return;
       }
       setDeleteTarget(null);
-      await fetchPages();
+      await mutatePages(); // Revalidate SWR cache
     } catch {
-      setDeleteTarget(null); // Close modal so user sees error
-      setError("Failed to delete page");
+      setDeleteTarget(null); // Close modal so user sees toast
+      toastError("Failed to delete page");
     } finally {
       setDeleteLoading(false);
     }
@@ -325,21 +306,20 @@ function DashboardContent() {
   const watchingPages = pages.filter((p) => !p.attention_status.needs_attention);
   const isAtLimit = pages.length >= userLimits.max && userLimits.max > 0;
 
-  if (loading) {
+  // Show error state only for fetch errors (action errors use toasts)
+  const fetchError = pagesError && !isUnauthorizedError(pagesError) ? "Failed to load pages" : "";
+
+  if (pagesLoading) {
     return <PageLoader />;
   }
 
-  if (error) {
+  if (fetchError && pages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center">
-          <p className="text-text-secondary text-lg">{error}</p>
+          <p className="text-text-secondary text-lg">{fetchError}</p>
           <button
-            onClick={() => {
-              setError("");
-              setLoading(true);
-              fetchPages();
-            }}
+            onClick={() => mutatePages()}
             className="btn-primary mt-4"
           >
             Try again
@@ -442,8 +422,10 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<PageLoader />}>
-      <DashboardContent />
-    </Suspense>
+    <ToastProvider>
+      <Suspense fallback={<PageLoader />}>
+        <DashboardContent />
+      </Suspense>
+    </ToastProvider>
   );
 }
