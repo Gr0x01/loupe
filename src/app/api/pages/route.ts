@@ -6,7 +6,7 @@ import type {
   AnalysisResult,
 } from "@/lib/types/analysis";
 import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
-import { validateUrl } from "@/lib/url-validation";
+import { validateUrl, isBlockedDomain } from "@/lib/url-validation";
 import {
   getPageLimit,
   getEffectiveTier,
@@ -284,6 +284,14 @@ export async function POST(req: NextRequest) {
     const validation = validateUrl(parsedUrl.toString());
     if (!validation.valid) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+    }
+
+    // Block major domains that users don't own
+    if (isBlockedDomain(parsedUrl.toString())) {
+      return NextResponse.json(
+        { error: "This domain cannot be monitored. Loupe is designed for sites you own." },
+        { status: 403 }
+      );
     }
 
     const supabase = createServiceClient();

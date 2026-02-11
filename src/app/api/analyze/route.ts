@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
-import { validateUrl } from "@/lib/url-validation";
+import { validateUrl, isBlockedDomain } from "@/lib/url-validation";
 
 const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -43,6 +43,14 @@ export async function POST(req: NextRequest) {
     const validation = validateUrl(parsedUrl.toString());
     if (!validation.valid) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+    }
+
+    // Block major domains — no point auditing google.com
+    if (isBlockedDomain(parsedUrl.toString())) {
+      return NextResponse.json(
+        { error: "This domain cannot be audited. Try a site you own!" },
+        { status: 403 }
+      );
     }
 
     // Check if user is logged in (optional — free tool stays open)
