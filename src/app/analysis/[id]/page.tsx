@@ -16,7 +16,7 @@ import type {
   Finding,
   ElementType,
 } from "@/lib/types/analysis";
-import { ChronicleLayout } from "@/components/chronicle";
+import { ChronicleLayout, ScanPicker } from "@/components/chronicle";
 import { ClaimModal, type ClaimModalType } from "@/components/ClaimModal";
 
 // Type guard for Chronicle format (N+1 scans with new ChangesSummary)
@@ -1679,126 +1679,169 @@ export default function AnalysisPage() {
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
         {/* Page context banner — shown when analysis belongs to a registered page */}
         {pageCtx && (
-          <div className="pt-6 pb-2 space-y-2">
-            {/* Breadcrumb — just two segments */}
-            <nav className="flex items-center gap-2 text-sm">
-              <Link
-                href="/dashboard"
-                className="text-text-muted hover:text-accent transition-colors"
-              >
-                Your pages
-              </Link>
-              <span className="text-text-muted">/</span>
-              <span className="text-text-primary">
-                {getDomain(analysis.url)}
-              </span>
-            </nav>
+          <div className="pt-6 pb-2">
+            {/* Chronicle scans: Page-centric header */}
+            {isChronicle ? (
+              <div className="space-y-3">
+                {/* Domain as hero */}
+                <h1
+                  className="text-2xl lg:text-3xl font-bold text-text-primary"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {getDomain(analysis.url)}
+                </h1>
 
-            {/* Page header — scan info left, actions right */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-semibold text-text-primary">
-                  Scan #{pageCtx.scan_number}
-                </span>
-                {analysis.deploy_context ? (
-                  <>
-                    <span className="text-text-muted">·</span>
-                    <button
-                      onClick={() => setDeployExpanded(!deployExpanded)}
-                      className="flex items-center gap-1 text-text-muted hover:text-accent transition-colors"
-                    >
-                      <span>Deploy {analysis.deploy_context.commit_sha.slice(0, 7)}</span>
-                      <svg
-                        className={`w-3 h-3 transition-transform ${deployExpanded ? 'rotate-180' : ''}`}
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                      >
-                        <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                  </>
-                ) : analysis.trigger_type && analysis.trigger_type !== "manual" ? (
-                  <>
+                {/* Scan picker + History */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-text-muted">
+                      Since{" "}
+                      {new Date(pageCtx.baseline_date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <span className="text-text-muted">&middot;</span>
+                    <ScanPicker
+                      currentScanNumber={pageCtx.scan_number}
+                      totalScans={pageCtx.total_scans}
+                      pageId={pageCtx.page_id}
+                      currentAnalysisId={analysis.id}
+                    />
+                  </div>
+
+                  <Link
+                    href={`/pages/${pageCtx.page_id}`}
+                    className="text-sm text-text-muted hover:text-accent transition-colors"
+                  >
+                    History
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              /* Initial audit: Original header style */
+              <div className="space-y-2">
+                {/* Breadcrumb — just two segments */}
+                <nav className="flex items-center gap-2 text-sm">
+                  <Link
+                    href="/dashboard"
+                    className="text-text-muted hover:text-accent transition-colors"
+                  >
+                    Your pages
+                  </Link>
+                  <span className="text-text-muted">/</span>
+                  <span className="text-text-primary">
+                    {getDomain(analysis.url)}
+                  </span>
+                </nav>
+
+                {/* Page header — scan info left, actions right */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-semibold text-text-primary">
+                      Scan #{pageCtx.scan_number}
+                    </span>
+                    {analysis.deploy_context ? (
+                      <>
+                        <span className="text-text-muted">·</span>
+                        <button
+                          onClick={() => setDeployExpanded(!deployExpanded)}
+                          className="flex items-center gap-1 text-text-muted hover:text-accent transition-colors"
+                        >
+                          <span>Deploy {analysis.deploy_context.commit_sha.slice(0, 7)}</span>
+                          <svg
+                            className={`w-3 h-3 transition-transform ${deployExpanded ? 'rotate-180' : ''}`}
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                          >
+                            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </>
+                    ) : analysis.trigger_type && analysis.trigger_type !== "manual" ? (
+                      <>
+                        <span className="text-text-muted">·</span>
+                        <span className="text-text-muted">
+                          {analysis.trigger_type === "daily" && "Daily scan"}
+                          {analysis.trigger_type === "weekly" && "Weekly scan"}
+                        </span>
+                      </>
+                    ) : null}
                     <span className="text-text-muted">·</span>
                     <span className="text-text-muted">
-                      {analysis.trigger_type === "daily" && "Daily scan"}
-                      {analysis.trigger_type === "weekly" && "Weekly scan"}
+                      {new Date(analysis.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </span>
-                  </>
-                ) : null}
-                <span className="text-text-muted">·</span>
-                <span className="text-text-muted">
-                  {new Date(analysis.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </span>
-              </div>
+                  </div>
 
-              {/* Actions — History + Prev/Next */}
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/pages/${pageCtx.page_id}`}
-                  className="text-sm text-text-muted hover:text-accent transition-colors"
-                >
-                  History
-                </Link>
-                <span className="text-border-subtle">·</span>
-                {pageCtx.prev_analysis_id ? (
-                  <Link
-                    href={`/analysis/${pageCtx.prev_analysis_id}`}
-                    className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Prev
-                  </Link>
-                ) : (
-                  <span className="text-sm text-text-muted opacity-50">Prev</span>
-                )}
-                {pageCtx.next_analysis_id ? (
-                  <Link
-                    href={`/analysis/${pageCtx.next_analysis_id}`}
-                    className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
-                  >
-                    Next
-                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M7 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </Link>
-                ) : (
-                  <span className="text-sm text-text-muted opacity-50">Next</span>
-                )}
-              </div>
-            </div>
+                  {/* Actions — History + Prev/Next */}
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/pages/${pageCtx.page_id}`}
+                      className="text-sm text-text-muted hover:text-accent transition-colors"
+                    >
+                      History
+                    </Link>
+                    <span className="text-border-subtle">·</span>
+                    {pageCtx.prev_analysis_id ? (
+                      <Link
+                        href={`/analysis/${pageCtx.prev_analysis_id}`}
+                        className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Prev
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-text-muted opacity-50">Prev</span>
+                    )}
+                    {pageCtx.next_analysis_id ? (
+                      <Link
+                        href={`/analysis/${pageCtx.next_analysis_id}`}
+                        className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                      >
+                        Next
+                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M7 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-text-muted opacity-50">Next</span>
+                    )}
+                  </div>
+                </div>
 
-            {/* Deploy context expanded dropdown */}
-            {analysis.deploy_context && deployExpanded && (
-              <div className="glass-card p-4 max-w-md">
-                <p className="font-medium text-text-primary text-sm">
-                  &ldquo;{analysis.deploy_context.commit_message}&rdquo;
-                </p>
-                <p className="text-xs text-text-muted mt-1">
-                  {analysis.deploy_context.commit_author} committed {timeAgo(analysis.deploy_context.commit_timestamp)}
-                </p>
-
-                {analysis.deploy_context.changed_files.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border-outer">
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-                      Changed files
+                {/* Deploy context expanded dropdown */}
+                {analysis.deploy_context && deployExpanded && (
+                  <div className="glass-card p-4 max-w-md">
+                    <p className="font-medium text-text-primary text-sm">
+                      &ldquo;{analysis.deploy_context.commit_message}&rdquo;
                     </p>
-                    <ul className="space-y-0.5">
-                      {analysis.deploy_context.changed_files.slice(0, 3).map((file, i) => (
-                        <li key={i} className="text-xs font-mono text-text-secondary truncate">
-                          {file}
-                        </li>
-                      ))}
-                      {analysis.deploy_context.changed_files.length > 3 && (
-                        <li className="text-xs text-text-muted">
-                          +{analysis.deploy_context.changed_files.length - 3} more
-                        </li>
-                      )}
-                    </ul>
+                    <p className="text-xs text-text-muted mt-1">
+                      {analysis.deploy_context.commit_author} committed {timeAgo(analysis.deploy_context.commit_timestamp)}
+                    </p>
+
+                    {analysis.deploy_context.changed_files.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border-outer">
+                        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
+                          Changed files
+                        </p>
+                        <ul className="space-y-0.5">
+                          {analysis.deploy_context.changed_files.slice(0, 3).map((file, i) => (
+                            <li key={i} className="text-xs font-mono text-text-secondary truncate">
+                              {file}
+                            </li>
+                          ))}
+                          {analysis.deploy_context.changed_files.length > 3 && (
+                            <li className="text-xs text-text-muted">
+                              +{analysis.deploy_context.changed_files.length - 3} more
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1948,9 +1991,10 @@ export default function AnalysisPage() {
             url={analysis.url}
             changesSummary={analysis.changes_summary}
             deployContext={analysis.deploy_context}
-            baselineDate={analysis.parent_structured_output ? analysis.created_at : undefined}
+            baselineDate={pageCtx?.baseline_date}
             screenshotUrl={analysis.screenshot_url}
             createdAt={analysis.created_at}
+            triggerType={analysis.trigger_type}
             onScreenshotClick={() => setShowScreenshot(true)}
           />
         )}

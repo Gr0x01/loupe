@@ -243,8 +243,11 @@ export interface PageContext {
   page_id: string;
   page_name: string | null;
   scan_number: number;
+  total_scans: number;
   prev_analysis_id: string | null;
   next_analysis_id: string | null;
+  /** ISO timestamp of the first scan (baseline) for this page */
+  baseline_date: string;
 }
 
 /**
@@ -344,3 +347,9 @@ export interface ChangesApiResponse {
     hasMore: boolean;
   };
 }
+
+// ============================================
+// Chronicle UI types
+// ============================================
+
+export type TimelineItemType = "validated" | "regressed" | "watching" | "change";

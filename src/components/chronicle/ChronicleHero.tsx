@@ -1,5 +1,7 @@
 "use client";
 
+import { ProgressGauges } from "./ProgressGauges";
+
 function formatDateRange(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -7,39 +9,63 @@ function formatDateRange(dateStr: string) {
 
 interface ChronicleHeroProps {
   verdict: string;
-  url: string;
   baselineDate?: string;
+  triggerType?: "manual" | "daily" | "weekly" | "deploy" | null;
+  progress: {
+    validated: number;
+    watching: number;
+    open: number;
+  };
 }
 
-function getDomain(url: string) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-export function ChronicleHero({ verdict, url, baselineDate }: ChronicleHeroProps) {
+export function ChronicleHero({
+  verdict,
+  baselineDate,
+  triggerType,
+  progress,
+}: ChronicleHeroProps) {
   const sinceDate = baselineDate ? formatDateRange(baselineDate) : "first scan";
 
+  // Get trigger label
+  const triggerLabel = triggerType
+    ? {
+        daily: "Daily scan",
+        weekly: "Weekly scan",
+        deploy: "Deploy scan",
+        manual: "Manual scan",
+      }[triggerType]
+    : null;
+
   return (
-    <div className="chronicle-hero">
-      {/* Date context line */}
-      <p className="chronicle-hero-kicker">
-        Your page since {sinceDate}
-      </p>
+    <div className="chronicle-hero-new">
+      <div className="chronicle-hero-content">
+        {/* Verdict - the star (now a true headline) */}
+        <h1
+          className="chronicle-hero-verdict-new"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {verdict}
+        </h1>
 
-      {/* Verdict - the star */}
-      <h1
-        className="chronicle-hero-verdict text-text-primary"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {verdict}
-      </h1>
+        {/* Date context */}
+        <p className="chronicle-hero-context">
+          Since {sinceDate}
+          {triggerLabel && (
+            <>
+              <span className="chronicle-hero-separator">&middot;</span>
+              {triggerLabel}
+            </>
+          )}
+        </p>
+      </div>
 
-      {/* Domain badge */}
-      <div className="mt-5 flex items-center gap-2 text-sm text-text-muted">
-        <span className="url-badge py-1.5 px-3">{getDomain(url)}</span>
+      {/* Progress gauges on the right */}
+      <div className="chronicle-hero-gauges">
+        <ProgressGauges
+          validated={progress.validated}
+          watching={progress.watching}
+          open={progress.open}
+        />
       </div>
     </div>
   );

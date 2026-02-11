@@ -2,9 +2,10 @@
 
 import type { ChangesSummary, DeployContextAPI } from "@/lib/types/analysis";
 import { ChronicleHero } from "./ChronicleHero";
-import { WhatChangedSection } from "./WhatChangedSection";
-import { WhatToDoNextSection } from "./WhatToDoNextSection";
-import { ProgressTracker } from "./ProgressTracker";
+import { SnapshotCollapsible } from "./SnapshotCollapsible";
+import { WinBanner } from "./WinBanner";
+import { UnifiedTimeline } from "./UnifiedTimeline";
+import { NextMoveSection } from "./NextMoveSection";
 
 interface ChronicleLayoutProps {
   url: string;
@@ -13,6 +14,7 @@ interface ChronicleLayoutProps {
   baselineDate?: string;
   screenshotUrl?: string | null;
   createdAt?: string;
+  triggerType?: "manual" | "daily" | "weekly" | "deploy" | null;
   onScreenshotClick?: () => void;
 }
 
@@ -27,73 +29,6 @@ function timeAgo(dateStr: string) {
   return `${days}d ago`;
 }
 
-function getDomain(url: string) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-function ChronicleScreenshot({
-  screenshotUrl,
-  pageUrl,
-  createdAt,
-  onClick,
-}: {
-  screenshotUrl: string;
-  pageUrl: string;
-  createdAt?: string;
-  onClick?: () => void;
-}) {
-  const captionDate = createdAt
-    ? new Date(createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : null;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="chronicle-hero-shot hidden lg:block text-left"
-      aria-label="Open full page screenshot"
-    >
-      <div className="hero-screenshot-wrapper group">
-        <div className="hero-screenshot">
-          <div className="browser-chrome flex items-center gap-1.5 rounded-t-lg py-2 px-3">
-            <div className="flex gap-1">
-              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-            </div>
-            <span className="text-[10px] text-text-muted font-mono ml-1.5 truncate">
-              {getDomain(pageUrl)}
-            </span>
-          </div>
-          <div className="relative overflow-hidden rounded-b-lg">
-            <img
-              src={screenshotUrl}
-              alt={`Screenshot of ${pageUrl}`}
-              className="w-full h-auto max-h-[188px] object-cover object-top"
-            />
-            <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm">
-                View full
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <p className="chronicle-hero-shot-meta">
-        {getDomain(pageUrl)}{captionDate ? ` · ${captionDate}` : ""}
-      </p>
-    </button>
-  );
-}
-
 export function ChronicleLayout({
   url,
   changesSummary,
@@ -101,38 +36,27 @@ export function ChronicleLayout({
   baselineDate,
   screenshotUrl,
   createdAt,
+  triggerType,
   onScreenshotClick,
 }: ChronicleLayoutProps) {
+  const validatedItems = changesSummary.progress.validatedItems || [];
+  const watchingItems = changesSummary.progress.watchingItems || [];
+
   return (
     <div>
-      {/* Hero section */}
+      {/* Hero section - redesigned */}
       <section className="py-6 lg:py-8">
         <div className="glass-card-elevated p-6 lg:p-8">
-          <div className="chronicle-hero-grid">
-            <ChronicleHero
-              verdict={changesSummary.verdict}
-              url={url}
-              baselineDate={baselineDate}
-            />
-            {screenshotUrl && (
-              <ChronicleScreenshot
-                screenshotUrl={screenshotUrl}
-                pageUrl={url}
-                createdAt={createdAt}
-                onClick={onScreenshotClick}
-              />
-            )}
-          </div>
-
-          {/* Progress tracker at bottom of hero (summary only) */}
-          <div className="mt-6 pt-5 border-t border-border-outer">
-            <ProgressTracker
-              validated={changesSummary.progress.validated}
-              watching={changesSummary.progress.watching}
-              open={changesSummary.progress.open}
-              summaryOnly
-            />
-          </div>
+          <ChronicleHero
+            verdict={changesSummary.verdict}
+            baselineDate={baselineDate}
+            triggerType={triggerType}
+            progress={{
+              validated: changesSummary.progress.validated,
+              watching: changesSummary.progress.watching,
+              open: changesSummary.progress.open,
+            }}
+          />
 
           {/* Deploy context (if present) */}
           {deployContext && (
@@ -159,56 +83,56 @@ export function ChronicleLayout({
             </div>
           )}
         </div>
+
+        {/* Snapshot collapsible - tucked below hero */}
+        {screenshotUrl && (
+          <div className="mt-3">
+            <SnapshotCollapsible
+              screenshotUrl={screenshotUrl}
+              pageUrl={url}
+              createdAt={createdAt}
+              onViewFull={onScreenshotClick}
+            />
+          </div>
+        )}
       </section>
+
+      {/* Win banner (if validated items with positive correlation) */}
+      {validatedItems.length > 0 && (
+        <WinBanner validatedItems={validatedItems} />
+      )}
 
       <hr className="section-divider" />
 
-      {/* What changed */}
-      <WhatChangedSection
+      {/* Unified timeline - Changes + Validated + Watching */}
+      <UnifiedTimeline
         changes={changesSummary.changes}
-        correlation={changesSummary.correlation}
+        validatedItems={validatedItems}
+        watchingItems={watchingItems}
         hasError={!!changesSummary._error}
       />
 
       <hr className="section-divider" />
 
-      {/* What to do next */}
-      <WhatToDoNextSection suggestions={changesSummary.suggestions} />
+      {/* Your next move - Suggestions */}
+      <NextMoveSection suggestions={changesSummary.suggestions} />
 
-      <hr className="section-divider" />
-
-      {/* Progress section (detailed) */}
-      <section className="chronicle-section">
-        <div className="chronicle-section-header">
-          <h2
-            className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Progress
-          </h2>
-        </div>
-
-        <div className="glass-card p-6">
-          {/* Expandable progress tracker */}
-          <ProgressTracker
-            validated={changesSummary.progress.validated}
-            watching={changesSummary.progress.watching}
-            open={changesSummary.progress.open}
-            validatedItems={changesSummary.progress.validatedItems}
-            watchingItems={changesSummary.progress.watchingItems}
-            openItems={changesSummary.progress.openItems}
-          />
-
-          {/* Running summary */}
-          {changesSummary.running_summary && (
-            <div className="mt-6 pt-6 border-t border-border-outer">
+      {/* Running summary (if present) */}
+      {changesSummary.running_summary && (
+        <>
+          <hr className="section-divider" />
+          <section className="chronicle-section">
+            <div className="glass-card p-6">
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
+                Summary
+              </p>
               <p className="text-sm text-text-secondary leading-relaxed">
                 {changesSummary.running_summary}
               </p>
             </div>
-          )}
-        </div>
-      </section>
+          </section>
+        </>
+      )}
     </div>
   );
 }

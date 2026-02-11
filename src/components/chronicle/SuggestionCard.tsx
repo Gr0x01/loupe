@@ -5,10 +5,11 @@ import type { ChronicleSuggestion } from "@/lib/types/analysis";
 
 interface SuggestionCardProps {
   suggestion: ChronicleSuggestion;
+  defaultExpanded?: boolean;
 }
 
-export function SuggestionCard({ suggestion }: SuggestionCardProps) {
-  const [expanded, setExpanded] = useState(false);
+export function SuggestionCard({ suggestion, defaultExpanded = false }: SuggestionCardProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
 
   const toggleExpanded = () => setExpanded(!expanded);
@@ -81,7 +82,7 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
       {/* Expandable content */}
       <div
         className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="px-4 pb-4 pt-1 space-y-4 border-t border-border-outer mt-2">

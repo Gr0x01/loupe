@@ -122,44 +122,37 @@ export async function GET(
         .single();
 
       if (page) {
-        // Run count/prev/next queries in parallel
-        const [countResult, prevResult, nextResult] = await Promise.all([
-          supabase
-            .from("analyses")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", data.user_id)
-            .eq("url", data.url)
-            .lte("created_at", data.created_at),
-          supabase
-            .from("analyses")
-            .select("id")
-            .eq("user_id", data.user_id)
-            .eq("url", data.url)
-            .lt("created_at", data.created_at)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single(),
-          supabase
-            .from("analyses")
-            .select("id")
-            .eq("user_id", data.user_id)
-            .eq("url", data.url)
-            .gt("created_at", data.created_at)
-            .order("created_at", { ascending: true })
-            .limit(1)
-            .single(),
-        ]);
+        // Single RPC call replaces 5 parallel queries
+        const { data: ctx } = await supabase.rpc("get_analysis_context", {
+          p_user_id: data.user_id,
+          p_url: data.url,
+          p_created_at: data.created_at,
+        }).single() as { data: {
+          scan_number: number;
+          total_scans: number;
+          prev_analysis_id: string | null;
+          next_analysis_id: string | null;
+          baseline_date: string;
+        } | null };
 
         page_context = {
           page_id: page.id,
           page_name: page.name,
-          scan_number: countResult.count || 1,
-          prev_analysis_id: prevResult.data?.id ?? null,
-          next_analysis_id: nextResult.data?.id ?? null,
+          scan_number: ctx?.scan_number || 1,
+          total_scans: ctx?.total_scans || 1,
+          prev_analysis_id: ctx?.prev_analysis_id ?? null,
+          next_analysis_id: ctx?.next_analysis_id ?? null,
+          baseline_date: ctx?.baseline_date ?? data.created_at,
         };
       }
     }
   }
+
+  // Cache complete analyses for 60s, revalidate in background for 5min
+  // Pending/processing analyses should not be cached
+  const cacheHeader = data.status === "complete"
+    ? "private, max-age=60, stale-while-revalidate=300"
+    : "private, no-cache";
 
   return NextResponse.json({
     ...data,
@@ -168,5 +161,7 @@ export async function GET(
     deploy_context,
     trigger_type: data.trigger_type || null,
     claim_status,
+  }, {
+    headers: { "Cache-Control": cacheHeader },
   });
 }
