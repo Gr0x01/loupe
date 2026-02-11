@@ -131,18 +131,18 @@ export const TIER_INFO: Record<SubscriptionTier, {
     name: "Free",
     monthlyPrice: 0,
     annualPrice: 0,
-    description: "Try Loupe with 1 page",
+    description: "Test Loupe on your homepage",
   },
   starter: {
     name: "Starter",
     monthlyPrice: 12,
     annualPrice: 120,
-    description: "For solo founders shipping fast",
+    description: "Watch your core pages",
   },
   pro: {
     name: "Pro",
     monthlyPrice: 29,
     annualPrice: 290,
-    description: "For founders tracking every page",
+    description: "Track every page that drives revenue",
   },
 } as const;
