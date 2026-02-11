@@ -140,6 +140,16 @@ body {
   min-height: 100vh;
 }
 
+/* ===== UTILITIES ===== */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+
 /* ===== BRUTALIST CARD ===== */
 /* Refined Brutalism: Thick rounded borders, medium gray */
 .glass-card {

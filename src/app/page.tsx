@@ -43,9 +43,9 @@ export default function Home() {
         <div className="landing-hero-dots" />
 
         <div className="w-full max-w-6xl mx-auto landing-hero-content">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] lg:grid-cols-2 gap-8 md:gap-6 lg:gap-16 items-start">
             {/* Left column -- Copy + CTA */}
-            <div className="max-w-xl">
+            <div className="max-w-xl md:max-w-lg lg:max-w-xl md:text-left">
               {/* Qualifier */}
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted mb-5 landing-hero-qualifier">
                 For founders who ship fast
@@ -75,7 +75,7 @@ export default function Home() {
                 className="mt-8 max-w-lg landing-hero-form"
                 id="hero-form"
               >
-                <FreeAuditForm ctaText="See what changed" />
+                <FreeAuditForm ctaText="Audit my page" />
               </div>
 
               {/* Trust line */}
@@ -105,7 +105,7 @@ export default function Home() {
             </div>
 
             {/* Right column -- Site mockup with Loupe notifications */}
-            <div className="flex justify-center lg:justify-end landing-hero-card lg:pt-8">
+            <div className="hidden md:flex md:justify-end landing-hero-card lg:pt-8 landing-hero-card-peek lg:landing-hero-card-peek-off">
               <SitePreviewCard />
             </div>
           </div>

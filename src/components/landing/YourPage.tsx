@@ -16,7 +16,7 @@ export default function YourPage() {
       <div className="w-full max-w-6xl mx-auto">
         <div
           ref={ref}
-          className="grid lg:grid-cols-[0.95fr_1.05fr] gap-10 lg:gap-14 items-start"
+          className="grid lg:grid-cols-[0.95fr_1.05fr] gap-10 lg:gap-14 items-start md:max-w-2xl md:mx-auto lg:max-w-none"
         >
           {/* Visual: Audit preview */}
           <div

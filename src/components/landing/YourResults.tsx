@@ -366,20 +366,20 @@ export default function YourResults() {
         </div>
 
         <div className={`scroll-reveal ${revealed ? "revealed" : ""}`} style={{ transitionDelay: "120ms" }}>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-            <div className="lg:col-span-7 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3.5 items-stretch">
+            <div className="md:col-span-2 lg:col-span-7 h-full">
               <HeroVerdictCard revealed={revealed} delay={200} />
             </div>
-            <div className="lg:col-span-5 h-full">
+            <div className="md:col-span-1 lg:col-span-5 h-full">
               <WhatToDoNextCard revealed={revealed} delay={300} />
             </div>
-            <div className="lg:col-span-5 h-full">
+            <div className="md:col-span-1 lg:col-span-5 h-full">
               <TimelineCard revealed={revealed} delay={400} />
             </div>
-            <div className="lg:col-span-4 h-full">
+            <div className="hidden md:block md:col-span-1 lg:col-span-4 h-full">
               <AlmostMissedCard revealed={revealed} delay={500} />
             </div>
-            <div className="lg:col-span-3 h-full">
+            <div className="hidden md:block md:col-span-1 lg:col-span-3 h-full">
               <CompoundingCard revealed={revealed} delay={550} />
             </div>
           </div>

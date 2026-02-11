@@ -1,0 +1,24 @@
+/* ===== HERO TABLET PEEK LAYOUT ===== */
+/* At tablet (768-1023px), the SitePreviewCard peeks from the right edge
+   instead of stacking centered below the copy. */
+
+.landing-hero {
+  overflow-x: clip;
+}
+
+/* Tablet: card peeks from right edge */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .landing-hero-card-peek {
+    min-width: 340px;
+    flex-shrink: 0;
+    margin-right: -100px;
+  }
+}
+
+/* Desktop: reset peek (class is always applied, disabled at lg+) */
+@media (min-width: 1024px) {
+  .landing-hero-card-peek-off {
+    transform: none;
+    margin-right: 0;
+  }
+}

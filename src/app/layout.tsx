@@ -6,6 +6,7 @@ import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
 import "./hero-bg.css";
+import "./hero-tablet.css";
 
 // Soft Brutalism 2.0 typography
 // Keep CSS variable names for compatibility with existing components

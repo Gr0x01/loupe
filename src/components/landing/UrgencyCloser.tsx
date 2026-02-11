@@ -43,7 +43,7 @@ export default function UrgencyCloser({
         >
           Your next change is coming.
           <br />
-          This time, you won&apos;t have to babysit it.
+          This time, you won&apos;t have to babysit.
         </h2>
 
         {/* Subhead */}
@@ -54,7 +54,7 @@ export default function UrgencyCloser({
 
         {/* Form */}
         <div className="max-w-lg mx-auto">
-          <FreeAuditForm ctaText="Start free audit" placeholder="yourapp.com" />
+          <FreeAuditForm ctaText="Audit my page" placeholder="yourapp.com" />
         </div>
 
         <p className="mt-5 text-sm text-text-muted">
