@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { TIER_INFO, type SubscriptionTier } from "@/lib/permissions";
@@ -261,6 +261,14 @@ function PricingCard({ tier, isAnnual, isPopular, currentTier, isLoggedIn, onSel
 }
 
 export default function PricingPage() {
+  return (
+    <Suspense>
+      <PricingContent />
+    </Suspense>
+  );
+}
+
+function PricingContent() {
   const searchParams = useSearchParams();
   const canceledCheckout = searchParams.get("canceled") === "true";
   const [isAnnual, setIsAnnual] = useState(true);
