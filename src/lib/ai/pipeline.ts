@@ -268,12 +268,8 @@ export async function runAnalysisPipeline(
     maxOutputTokens: 4000,
   });
 
-  // Extract JSON from response (handle markdown code blocks)
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [
-    null,
-    text,
-  ];
-  const jsonStr = (jsonMatch[1] ?? text).trim();
+  // Extract JSON from response (handles text preamble and truncated code blocks)
+  const jsonStr = extractJson(text);
   let structured: AnalysisResult["structured"];
   try {
     structured = JSON.parse(jsonStr);
@@ -790,6 +786,70 @@ function formatPendingChanges(changes: PendingChange[]): string {
 }
 
 /**
+ * Extract JSON from an LLM response that may contain markdown code blocks or text preamble.
+ * Falls back to brace-matching when regex fails (e.g., truncated responses missing closing ```).
+ */
+function extractJson(text: string): string {
+  // 1. Try markdown code block extraction
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch?.[1]) {
+    return codeBlockMatch[1].trim();
+  }
+
+  // 2. Fallback: find the first { and extract from there (handles truncated code blocks)
+  const firstBrace = text.indexOf("{");
+  if (firstBrace === -1) {
+    return text.trim();
+  }
+
+  const jsonCandidate = text.slice(firstBrace).trim();
+
+  // Try parsing as-is first (complete JSON)
+  try {
+    JSON.parse(jsonCandidate);
+    return jsonCandidate;
+  } catch {
+    // 3. Truncated JSON — try to close it by balancing braces/brackets
+    console.warn("LLM response truncated — attempting to close JSON. Data may be incomplete.");
+    return closeJson(jsonCandidate);
+  }
+}
+
+/**
+ * Attempt to close truncated JSON by counting unmatched braces/brackets.
+ * Strips the last incomplete value, then appends closing tokens.
+ */
+function closeJson(json: string): string {
+  // Strip trailing incomplete string (e.g., "some truncated valu)
+  let trimmed = json.replace(/,\s*"[^"]*$/, "");  // trailing incomplete key
+  trimmed = trimmed.replace(/,\s*$/, "");           // trailing comma
+
+  // Count unmatched openers
+  let braces = 0;
+  let brackets = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (const ch of trimmed) {
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") braces++;
+    if (ch === "}") braces--;
+    if (ch === "[") brackets++;
+    if (ch === "]") brackets--;
+  }
+
+  // Close any unclosed strings, then brackets/braces
+  if (inString) trimmed += '"';
+  while (brackets > 0) { trimmed += "]"; brackets--; }
+  while (braces > 0) { trimmed += "}"; braces--; }
+
+  return trimmed;
+}
+
+/**
  * Get human-readable time ago string
  */
 function getTimeAgo(date: Date): string {
@@ -932,7 +992,7 @@ export async function runPostAnalysisPipeline(
     prompt: promptParts.join("\n"),
     tools: hasTools ? tools : undefined,
     stopWhen: stepCountIs(hasTools ? 6 : 1), // Allow tool calls if tools available
-    maxOutputTokens: 3000,
+    maxOutputTokens: 4096,
     onStepFinish: ({ toolCalls }) => {
       if (toolCalls) {
         for (const call of toolCalls) {
@@ -942,15 +1002,14 @@ export async function runPostAnalysisPipeline(
     },
   });
 
-  // Extract JSON from response
-  const jsonMatch = result.text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, result.text];
-  const jsonStr = (jsonMatch[1] ?? result.text).trim();
+  // Extract JSON from response (handles text preamble and truncated code blocks)
+  const jsonStr = extractJson(result.text);
 
   let parsed: ChangesSummary;
   try {
     parsed = JSON.parse(jsonStr) as ChangesSummary;
   } catch {
-    throw new Error(`Failed to parse post-analysis response as JSON. Raw start: ${result.text.substring(0, 200)}`);
+    throw new Error(`Failed to parse post-analysis response as JSON. Raw start: ${result.text.substring(0, 300)}`);
   }
 
   // Add tool calls metadata
@@ -1079,8 +1138,6 @@ export async function runQuickDiff(
     );
   }
 
-  console.log(`Quick diff: sending ${contentParts.length} content parts (baseline URL: ${baselineScreenshotUrl.substring(0, 80)}...)`);
-
   const { text } = await generateText({
     model: anthropic("claude-3-5-haiku-latest"),
     messages: [
@@ -1093,11 +1150,8 @@ export async function runQuickDiff(
     maxOutputTokens: 1000,
   });
 
-  console.log("Quick diff raw response:", text.substring(0, 500));
-
-  // Extract JSON from response
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];
-  const jsonStr = (jsonMatch[1] ?? text).trim();
+  // Extract JSON from response (handles text preamble and truncated code blocks)
+  const jsonStr = extractJson(text);
 
   let result: QuickDiffResult;
   try {
@@ -1106,8 +1160,6 @@ export async function runQuickDiff(
     console.error("Quick diff JSON parse failed. Raw response:", text);
     throw new Error(`Quick diff returned invalid JSON: ${text.substring(0, 300)}`);
   }
-
-  console.log(`Quick diff result: hasChanges=${result.hasChanges}, changes=${result.changes?.length ?? 0}`);
 
   // Validate and normalize the result
   if (!result.changes || !Array.isArray(result.changes)) {

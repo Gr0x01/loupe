@@ -482,7 +482,6 @@ export const analyzeUrl = inngest.createFunction(
                   progress: { validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [] },
                   running_summary: "Post-analysis failed. Primary audit is available.",
                   _error: "post_analysis_failed",
-                  _error_detail: errorMsg.substring(0, 500),
                 },
               })
               .eq("id", analysisId);
@@ -719,11 +718,27 @@ async function runScheduledScans(
     return { scanned: 0 };
   }
 
-  // Create analyses for each page
+  // Create analyses for each page (with date-based idempotency)
   const results = await step.run(`create-${frequency}-analyses`, async () => {
     const created: { pageId: string; analysisId: string }[] = [];
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
 
     for (const page of pages) {
+      // Idempotency: skip if a scan already exists for this URL + frequency + today
+      const { count } = await supabase
+        .from("analyses")
+        .select("id", { count: "exact", head: true })
+        .eq("url", page.url)
+        .eq("user_id", page.user_id)
+        .eq("trigger_type", frequency)
+        .gte("created_at", todayStart.toISOString());
+
+      if (count && count > 0) {
+        console.log(`Skipping duplicate ${frequency} scan for ${page.url} (already exists today)`);
+        continue;
+      }
+
       const { data: newAnalysis, error: insertError } = await supabase
         .from("analyses")
         .insert({
@@ -779,7 +794,7 @@ async function runScheduledScans(
 export const scheduledScan = inngest.createFunction(
   {
     id: "scheduled-scan",
-    retries: 1,
+    retries: 0,
   },
   { cron: "0 9 * * 1" }, // Monday 9am UTC
   async ({ step }) => {
@@ -794,7 +809,7 @@ export const scheduledScan = inngest.createFunction(
 export const scheduledScanDaily = inngest.createFunction(
   {
     id: "scheduled-scan-daily",
-    retries: 1,
+    retries: 0,
   },
   { cron: "0 9 * * *" }, // Daily 9am UTC
   async ({ step }) => {
