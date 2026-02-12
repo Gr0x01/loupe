@@ -8,17 +8,8 @@ interface SuggestionCardProps {
   defaultExpanded?: boolean;
 }
 
-export function SuggestionCard({ suggestion, defaultExpanded = false }: SuggestionCardProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+export function SuggestionCard({ suggestion }: SuggestionCardProps) {
   const [copied, setCopied] = useState(false);
-  const toggleExpanded = () => setExpanded(!expanded);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleExpanded();
-    }
-  };
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -31,83 +22,44 @@ export function SuggestionCard({ suggestion, defaultExpanded = false }: Suggesti
     }
   };
 
-  const impactBadgeClass = `impact-badge impact-badge-${suggestion.impact}`;
-
   return (
     <div
-      className="evaluation-card suggestion-card group"
-      onClick={toggleExpanded}
-      onKeyDown={handleKeyDown}
-      role="button"
-      tabIndex={0}
-      aria-expanded={expanded}
+      className="evaluation-card suggestion-card"
+      aria-label={`${suggestion.impact} priority suggestion`}
     >
-      <div className="suggestion-card-header">
-        <span
-          className={`suggestion-card-accent suggestion-card-accent-${suggestion.impact}`}
-          aria-hidden="true"
-        />
+      <span
+        className={`suggestion-card-accent suggestion-card-accent-${suggestion.impact}`}
+        aria-hidden="true"
+      />
 
-        <div className="suggestion-card-main">
-          <div className="suggestion-card-title-row">
-            <p
-              className="suggestion-card-title"
-
-            >
-              {suggestion.title}
-            </p>
-            <span className={impactBadgeClass}>{suggestion.impact}</span>
+      <div className="suggestion-card-columns">
+        <div className="suggestion-card-details">
+          {/* Zone 1: What — element label + title */}
+          <div className="suggestion-card-what">
+            <span className="suggestion-card-element">{suggestion.element}</span>
+            <p className="suggestion-card-title">{suggestion.title}</p>
           </div>
-          <div className="suggestion-card-meta">
-            <span className="element-badge">{suggestion.element}</span>
+
+          {/* Zone 2: Why — observation + predicted impact */}
+          <div className="suggestion-card-why">
+            {suggestion.observation && (
+              <p className="suggestion-card-observation">{suggestion.observation}</p>
+            )}
+
+            <p className="suggestion-card-impact">
+              {suggestion.prediction.friendlyText}
+              <span className="suggestion-impact-range">
+                {" "}({suggestion.prediction.direction === "up" ? "+" : "-"}
+                {suggestion.prediction.range})
+              </span>
+            </p>
           </div>
         </div>
 
-        <svg
-          className={`suggestion-card-chevron ${expanded ? "rotate-180" : ""}`}
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="5 8 10 13 15 8" />
-        </svg>
-      </div>
-
-      <div className={`suggestion-card-content ${expanded ? "suggestion-card-content-open" : ""}`}>
-        <div className="suggestion-card-content-inner">
-          <div className="suggestion-card-details-grid">
-            {suggestion.observation && (
-              <div className="suggestion-detail">
-                <p className="suggestion-detail-label">
-                  What we noticed
-                </p>
-                <p className="suggestion-detail-text">
-                  {suggestion.observation}
-                </p>
-              </div>
-            )}
-
-            <div className="suggestion-detail">
-              <p className="suggestion-detail-label">
-                Expected impact
-              </p>
-              <p className="suggestion-impact-line" style={{ fontFamily: "var(--font-display)" }}>
-                {suggestion.prediction.friendlyText}
-                <span className="suggestion-impact-range">
-                  {" "}
-                  ({suggestion.prediction.direction === "up" ? "+" : "-"}
-                  {suggestion.prediction.range})
-                </span>
-              </p>
-            </div>
-          </div>
-
+        <div className="suggestion-card-fix">
           <div className="fix-block">
             <div className="fix-block-header">
-              <span className="fix-block-label">Try this</span>
+              <span className="fix-block-label">The fix</span>
               <button
                 onClick={handleCopy}
                 className="fix-block-copy"

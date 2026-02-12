@@ -160,6 +160,17 @@ function getDomain(url: string) {
   }
 }
 
+function getPageLabel(url: string) {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, "");
+    if (!path || path === "") return u.hostname;
+    return u.hostname + path;
+  } catch {
+    return url;
+  }
+}
+
 // --- Hooks ---
 
 function useCountUp(target: number, duration = 1000) {
@@ -1818,67 +1829,64 @@ export default function AnalysisPage() {
               <nav className="analysis-context-breadcrumb">
                 <Link href="/dashboard">Your pages</Link>
                 <span>/</span>
-                <span>{getDomain(analysis.url)}</span>
+                <span>{getPageLabel(analysis.url)}</span>
               </nav>
               <div className="analysis-context-bar">
-                <div className="analysis-context-main">
+                <div className="analysis-context-left">
                   <h1
                     className="analysis-context-domain"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
-                    {getDomain(analysis.url)}
+                    {getPageLabel(analysis.url)}
                   </h1>
-                  <div className="analysis-context-meta">
-                    <ScanPicker
-                      currentScanNumber={pageCtx.scan_number}
-                      totalScans={pageCtx.total_scans}
-                      pageId={pageCtx.page_id}
-                      currentAnalysisId={analysis.id}
-                    />
-                    <Link
-                      href={`/pages/${pageCtx.page_id}`}
-                      className="analysis-context-link"
-                    >
-                      View history
-                    </Link>
-                  </div>
+                  {analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
+                    <div className="analysis-context-stats">
+                      {pageCtx.baseline_date && (
+                        <span>Since {new Date(pageCtx.baseline_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      )}
+                      {analysis.trigger_type && analysis.trigger_type in { daily: 1, weekly: 1, deploy: 1, manual: 1 } && (
+                        <>
+                          <span className="analysis-context-sep">&middot;</span>
+                          <span>
+                            {{ daily: "Daily scan", weekly: "Weekly scan", deploy: "Deploy scan", manual: "Manual scan" }[analysis.trigger_type as "daily" | "weekly" | "deploy" | "manual"]}
+                          </span>
+                        </>
+                      )}
+                      {(analysis.changes_summary as ChangesSummary).progress.validated > 0 && (
+                        <>
+                          <span className="analysis-context-sep">&middot;</span>
+                          <span>{(analysis.changes_summary as ChangesSummary).progress.validated} confirmed</span>
+                        </>
+                      )}
+                      {(analysis.changes_summary as ChangesSummary).progress.watching > 0 && (
+                        <>
+                          <span className="analysis-context-sep">&middot;</span>
+                          <span>{(analysis.changes_summary as ChangesSummary).progress.watching} tracking</span>
+                        </>
+                      )}
+                      {(analysis.changes_summary as ChangesSummary).progress.open > 0 && (
+                        <>
+                          <span className="analysis-context-sep">&middot;</span>
+                          <span>{(analysis.changes_summary as ChangesSummary).progress.open} open</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {analysis.screenshot_url && (
-                  <div className="flex items-end gap-1.5">
-                    <button
-                      onClick={() => setShowScreenshot("desktop")}
-                      className="analysis-context-thumb-corner"
-                      title="View desktop screenshot"
-                    >
-                      <img
-                        src={analysis.screenshot_url}
-                        alt="Desktop screenshot"
-                        className="analysis-context-thumb-img"
-                      />
-                    </button>
-                    {analysis.mobile_screenshot_url && (
-                      <button
-                        onClick={() => setShowScreenshot("mobile")}
-                        className="analysis-context-thumb-mobile"
-                        title="View mobile screenshot"
-                      >
-                        <img
-                          src={analysis.mobile_screenshot_url}
-                          alt="Mobile screenshot"
-                          className="analysis-context-thumb-img"
-                        />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <span className="analysis-context-date">
-                  {new Date(analysis.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
+                <div className="analysis-context-meta">
+                  <Link
+                    href={`/pages/${pageCtx.page_id}`}
+                    className="analysis-context-link"
+                  >
+                    View history
+                  </Link>
+                  <ScanPicker
+                    currentScanNumber={pageCtx.scan_number}
+                    totalScans={pageCtx.total_scans}
+                    pageId={pageCtx.page_id}
+                    currentAnalysisId={analysis.id}
+                  />
+                </div>
               </div>
               </>
             ) : (

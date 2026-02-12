@@ -7,28 +7,35 @@
 }
 
 .analysis-context-bar {
-  position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1.25rem;
-  padding: 1rem 1.25rem;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
   border: 1.5px solid rgba(100, 116, 139, 0.28);
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
-.analysis-context-date {
-  position: absolute;
-  bottom: 0.75rem;
-  right: 1rem;
-  font-size: 0.72rem;
-  color: var(--text-muted);
+.analysis-context-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
-.analysis-context-main {
-  min-width: 0;
+.analysis-context-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--ink-500);
+}
+
+.analysis-context-sep {
+  color: var(--ink-300);
 }
 
 .analysis-context-domain-row {
@@ -68,10 +75,14 @@
 }
 
 .analysis-context-domain {
-  font-size: clamp(1.6rem, 1.8vw + 1rem, 2.15rem);
+  font-size: clamp(1.25rem, 1.2vw + 0.8rem, 1.6rem);
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .analysis-context-badge {
@@ -89,11 +100,11 @@
 }
 
 .analysis-context-meta {
-  margin-top: 0.55rem;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.55rem;
+  flex-shrink: 0;
 }
 
 .analysis-context-pill,
@@ -143,39 +154,6 @@
   height: 100%;
   object-fit: cover;
   object-position: top;
-}
-
-.analysis-context-thumb-corner {
-  width: 72px;
-  height: 52px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1.5px solid rgba(100, 116, 139, 0.22);
-  background: #fff;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-  flex-shrink: 0;
-  align-self: flex-start;
-}
-
-.analysis-context-thumb-corner:hover,
-.analysis-context-thumb-mobile:hover {
-  border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
-  transform: scale(1.02);
-}
-
-.analysis-context-thumb-mobile {
-  width: 32px;
-  height: 52px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1.5px solid rgba(100, 116, 139, 0.22);
-  background: #fff;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-  flex-shrink: 0;
-  align-self: flex-start;
 }
 
 /* Chronicle shell */
@@ -995,36 +973,51 @@
   background: rgba(255, 107, 74, 0.08);
 }
 
-/* Suggestions */
+/* ===== SUGGESTION CARDS (Next Move section) ===== */
+
+/*
+ * Design intent: Each card is a self-contained action brief.
+ * Left column tells a two-part story: WHAT element + WHY it matters.
+ * Right column is the dark fix block — always the answer.
+ * The two zones in the left column are separated by space, not borders.
+ * The fix block stretches to match left column height for visual pairing.
+ *
+ * Hierarchy (top to bottom, loudest to quietest):
+ *   1. Title (Space Grotesk 700, ink-900) — the action
+ *   2. Impact prediction (Space Grotesk 600, ink-900) — the payoff
+ *   3. Observation (Inter 400, ink-500) — the evidence
+ *   4. Element label (mono 700, ink-500) — the context
+ *   5. Impact badge (tiny pill) — severity signal
+ */
+
 .next-move-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.62rem;
+  gap: 1rem;
 }
 
 .suggestion-card {
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1.5px solid rgba(100, 116, 139, 0.28);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.1);
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 1.25rem 1.35rem;
+  transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .suggestion-card:hover {
-  border-color: rgba(100, 116, 139, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 rgba(51, 65, 85, 0.13);
 }
 
-.suggestion-card-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.72rem;
-  padding: 0.95rem 1rem;
-}
-
+/* Left accent bar — thicker for more presence */
 .suggestion-card-accent {
-  width: 0.22rem;
-  min-height: 3rem;
+  width: 3px;
   border-radius: 2px;
-  margin-top: 0.08rem;
   flex-shrink: 0;
+  align-self: stretch;
 }
 
 .suggestion-card-accent-high {
@@ -1039,121 +1032,103 @@
   background: var(--ink-300);
 }
 
-.suggestion-card-main {
+/* Two-column grid: details | fix */
+.suggestion-card-columns {
   flex: 1;
   min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding-left: 1rem;
 }
 
-.suggestion-card-title-row {
+/* Left column: two zones separated by space */
+.suggestion-card-details {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Zone 1: What — element label frames the title */
+.suggestion-card-what {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Element as contextual label — not a code badge, a framing label.
+ * Pattern: tiny uppercase label followed by substantial content.
+ * Mono font keeps the technical precision without the code-tag chrome. */
+.suggestion-card-element {
+  font-family: var(--font-geist-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-500);
 }
 
 .suggestion-card-title {
   font-family: var(--font-display);
-  font-size: 1.08rem;
+  font-size: 1.125rem;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
 }
 
-.suggestion-card-meta {
-  margin-top: 0.43rem;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.suggestion-card-meta-separator {
-  width: 0.24rem;
-  height: 0.24rem;
-  border-radius: 999px;
-  background: rgba(100, 116, 139, 0.45);
-}
-
-.suggestion-card-meta-text {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.suggestion-card-chevron {
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-muted);
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-  transition: transform 180ms ease;
-}
-
-.suggestion-card .impact-badge {
-  padding: 0.16rem 0.44rem;
-  border-radius: 6px;
-  font-size: 0.62rem;
-  letter-spacing: 0.05em;
-}
-
-.suggestion-card-content {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 240ms ease, opacity 180ms ease;
-}
-
-.suggestion-card-content-open {
-  max-height: 820px;
-  opacity: 1;
-}
-
-.suggestion-card-content-inner {
-  border-top: 1px solid rgba(100, 116, 139, 0.2);
-  margin: 0 1rem;
-  padding: 0.85rem 0 1rem;
+/* Zone 2: Why — observation + prediction, visually separated from Zone 1 */
+.suggestion-card-why {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(100, 116, 139, 0.1);
 }
 
-.suggestion-card-details-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.7rem;
-}
-
-.suggestion-detail-label {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.suggestion-detail-text {
-  margin-top: 0.3rem;
-  font-size: 0.88rem;
+/* Observation — the quietest text. Evidence, not headline. */
+.suggestion-card-observation {
+  font-size: 0.8125rem;
   line-height: 1.55;
-  color: var(--text-secondary);
+  color: var(--ink-500);
 }
 
-.suggestion-impact-line {
+/* Impact prediction — Space Grotesk for pull-quote weight.
+ * This is the payoff line: what happens if they act. */
+.suggestion-card-impact {
   font-family: var(--font-display);
-  margin-top: 0.3rem;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--text-primary);
+  line-height: 1.35;
+  color: var(--ink-900);
 }
 
 .suggestion-impact-range {
-  color: var(--text-secondary);
+  color: var(--ink-500);
+  font-weight: 400;
+  font-size: 0.8125rem;
 }
 
+/* Right column: fix block stretches to fill available height */
+.suggestion-card-fix {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fix block overrides — stretch to fill, align top */
 .suggestion-card .fix-block {
   background: var(--ink-900);
   border: 1.5px solid var(--ink-700);
   border-radius: 8px;
   max-width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.suggestion-card .fix-block-header {
+  flex-shrink: 0;
 }
 
 .suggestion-card .fix-block-label {
@@ -1162,8 +1137,10 @@
 
 .suggestion-card .fix-block-text {
   line-height: 1.55;
+  flex: 1;
 }
 
+/* See all button */
 .next-move-see-all {
   margin-top: 0.82rem;
   width: 100%;
@@ -1186,7 +1163,8 @@
   background: rgba(255, 107, 74, 0.08);
 }
 
-/* Mobile tuning */
+/* ===== RESPONSIVE ===== */
+
 @media (min-width: 768px) {
   .analysis-context-bar {
     padding: 1.05rem 1.2rem;
@@ -1197,9 +1175,15 @@
     align-items: stretch;
   }
 
-  .suggestion-card-details-grid {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    gap: 1rem;
+  /* Desktop: two columns with generous gutter */
+  .suggestion-card-columns {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  /* Fix block stretches full height on desktop — no centering */
+  .suggestion-card-fix {
+    justify-content: stretch;
   }
 
   .chronicle-section-header-inline {
@@ -1242,13 +1226,14 @@
     flex-wrap: wrap;
   }
 
-  .suggestion-card-header {
-    gap: 0.62rem;
-    padding: 0.86rem 0.9rem;
+  .suggestion-card {
+    padding: 1rem 1rem;
   }
 
-  .suggestion-card-content-inner {
-    margin: 0 0.9rem;
+  /* Tighter zone separator on mobile */
+  .suggestion-card-why {
+    margin-top: 0.65rem;
+    padding-top: 0.6rem;
   }
 
   .chronicle-summary-card,

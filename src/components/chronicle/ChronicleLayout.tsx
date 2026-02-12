@@ -60,11 +60,6 @@ function getBestWin(items: ValidatedItem[]): ValidatedItem | null {
 
 /* ---- Utility ---- */
 
-function formatDateRange(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -118,12 +113,7 @@ export function ChronicleLayout({
     ? validatedItems.filter((item) => item !== bestWin)
     : [];
 
-  // Trigger label
-  const triggerLabel = triggerType
-    ? { daily: "Daily scan", weekly: "Weekly scan", deploy: "Deploy scan", manual: "Manual scan" }[triggerType]
-    : null;
 
-  const sinceDate = baselineDate ? formatDateRange(baselineDate) : "first scan";
 
   // Accent class for verdict text
   const verdictAccentClass =
@@ -141,33 +131,6 @@ export function ChronicleLayout({
           {changesSummary.verdict}
         </h1>
 
-        <div className="chronicle-verdict-context">
-          <span>Since {sinceDate}</span>
-          {triggerLabel && (
-            <>
-              <span className="chronicle-verdict-sep">&middot;</span>
-              <span>{triggerLabel}</span>
-            </>
-          )}
-          {changesSummary.progress.validated > 0 && (
-            <>
-              <span className="chronicle-verdict-sep">&middot;</span>
-              <span>{changesSummary.progress.validated} confirmed</span>
-            </>
-          )}
-          {changesSummary.progress.watching > 0 && (
-            <>
-              <span className="chronicle-verdict-sep">&middot;</span>
-              <span>{changesSummary.progress.watching} tracking</span>
-            </>
-          )}
-          {changesSummary.progress.open > 0 && (
-            <>
-              <span className="chronicle-verdict-sep">&middot;</span>
-              <span>{changesSummary.progress.open} open</span>
-            </>
-          )}
-        </div>
 
         {/* Deploy context as small footer */}
         {deployContext && (
