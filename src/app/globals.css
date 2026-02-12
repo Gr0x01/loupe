@@ -190,8 +190,7 @@ body {
     transform: none;
   }
 
-  .how-connector-line.drawing,
-  .watching-dot {
+  .how-connector-line.drawing {
     animation: none;
   }
 
@@ -209,12 +208,6 @@ body {
   }
 
   .founding-counter-fill {
-    transition: none;
-  }
-
-  .site-preview-outcome {
-    opacity: 1;
-    transform: rotate(2deg);
     transition: none;
   }
 
@@ -237,17 +230,7 @@ body {
     transition: none;
   }
 
-  .scenario-card-wrapper,
-  .scenario-diff-pulse,
-  .scenario-live-dot {
+  .scenario-card-wrapper {
     animation: none;
-  }
-
-  .scenario-motion-step,
-  .scenario-visual-path {
-    animation: none;
-    opacity: 1;
-    transform: none;
-    stroke-dashoffset: 0;
   }
 }
