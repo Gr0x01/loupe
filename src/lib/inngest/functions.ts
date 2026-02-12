@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
@@ -494,6 +495,10 @@ export const analyzeUrl = inngest.createFunction(
                 stack: postAnalysisErr.stack?.split('\n').slice(0, 3).join('\n'),
               } : String(postAnalysisErr),
             };
+            Sentry.captureException(postAnalysisErr, {
+              tags: { function: "analyzeUrl", step: "post-analysis", analysisId },
+              extra: errorDetails,
+            });
             console.error("Post-analysis pipeline failed:", JSON.stringify(errorDetails, null, 2));
 
             // Store error details so we can diagnose without Vercel logs
@@ -710,6 +715,10 @@ export const analyzeUrl = inngest.createFunction(
     } catch (error) {
       // Mark analysis as failed so it doesn't stay in "processing" forever
       const message = error instanceof Error ? error.message : "Unknown error";
+      Sentry.captureException(error, {
+        tags: { function: "analyzeUrl", analysisId },
+        extra: { url, parentAnalysisId },
+      });
       await supabase
         .from("analyses")
         .update({ status: "failed", error_message: message })
@@ -1054,6 +1063,10 @@ export const deployDetected = inngest.createFunction(
           processed.push({ pageId: page.id, hadChanges: true, usedFullAnalysis: false });
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
+          Sentry.captureException(err, {
+            tags: { function: "deployDetected", pageId: page.id },
+            extra: { url: page.url, deployId },
+          });
           console.error(`Deploy detection failed for page ${page.id} (${page.url}):`, errMsg);
           processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false, error: errMsg });
         }
@@ -1200,6 +1213,9 @@ export const dailyScanDigest = inngest.createFunction(
           await sendEmail({ to: profile.email, subject, html }).catch(console.error);
           sent++;
         } catch (err) {
+          Sentry.captureException(err, {
+            tags: { function: "dailyScanDigest", userId },
+          });
           console.error(`Digest failed for user ${userId}:`, err);
         }
       }
@@ -1424,6 +1440,10 @@ export const checkCorrelations = inngest.createFunction(
               }
             }
           } catch (err) {
+            Sentry.captureException(err, {
+              tags: { function: "checkCorrelations", changeId: change.id },
+              extra: { pageId: change.page_id, userId },
+            });
             console.error(`Correlation check failed for change ${change.id}:`, err);
             // Don't update status — will retry next cron run
           }

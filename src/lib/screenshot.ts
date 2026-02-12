@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { validateUrl } from "./url-validation";
 
 const SCREENSHOT_URL = process.env.SCREENSHOT_SERVICE_URL!;
@@ -70,7 +71,12 @@ export async function captureScreenshot(
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Screenshot failed (${response.status}): ${text}`);
+    const err = new Error(`Screenshot failed (${response.status}): ${text}`);
+    Sentry.captureException(err, {
+      tags: { service: "screenshot", status: response.status },
+      extra: { url, width: options?.width },
+    });
+    throw err;
   }
 
   const data = await response.json();

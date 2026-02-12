@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { generateText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 import { anthropic } from "@ai-sdk/anthropic";
@@ -274,7 +275,11 @@ export async function runAnalysisPipeline(
   let structured: AnalysisResult["structured"];
   try {
     structured = JSON.parse(jsonStr);
-  } catch {
+  } catch (parseErr) {
+    Sentry.captureException(parseErr, {
+      tags: { pipeline: "analysis", step: "json-parse" },
+      extra: { url, rawStart: text.substring(0, 500) },
+    });
     throw new Error(
       `Failed to parse LLM response as JSON. Raw start: ${text.substring(0, 200)}`
     );
@@ -1039,7 +1044,11 @@ export async function runPostAnalysisPipeline(
   let parsed: ChangesSummary;
   try {
     parsed = JSON.parse(jsonStr) as ChangesSummary;
-  } catch {
+  } catch (parseErr) {
+    Sentry.captureException(parseErr, {
+      tags: { pipeline: "post-analysis", step: "json-parse" },
+      extra: { pageUrl, toolCallsMade, rawStart: result.text.substring(0, 500) },
+    });
     throw new Error(`Failed to parse post-analysis response as JSON. Raw start: ${result.text.substring(0, 300)}`);
   }
 
@@ -1286,6 +1295,10 @@ export async function runQuickDiff(
   try {
     result = JSON.parse(jsonStr) as QuickDiffResult;
   } catch (parseErr) {
+    Sentry.captureException(parseErr, {
+      tags: { pipeline: "quick-diff", step: "json-parse" },
+      extra: { rawStart: text.substring(0, 500) },
+    });
     console.error("Quick diff JSON parse failed. Raw response:", text);
     throw new Error(`Quick diff returned invalid JSON: ${text.substring(0, 300)}`);
   }
