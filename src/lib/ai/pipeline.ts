@@ -1079,6 +1079,8 @@ export async function runQuickDiff(
     );
   }
 
+  console.log(`Quick diff: sending ${contentParts.length} content parts (baseline URL: ${baselineScreenshotUrl.substring(0, 80)}...)`);
+
   const { text } = await generateText({
     model: anthropic("claude-3-5-haiku-latest"),
     messages: [
@@ -1091,6 +1093,8 @@ export async function runQuickDiff(
     maxOutputTokens: 1000,
   });
 
+  console.log("Quick diff raw response:", text.substring(0, 500));
+
   // Extract JSON from response
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];
   const jsonStr = (jsonMatch[1] ?? text).trim();
@@ -1099,10 +1103,11 @@ export async function runQuickDiff(
   try {
     result = JSON.parse(jsonStr) as QuickDiffResult;
   } catch (parseErr) {
-    // Log full response for debugging, then throw so caller can handle
     console.error("Quick diff JSON parse failed. Raw response:", text);
     throw new Error(`Quick diff returned invalid JSON: ${text.substring(0, 300)}`);
   }
+
+  console.log(`Quick diff result: hasChanges=${result.hasChanges}, changes=${result.changes?.length ?? 0}`);
 
   // Validate and normalize the result
   if (!result.changes || !Array.isArray(result.changes)) {

@@ -469,8 +469,8 @@ export const analyzeUrl = inngest.createFunction(
             };
             console.error("Post-analysis pipeline failed:", JSON.stringify(errorDetails, null, 2));
 
-            // Store a minimal changes_summary so the UI knows post-analysis was attempted but failed
-            // Note: Use generic error code, not raw message (to avoid leaking internal details to client)
+            // Store error details so we can diagnose without Vercel logs
+            const errorMsg = postAnalysisErr instanceof Error ? postAnalysisErr.message : String(postAnalysisErr);
             await supabase
               .from("analyses")
               .update({
@@ -482,6 +482,7 @@ export const analyzeUrl = inngest.createFunction(
                   progress: { validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [] },
                   running_summary: "Post-analysis failed. Primary audit is available.",
                   _error: "post_analysis_failed",
+                  _error_detail: errorMsg.substring(0, 500),
                 },
               })
               .eq("id", analysisId);
