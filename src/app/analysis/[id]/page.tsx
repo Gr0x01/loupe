@@ -1324,7 +1324,7 @@ function ScreenshotModal({
       onClick={handleClose}
     >
       <div
-        className={`screenshot-modal-content ${isClosing ? "closing" : ""}${activeView === "mobile" ? " max-w-[420px]" : ""}`}
+        className={`screenshot-modal-content ${isClosing ? "closing" : ""}${activeView === "mobile" ? " screenshot-modal-mobile" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="browser-chrome flex items-center justify-between sticky top-0 rounded-t-[20px]">
