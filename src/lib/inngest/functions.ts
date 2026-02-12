@@ -1035,11 +1035,16 @@ export const deployDetected = inngest.createFunction(
       return processed;
     });
 
-    // Mark deploy complete
+    // Mark deploy complete (with scan results for debugging)
     await step.run("mark-complete", async () => {
+      const errors = results.filter((r) => r.error);
+      const updateData: Record<string, unknown> = { status: "complete" };
+      if (errors.length > 0 || results.length > 0) {
+        updateData.scan_results = results;
+      }
       await supabase
         .from("deploys")
-        .update({ status: "complete" })
+        .update(updateData)
         .eq("id", deployId);
     });
 
