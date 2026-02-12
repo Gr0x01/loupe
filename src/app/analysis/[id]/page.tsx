@@ -1802,7 +1802,7 @@ export default function AnalysisPage() {
   }
 
   const s = analysis.structured_output;
-  const isChronicle = analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
+  const isChronicle = analysis.parent_analysis_id && analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
   const pageCtx = analysis.page_context;
 
   return (
@@ -2134,7 +2134,7 @@ export default function AnalysisPage() {
         )}
 
         {/* Chronicle Layout for new format N+1 scans */}
-        {analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
+        {analysis.parent_analysis_id && analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
           <ChronicleLayout
             changesSummary={analysis.changes_summary}
             deployContext={analysis.deploy_context}
