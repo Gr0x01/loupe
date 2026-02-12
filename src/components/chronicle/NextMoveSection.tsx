@@ -40,7 +40,7 @@ export function NextMoveSection({
             </svg>
           </div>
           <p className="text-text-secondary">
-            No new suggestions. Your recent changes are working well.
+            No recommendations right now. Recent changes haven&apos;t hurt your metrics.
           </p>
         </div>
       </section>
@@ -60,23 +60,12 @@ export function NextMoveSection({
 
   return (
     <section className="chronicle-section">
-      <div className="chronicle-section-header chronicle-section-header-inline">
-        <div>
-          <h2
-            className="text-2xl font-bold text-text-primary"
-
-          >
-            Your next move
-          </h2>
-          {suggestions.length > 0 && (
-            <p className="text-sm text-text-muted mt-1">
-              Prioritized by expected impact
-            </p>
-          )}
-        </div>
-        <span className="next-move-count">
-          {suggestions.length} recommendation{suggestions.length === 1 ? "" : "s"}
-        </span>
+      <div className="chronicle-section-header">
+        <h2
+          className="text-2xl font-bold text-text-primary"
+        >
+          Your next move
+        </h2>
       </div>
 
       <div className="next-move-stack">

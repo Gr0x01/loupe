@@ -30,8 +30,8 @@ function getStatusLabel(type: TimelineItemType, daysRemaining?: number): string 
       return "Performance dropped";
     case "watching":
       return daysRemaining
-        ? `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} left`
-        : "Tracking impact";
+        ? `Results in ${daysRemaining}d`
+        : "Measuring impact";
     default:
       return "";
   }
@@ -46,7 +46,7 @@ function getTypeLabel(type: TimelineItemType): string {
     case "watching":
       return "Tracking";
     default:
-      return "Changed";
+      return "Open";
   }
 }
 
@@ -86,16 +86,13 @@ export function UnifiedTimelineCard({
             <p className="unified-timeline-card-title">{title}</p>
           )}
         </div>
-        <div className="unified-timeline-card-meta">
-          <span className={`unified-timeline-card-state unified-timeline-card-state-${type}`}>
-            {typeLabel}
-          </span>
-          {type === "watching" && (
-            <span className="unified-timeline-card-watching-indicator">
-              <span className="unified-timeline-card-pulse" />
+        {hasOutcome && (
+          <div className="unified-timeline-card-meta">
+            <span className={`unified-timeline-card-state unified-timeline-card-state-${type}`}>
+              {typeLabel}
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Validated/regressed: outcome is the hero */}
@@ -133,16 +130,14 @@ export function UnifiedTimelineCard({
         <p className="unified-timeline-card-friendly">{friendlyText}</p>
       )}
 
-      {/* Footer */}
+      {/* Footer — watching shows days left, others show date */}
       <div className="unified-timeline-card-footer">
-        {formattedDate && (
-          <span className="unified-timeline-card-date">Changed {formattedDate}</span>
-        )}
-        {statusLabel && (
-          <>
-            {formattedDate && <span className="unified-timeline-card-separator">&middot;</span>}
-            <span className="unified-timeline-card-status">{statusLabel}</span>
-          </>
+        {type === "watching" ? (
+          <span className="unified-timeline-card-status">{statusLabel}</span>
+        ) : (
+          formattedDate && (
+            <span className="unified-timeline-card-date">{formattedDate}</span>
+          )
         )}
       </div>
     </article>

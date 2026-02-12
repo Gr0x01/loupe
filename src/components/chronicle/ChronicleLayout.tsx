@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import type {
   ChangesSummary,
   DeployContextAPI,
   ValidatedItem,
 } from "@/lib/types/analysis";
-import { ChronicleHero } from "./ChronicleHero";
+import { ProofScreenshot } from "./ProofScreenshot";
+import { WinCard } from "./WinCard";
+import { WatchingStrip } from "./WatchingStrip";
 import { UnifiedTimeline } from "./UnifiedTimeline";
 import { NextMoveSection } from "./NextMoveSection";
-import { SnapshotCollapsible } from "./SnapshotCollapsible";
 
 interface ChronicleLayoutProps {
   changesSummary: ChangesSummary;
@@ -20,7 +20,7 @@ interface ChronicleLayoutProps {
   mobileScreenshotUrl?: string | null;
   pageUrl?: string;
   createdAt?: string;
-  onViewFullScreenshot?: () => void;
+  onViewFullScreenshot?: (view?: "desktop" | "mobile") => void;
 }
 
 /* ---- Win detection helpers ---- */
@@ -60,6 +60,11 @@ function getBestWin(items: ValidatedItem[]): ValidatedItem | null {
 
 /* ---- Utility ---- */
 
+function formatDateRange(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -82,8 +87,6 @@ export function ChronicleLayout({
   createdAt,
   onViewFullScreenshot,
 }: ChronicleLayoutProps) {
-  const [copied, setCopied] = useState(false);
-
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
 
@@ -97,152 +100,133 @@ export function ChronicleLayout({
         ? "concerning"
         : "neutral";
 
-  // Split suggestions: top one in Status Card, rest in details
+  // All suggestions sorted by impact (top suggestion no longer split out)
   const sortedSuggestions = [...changesSummary.suggestions].sort((a, b) => {
     const order = { high: 0, medium: 1, low: 2 };
     return order[a.impact] - order[b.impact];
   });
-  const topSuggestion = sortedSuggestions[0] || null;
-  const remainingSuggestions = sortedSuggestions.slice(1);
 
-  // Quiet scan = nothing to show in timeline
+  // Mode detection
+  const hasWins = bestWin !== null;
   const isQuietScan =
     changesSummary.changes.length === 0 &&
     validatedItems.length === 0 &&
     watchingItems.length === 0;
 
+  // Other validated results (excluding the best win)
+  const otherResults = bestWin
+    ? validatedItems.filter((item) => item !== bestWin)
+    : [];
 
-  const handleCopyFix = async () => {
-    if (!topSuggestion) return;
-    try {
-      await navigator.clipboard.writeText(topSuggestion.suggestedFix);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard may not be available
-    }
-  };
+  // Trigger label
+  const triggerLabel = triggerType
+    ? { daily: "Daily scan", weekly: "Weekly scan", deploy: "Deploy scan", manual: "Manual scan" }[triggerType]
+    : null;
+
+  const sinceDate = baselineDate ? formatDateRange(baselineDate) : "first scan";
+
+  // Accent class for verdict text
+  const verdictAccentClass =
+    verdictTone === "positive"
+      ? "chronicle-verdict-positive"
+      : verdictTone === "concerning"
+        ? "chronicle-verdict-concerning"
+        : "";
 
   return (
     <div className="chronicle-layout">
-      {/* ===== STATUS CARD — the complete check-in ===== */}
-      <section className="chronicle-hero-section">
-        <div
-          className={`glass-card-elevated chronicle-hero-card chronicle-hero-card-${verdictTone}`}
-        >
-          <ChronicleHero
-            verdict={changesSummary.verdict}
-            baselineDate={baselineDate}
-            triggerType={triggerType}
-            progress={{
-              validated: changesSummary.progress.validated,
-              watching: changesSummary.progress.watching,
-              open: changesSummary.progress.open,
-            }}
-            tone={verdictTone}
-          />
+      {/* ===== VERDICT — bare text, no card ===== */}
+      <section className="chronicle-verdict">
+        <h1 className={`chronicle-verdict-headline ${verdictAccentClass}`}>
+          {changesSummary.verdict}
+        </h1>
 
-          {/* Inline win callout */}
-          {bestWin && (
-            <div className="status-card-win">
-              <svg
-                className="status-card-win-icon"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden="true"
-              >
-                <circle cx="10" cy="10" r="4" />
-                <path
-                  d="M10 2v4M10 14v4M2 10h4M14 10h4"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="status-card-win-text">
-                Your{" "}
-                <strong>{bestWin.element.toLowerCase()}</strong> change
-                helped: {bestWin.friendlyText}{" "}
-                <span className="status-card-win-change">
-                  {bestWin.change}
-                </span>
-              </span>
-            </div>
+        <div className="chronicle-verdict-context">
+          <span>Since {sinceDate}</span>
+          {triggerLabel && (
+            <>
+              <span className="chronicle-verdict-sep">&middot;</span>
+              <span>{triggerLabel}</span>
+            </>
           )}
-
-          {/* Top suggestion with copy */}
-          {topSuggestion && (
-            <div className="status-card-next-move">
-              <p className="status-card-next-move-label">Your next move</p>
-              <p className="status-card-next-move-title">
-                {topSuggestion.title}
-              </p>
-              <div className="status-card-fix-row">
-                <p className="status-card-fix-text">
-                  {topSuggestion.suggestedFix}
-                </p>
-                <button
-                  onClick={handleCopyFix}
-                  className="status-card-copy-btn"
-                  type="button"
-                >
-                  {copied ? (
-                    <svg
-                      className="w-3.5 h-3.5 text-emerald"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                    </svg>
-                  ) : (
-                    "Copy"
-                  )}
-                </button>
-              </div>
-            </div>
+          {changesSummary.progress.validated > 0 && (
+            <>
+              <span className="chronicle-verdict-sep">&middot;</span>
+              <span>{changesSummary.progress.validated} confirmed</span>
+            </>
           )}
-
-          {/* Deploy context */}
-          {deployContext && (
-            <div className="chronicle-deploy-context">
-              <div className="chronicle-deploy-context-row">
-                <svg
-                  className="w-4 h-4 text-text-muted flex-shrink-0"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <circle cx="8" cy="8" r="3" />
-                  <path
-                    d="M8 1v4M8 11v4M1 8h4M11 8h4"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="chronicle-deploy-context-label">
-                  Triggered by deploy{" "}
-                  <span className="chronicle-deploy-context-sha">
-                    {deployContext.commit_sha.slice(0, 7)}
-                  </span>{" "}
-                  {timeAgo(deployContext.commit_timestamp)}
-                </span>
-              </div>
-            </div>
+          {changesSummary.progress.watching > 0 && (
+            <>
+              <span className="chronicle-verdict-sep">&middot;</span>
+              <span>{changesSummary.progress.watching} tracking</span>
+            </>
+          )}
+          {changesSummary.progress.open > 0 && (
+            <>
+              <span className="chronicle-verdict-sep">&middot;</span>
+              <span>{changesSummary.progress.open} open</span>
+            </>
           )}
         </div>
+
+        {/* Deploy context as small footer */}
+        {deployContext && (
+          <p className="chronicle-verdict-deploy">
+            Triggered by deploy{" "}
+            <span className="font-mono">{deployContext.commit_sha.slice(0, 7)}</span>
+            {" "}{timeAgo(deployContext.commit_timestamp)}
+          </p>
+        )}
       </section>
 
-      {/* ===== REMAINING SUGGESTIONS ===== */}
-      {remainingSuggestions.length > 0 && (
-        <NextMoveSection suggestions={remainingSuggestions} />
+      {/* ===== PROOF ZONE — two-column grid when changes exist ===== */}
+      {!isQuietScan && (
+        <section className="chronicle-proof-zone">
+          {screenshotUrl && pageUrl && (
+            <div className="chronicle-proof-left">
+              <ProofScreenshot
+                screenshotUrl={screenshotUrl}
+                mobileScreenshotUrl={mobileScreenshotUrl}
+                pageUrl={pageUrl}
+                onViewFull={onViewFullScreenshot}
+              />
+            </div>
+          )}
+          <div className="chronicle-proof-right">
+            {hasWins ? (
+              <WinCard bestWin={bestWin} otherResults={otherResults} />
+            ) : (
+              <UnifiedTimeline
+                changes={changesSummary.changes}
+                validatedItems={validatedItems}
+                watchingItems={watchingItems}
+                hasError={!!changesSummary._error}
+                compact
+              />
+            )}
+          </div>
+        </section>
       )}
 
-      {/* ===== CHANGES TIMELINE (skip on quiet scans) ===== */}
-      {!isQuietScan && (
+      {/* ===== STANDALONE SCREENSHOT — quiet scans still show proof ===== */}
+      {isQuietScan && screenshotUrl && pageUrl && (
+        <section className="chronicle-proof-standalone">
+          <ProofScreenshot
+            screenshotUrl={screenshotUrl}
+            mobileScreenshotUrl={mobileScreenshotUrl}
+            pageUrl={pageUrl}
+            onViewFull={onViewFullScreenshot}
+          />
+        </section>
+      )}
+
+      {/* ===== WATCHING STRIP — only in win mode ===== */}
+      {hasWins && watchingItems.length > 0 && (
+        <WatchingStrip items={watchingItems} />
+      )}
+
+      {/* ===== FULL TIMELINE — only in win mode (watching mode already shows it in proof zone) ===== */}
+      {hasWins && !isQuietScan && (
         <UnifiedTimeline
           changes={changesSummary.changes}
           validatedItems={validatedItems}
@@ -251,16 +235,30 @@ export function ChronicleLayout({
         />
       )}
 
-      {/* ===== SNAPSHOT ===== */}
-      {screenshotUrl && pageUrl && (
+      {/* ===== YOUR NEXT MOVE ===== */}
+      {sortedSuggestions.length > 0 && (
+        <NextMoveSection suggestions={sortedSuggestions} />
+      )}
+
+      {/* ===== QUIET SCAN empty state ===== */}
+      {isQuietScan && sortedSuggestions.length === 0 && (
         <section className="chronicle-section">
-          <SnapshotCollapsible
-            screenshotUrl={screenshotUrl}
-            mobileScreenshotUrl={mobileScreenshotUrl}
-            pageUrl={pageUrl}
-            createdAt={createdAt}
-            onViewFull={onViewFullScreenshot}
-          />
+          <div className="chronicle-empty-card text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(16,185,129,0.1)] mb-4">
+              <svg
+                className="w-6 h-6 text-emerald"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polyline points="4 12 9 17 20 6" />
+              </svg>
+            </div>
+            <p className="text-text-secondary">
+              Nothing changed. If metrics shift, it&apos;s not your page.
+            </p>
+          </div>
         </section>
       )}
     </div>

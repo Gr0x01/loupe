@@ -10,6 +10,8 @@ interface UnifiedTimelineProps {
   watchingItems?: WatchingItem[];
   /** Set to true if post-analysis had an error */
   hasError?: boolean;
+  /** Compact mode: no section wrapper, used inside proof zone */
+  compact?: boolean;
 }
 
 interface TimelineItem {
@@ -108,6 +110,7 @@ export function UnifiedTimeline({
   validatedItems = [],
   watchingItems = [],
   hasError = false,
+  compact = false,
 }: UnifiedTimelineProps) {
   // Memoize timeline items to avoid recalculation on every render
   const allItems = useMemo(() => {
@@ -135,24 +138,55 @@ export function UnifiedTimeline({
 
   const isEmpty = allItems.length === 0;
 
-  return (
-    <section className="chronicle-section">
-      <div className="chronicle-section-header chronicle-section-header-inline">
-        <div>
-          <h2
-            className="text-2xl font-bold text-text-primary"
-          >
-            Changes we caught
-          </h2>
-          <p className="text-sm text-text-muted mt-1">
-            Most important first
+  // Compact mode: no section wrapper, just the timeline cards
+  if (compact) {
+    if (isEmpty) {
+      return (
+        <div className="chronicle-empty-card text-center">
+          <p className="text-text-secondary">
+            Nothing changed. If metrics shift, it&apos;s not your page.
           </p>
         </div>
-        {!isEmpty && (
-          <span className="timeline-count">
-            {allItems.length} change{allItems.length === 1 ? "" : "s"}
-          </span>
-        )}
+      );
+    }
+    return (
+      <div>
+        <h2
+          className="text-lg font-bold text-text-primary mb-3"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          What changed
+        </h2>
+        <div className="unified-timeline">
+          {allItems.map((item) => (
+            <UnifiedTimelineCard
+              key={item.id}
+              id={item.id}
+              type={item.type}
+              element={item.element}
+              title={item.title}
+              description={item.description}
+              before={item.before}
+              after={item.after}
+              change={item.change}
+              friendlyText={item.friendlyText}
+              daysRemaining={item.daysRemaining}
+              detectedAt={item.detectedAt}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <section className="chronicle-section">
+      <div className="chronicle-section-header">
+        <h2
+          className="text-2xl font-bold text-text-primary"
+        >
+          What changed
+        </h2>
       </div>
 
       {isEmpty ? (
@@ -175,7 +209,7 @@ export function UnifiedTimeline({
                 </svg>
               </div>
               <p className="text-text-secondary">
-                Nothing moved since last time. Your page is holding steady.
+                Nothing changed. If metrics shift, it&apos;s not your page.
               </p>
             </>
           )}

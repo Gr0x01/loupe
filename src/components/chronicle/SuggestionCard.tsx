@@ -11,12 +11,6 @@ interface SuggestionCardProps {
 export function SuggestionCard({ suggestion, defaultExpanded = false }: SuggestionCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
-  const impactHint = {
-    high: "Biggest expected lift",
-    medium: "Worth testing next",
-    low: "Lower urgency",
-  }[suggestion.impact];
-
   const toggleExpanded = () => setExpanded(!expanded);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -66,8 +60,6 @@ export function SuggestionCard({ suggestion, defaultExpanded = false }: Suggesti
           </div>
           <div className="suggestion-card-meta">
             <span className="element-badge">{suggestion.element}</span>
-            <span className="suggestion-card-meta-separator" />
-            <span className="suggestion-card-meta-text">{impactHint}</span>
           </div>
         </div>
 

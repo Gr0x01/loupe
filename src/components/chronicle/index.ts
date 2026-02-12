@@ -1,9 +1,8 @@
 export { ChronicleLayout } from "./ChronicleLayout";
-export { ChronicleHero } from "./ChronicleHero";
+export { ProofScreenshot } from "./ProofScreenshot";
+export { WinCard } from "./WinCard";
+export { WatchingStrip } from "./WatchingStrip";
 export { SuggestionCard } from "./SuggestionCard";
-export { ProgressGauges } from "./ProgressGauges";
-export { SnapshotCollapsible } from "./SnapshotCollapsible";
-export { WinBanner } from "./WinBanner";
 export { UnifiedTimeline } from "./UnifiedTimeline";
 export { UnifiedTimelineCard } from "./UnifiedTimelineCard";
 export { NextMoveSection } from "./NextMoveSection";

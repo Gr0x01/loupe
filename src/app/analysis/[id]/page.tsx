@@ -2160,7 +2160,7 @@ export default function AnalysisPage() {
             mobileScreenshotUrl={analysis.mobile_screenshot_url}
             pageUrl={analysis.url}
             createdAt={analysis.created_at}
-            onViewFullScreenshot={() => setShowScreenshot("desktop")}
+            onViewFullScreenshot={(view) => setShowScreenshot(view || "desktop")}
           />
         )}
 

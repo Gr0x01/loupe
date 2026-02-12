@@ -6,6 +6,7 @@ import type {
   DeployContextAPI,
   Change,
   WatchingItem,
+  ValidatedItem,
   ChronicleSuggestion,
 } from "@/lib/types/analysis";
 import { ChronicleLayout } from "@/components/chronicle";
@@ -54,6 +55,25 @@ const mockWatchingItems: WatchingItem[] = [
   },
 ];
 
+const mockValidatedItems: ValidatedItem[] = [
+  {
+    id: "val-1",
+    element: "Primary CTA",
+    title: "CTA copy change improved click-through",
+    metric: "conversion_rate",
+    change: "+18.4%",
+    friendlyText: "More visitors clicking your CTA",
+  },
+  {
+    id: "val-2",
+    element: "Hero Headline",
+    title: "New headline reduced bounce",
+    metric: "bounce_rate",
+    change: "-6.2%",
+    friendlyText: "Fewer visitors leaving immediately",
+  },
+];
+
 const mockSuggestions: ChronicleSuggestion[] = [
   {
     title: "Headline is hiding your value",
@@ -97,15 +117,15 @@ const mockSuggestions: ChronicleSuggestion[] = [
 ];
 
 const mockChangesSummary: ChangesSummary = {
-  verdict: "You polished the timeline and added logos, but ignored the messaging friction.",
+  verdict: "Your CTA is converting better. The headline change helped too.",
   changes: mockChanges,
   suggestions: mockSuggestions,
   correlation: null,
   progress: {
-    validated: 0,
+    validated: 2,
     watching: 1,
     open: 3,
-    validatedItems: [],
+    validatedItems: mockValidatedItems,
     watchingItems: mockWatchingItems,
     openItems: mockSuggestions.map((s, i) => ({
       id: `open-${i}`,
@@ -191,6 +211,8 @@ export default function DemoAnalysisPage() {
           deployContext={mockDeployContext}
           baselineDate={mockBaselineDate}
           triggerType="deploy"
+          screenshotUrl="/demo-screenshot.png"
+          pageUrl="https://xyz.io"
         />
 
         {/* CTA Section */}
