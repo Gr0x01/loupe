@@ -467,7 +467,7 @@ function NewHeroSection({
 
               {/* Trust line + share */}
               <div className="flex items-center justify-between lg:justify-end gap-4 text-xs">
-                <span className="text-text-muted">Free — we rescan when you make&nbsp;changes</span>
+                <span className="text-text-muted">Free — we&apos;ll tell you when something&nbsp;changes</span>
                 <button
                   onClick={onShareLink}
                   className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
@@ -1658,6 +1658,7 @@ export default function AnalysisPage() {
                   </p>
                 ))}
               </div>
+              <p className="text-xs text-text-muted mt-2">Usually takes about a minute</p>
             </div>
 
             {/* Preview with overlapping suggestion card */}
@@ -2195,12 +2196,12 @@ export default function AnalysisPage() {
                 >
                   {analysis.changes_summary
                     ? "Want to know if your changes helped?"
-                    : <>Track {getDomain(analysis.url)}</>}
+                    : "This is your page today. What happens next?"}
                 </h2>
                 <p className="text-base text-text-secondary mt-2 mb-6">
                   {analysis.changes_summary
                     ? "We\u2019ll re-scan after you make changes and show you what improved."
-                    : "Get notified when this page changes and see if updates improve your metrics."}
+                    : "Loupe re-scans automatically and tells you what changed \u2014 and whether it helped or hurt."}
                 </p>
 
                 {/* Email form — the hero */}

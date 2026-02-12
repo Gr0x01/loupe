@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { FOUNDING_50_CAP } from "@/lib/constants";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import SitePreviewCard from "@/components/landing/SitePreviewCard";
+import TribeSignal from "@/components/landing/TribeSignal";
 import WorksWithStrip from "@/components/landing/WorksWithStrip";
 import YourPage from "@/components/landing/YourPage";
 import YourResults from "@/components/landing/YourResults";
@@ -15,7 +16,7 @@ export const revalidate = 300;
 export const metadata: Metadata = {
   title: "Loupe — See what your last deploy actually did",
   description:
-    "You make the change, hit deploy, move on. Loupe watches what happens next and tells you if it worked. Free audit in 30 seconds.",
+    "You make the change, hit deploy, move on. A week later, Loupe tells you if it helped or hurt. Free audit in 30 seconds.",
 };
 
 export default async function Home() {
@@ -59,13 +60,6 @@ export default async function Home() {
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] lg:grid-cols-2 gap-8 md:gap-6 lg:gap-16 items-start">
             {/* Left column -- Copy + CTA */}
             <div className="max-w-xl md:max-w-lg lg:max-w-xl md:text-left">
-              {/* Qualifier */}
-              <div className="mb-5 landing-hero-qualifier">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-coral bg-coral/5 text-[11px] font-semibold uppercase tracking-[0.18em] text-coral">
-                  For founders who ship fast
-                </span>
-              </div>
-
               {/* Headline */}
               <h1
                 className="text-[clamp(2rem,4.5vw,2.85rem)] leading-[1.15] tracking-[-0.02em] landing-hero-headline-depth"
@@ -81,8 +75,8 @@ export default async function Home() {
 
               {/* Subheadline */}
               <p className="text-lg md:text-[1.15rem] text-text-primary mt-5 leading-[1.7] max-w-[38ch] landing-hero-subhead">
-                You write the headline, hit deploy, move on. Loupe watches what
-                happens next and tells you if it{"\u00A0"}worked.
+                You write the headline, hit deploy, move on. A week later, Loupe
+                tells you if it helped or{"\u00A0"}hurt.
               </p>
 
               {/* Form */}
@@ -97,6 +91,9 @@ export default async function Home() {
               <p className="text-base font-medium text-text-secondary mt-5 landing-hero-trust">
                 Free. No signup. Results in 30 seconds.
               </p>
+
+              {/* Tribe signal — tool logos above the fold */}
+              <TribeSignal />
 
               {/* Founding 50 counter — pill with progress bar, real data */}
               {/* Hide until 10+ claimed for better social proof */}

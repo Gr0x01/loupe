@@ -27,7 +27,7 @@ export default function SitePreviewCard() {
   }, []);
 
   return (
-    <div className="site-preview-wrapper w-full max-w-[840px] relative">
+    <div className="site-preview-wrapper w-full max-w-[840px] lg:min-w-[480px] relative">
       <div className="site-preview-canvas">
         <div className="site-preview-browser-strip" />
 

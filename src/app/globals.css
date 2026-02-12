@@ -2614,7 +2614,7 @@ body.modal-open .site-nav {
   background: #FFFFFF;
   border: 2px solid var(--line);
   border-radius: 12px;
-  padding: 20px 24px 24px;
+  padding: 24px 28px 28px;
   position: relative;
   overflow: visible; /* allow notification to peek out */
 }
@@ -2623,8 +2623,8 @@ body.modal-open .site-nav {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  margin: -20px -24px 16px;
+  padding: 12px 14px;
+  margin: -24px -28px 18px;
   background: rgba(0, 0, 0, 0.03);
   border-bottom: 2px solid rgba(100, 116, 139, 0.2);
   border-radius: 12px 12px 0 0;
@@ -2669,7 +2669,7 @@ body.modal-open .site-nav {
 }
 
 .site-preview-hero-image {
-  width: 180px;
+  width: 200px;
   align-self: stretch;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 6px;
@@ -2717,7 +2717,7 @@ body.modal-open .site-nav {
 }
 
 .site-preview-headline-old {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text-secondary);
   line-height: 1.2;
@@ -2742,26 +2742,26 @@ body.modal-open .site-nav {
 }
 
 .site-preview-headline-new {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
 .site-preview-subheadline {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
-  margin-bottom: 16px;
-  max-width: 280px;
+  margin-bottom: 18px;
+  max-width: 300px;
 }
 
 .site-preview-cta {
   display: inline-block;
   background: var(--text-primary);
   color: white;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 10px 20px;
+  padding: 11px 22px;
   border-radius: 8px;
   border: 2px solid var(--ink-700);
   box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.18);
