@@ -4291,10 +4291,24 @@ body.modal-open .site-nav {
   align-self: flex-start;
 }
 
-.analysis-context-thumb-corner:hover {
+.analysis-context-thumb-corner:hover,
+.analysis-context-thumb-mobile:hover {
   border-color: var(--accent);
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
   transform: scale(1.02);
+}
+
+.analysis-context-thumb-mobile {
+  width: 32px;
+  height: 52px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1.5px solid rgba(100, 116, 139, 0.22);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  flex-shrink: 0;
+  align-self: flex-start;
 }
 
 /* Chronicle shell */

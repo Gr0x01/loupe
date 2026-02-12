@@ -5,12 +5,18 @@ import { ChronicleHero } from "./ChronicleHero";
 import { WinBanner } from "./WinBanner";
 import { UnifiedTimeline } from "./UnifiedTimeline";
 import { NextMoveSection } from "./NextMoveSection";
+import { SnapshotCollapsible } from "./SnapshotCollapsible";
 
 interface ChronicleLayoutProps {
   changesSummary: ChangesSummary;
   deployContext?: DeployContextAPI | null;
   baselineDate?: string;
   triggerType?: "manual" | "daily" | "weekly" | "deploy" | null;
+  screenshotUrl?: string | null;
+  mobileScreenshotUrl?: string | null;
+  pageUrl?: string;
+  createdAt?: string;
+  onViewFullScreenshot?: () => void;
 }
 
 function timeAgo(dateStr: string) {
@@ -29,6 +35,11 @@ export function ChronicleLayout({
   deployContext,
   baselineDate,
   triggerType,
+  screenshotUrl,
+  mobileScreenshotUrl,
+  pageUrl,
+  createdAt,
+  onViewFullScreenshot,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -106,6 +117,21 @@ export function ChronicleLayout({
                 {changesSummary.running_summary}
               </p>
             </div>
+          </section>
+        </>
+      )}
+
+      {screenshotUrl && pageUrl && (
+        <>
+          <hr className="section-divider chronicle-divider" />
+          <section className="chronicle-section">
+            <SnapshotCollapsible
+              screenshotUrl={screenshotUrl}
+              mobileScreenshotUrl={mobileScreenshotUrl}
+              pageUrl={pageUrl}
+              createdAt={createdAt}
+              onViewFull={onViewFullScreenshot}
+            />
           </section>
         </>
       )}

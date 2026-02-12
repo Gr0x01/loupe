@@ -1845,17 +1845,32 @@ export default function AnalysisPage() {
                 </div>
 
                 {analysis.screenshot_url && (
-                  <button
-                    onClick={() => setShowScreenshot("desktop")}
-                    className="analysis-context-thumb-corner"
-                    title="View screenshot"
-                  >
-                    <img
-                      src={analysis.screenshot_url}
-                      alt="Page screenshot"
-                      className="analysis-context-thumb-img"
-                    />
-                  </button>
+                  <div className="flex items-end gap-1.5">
+                    <button
+                      onClick={() => setShowScreenshot("desktop")}
+                      className="analysis-context-thumb-corner"
+                      title="View desktop screenshot"
+                    >
+                      <img
+                        src={analysis.screenshot_url}
+                        alt="Desktop screenshot"
+                        className="analysis-context-thumb-img"
+                      />
+                    </button>
+                    {analysis.mobile_screenshot_url && (
+                      <button
+                        onClick={() => setShowScreenshot("mobile")}
+                        className="analysis-context-thumb-mobile"
+                        title="View mobile screenshot"
+                      >
+                        <img
+                          src={analysis.mobile_screenshot_url}
+                          alt="Mobile screenshot"
+                          className="analysis-context-thumb-img"
+                        />
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 <span className="analysis-context-date">
@@ -2141,6 +2156,11 @@ export default function AnalysisPage() {
             deployContext={analysis.deploy_context}
             baselineDate={pageCtx?.baseline_date}
             triggerType={analysis.trigger_type}
+            screenshotUrl={analysis.screenshot_url}
+            mobileScreenshotUrl={analysis.mobile_screenshot_url}
+            pageUrl={analysis.url}
+            createdAt={analysis.created_at}
+            onViewFullScreenshot={() => setShowScreenshot("desktop")}
           />
         )}
 
