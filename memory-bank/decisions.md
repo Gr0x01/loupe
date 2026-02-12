@@ -506,3 +506,70 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - Slack alerts marked as "Coming soon" on Pro tier
 - Mobile access gated by viewport check + tier
 - Founding 50 users migrated to Starter tier (grandfathered)
+
+## D30: Robust LLM JSON extraction + cron idempotency (Feb 12, 2026)
+
+**Decision**: Replace naive regex JSON extraction with `extractJson()` helper across all 3 LLM parse sites. Set cron orchestrator retries to 0 with date-based idempotency guard.
+
+**Problem**: Daily scans broke Feb 10-11. Two independent issues:
+1. Gemini prepends text preamble before JSON code blocks. When `maxOutputTokens: 3000` caused truncation, the closing ``` was missing, regex failed, and the full text (with preamble) hit `JSON.parse()`.
+2. Cron function retries re-executed the "create analyses" step, producing duplicate scans (4 instead of 2 per day).
+
+**JSON extraction fix**:
+- `extractJson(text)` — 3-tier fallback: regex code block → find first `{` → `closeJson()` (balance braces/brackets on truncated output)
+- Applied to `runAnalysisPipeline`, `runPostAnalysisPipeline`, and `runQuickDiff`
+- Increased post-analysis `maxOutputTokens` from 3000 → 4096
+- `closeJson()` logs a warning when invoked (truncated data may be incomplete)
+
+**Duplicate scan fix**:
+- `retries: 0` on `scheduledScan` and `scheduledScanDaily` (cron orchestrators only — `analyzeUrl` keeps `retries: 2`)
+- Date-based idempotency: before creating an analysis, check if one already exists for same `(url, user_id, trigger_type, today_utc)`
+- Cron retries are dangerous when steps have side effects (insert + event send)
+
+**Also fixed**:
+- Removed `_error_detail` from `changes_summary` (was leaking raw error messages to client)
+- Removed debug `console.log`s from `runQuickDiff`
+
+**Why these tradeoffs**:
+- `closeJson()` can produce incomplete data, but defaults fill missing fields — better than a hard crash that leaves `changes_summary` empty
+- TOCTOU race on idempotency check is theoretical with `retries: 0` — acceptable for MVP
+- N+1 idempotency queries (one per page) are fine at current scale (<50 pages)
+
+## D31: Anti-hallucination guardrails for post-analysis correlation (Feb 12, 2026)
+
+**Decision**: Add temporal context, hardened prompt rules, and server-side enforcement to prevent LLM from fabricating correlation data in `changes_summary`.
+
+**Problem**: Same-day changes (baseline created + change detected in one day) were getting "validated" status with fabricated metric percentages (e.g., "-39% bounce rate"). The LLM was filling in correlation data when it had no tools, no real metrics, and changes that were 0 days old.
+
+**Root cause**: The `POST_ANALYSIS_PROMPT` schema asked for `correlation` metrics and `validatedItems` with percentages, but never told the LLM: (a) how old the changes are, (b) whether analytics tools were actually called, or (c) a hard rule that no tools = no validation.
+
+**Note**: The *real* correlation system (`checkCorrelations` cron) is correct — it only runs on 7+ day old changes with real analytics APIs. The problem was the LLM's parallel attempt at correlation in the post-analysis pipeline.
+
+**Fix (3 layers)**:
+1. **Temporal context injection** — Compute and inject `days_since_detected` for each pending change into the prompt. LLM sees "Hero Subheadline: 0 days" and knows it can't validate.
+2. **Hardened prompt rules** — "validated" now requires 3 explicit conditions: (1) tools called in this session, (2) tools returned real data, (3) change 7+ days old. Added "Correlation Rules" subsection: no tools = null, < 7 days = no validation, never fabricate numbers.
+3. **Server-side enforcement** — After parsing LLM output: if `toolCallsMade.length === 0`, force `correlation = null` and demote all `validatedItems` → `watchingItems`. Also enforce 7-day minimum even with tools.
+
+**Why 3 layers**:
+- Prompt rules alone are unreliable (LLMs ignore instructions)
+- Temporal context helps the LLM make better decisions (reduces hallucination at source)
+- Server-side enforcement is the safety net (catches anything that slips through)
+
+**Files changed**:
+- `src/lib/ai/pipeline.ts` — `previousScanDate` on interface, temporal context block, hardened prompt rules, enforcement block
+- `src/lib/inngest/functions.ts` — Pass `previousScanDate` from parent analysis `created_at`
+
+## D32: Cap screenshot height before Haiku vision API (Feb 12, 2026)
+
+**Decision**: Resize all screenshots to max 7500px height using `sharp` before sending to Anthropic Haiku.
+
+**Why**:
+- Anthropic's vision API rejects images exceeding 8000px in any dimension
+- Full-page screenshots (via Puppeteer auto-scroll) regularly exceed this — getloupe.io homepage was ~9222px
+- Deploy scans were silently failing with "image dimensions exceed max allowed size: 8000 pixels"
+- Using 7500px (not 8000px) gives a safety margin
+
+**Trade-offs**:
+- Bottom-of-page content may be lost in very tall pages — acceptable since the most impactful changes are typically above-the-fold
+- `sharp` is a transitive dep from Next.js (used for image optimization), not explicitly in package.json — works but fragile if Next.js drops it
+- Baseline images are now fetched and resized (was: passed as URL to API) — adds latency but ensures both images are within limits

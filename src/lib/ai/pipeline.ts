@@ -390,11 +390,14 @@ For each change detected, output to the "changes" array:
 
 ### 2. Categorize Progress
 Map each previous finding to one of three states:
-- **validated**: Fixed AND (if analytics available) metrics improved. Celebrate this!
-- **watching**: Fixed but waiting for enough data to confirm impact
+- **validated**: Fixed AND all three conditions met: (1) analytics tools were called in THIS session, (2) tools returned real metric data, (3) the change is 7+ days old (check Temporal Context)
+- **watching**: Fixed but waiting for enough data to confirm impact (change < 7 days old, or no analytics tools available)
 - **open**: Not yet addressed
 
-Be strict about "validated" — you need evidence, not just a fix.
+**HARD RULES for "validated":**
+- If no analytics/database tools were called in this session → ZERO validated items. Every fixed item goes to "watching".
+- If a change is less than 7 days old (check Temporal Context) → it MUST be "watching", never "validated", regardless of tools.
+- You need REAL tool-returned evidence, not estimates or projections.
 
 ### 3. Provide Next Suggestions
 Based on the current state, what should they focus on next? Output to "suggestions" array.
@@ -513,10 +516,16 @@ Return JSON matching this schema:
 }
 
 ## Progress Item Rules
-- validatedItems: Only include if you have metric evidence the change helped
-- watchingItems: Fixed items awaiting enough data (daysOfData < 7)
+- validatedItems: ONLY if ALL THREE: (1) analytics/database tools were called in this session, (2) tools returned real metric data, (3) change is 7+ days old per Temporal Context. If ANY condition fails → item goes to watchingItems instead.
+- watchingItems: Fixed items awaiting enough data. Set daysOfData from the Temporal Context section (do NOT guess). Set daysNeeded to 7.
 - openItems: Previous findings not yet addressed
 - For first scans, openItems should list current findings with their ids
+
+## Correlation Rules
+- If no analytics/database tools were called → correlation MUST be null
+- If all pending changes are < 7 days old → correlation.hasEnoughData MUST be false, metrics MUST be empty []
+- NEVER fabricate metric numbers (before/after/change values). Only use numbers returned by tool calls.
+- If you didn't call a tool that returned a specific number, you cannot put that number in the output.
 
 ## Correlation Language by Scope
 When correlating changes with metrics, adjust your language to match the scope:
@@ -590,6 +599,7 @@ export interface PostAnalysisContext {
   deployContext?: DeployContext | null;
   userFeedback?: FindingFeedback[] | null;
   pendingChanges?: PendingChange[] | null; // Changes being watched for correlation
+  previousScanDate?: string | null; // created_at of the parent analysis (for temporal context)
 }
 
 export type AnalyticsCredentialsWithType =
@@ -875,7 +885,7 @@ export async function runPostAnalysisPipeline(
   context: PostAnalysisContext,
   options: PostAnalysisOptions
 ): Promise<ChangesSummary> {
-  const { currentFindings, previousFindings, previousRunningSummary, pageUrl, deployContext, userFeedback, pendingChanges } = context;
+  const { currentFindings, previousFindings, previousRunningSummary, pageUrl, deployContext, userFeedback, pendingChanges, previousScanDate } = context;
   const { supabase, analyticsCredentials, databaseCredentials } = options;
 
   // Build the prompt
@@ -985,6 +995,26 @@ export async function runPostAnalysisPipeline(
     promptParts.push(`Focus on evaluating the changes only.`);
   }
 
+  // Inject temporal context so the LLM knows change ages
+  const now = new Date();
+  const temporalLines: string[] = [
+    `\n## Temporal Context`,
+    `Current date: ${now.toISOString().split("T")[0]}`,
+  ];
+  if (previousScanDate) {
+    temporalLines.push(`Previous scan date: ${previousScanDate.split("T")[0]}`);
+  }
+  if (pendingChanges && pendingChanges.length > 0) {
+    temporalLines.push(`\nDays since each pending change was first detected:`);
+    for (const pc of pendingChanges) {
+      const detectedDate = new Date(pc.first_detected_at);
+      const daysSince = Math.floor((now.getTime() - detectedDate.getTime()) / 86400000);
+      temporalLines.push(`- ${pc.element}: ${daysSince} days (detected ${detectedDate.toISOString().split("T")[0]})`);
+    }
+  }
+  temporalLines.push(`\nReminder: Changes < 7 days old CANNOT be "validated". They MUST be "watching".`);
+  promptParts.push(temporalLines.join("\n"));
+
   const hasTools = Object.keys(tools).length > 0;
 
   const result = await generateText({
@@ -1042,6 +1072,59 @@ export async function runPostAnalysisPipeline(
   }
   if (!parsed.running_summary) {
     parsed.running_summary = parsed.verdict;
+  }
+
+  // Server-side enforcement: if no tools were called, force correlation=null and demote validated→watching
+  if (toolCallsMade.length === 0) {
+    parsed.correlation = null;
+
+    // Demote any hallucinated validatedItems to watchingItems
+    if (parsed.progress.validatedItems && parsed.progress.validatedItems.length > 0) {
+      for (const v of parsed.progress.validatedItems) {
+        parsed.progress.watchingItems!.push({
+          id: v.id,
+          element: v.element,
+          title: v.title,
+          daysOfData: 0,
+          daysNeeded: 7,
+        });
+      }
+      parsed.progress.validatedItems = [];
+      parsed.progress.validated = 0;
+      parsed.progress.watching = parsed.progress.watchingItems!.length;
+    }
+  }
+
+  // Also enforce: any watching item with < 7 days cannot be validated (even with tools)
+  if (pendingChanges && parsed.progress.validatedItems) {
+    const pendingMap = new Map(pendingChanges.map((pc) => [pc.id, pc]));
+    const demoted: typeof parsed.progress.validatedItems = [];
+    const kept: typeof parsed.progress.validatedItems = [];
+
+    for (const v of parsed.progress.validatedItems) {
+      const pc = pendingMap.get(v.id);
+      if (pc) {
+        const daysSince = Math.floor((Date.now() - new Date(pc.first_detected_at).getTime()) / 86400000);
+        if (daysSince < 7) {
+          demoted.push(v);
+          parsed.progress.watchingItems!.push({
+            id: v.id,
+            element: v.element,
+            title: v.title,
+            daysOfData: daysSince,
+            daysNeeded: 7,
+          });
+          continue;
+        }
+      }
+      kept.push(v);
+    }
+
+    if (demoted.length > 0) {
+      parsed.progress.validatedItems = kept;
+      parsed.progress.validated = kept.length;
+      parsed.progress.watching = parsed.progress.watchingItems!.length;
+    }
   }
 
   return parsed;

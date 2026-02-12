@@ -289,9 +289,10 @@ Output:
 ```
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
-- `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision. Sends both desktop and mobile images when available, with mobile experience evaluation in system prompt.
-- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff. Sends 2 images (desktop only) or 4 images (desktop + mobile) depending on baseline availability.
-- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation
+- `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available.
+- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff (maxOutputTokens: 1000). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory.
+- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 4096). Has analytics/database tool access.
+- `extractJson(text)` — Robust JSON extraction from LLM responses. 3-tier: regex code block → brace-match → `closeJson()` (auto-close truncated JSON).
 - `formatUserFeedback(feedback)` — Formats user feedback for LLM context (with prompt injection protection)
 
 Model: `gemini-3-pro-preview` (will update ID when it exits preview).
@@ -436,6 +437,14 @@ The codebase now has canonical types with legacy types for backward compatibilit
 ```
 
 **Note:** Legacy types (`LegacyStructuredOutput`, `LegacyChangesSummary`) exist for the UI during transition. UI update in Phase 2.
+
+### Anti-Hallucination Guardrails (Post-Analysis)
+The post-analysis pipeline has 3-layer protection against LLM fabricating correlation data:
+1. **Temporal context** — Injects computed `days_since_detected` for each pending change + current date + previous scan date. LLM sees exact ages.
+2. **Hardened prompt rules** — "validated" requires: tools called + tools returned data + change 7+ days old. No tools = null correlation.
+3. **Server-side enforcement** — After parsing: if `toolCallsMade.length === 0`, forces `correlation = null` and demotes `validatedItems` → `watchingItems`. Also enforces 7-day minimum even with tools.
+
+`previousScanDate` is passed from the parent analysis `created_at` via `PostAnalysisContext`.
 
 ### Correlation Logic
 - Adaptive window based on traffic volume
@@ -726,8 +735,8 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 
 ### Functions
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
-- `scheduled-scan` — weekly cron (Monday 9am UTC), scans all pages with `scan_frequency='weekly'`
-- `scheduled-scan-daily` — daily cron (9am UTC), scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id.
+- `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
+- `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
 - `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
@@ -803,7 +812,7 @@ npm run dev                    # Next.js on port 3002
 
 1. **Bot protection on screenshots** — SOLVED with Decodo residential proxy ($4/mo for 2GB). Stealth plugin + residential IP bypasses Vercel/Cloudflare.
 2. **Screenshot speed** — MITIGATED with persistent browser pool + domcontentloaded strategy. 5-12s range.
-3. **LLM JSON parsing** — Sonnet sometimes wraps JSON in markdown code blocks. Pipeline extracts with regex fallback.
+3. **LLM JSON parsing** — Gemini prepends text preamble before JSON and may truncate long responses. `extractJson()` helper handles this with 3-tier fallback: regex code block extraction → brace-matching → `closeJson()` (auto-closes truncated JSON by balancing braces/brackets). Applied to all 3 parse sites: `runAnalysisPipeline`, `runPostAnalysisPipeline`, `runQuickDiff`.
 4. **Total pipeline latency** — Screenshot (5-12s) + LLM (15-30s) = 20-40s total. Acceptable for async background job with polling UI.
 
 ## Cost Estimates Per Analysis
@@ -1015,6 +1024,7 @@ All user-provided URLs are validated before being passed to external services:
   - Local domains (*.local, *.internal)
   - Decimal/hex/octal IP encodings
 - **API routes** (`/api/analyze`, `/api/pages`, `/api/wayback`) — Same validation inline
+- **Domain blocklist** (`src/lib/url-validation.ts`) — `isBlockedDomain()` blocks ~256 major domains (Google, Facebook, Amazon, etc.) + .gov/.edu/.mil TLDs from being audited or claimed. Subdomain matching catches `www.*`, `mail.*`, etc.
 - **Note:** DNS rebinding remains a theoretical risk; screenshot service should also enforce at network level
 
 ### Credential Encryption

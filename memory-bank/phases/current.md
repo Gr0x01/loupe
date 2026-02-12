@@ -325,6 +325,35 @@ Added 390px mobile viewport screenshot to the full pipeline: capture → store �
 
 **Note:** Mobile screenshots are captured for ALL tiers (not gated). The "Mobile" Pro feature in pricing refers to viewport-based access gate (`MobileUpgradeGate`), not screenshot capture. Consider gating LLM mobile image sending by tier to save ~$0.01/analysis for Free/Starter.
 
+### Daily Scan Pipeline Fix (Feb 12, 2026)
+
+Post-launch bugfix for broken daily scans (Feb 10-11).
+
+- [x] Diagnosed: Gemini text preamble + truncated JSON from low `maxOutputTokens`
+- [x] Added `extractJson()` helper with 3-tier fallback (regex → brace-match → closeJson)
+- [x] Applied to all 3 LLM parse sites (analysis, post-analysis, quick diff)
+- [x] Increased post-analysis `maxOutputTokens` 3000 → 4096
+- [x] Fixed duplicate scans: `retries: 0` on cron orchestrators + date-based idempotency guard
+- [x] Removed `_error_detail` leak from client-visible `changes_summary`
+- [x] Removed debug console.logs from `runQuickDiff`
+- [x] Cleaned up `src/app/api/debug/quick-diff/` and `test-quick-diff.mjs`
+
+See `decisions.md` D30 for rationale.
+
+### Anti-Hallucination Guardrails for Correlation (Feb 12, 2026)
+
+LLM was fabricating correlation data (validated items with fake metric percentages) on same-day changes where no analytics tools were called.
+
+- [x] Added `previousScanDate` to `PostAnalysisContext` interface
+- [x] Injected temporal context into prompt (current date, previous scan date, days-since-detected per pending change)
+- [x] Hardened prompt rules: "validated" requires tools called + data returned + 7+ days old
+- [x] Added "Correlation Rules" to prompt: no tools = null correlation, never fabricate numbers
+- [x] Server-side enforcement: if no tools called, force `correlation = null` and demote validated → watching
+- [x] Server-side enforcement: changes < 7 days old cannot be validated even with tools
+- [x] Passed `previousScanDate` from parent analysis `created_at` in inngest caller
+
+See `decisions.md` D31 for rationale.
+
 ### Key Changes (remaining)
 - None — Phase 2A complete
 

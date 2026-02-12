@@ -17,6 +17,7 @@ import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
 import { correlateChange } from "@/lib/analytics/correlation";
 import { createProvider } from "@/lib/analytics/provider";
 import { canUseDeployScans, type SubscriptionTier } from "@/lib/permissions";
+import { captureEvent, flushEvents } from "@/lib/posthog-server";
 
 /**
  * Extract top suggestion from changes_summary (Chronicle) or structured_output (initial audit)
@@ -133,6 +134,26 @@ export const analyzeUrl = inngest.createFunction(
         .eq("id", analysisId);
     });
 
+    // Step 4b: Track completion server-side
+    await step.run("track-completion", async () => {
+      const { data: analysis } = await supabase
+        .from("analyses")
+        .select("user_id, trigger_type")
+        .eq("id", analysisId)
+        .single();
+
+      if (analysis?.user_id) {
+        const parsedUrl = new URL(url);
+        captureEvent(analysis.user_id, "audit_completed_server", {
+          domain: parsedUrl.hostname,
+          url,
+          findings_count: structured?.findingsCount ?? 0,
+          trigger_type: analysis.trigger_type ?? "manual",
+        });
+        await flushEvents();
+      }
+    });
+
     // Step 5: Fetch integrations and run post-analysis
     await step.run("post-analysis", async () => {
       // 5. Run unified post-analysis pipeline (comparison + analytics correlation)
@@ -147,10 +168,12 @@ export const analyzeUrl = inngest.createFunction(
         let previousFindings = null;
         let previousRunningSummary = null;
 
+        let previousScanDate: string | null = null;
+
         if (parentAnalysisId) {
           const { data: parent } = await supabase
             .from("analyses")
-            .select("structured_output, changes_summary")
+            .select("structured_output, changes_summary, created_at")
             .eq("id", parentAnalysisId)
             .single();
 
@@ -158,6 +181,9 @@ export const analyzeUrl = inngest.createFunction(
             previousFindings = parent.structured_output;
             previousRunningSummary =
               (parent.changes_summary as ChangesSummary | null)?.running_summary ?? null;
+          }
+          if (parent?.created_at) {
+            previousScanDate = parent.created_at;
           }
         }
 
@@ -366,6 +392,7 @@ export const analyzeUrl = inngest.createFunction(
                 deployContext,
                 userFeedback,
                 pendingChanges,
+                previousScanDate,
               },
               {
                 supabase,
