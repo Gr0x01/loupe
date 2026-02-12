@@ -1,6 +1,7 @@
 import { generateText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 import { anthropic } from "@ai-sdk/anthropic";
+import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PageMetadata } from "@/lib/screenshot";
 import type { AnalyticsCredentials, GA4Credentials } from "@/lib/analytics/types";
@@ -1096,6 +1097,41 @@ Be concise. Focus on meaningful changes, not minor rendering differences.`;
 import type { QuickDiffResult } from "@/lib/types/analysis";
 
 /**
+ * Cap image height at maxPx (default 7500) to stay under Anthropic's 8000px limit.
+ * Returns a data URI. Passes through images already under the limit.
+ */
+async function capImageHeight(base64: string, maxPx = 7500): Promise<string> {
+  const buf = Buffer.from(base64, "base64");
+  const meta = await sharp(buf).metadata();
+  if (!meta.height || meta.height <= maxPx) {
+    return `data:image/jpeg;base64,${base64}`;
+  }
+  const resized = await sharp(buf)
+    .resize({ height: maxPx, withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+}
+
+/**
+ * Fetch an image URL and return a height-capped data URI.
+ */
+async function fetchAndCapImage(url: string, maxPx = 7500): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const meta = await sharp(buf).metadata();
+  if (!meta.height || meta.height <= maxPx) {
+    return `data:image/jpeg;base64,${buf.toString("base64")}`;
+  }
+  const resized = await sharp(buf)
+    .resize({ height: maxPx, withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+}
+
+/**
  * Run a quick visual diff between two screenshots using Haiku.
  * This is a lightweight alternative to full analysis for deploy detection.
  *
@@ -1117,24 +1153,34 @@ export async function runQuickDiff(
     ? "Compare these screenshots of the same webpage. Images 1-2 are DESKTOP (baseline then current). Images 3-4 are MOBILE 390px (baseline then current). Identify what changed."
     : "Compare these two screenshots of the same webpage. The first image is the BASELINE (previous state). The second image is the CURRENT state. Identify what changed.";
 
-  // Ensure base64 strings have data URI prefix so the SDK recognizes them as image data
-  const currentDataUri = currentScreenshotBase64.startsWith("data:")
-    ? currentScreenshotBase64
-    : `data:image/jpeg;base64,${currentScreenshotBase64}`;
+  // Cap all images to 7500px height (Anthropic's limit is 8000px)
+  const [baselineDataUri, currentDataUri] = await Promise.all([
+    fetchAndCapImage(baselineScreenshotUrl),
+    capImageHeight(
+      currentScreenshotBase64.startsWith("data:")
+        ? currentScreenshotBase64.split(",")[1]
+        : currentScreenshotBase64
+    ),
+  ]);
 
-  const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: URL | string }> = [
+  const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [
     { type: "text", text: promptText },
-    { type: "image", image: new URL(baselineScreenshotUrl) },
+    { type: "image", image: baselineDataUri },
     { type: "image", image: currentDataUri },
   ];
 
   if (hasMobile) {
-    const mobileDataUri = currentMobileBase64!.startsWith("data:")
-      ? currentMobileBase64!
-      : `data:image/jpeg;base64,${currentMobileBase64}`;
+    const [mobileBaselineUri, mobileCurrentUri] = await Promise.all([
+      fetchAndCapImage(baselineMobileUrl!),
+      capImageHeight(
+        currentMobileBase64!.startsWith("data:")
+          ? currentMobileBase64!.split(",")[1]
+          : currentMobileBase64!
+      ),
+    ]);
     contentParts.push(
-      { type: "image", image: new URL(baselineMobileUrl!) },
-      { type: "image", image: mobileDataUri }
+      { type: "image", image: mobileBaselineUri },
+      { type: "image", image: mobileCurrentUri }
     );
   }
 
