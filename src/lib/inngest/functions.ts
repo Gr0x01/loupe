@@ -885,7 +885,7 @@ export const deployDetected = inngest.createFunction(
 
     // Process each page
     const results = await step.run("detect-changes", async () => {
-      const processed: { pageId: string; hadChanges: boolean; usedFullAnalysis: boolean }[] = [];
+      const processed: { pageId: string; hadChanges: boolean; usedFullAnalysis: boolean; error?: string }[] = [];
 
       for (const page of pages) {
         try {
@@ -1010,8 +1010,9 @@ export const deployDetected = inngest.createFunction(
 
           processed.push({ pageId: page.id, hadChanges: true, usedFullAnalysis: false });
         } catch (err) {
-          console.error(`Deploy detection failed for page ${page.id}:`, err);
-          processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false });
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error(`Deploy detection failed for page ${page.id} (${page.url}):`, errMsg);
+          processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false, error: errMsg });
         }
       }
 
@@ -1028,11 +1029,13 @@ export const deployDetected = inngest.createFunction(
 
     const changesDetected = results.filter((r) => r.hadChanges).length;
     const fullAnalysisRun = results.filter((r) => r.usedFullAnalysis).length;
+    const errors = results.filter((r) => r.error).map((r) => ({ pageId: r.pageId, error: r.error }));
 
     return {
       scanned: results.length,
       changesDetected,
       fullAnalysisRun,
+      errors: errors.length > 0 ? errors : undefined,
       deployId,
     };
   }

@@ -1058,16 +1058,24 @@ export async function runQuickDiff(
     ? "Compare these screenshots of the same webpage. Images 1-2 are DESKTOP (baseline then current). Images 3-4 are MOBILE 390px (baseline then current). Identify what changed."
     : "Compare these two screenshots of the same webpage. The first image is the BASELINE (previous state). The second image is the CURRENT state. Identify what changed.";
 
-  const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [
+  // Ensure base64 strings have data URI prefix so the SDK recognizes them as image data
+  const currentDataUri = currentScreenshotBase64.startsWith("data:")
+    ? currentScreenshotBase64
+    : `data:image/jpeg;base64,${currentScreenshotBase64}`;
+
+  const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: URL | string }> = [
     { type: "text", text: promptText },
-    { type: "image", image: baselineScreenshotUrl },
-    { type: "image", image: currentScreenshotBase64 },
+    { type: "image", image: new URL(baselineScreenshotUrl) },
+    { type: "image", image: currentDataUri },
   ];
 
   if (hasMobile) {
+    const mobileDataUri = currentMobileBase64!.startsWith("data:")
+      ? currentMobileBase64!
+      : `data:image/jpeg;base64,${currentMobileBase64}`;
     contentParts.push(
-      { type: "image", image: baselineMobileUrl },
-      { type: "image", image: currentMobileBase64 }
+      { type: "image", image: new URL(baselineMobileUrl!) },
+      { type: "image", image: mobileDataUri }
     );
   }
 
@@ -1090,10 +1098,10 @@ export async function runQuickDiff(
   let result: QuickDiffResult;
   try {
     result = JSON.parse(jsonStr) as QuickDiffResult;
-  } catch {
-    // If parsing fails, assume no changes detected
-    console.error("Failed to parse quick diff response:", text.substring(0, 200));
-    return { hasChanges: false, changes: [] };
+  } catch (parseErr) {
+    // Log full response for debugging, then throw so caller can handle
+    console.error("Quick diff JSON parse failed. Raw response:", text);
+    throw new Error(`Quick diff returned invalid JSON: ${text.substring(0, 300)}`);
   }
 
   // Validate and normalize the result
