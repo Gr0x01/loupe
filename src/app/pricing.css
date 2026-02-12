@@ -1,0 +1,62 @@
+/* ===== PRICING PAGE TOGGLE ===== */
+.pricing-toggle {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  position: relative;
+  padding: 4px;
+  background: var(--paper-100);
+  border-radius: 10px;
+  border: 1.5px solid var(--line-subtle);
+}
+
+.pricing-toggle-slider {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  background: var(--ink-900);
+  border-radius: 8px;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.pricing-toggle-btn {
+  position: relative;
+  z-index: 1;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: color 200ms ease;
+  color: var(--ink-500);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.pricing-toggle-btn:hover:not(.active) {
+  color: var(--ink-700);
+}
+
+.pricing-toggle-btn.active {
+  color: #fff;
+}
+
+/* ===== PRICING PAGE HERO STAGGER ===== */
+.pricing-hero-headline {
+  opacity: 0;
+  animation: landingFadeIn 0.5s ease-out forwards;
+  animation-delay: 100ms;
+}
+
+.pricing-hero-sub {
+  opacity: 0;
+  animation: landingFadeIn 0.4s ease-out forwards;
+  animation-delay: 300ms;
+}
+
+.pricing-hero-toggle {
+  opacity: 0;
+  animation: landingFadeIn 0.4s ease-out forwards;
+  animation-delay: 500ms;
+}
