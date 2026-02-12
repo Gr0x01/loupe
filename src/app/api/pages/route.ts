@@ -402,13 +402,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Track page claim in PostHog
+    // Track page claim + page tracked in PostHog
     captureEvent(user.id, "page_claimed", {
       domain: parsedUrl.hostname,
       url: normalizedUrl,
       tier: effectiveTier,
       page_number: currentPageCount + 1,
       is_founding_50: isFounder || wasJustMarkedFounder,
+    });
+    captureEvent(user.id, "page_tracked", {
+      domain: parsedUrl.hostname,
+      is_first_page: currentPageCount === 0,
     });
     identifyUser(user.id, {
       subscription_tier: effectiveTier,
