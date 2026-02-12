@@ -16,6 +16,7 @@ interface ChronicleHeroProps {
     watching: number;
     open: number;
   };
+  tone?: "positive" | "concerning" | "neutral";
 }
 
 export function ChronicleHero({
@@ -23,6 +24,7 @@ export function ChronicleHero({
   baselineDate,
   triggerType,
   progress,
+  tone = "neutral",
 }: ChronicleHeroProps) {
   const sinceDate = baselineDate ? formatDateRange(baselineDate) : "first scan";
 
@@ -37,13 +39,9 @@ export function ChronicleHero({
     : null;
 
   return (
-    <div className="chronicle-hero-new">
+    <div className={`chronicle-hero-new chronicle-hero-tone-${tone}`}>
       <div className="chronicle-hero-content">
-        <p className="chronicle-hero-label">Latest read</p>
-        <h1
-          className="chronicle-hero-verdict-new"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
+        <h1 className="chronicle-hero-verdict-new">
           {verdict}
         </h1>
 
@@ -59,7 +57,6 @@ export function ChronicleHero({
       </div>
 
       <div className="chronicle-hero-gauges">
-        <p className="chronicle-hero-gauges-label">Momentum</p>
         <ProgressGauges
           validated={progress.validated}
           watching={progress.watching}

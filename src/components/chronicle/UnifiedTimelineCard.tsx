@@ -25,13 +25,13 @@ function formatDate(dateStr?: string): string {
 function getStatusLabel(type: TimelineItemType, daysRemaining?: number): string {
   switch (type) {
     case "validated":
-      return "Correlation confirmed";
+      return "Impact confirmed";
     case "regressed":
-      return "Metrics declined";
+      return "Performance dropped";
     case "watching":
       return daysRemaining
         ? `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} left`
-        : "Collecting data";
+        : "Tracking impact";
     default:
       return "";
   }
@@ -40,16 +40,21 @@ function getStatusLabel(type: TimelineItemType, daysRemaining?: number): string 
 function getTypeLabel(type: TimelineItemType): string {
   switch (type) {
     case "validated":
-      return "Validated";
+      return "Confirmed";
     case "regressed":
-      return "Regressed";
+      return "Dropped";
     case "watching":
-      return "Watching";
+      return "Tracking";
     default:
       return "Changed";
   }
 }
 
+/**
+ * For validated/regressed cards, the layout is inverted:
+ * outcome (friendlyText + delta) is the hero, diff is supporting context.
+ * For watching/change cards, the layout stays diff-first.
+ */
 export function UnifiedTimelineCard({
   id,
   type,
@@ -66,16 +71,18 @@ export function UnifiedTimelineCard({
   const typeLabel = getTypeLabel(type);
   const formattedDate = formatDate(detectedAt);
   const hasDiff = Boolean(before && after);
+  const hasOutcome = type === "validated" || type === "regressed";
 
   return (
     <article
       id={id}
       className={`unified-timeline-card unified-timeline-card-${type}`}
     >
+      {/* Header: element name + state badge */}
       <div className="unified-timeline-card-header">
         <div className="unified-timeline-card-heading">
           <span className="unified-timeline-card-element">{element}</span>
-          {title && (
+          {title && !hasOutcome && (
             <p className="unified-timeline-card-title">{title}</p>
           )}
         </div>
@@ -83,18 +90,6 @@ export function UnifiedTimelineCard({
           <span className={`unified-timeline-card-state unified-timeline-card-state-${type}`}>
             {typeLabel}
           </span>
-          {change && (
-            <span
-              className={`unified-timeline-card-delta ${
-                type === "validated"
-                  ? "unified-timeline-card-delta-positive"
-                  : "unified-timeline-card-delta-negative"
-              }`}
-            >
-              {type === "validated" ? "\u2191" : "\u2193"}
-              {change.replace(/[+-]/, "")}
-            </span>
-          )}
           {type === "watching" && (
             <span className="unified-timeline-card-watching-indicator">
               <span className="unified-timeline-card-pulse" />
@@ -103,18 +98,42 @@ export function UnifiedTimelineCard({
         </div>
       </div>
 
+      {/* Validated/regressed: outcome is the hero */}
+      {hasOutcome && (
+        <div className="unified-timeline-card-outcome">
+          {change && (
+            <span
+              className={`unified-timeline-card-outcome-delta ${
+                type === "validated"
+                  ? "unified-timeline-card-outcome-delta-positive"
+                  : "unified-timeline-card-outcome-delta-negative"
+              }`}
+            >
+              {type === "validated" ? "\u2191" : "\u2193"}
+              {change.replace(/[+-]/, "")}
+            </span>
+          )}
+          {friendlyText && (
+            <p className="unified-timeline-card-outcome-text">{friendlyText}</p>
+          )}
+        </div>
+      )}
+
+      {/* Diff: before → after (supporting context for outcome cards, primary for others) */}
       {hasDiff && (
-        <div className="unified-timeline-card-diff">
+        <div className={`unified-timeline-card-diff ${hasOutcome ? "unified-timeline-card-diff-secondary" : ""}`}>
           <span className="unified-timeline-card-before">&ldquo;{before}&rdquo;</span>
           <span className="unified-timeline-card-arrow">&rarr;</span>
           <span className="unified-timeline-card-after">&ldquo;{after}&rdquo;</span>
         </div>
       )}
 
-      {friendlyText && (
+      {/* FriendlyText for non-outcome cards (watching/change) */}
+      {!hasOutcome && friendlyText && (
         <p className="unified-timeline-card-friendly">{friendlyText}</p>
       )}
 
+      {/* Footer */}
       <div className="unified-timeline-card-footer">
         {formattedDate && (
           <span className="unified-timeline-card-date">Changed {formattedDate}</span>

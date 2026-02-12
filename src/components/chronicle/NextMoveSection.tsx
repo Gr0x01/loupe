@@ -22,7 +22,7 @@ export function NextMoveSection({
         <div className="chronicle-section-header">
           <h2
             className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-display)" }}
+
           >
             Your next move
           </h2>
@@ -64,7 +64,7 @@ export function NextMoveSection({
         <div>
           <h2
             className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-display)" }}
+
           >
             Your next move
           </h2>

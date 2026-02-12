@@ -58,7 +58,7 @@ export function SuggestionCard({ suggestion, defaultExpanded = false }: Suggesti
           <div className="suggestion-card-title-row">
             <p
               className="suggestion-card-title"
-              style={{ fontFamily: "var(--font-display)" }}
+
             >
               {suggestion.title}
             </p>

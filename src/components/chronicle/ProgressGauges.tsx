@@ -60,19 +60,19 @@ export function ProgressGauges({
     <div className="progress-gauges">
       <GaugeRow
         count={validated}
-        label="validated"
+        label="confirmed"
         tone="validated"
         maxCount={maxCount}
       />
       <GaugeRow
         count={watching}
-        label="watching"
+        label="tracking"
         tone="watching"
         maxCount={maxCount}
       />
       <GaugeRow
         count={open}
-        label="open"
+        label="unresolved"
         tone="open"
         maxCount={maxCount}
       />

@@ -141,12 +141,11 @@ export function UnifiedTimeline({
         <div>
           <h2
             className="text-2xl font-bold text-text-primary"
-            style={{ fontFamily: "var(--font-display)" }}
           >
             Changes we caught
           </h2>
           <p className="text-sm text-text-muted mt-1">
-            Grouped by signal strength, newest scan first
+            Most important first
           </p>
         </div>
         {!isEmpty && (
@@ -160,12 +159,25 @@ export function UnifiedTimeline({
         <div className="chronicle-empty-card text-center">
           {hasError ? (
             <p className="text-text-secondary">
-              Change detection unavailable for this scan.
+              We couldn&apos;t compare this scan to your previous one. Your audit results are still available above.
             </p>
           ) : (
-            <p className="text-text-secondary">
-              No changes detected since your last scan. Your page is stable.
-            </p>
+            <>
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(16,185,129,0.1)] mb-4">
+                <svg
+                  className="w-6 h-6 text-emerald"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="4 12 9 17 20 6" />
+                </svg>
+              </div>
+              <p className="text-text-secondary">
+                Nothing moved since last time. Your page is holding steady.
+              </p>
+            </>
           )}
         </div>
       ) : (

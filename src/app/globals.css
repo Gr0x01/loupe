@@ -4002,92 +4002,105 @@ body.modal-open .site-nav {
   padding-bottom: 1.6rem;
 }
 
+/* ===== CHRONICLE STATUS CARD ===== */
 .chronicle-hero-card {
   padding: clamp(1.25rem, 1.5vw + 0.9rem, 2rem);
-  border-radius: 10px;
-  border-width: 1.5px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.16);
 }
 
-/* Tone-based top border on Status Card */
+/* TONE: Positive — emerald tint, bold left accent */
 .chronicle-hero-card-positive {
-  border-top: 3px solid var(--emerald);
+  background: linear-gradient(135deg, #F0FDF9 0%, #FAFFFE 100%);
+  border: 2px solid rgba(16, 185, 129, 0.3);
+  border-left: 6px solid #10B981;
+  box-shadow: 5px 5px 0 rgba(16, 185, 129, 0.12);
 }
 
+/* TONE: Concerning — coral tint */
 .chronicle-hero-card-concerning {
-  border-top: 3px solid var(--coral);
+  background: linear-gradient(135deg, #FFF7F5 0%, #FFFCFB 100%);
+  border: 2px solid rgba(255, 107, 74, 0.3);
+  border-left: 6px solid #FF6B4A;
+  box-shadow: 5px 5px 0 rgba(255, 107, 74, 0.12);
 }
 
+/* TONE: Neutral — cool gray */
 .chronicle-hero-card-neutral {
-  border-top: 3px solid #94a3b8;
+  background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%);
+  border: 2px solid #9AAABD;
+  border-left: 6px solid #64748B;
+  box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.16);
 }
 
-/* Status Card: inline win callout */
+/* Win callout */
 .status-card-win {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-top: 1.1rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: 8px;
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.22);
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  line-height: 1.45;
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1.5px solid rgba(16, 185, 129, 0.3);
+  font-size: 0.9rem;
+  color: var(--ink-900);
+  line-height: 1.5;
 }
 
 .status-card-win-icon {
   flex-shrink: 0;
-  width: 1.2rem;
-  height: 1.2rem;
-  color: var(--emerald);
+  width: 1.4rem;
+  height: 1.4rem;
+  color: #10B981;
 }
 
 .status-card-win-change {
   font-weight: 700;
-  color: var(--emerald);
+  font-size: 1.05rem;
+  color: #059669;
 }
 
-/* Status Card: inline top suggestion */
+/* Next move section */
 .status-card-next-move {
-  margin-top: 1.15rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(100, 116, 139, 0.15);
+  margin-top: 1.3rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(100, 116, 139, 0.18);
 }
 
 .status-card-next-move-label {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-500);
+  margin-bottom: 0.4rem;
 }
 
 .status-card-next-move-title {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ink-900);
   font-family: var(--font-display);
-  margin-bottom: 0.5rem;
+  line-height: 1.3;
+  margin-bottom: 0.6rem;
 }
 
 .status-card-fix-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 6px;
-  background: var(--paper-100);
-  border: 1px solid rgba(100, 116, 139, 0.18);
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  background: #F1F5F9;
+  border: 1.5px solid rgba(100, 116, 139, 0.24);
 }
 
 .status-card-fix-text {
   flex: 1;
-  font-size: 0.84rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink-700);
 }
 
 .status-card-copy-btn {
@@ -4098,7 +4111,7 @@ body.modal-open .site-nav {
   background: #fff;
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--ink-500);
   cursor: pointer;
   transition: all 150ms ease;
 }
@@ -4210,7 +4223,7 @@ body.modal-open .site-nav {
 /* Chronicle hero */
 .chronicle-hero-new {
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
 }
 
 .chronicle-hero-content {
@@ -4228,10 +4241,11 @@ body.modal-open .site-nav {
 
 .chronicle-hero-verdict-new {
   font-family: var(--font-display);
-  font-size: clamp(1.55rem, 2.1vw + 0.9rem, 2.35rem);
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-  color: var(--text-primary);
+  font-size: clamp(1.7rem, 2.2vw + 1rem, 2.5rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--ink-900);
   max-width: 42ch;
 }
 
