@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Urbanist, IBM_Plex_Mono } from "next/font/google";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { PostHogPageView } from "@/components/PostHogPageView";
+import { SentryUserProvider } from "@/components/SentryUserProvider";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
@@ -105,6 +106,7 @@ export default function RootLayout({
       >
         <PostHogProvider>
           <PostHogPageView />
+          <SentryUserProvider />
           <SiteNav />
           <main className="flex-1">{children}</main>
           <SiteFooter />

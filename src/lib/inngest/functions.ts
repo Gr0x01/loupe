@@ -495,10 +495,14 @@ export const analyzeUrl = inngest.createFunction(
                 stack: postAnalysisErr.stack?.split('\n').slice(0, 3).join('\n'),
               } : String(postAnalysisErr),
             };
-            Sentry.captureException(postAnalysisErr, {
-              tags: { function: "analyzeUrl", step: "post-analysis", analysisId },
-              extra: errorDetails,
+            Sentry.withScope((scope) => {
+              scope.setUser({ id: analysis.user_id });
+              scope.setTag("function", "analyzeUrl");
+              scope.setTag("step", "post-analysis");
+              scope.setTag("analysisId", analysisId);
+              Sentry.captureException(postAnalysisErr, { extra: errorDetails });
             });
+            await Sentry.flush(2000);
             console.error("Post-analysis pipeline failed:", JSON.stringify(errorDetails, null, 2));
 
             // Store error details so we can diagnose without Vercel logs
@@ -715,10 +719,25 @@ export const analyzeUrl = inngest.createFunction(
     } catch (error) {
       // Mark analysis as failed so it doesn't stay in "processing" forever
       const message = error instanceof Error ? error.message : "Unknown error";
-      Sentry.captureException(error, {
-        tags: { function: "analyzeUrl", analysisId },
-        extra: { url, parentAnalysisId },
+      // Best-effort user context — must not block error handling
+      let userId: string | undefined;
+      try {
+        const { data: failedAnalysis } = await supabase
+          .from("analyses")
+          .select("user_id")
+          .eq("id", analysisId)
+          .single();
+        userId = failedAnalysis?.user_id;
+      } catch {
+        // Supabase may be down too — proceed without user context
+      }
+      Sentry.withScope((scope) => {
+        if (userId) scope.setUser({ id: userId });
+        scope.setTag("function", "analyzeUrl");
+        scope.setTag("analysisId", analysisId);
+        Sentry.captureException(error, { extra: { url, parentAnalysisId } });
       });
+      await Sentry.flush(2000);
       await supabase
         .from("analyses")
         .update({ status: "failed", error_message: message })
@@ -737,90 +756,100 @@ async function runScheduledScans(
   step: any,
   frequency: "daily" | "weekly"
 ): Promise<{ scanned: number }> {
-  const supabase = createServiceClient();
+  try {
+    const supabase = createServiceClient();
 
-  // Get all pages due for scan
-  const { data: pages, error } = await supabase
-    .from("pages")
-    .select("id, user_id, url, last_scan_id")
-    .eq("scan_frequency", frequency);
+    // Get all pages due for scan
+    const { data: pages, error } = await supabase
+      .from("pages")
+      .select("id, user_id, url, last_scan_id")
+      .eq("scan_frequency", frequency);
 
-  if (error) {
-    console.error(`Failed to fetch pages for ${frequency} scan:`, error);
-    throw error;
-  }
-
-  if (!pages || pages.length === 0) {
-    return { scanned: 0 };
-  }
-
-  // Create analyses for each page (with date-based idempotency)
-  const results = await step.run(`create-${frequency}-analyses`, async () => {
-    const created: { pageId: string; analysisId: string }[] = [];
-    const todayStart = new Date();
-    todayStart.setUTCHours(0, 0, 0, 0);
-
-    for (const page of pages) {
-      // Idempotency: skip if a scan already exists for this URL + frequency + today
-      const { count } = await supabase
-        .from("analyses")
-        .select("id", { count: "exact", head: true })
-        .eq("url", page.url)
-        .eq("user_id", page.user_id)
-        .eq("trigger_type", frequency)
-        .gte("created_at", todayStart.toISOString());
-
-      if (count && count > 0) {
-        console.log(`Skipping duplicate ${frequency} scan for ${page.url} (already exists today)`);
-        continue;
-      }
-
-      const { data: newAnalysis, error: insertError } = await supabase
-        .from("analyses")
-        .insert({
-          url: page.url,
-          user_id: page.user_id,
-          parent_analysis_id: page.last_scan_id,
-          trigger_type: frequency,
-          status: "pending",
-        })
-        .select("id")
-        .single();
-
-      if (insertError || !newAnalysis) {
-        console.error(`Failed to create analysis for page ${page.id}:`, insertError);
-        continue;
-      }
-
-      created.push({ pageId: page.id, analysisId: newAnalysis.id });
+    if (error) {
+      console.error(`Failed to fetch pages for ${frequency} scan:`, error);
+      throw error;
     }
 
-    return created;
-  });
-
-  // Send Inngest events for each analysis (in separate step for durability)
-  await step.run(`trigger-${frequency}-scans`, async () => {
-    for (const { analysisId } of results) {
-      const { data: analysis } = await supabase
-        .from("analyses")
-        .select("url, parent_analysis_id")
-        .eq("id", analysisId)
-        .single();
-
-      if (analysis) {
-        await inngest.send({
-          name: "analysis/created",
-          data: {
-            analysisId,
-            url: analysis.url,
-            parentAnalysisId: analysis.parent_analysis_id || undefined,
-          },
-        });
-      }
+    if (!pages || pages.length === 0) {
+      return { scanned: 0 };
     }
-  });
 
-  return { scanned: results.length };
+    // Create analyses for each page (with date-based idempotency)
+    const results = await step.run(`create-${frequency}-analyses`, async () => {
+      const created: { pageId: string; analysisId: string }[] = [];
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      for (const page of pages) {
+        // Idempotency: skip if a scan already exists for this URL + frequency + today
+        const { count } = await supabase
+          .from("analyses")
+          .select("id", { count: "exact", head: true })
+          .eq("url", page.url)
+          .eq("user_id", page.user_id)
+          .eq("trigger_type", frequency)
+          .gte("created_at", todayStart.toISOString());
+
+        if (count && count > 0) {
+          console.log(`Skipping duplicate ${frequency} scan for ${page.url} (already exists today)`);
+          continue;
+        }
+
+        const { data: newAnalysis, error: insertError } = await supabase
+          .from("analyses")
+          .insert({
+            url: page.url,
+            user_id: page.user_id,
+            parent_analysis_id: page.last_scan_id,
+            trigger_type: frequency,
+            status: "pending",
+          })
+          .select("id")
+          .single();
+
+        if (insertError || !newAnalysis) {
+          console.error(`Failed to create analysis for page ${page.id}:`, insertError);
+          continue;
+        }
+
+        created.push({ pageId: page.id, analysisId: newAnalysis.id });
+      }
+
+      return created;
+    });
+
+    // Send Inngest events for each analysis (in separate step for durability)
+    await step.run(`trigger-${frequency}-scans`, async () => {
+      for (const { analysisId } of results) {
+        const { data: analysis } = await supabase
+          .from("analyses")
+          .select("url, parent_analysis_id")
+          .eq("id", analysisId)
+          .single();
+
+        if (analysis) {
+          await inngest.send({
+            name: "analysis/created",
+            data: {
+              analysisId,
+              url: analysis.url,
+              parentAnalysisId: analysis.parent_analysis_id || undefined,
+            },
+          });
+        }
+      }
+    });
+
+    return { scanned: results.length };
+  } catch (err) {
+    Sentry.withScope((scope) => {
+      scope.setTag("function", "runScheduledScans");
+      scope.setTag("frequency", frequency);
+      Sentry.captureException(err);
+    });
+    await Sentry.flush(2000);
+    throw err;
+  }
 }
 
 /**
@@ -1063,9 +1092,11 @@ export const deployDetected = inngest.createFunction(
           processed.push({ pageId: page.id, hadChanges: true, usedFullAnalysis: false });
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          Sentry.captureException(err, {
-            tags: { function: "deployDetected", pageId: page.id },
-            extra: { url: page.url, deployId },
+          Sentry.withScope((scope) => {
+            scope.setUser({ id: userId });
+            scope.setTag("function", "deployDetected");
+            scope.setTag("pageId", page.id);
+            Sentry.captureException(err, { extra: { url: page.url, deployId } });
           });
           console.error(`Deploy detection failed for page ${page.id} (${page.url}):`, errMsg);
           processed.push({ pageId: page.id, hadChanges: false, usedFullAnalysis: false, error: errMsg });
@@ -1213,8 +1244,10 @@ export const dailyScanDigest = inngest.createFunction(
           await sendEmail({ to: profile.email, subject, html }).catch(console.error);
           sent++;
         } catch (err) {
-          Sentry.captureException(err, {
-            tags: { function: "dailyScanDigest", userId },
+          Sentry.withScope((scope) => {
+            scope.setUser({ id: userId });
+            scope.setTag("function", "dailyScanDigest");
+            Sentry.captureException(err);
           });
           console.error(`Digest failed for user ${userId}:`, err);
         }
@@ -1440,9 +1473,11 @@ export const checkCorrelations = inngest.createFunction(
               }
             }
           } catch (err) {
-            Sentry.captureException(err, {
-              tags: { function: "checkCorrelations", changeId: change.id },
-              extra: { pageId: change.page_id, userId },
+            Sentry.withScope((scope) => {
+              scope.setUser({ id: userId });
+              scope.setTag("function", "checkCorrelations");
+              scope.setTag("changeId", change.id);
+              Sentry.captureException(err, { extra: { pageId: change.page_id } });
             });
             console.error(`Correlation check failed for change ${change.id}:`, err);
             // Don't update status — will retry next cron run

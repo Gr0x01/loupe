@@ -6,13 +6,15 @@ Sentry.init({
   // Only send errors in production
   enabled: process.env.NODE_ENV === "production",
 
+  // Route envelopes through our own domain to avoid ad blockers
+  tunnel: "/api/sentry-tunnel",
+
+  // Tag with Vercel deploy info
+  environment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NODE_ENV,
+  release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
+
   // Sample 10% of transactions for performance monitoring
   tracesSampleRate: 0.1,
-
-  // Capture 100% of errors
-  replaysOnErrorSampleRate: 1.0,
-  // Sample 0% of sessions normally (only on error)
-  replaysSessionSampleRate: 0,
 
   // Filter out noisy browser errors
   ignoreErrors: [

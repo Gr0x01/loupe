@@ -5,6 +5,10 @@ Sentry.init({
 
   enabled: process.env.NODE_ENV === "production",
 
+  // Tag with Vercel deploy info
+  environment: process.env.VERCEL_ENV || process.env.NODE_ENV,
+  release: process.env.VERCEL_GIT_COMMIT_SHA,
+
   // Sample 10% of transactions for performance
   tracesSampleRate: 0.1,
 });

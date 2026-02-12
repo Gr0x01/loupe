@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://eu.i.posthog.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com https://api.resend.com https://*.ingest.sentry.io",
+              "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://eu.i.posthog.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com https://api.resend.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
