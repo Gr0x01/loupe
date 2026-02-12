@@ -10,7 +10,8 @@ import {
   correlationUnlockedEmail,
   dailyDigestEmail,
 } from "@/lib/email/templates";
-import type { ChangesSummary, ChronicleSuggestion, DetectedChange } from "@/lib/types/analysis";
+import type { ChangesSummary, ChronicleSuggestion, DetectedChange, CommitData } from "@/lib/types/analysis";
+import { filterRelevantCommits } from "@/lib/utils/commit-filter";
 import { safeDecrypt } from "@/lib/crypto";
 import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
 import { correlateChange } from "@/lib/analytics/correlation";
@@ -165,17 +166,24 @@ export const analyzeUrl = inngest.createFunction(
         if (analysis.deploy_id) {
           const { data: deploy } = await supabase
             .from("deploys")
-            .select("commit_sha, commit_message, commit_author, commit_timestamp, changed_files")
+            .select("commit_sha, commit_message, commit_author, commit_timestamp, changed_files, commits")
             .eq("id", analysis.deploy_id)
             .single();
 
           if (deploy) {
+            const commits = (deploy.commits as CommitData[] | null) ?? undefined;
+            const relevantCommits = commits
+              ? filterRelevantCommits(commits, url)
+              : undefined;
+
             deployContext = {
               commitSha: deploy.commit_sha,
               commitMessage: deploy.commit_message,
               commitAuthor: deploy.commit_author,
               commitTimestamp: deploy.commit_timestamp,
               changedFiles: deploy.changed_files || [],
+              commits,
+              relevantCommits,
             };
           }
         }

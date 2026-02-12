@@ -30,9 +30,10 @@ export type {
   QuickDiffResult,
   DetectedChange,
   DetectedChangeStatus,
+  CommitData,
 } from "@/lib/types/analysis";
 
-import type { ChangesSummary, AnalysisResult, DeployContext } from "@/lib/types/analysis";
+import type { ChangesSummary, AnalysisResult, DeployContext, CommitData } from "@/lib/types/analysis";
 
 const SYSTEM_PROMPT = `You are an observant analyst who notices what founders miss. You analyze web pages using both a screenshot AND extracted page metadata.
 
@@ -612,29 +613,71 @@ export interface PostAnalysisOptions {
 }
 
 /**
- * Format deploy context for inclusion in the LLM prompt
+ * Format a single commit for the LLM prompt
+ */
+function formatCommitBlock(commit: CommitData, label?: string): string {
+  const shortSha = commit.sha.slice(0, 7);
+  const timestamp = new Date(commit.timestamp);
+  const timeAgo = getTimeAgo(timestamp);
+  const lines: string[] = [];
+
+  if (label) lines.push(label);
+  lines.push(`**Commit:** ${shortSha} (pushed ${timeAgo})`);
+  lines.push(`**Author:** ${commit.author}`);
+  lines.push(`**Message:** ${commit.message}`);
+
+  if (commit.files.length > 0) {
+    lines.push("**Files:**");
+    const filesToShow = commit.files.slice(0, 10);
+    for (const file of filesToShow) {
+      lines.push(`- ${file}`);
+    }
+    if (commit.files.length > 10) {
+      lines.push(`- ...and ${commit.files.length - 10} more files`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format deploy context for inclusion in the LLM prompt.
+ * Uses per-page relevant commits when available, falls back to legacy single-commit format.
  */
 function formatDeployContext(deploy: DeployContext): string {
   const lines: string[] = ["## Deploy Context"];
   lines.push("This scan was triggered by a code deploy. Here's what changed:\n");
 
-  const shortSha = deploy.commitSha.slice(0, 7);
-  const timestamp = new Date(deploy.commitTimestamp);
-  const timeAgo = getTimeAgo(timestamp);
-
-  lines.push(`**Commit:** ${shortSha} (pushed ${timeAgo})`);
-  lines.push(`**Author:** ${deploy.commitAuthor}`);
-  lines.push(`**Message:** ${deploy.commitMessage}`);
-
-  if (deploy.changedFiles.length > 0) {
-    lines.push("\n**Changed Files:**");
-    // Show up to 15 files, truncate if more
-    const filesToShow = deploy.changedFiles.slice(0, 15);
-    for (const file of filesToShow) {
-      lines.push(`- ${file}`);
+  // New path: show relevant commits (filtered per-page)
+  if (deploy.relevantCommits && deploy.relevantCommits.length > 0) {
+    const total = deploy.commits?.length ?? 1;
+    if (total > deploy.relevantCommits.length) {
+      lines.push(`*${deploy.relevantCommits.length} most relevant commit${deploy.relevantCommits.length > 1 ? "s" : ""} out of ${total} in this push:*\n`);
     }
-    if (deploy.changedFiles.length > 15) {
-      lines.push(`- ...and ${deploy.changedFiles.length - 15} more files`);
+
+    for (let i = 0; i < deploy.relevantCommits.length; i++) {
+      if (i > 0) lines.push(""); // blank line between commits
+      lines.push(formatCommitBlock(deploy.relevantCommits[i]));
+    }
+  } else {
+    // Legacy fallback: single head commit + flat changed_files
+    const shortSha = deploy.commitSha.slice(0, 7);
+    const timestamp = new Date(deploy.commitTimestamp);
+    const timeAgo = getTimeAgo(timestamp);
+
+    lines.push(`**Commit:** ${shortSha} (pushed ${timeAgo})`);
+    lines.push(`**Author:** ${deploy.commitAuthor}`);
+    lines.push(`**Message:** ${deploy.commitMessage}`);
+
+    if (deploy.changedFiles.length > 0) {
+      lines.push("\n**Changed Files:**");
+      const filesToShow = deploy.changedFiles.slice(0, 15);
+      for (const file of filesToShow) {
+        lines.push(`- ${file}`);
+      }
+      if (deploy.changedFiles.length > 15) {
+        lines.push(`- ...and ${deploy.changedFiles.length - 15} more files`);
+      }
     }
   }
 

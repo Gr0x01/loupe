@@ -41,7 +41,15 @@ export async function POST(request: NextRequest) {
       author: { name: string };
       timestamp: string;
     } | null;
-    commits: { added: string[]; modified: string[]; removed: string[] }[];
+    commits: {
+      id: string;
+      message: string;
+      author: { name: string };
+      timestamp: string;
+      added: string[];
+      modified: string[];
+      removed: string[];
+    }[];
   };
 
   try {
@@ -93,6 +101,15 @@ export async function POST(request: NextRequest) {
     commit.removed.forEach(f => changedFiles.add(f));
   }
 
+  // Build structured commits array for per-page relevance filtering
+  const structuredCommits = body.commits.map((c) => ({
+    sha: c.id,
+    message: c.message.slice(0, 500),
+    author: c.author.name,
+    timestamp: c.timestamp,
+    files: [...c.added, ...c.modified, ...c.removed],
+  }));
+
   // Create deploy record
   const { data: deploy, error } = await serviceClient
     .from("deploys")
@@ -103,6 +120,7 @@ export async function POST(request: NextRequest) {
       commit_author: headCommit.author.name,
       commit_timestamp: headCommit.timestamp,
       changed_files: Array.from(changedFiles),
+      commits: structuredCommits,
       status: "pending",
     })
     .select("id")

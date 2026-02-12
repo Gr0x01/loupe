@@ -224,12 +224,24 @@ export interface ChangesSummary {
   _error?: string;
 }
 
+export interface CommitData {
+  sha: string;
+  message: string;
+  author: string;
+  timestamp: string;
+  files: string[];
+}
+
 export interface DeployContext {
   commitSha: string;
   commitMessage: string;
   commitAuthor: string;
   commitTimestamp: string;
   changedFiles: string[];
+  /** All commits from the push (null for old deploys) */
+  commits?: CommitData[];
+  /** Top 1-3 commits most relevant to the page being analyzed */
+  relevantCommits?: CommitData[];
 }
 
 // ============================================
