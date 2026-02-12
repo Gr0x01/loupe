@@ -993,7 +993,7 @@ export async function runPostAnalysisPipeline(
     prompt: promptParts.join("\n"),
     tools: hasTools ? tools : undefined,
     stopWhen: stepCountIs(hasTools ? 6 : 1), // Allow tool calls if tools available
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,
     onStepFinish: ({ toolCalls }) => {
       if (toolCalls) {
         for (const call of toolCalls) {
