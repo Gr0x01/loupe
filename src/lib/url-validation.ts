@@ -361,8 +361,6 @@ const BLOCKED_DOMAINS = new Set([
   "xbox.com",
   "playstation.com",
   "nintendo.com",
-  // Loupe itself
-  "getloupe.io",
 ]);
 
 /** TLDs that are entirely blocked — nobody owns these. */
