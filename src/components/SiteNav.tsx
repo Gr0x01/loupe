@@ -152,6 +152,13 @@ export default function SiteNav() {
 
           {/* Desktop nav with sliding underline */}
           <nav ref={navRef} className="hidden md:flex items-center gap-2 relative h-full">
+            <Link
+              ref={(el) => setLinkRef("/pricing", el)}
+              href="/pricing"
+              className={`nav-link ${isActive("/pricing") ? "nav-link-active" : ""}`}
+            >
+              Pricing
+            </Link>
             {isAuthenticated && (
               <Link
                 ref={(el) => setLinkRef("/dashboard", el)}
@@ -243,6 +250,16 @@ export default function SiteNav() {
                 }`}
               >
                 Home
+              </Link>
+              <Link
+                href="/pricing"
+                className={`text-base font-medium px-3 py-2 rounded-lg transition-colors ${
+                  isActive("/pricing")
+                    ? "text-accent bg-[var(--coral-subtle)]"
+                    : "text-text-secondary hover:text-accent hover:bg-[var(--coral-subtle)]"
+                }`}
+              >
+                Pricing
               </Link>
               {isAuthenticated && (
                 <Link

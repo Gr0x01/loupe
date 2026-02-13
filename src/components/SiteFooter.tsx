@@ -41,6 +41,9 @@ export default function SiteFooter() {
               <Link href="/monitor-website-changes" className="hover:text-accent transition-colors">
                 Monitoring
               </Link>
+              <Link href="/pricing" className="hover:text-accent transition-colors">
+                Pricing
+              </Link>
             </nav>
           </div>
 

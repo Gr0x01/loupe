@@ -76,12 +76,38 @@ const jsonLd = {
       operatingSystem: "Web",
       description:
         "Monitor your web pages for meaningful changes. Catch drift in headlines, CTAs, trust signals, and layout before it costs you conversions.",
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-        description: "Free page audit, no signup required",
-      },
+      offers: [
+        {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+          description: "Free — 1 page, weekly scans",
+        },
+        {
+          "@type": "Offer",
+          price: "12",
+          priceCurrency: "USD",
+          description: "Starter — 3 pages, daily scans",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price: "12",
+            priceCurrency: "USD",
+            billingDuration: "P1M",
+          },
+        },
+        {
+          "@type": "Offer",
+          price: "29",
+          priceCurrency: "USD",
+          description: "Pro — 10 pages, daily scans, mobile screenshots, unlimited analytics",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price: "29",
+            priceCurrency: "USD",
+            billingDuration: "P1M",
+          },
+        },
+      ],
     },
   ],
 };
