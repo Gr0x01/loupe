@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import { validateUrl, isBlockedDomain } from "@/lib/url-validation";
@@ -8,13 +9,22 @@ const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const MAX_URL_LENGTH = 2048;
 const MAX_EMAIL_LENGTH = 320;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get("x-real-ip") ||
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      null;
+    // Internal API key bypasses IP requirement and rate limiting
+    const reqKey = req.headers.get("x-api-key") ?? "";
+    const hasInternalKey =
+      !!INTERNAL_API_KEY &&
+      reqKey.length === INTERNAL_API_KEY.length &&
+      timingSafeEqual(Buffer.from(reqKey), Buffer.from(INTERNAL_API_KEY));
+
+    const ip = hasInternalKey
+      ? "internal"
+      : req.headers.get("x-real-ip") ||
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        null;
 
     if (!ip) {
       return NextResponse.json(
@@ -66,38 +76,64 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Atomic rate-limited insert via RPC
-    const { data, error } = await supabase.rpc("create_analysis_if_allowed", {
-      p_ip: ip,
-      p_url: parsedUrl.toString(),
-      p_email: email || null,
-      p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
-      p_max_requests: RATE_LIMIT_MAX_REQUESTS,
-      p_user_id: userId,
-    });
+    let analysisId: string;
 
-    if (error) {
-      console.error("Supabase RPC error:", error);
-      return NextResponse.json(
-        { error: "Failed to create analysis" },
-        { status: 500 }
-      );
-    }
+    if (hasInternalKey) {
+      // Internal key: skip rate limiting, insert directly
+      const { data, error } = await supabase
+        .from("analyses")
+        .insert({
+          url: parsedUrl.toString(),
+          email: email || null,
+          user_id: userId,
+          status: "pending",
+        })
+        .select("id")
+        .single();
 
-    if (data.error === "rate_limit_exceeded") {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        {
-          status: 429,
-          headers: { "Retry-After": String(RATE_LIMIT_WINDOW_MINUTES * 60) },
-        }
-      );
+      if (error) {
+        console.error("Direct insert error:", error);
+        return NextResponse.json(
+          { error: "Failed to create analysis" },
+          { status: 500 }
+        );
+      }
+      analysisId = data.id;
+    } else {
+      // Public: rate-limited insert via RPC
+      const { data, error } = await supabase.rpc("create_analysis_if_allowed", {
+        p_ip: ip,
+        p_url: parsedUrl.toString(),
+        p_email: email || null,
+        p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
+        p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+        p_user_id: userId,
+      });
+
+      if (error) {
+        console.error("Supabase RPC error:", error);
+        return NextResponse.json(
+          { error: "Failed to create analysis" },
+          { status: 500 }
+        );
+      }
+
+      if (data.error === "rate_limit_exceeded") {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          {
+            status: 429,
+            headers: { "Retry-After": String(RATE_LIMIT_WINDOW_MINUTES * 60) },
+          }
+        );
+      }
+      analysisId = data.id;
     }
 
     // Trigger Inngest background job
     await inngest.send({
       name: "analysis/created",
-      data: { analysisId: data.id, url: parsedUrl.toString() },
+      data: { analysisId, url: parsedUrl.toString() },
     });
 
     // Track audit server-side (captures both logged-in and anonymous audits)
@@ -109,7 +145,7 @@ export async function POST(req: NextRequest) {
       await flushEvents();
     }
 
-    return NextResponse.json({ id: data.id });
+    return NextResponse.json({ id: analysisId });
   } catch (err) {
     console.error("Analyze route error:", err);
     return NextResponse.json(
