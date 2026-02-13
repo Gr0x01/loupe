@@ -46,7 +46,7 @@ User enters URL → POST /api/analyze
 - **Decodo residential proxy** — `gate.decodo.com:7000` with username/password auth. Bypasses Vercel Security Checkpoint, Cloudflare, and similar bot protection
 - **Stealth plugin** — `puppeteer-extra-plugin-stealth` evades basic headless detection
 - **SSRF protection** — blocks private/internal IPs and non-HTTP protocols
-- **Concurrency limit** — max 3 concurrent screenshots
+- **Concurrency limit** — max 3 concurrent screenshots. Client (`screenshot.ts`) retries 429s with exponential backoff (2s/4s/8s, max 3 retries)
 - **Page render strategy** — `domcontentloaded` + 2.5s settle delay + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
 - **Request interception** — blocks non-visual resources to save proxy bandwidth: analytics (GA, GTM, Segment, Mixpanel, Amplitude, Heap, Clarity, FullStory, Hotjar), tracking pixels (Facebook), error monitoring (Sentry, Bugsnag), chat widgets (Intercom, Crisp), ads, embedded video, media/websocket/eventsource resource types. Fonts, CSS, images, and documents pass through.
 - **Browser crash recovery** — 30s health check interval, auto-relaunches dead browser instances
@@ -773,14 +773,24 @@ src/
 │   │   │   ├── github/             # GitHub OAuth + repo management
 │   │   │   └── posthog/            # PostHog connect/disconnect
 │   │   ├── webhooks/github/route.ts # GitHub push webhook receiver
+│   │   ├── sentry-tunnel/route.ts    # Sentry envelope proxy (ad blocker bypass)
 │   │   ├── dev/email-preview/route.ts # Dev-only email template preview
 │   │   └── inngest/route.ts        # Inngest serve
-│   ├── globals.css
+│   ├── globals.css               # Tokens + @imports only (~236 lines)
+│   ├── shared.css                # Cards, buttons, inputs, modals, nav, footer
+│   ├── chronicle.css             # Chronicle feature styles
+│   ├── dashboard.css             # Dashboard feature styles
+│   ├── landing.css               # Landing/homepage styles
+│   ├── analysis.css              # Analysis page styles
+│   ├── pricing.css               # Pricing page styles
+│   ├── hero-bg.css               # Hero background effects
+│   ├── hero-tablet.css           # Hero tablet breakpoints
 │   └── layout.tsx
 ├── components/
 │   ├── ShareModal.tsx              # Share-to-unlock modal
 │   ├── PostHogProvider.tsx         # PostHog analytics provider (client-side init)
-│   └── PostHogPageView.tsx         # PostHog pageview tracking for SPA
+│   ├── PostHogPageView.tsx         # PostHog pageview tracking for SPA
+│   └── SentryUserProvider.tsx      # Auth state → Sentry user context
 ├── lib/
 │   ├── constants.ts                # Shared constants (FOUNDING_50_CAP, etc.)
 │   ├── supabase/
@@ -1001,6 +1011,52 @@ Dashboard page
 | `src/app/dashboard/page.tsx` | Integrates ResultsZone at top |
 | `src/lib/email/templates.ts` | Deep links with `?win=` param |
 | `src/lib/utils/date.ts` | `formatDistanceToNow()` utility |
+
+---
+
+## Sentry Error Monitoring
+
+**SDK:** `@sentry/nextjs` (all 3 runtimes: client, server, edge)
+
+### Configuration (all configs)
+- `environment` — `VERCEL_ENV` (server/edge) or `NEXT_PUBLIC_VERCEL_ENV` (client), fallback to `NODE_ENV`
+- `release` — `VERCEL_GIT_COMMIT_SHA` / `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA`
+- `tracesSampleRate: 0.1` (10% of transactions)
+- `enabled` only in production
+
+### Client-Side User Context
+**File:** `src/components/SentryUserProvider.tsx` (mounted in root layout)
+- Calls `supabase.auth.getSession()` on mount for existing sessions
+- Listens to `onAuthStateChange` for sign-in/sign-out
+- Sets `Sentry.setUser({ id })` (no email — PII minimization)
+
+### Sentry Tunnel (Ad Blocker Bypass)
+**File:** `src/app/api/sentry-tunnel/route.ts`
+- Proxies Sentry envelopes through `/api/sentry-tunnel` instead of direct `*.ingest.sentry.io`
+- DSN host + project ID validated against `NEXT_PUBLIC_SENTRY_DSN` (prevents abuse as open relay)
+- 512KB body size limit (Content-Length header + actual body check)
+- CSP `connect-src` no longer includes `*.ingest.sentry.io` (tunneled through `'self'`)
+
+### Inngest Error Handling
+- All 6 `captureException` calls use `Sentry.withScope()` with `scope.setUser({ id: userId })` where available
+- `Sentry.flush(2000)` called before `throw` in serverless paths (prevents event loss on runtime freeze)
+- `runScheduledScans` helper wrapped in try/catch with Sentry capture (was a coverage gap)
+- Outer `analyzeUrl` catch does best-effort userId fetch (wrapped in its own try/catch)
+
+### Source Maps
+- Uploaded via `withSentryConfig` in `next.config.ts` (org: `loupe-4a`, project: `javascript-nextjs`)
+- Deleted after upload (`deleteSourcemapsAfterUpload: true`)
+- Requires `SENTRY_AUTH_TOKEN` in Vercel env vars (build-time only)
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `sentry.client.config.ts` | Client SDK init (tunnel, environment, release) |
+| `sentry.server.config.ts` | Server SDK init |
+| `sentry.edge.config.ts` | Edge SDK init |
+| `src/components/SentryUserProvider.tsx` | Auth state → Sentry user context |
+| `src/app/api/sentry-tunnel/route.ts` | Envelope proxy for ad blocker bypass |
+| `next.config.ts` | `withSentryConfig` wrapper, CSP headers |
 
 ---
 

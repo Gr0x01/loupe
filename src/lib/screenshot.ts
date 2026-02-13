@@ -41,9 +41,13 @@ export interface ScreenshotResult {
   metadata: PageMetadata;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 2000;
+
 /**
  * Capture a screenshot and extract page metadata via the Vultr Puppeteer service.
  * Returns base64 JPEG + structured metadata from the rendered DOM.
+ * Retries on 429 (rate limit) with exponential backoff.
  */
 export async function captureScreenshot(
   url: string,
@@ -59,32 +63,49 @@ export async function captureScreenshot(
   if (options?.width) {
     params.set("width", String(options.width));
   }
-  const response = await fetch(
-    `${SCREENSHOT_URL}/screenshot-and-extract?${params}`,
-    {
-      headers: {
-        "x-api-key": SCREENSHOT_API_KEY,
-      },
-      signal: AbortSignal.timeout(45000),
-    }
-  );
 
-  if (!response.ok) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    const response = await fetch(
+      `${SCREENSHOT_URL}/screenshot-and-extract?${params}`,
+      {
+        headers: {
+          "x-api-key": SCREENSHOT_API_KEY,
+        },
+        signal: AbortSignal.timeout(45000),
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        base64: data.screenshot,
+        mimeType: "image/jpeg",
+        metadata: data.metadata,
+      };
+    }
+
     const text = await response.text();
-    const err = new Error(`Screenshot failed (${response.status}): ${text}`);
-    Sentry.captureException(err, {
+    lastError = new Error(`Screenshot failed (${response.status}): ${text}`);
+
+    if (response.status === 429 && attempt < MAX_RETRIES) {
+      continue;
+    }
+
+    Sentry.captureException(lastError, {
       tags: { service: "screenshot", status: response.status },
-      extra: { url, width: options?.width },
+      extra: { url, width: options?.width, attempt },
     });
-    throw err;
+    throw lastError;
   }
 
-  const data = await response.json();
-  return {
-    base64: data.screenshot,
-    mimeType: "image/jpeg",
-    metadata: data.metadata,
-  };
+  throw lastError!;
 }
 
 /**
