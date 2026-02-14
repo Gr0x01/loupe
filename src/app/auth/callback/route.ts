@@ -174,13 +174,7 @@ async function handleClaim(
     }
   }
 
-  // Link the analysis to the page
   if (newPage) {
-    await supabase
-      .from("analyses")
-      .update({ page_id: newPage.id })
-      .eq("id", analysisId);
-
     redirectTo.pathname = `/pages/${newPage.id}`;
   } else {
     redirectTo.pathname = "/dashboard";

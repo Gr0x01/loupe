@@ -31,17 +31,92 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { parentAnalysisId } = await req.json();
+    const { parentAnalysisId, pageId } = await req.json();
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!parentAnalysisId || typeof parentAnalysisId !== "string" || !UUID_RE.test(parentAnalysisId)) {
+
+    // Reject ambiguous requests
+    if (parentAnalysisId && pageId) {
       return NextResponse.json(
-        { error: "parentAnalysisId is required" },
+        { error: "Provide either pageId or parentAnalysisId, not both" },
         { status: 400 }
       );
     }
 
     const supabase = createServiceClient();
+
+    // Branch 1: pageId-based first scan (no parent analysis)
+    if (pageId && typeof pageId === "string" && UUID_RE.test(pageId)) {
+      // Validate page exists and belongs to user
+      const { data: page, error: pageError } = await supabase
+        .from("pages")
+        .select("id, url, user_id")
+        .eq("id", pageId)
+        .single();
+
+      if (pageError || !page) {
+        return NextResponse.json(
+          { error: "Page not found" },
+          { status: 404 }
+        );
+      }
+
+      if (page.user_id !== user.id) {
+        return NextResponse.json(
+          { error: "Page not found" },
+          { status: 404 }
+        );
+      }
+
+      // Create a fresh analysis (no parent)
+      const { data: newAnalysis, error: insertError } = await supabase
+        .from("analyses")
+        .insert({
+          url: page.url,
+          user_id: user.id,
+          trigger_type: "manual",
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !newAnalysis) {
+        console.error("Failed to create first-scan analysis:", insertError);
+        return NextResponse.json(
+          { error: "Failed to create scan" },
+          { status: 500 }
+        );
+      }
+
+      // Update last_scan_id on the page
+      const { error: updateError } = await supabase
+        .from("pages")
+        .update({ last_scan_id: newAnalysis.id })
+        .eq("id", page.id);
+
+      if (updateError) {
+        console.error("Failed to update last_scan_id for first scan:", updateError);
+      }
+
+      // Fire Inngest event
+      await inngest.send({
+        name: "analysis/created",
+        data: {
+          analysisId: newAnalysis.id,
+          url: page.url,
+        },
+      });
+
+      return NextResponse.json({ id: newAnalysis.id });
+    }
+
+    // Branch 2: parentAnalysisId-based rescan (existing flow)
+    if (!parentAnalysisId || typeof parentAnalysisId !== "string" || !UUID_RE.test(parentAnalysisId)) {
+      return NextResponse.json(
+        { error: "parentAnalysisId or pageId is required" },
+        { status: 400 }
+      );
+    }
 
     // Validate parent exists, belongs to user, and is complete
     const { data: parent, error: parentError } = await supabase

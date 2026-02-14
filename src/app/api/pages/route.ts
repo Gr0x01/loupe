@@ -441,24 +441,28 @@ export async function POST(req: NextRequest) {
     let analysisId: string | null = null;
     if (existingAnalysis && page) {
       analysisId = existingAnalysis.id;
-      await supabase
-        .from("analyses")
-        .update({ page_id: page.id })
-        .eq("id", existingAnalysis.id);
     }
 
     // If no existing analysis was linked, trigger a first scan automatically
     if (!existingAnalysis && page) {
-      const { data: newAnalysis } = await supabase
+      const { data: newAnalysis, error: insertError } = await supabase
         .from("analyses")
         .insert({
           url: normalizedUrl,
           user_id: user.id,
-          page_id: page.id,
           status: "pending",
         })
         .select("id")
         .single();
+
+      if (insertError || !newAnalysis) {
+        console.error("Failed to create initial analysis:", insertError);
+        return NextResponse.json({
+          page,
+          analysisId: null,
+          warning: "Page created but initial scan failed to start. Use the Scan button to retry.",
+        });
+      }
 
       if (newAnalysis) {
         analysisId = newAnalysis.id;

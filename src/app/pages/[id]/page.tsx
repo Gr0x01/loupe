@@ -171,7 +171,7 @@ export default function PageTimelinePage() {
   }, [data, mutate]);
 
   const handleRescan = async () => {
-    if (!data || data.history.length === 0) return;
+    if (!data) return;
 
     setActionError(""); // Clear previous errors
     setRescanLoading(true);
@@ -180,19 +180,18 @@ export default function PageTimelinePage() {
     track("rescan_triggered", { domain: getDomain(data.page.url) });
 
     try {
-      // Get the latest complete scan as parent
+      // Get the latest complete scan as parent (if any)
       const latestComplete = data.history.find((s: ScanHistoryItem) => s.status === "complete");
-      if (!latestComplete) {
-        // No complete scan, trigger a fresh analysis
-        setActionError("No complete scan to compare against");
-        setRescanLoading(false);
-        return;
-      }
+
+      // Build payload: use parentAnalysisId if we have a complete scan, otherwise pageId for first scan
+      const payload = latestComplete
+        ? { parentAnalysisId: latestComplete.id }
+        : { pageId: id };
 
       const res = await fetch("/api/rescan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentAnalysisId: latestComplete.id }),
+        body: JSON.stringify(payload),
       });
 
       if (res.status === 401) {
