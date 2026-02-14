@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { TimelineItemType } from "@/lib/types/analysis";
 
 interface UnifiedTimelineCardProps {
@@ -14,6 +15,10 @@ interface UnifiedTimelineCardProps {
   friendlyText?: string;
   daysRemaining?: number;
   detectedAt?: string;
+  hypothesis?: string;
+  /** detected_change ID — needed for hypothesis save */
+  changeId?: string;
+  onHypothesisSaved?: (changeId: string, hypothesis: string) => void;
 }
 
 function formatDate(dateStr?: string): string {
@@ -50,6 +55,96 @@ function getTypeLabel(type: TimelineItemType): string {
   }
 }
 
+function HypothesisInput({
+  changeId,
+  onSaved,
+}: {
+  changeId: string;
+  onSaved: (hypothesis: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const collapse = () => {
+    setClosing(true);
+    setTimeout(() => {
+      setClosing(false);
+      setExpanded(false);
+    }, 140);
+  };
+
+  useEffect(() => {
+    if (!expanded || closing) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        collapse();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [expanded, closing]);
+
+  if (!expanded) {
+    return (
+      <button
+        className="unified-timeline-card-hypothesis-prompt"
+        onClick={() => setExpanded(true)}
+      >
+        What were you testing?
+      </button>
+    );
+  }
+
+  const handleSubmit = async () => {
+    const trimmed = value.trim();
+    if (!trimmed || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/changes/${changeId}/hypothesis`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hypothesis: trimmed }),
+      });
+      if (res.ok) {
+        onSaved(trimmed);
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className={`unified-timeline-card-hypothesis-input ${closing ? "unified-timeline-card-hypothesis-input-closing" : ""}`}>
+      <input
+        autoFocus
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSubmit();
+          if (e.key === "Escape") collapse();
+        }}
+        placeholder='e.g. "Testing shorter headline"'
+        className="unified-timeline-card-hypothesis-field"
+        maxLength={500}
+        disabled={saving}
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!value.trim() || saving}
+        className="unified-timeline-card-hypothesis-save"
+      >
+        {saving ? "..." : "Save"}
+      </button>
+    </div>
+  );
+}
+
 /**
  * For validated/regressed cards, the layout is inverted:
  * outcome (friendlyText + delta) is the hero, diff is supporting context.
@@ -66,12 +161,17 @@ export function UnifiedTimelineCard({
   friendlyText,
   daysRemaining,
   detectedAt,
+  hypothesis,
+  changeId,
+  onHypothesisSaved,
 }: UnifiedTimelineCardProps) {
+  const [localHypothesis, setLocalHypothesis] = useState(hypothesis);
   const statusLabel = getStatusLabel(type, daysRemaining);
   const typeLabel = getTypeLabel(type);
   const formattedDate = formatDate(detectedAt);
   const hasDiff = Boolean(before && after);
   const hasOutcome = type === "validated" || type === "regressed";
+  const canInputHypothesis = type === "watching" && changeId && !localHypothesis;
 
   return (
     <article
@@ -94,6 +194,22 @@ export function UnifiedTimelineCard({
           </div>
         )}
       </div>
+
+      {/* Hypothesis — display saved or show input for watching cards */}
+      {localHypothesis && (
+        <p className="unified-timeline-card-hypothesis">
+          Your test: &ldquo;{localHypothesis}&rdquo;
+        </p>
+      )}
+      {canInputHypothesis && (
+        <HypothesisInput
+          changeId={changeId}
+          onSaved={(h) => {
+            setLocalHypothesis(h);
+            onHypothesisSaved?.(changeId, h);
+          }}
+        />
+      )}
 
       {/* Validated/regressed: outcome is the hero */}
       {hasOutcome && (

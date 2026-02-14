@@ -27,6 +27,7 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     domain: "xyz.io",
+    hypothesis: "Testing outcome-focused language instead of generic growth copy",
     observation_text: "The new headline directly addresses curiosity about impact, which aligns with your signups focus.",
   },
   {
@@ -50,6 +51,7 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     created_at: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     domain: "xyz.io",
+    hypothesis: "Testing action-oriented CTA with lower commitment",
     observation_text: "Lower commitment CTA reduced friction for first-time visitors.",
   },
   {
@@ -292,6 +294,12 @@ function WinCard({ change }: { change: DetectedChange & { domain?: string } }) {
           {truncate(change.after_value, 40)}
         </span>
       </div>
+
+      {change.hypothesis && (
+        <p className="mt-2 text-xs text-[var(--ink-400)] italic">
+          Your test: &ldquo;{truncate(change.hypothesis, 80)}&rdquo;
+        </p>
+      )}
 
       {metric && (
         <div className="mt-3 flex items-baseline gap-2">

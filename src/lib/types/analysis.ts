@@ -267,6 +267,8 @@ export interface PageContext {
   next_analysis_id: string | null;
   /** ISO timestamp of the first scan (baseline) for this page */
   baseline_date: string;
+  /** Map of detected_change ID → hypothesis text (only present when hypotheses exist) */
+  hypothesis_map?: Record<string, string>;
 }
 
 /**

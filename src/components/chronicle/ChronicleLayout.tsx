@@ -29,6 +29,7 @@ interface ChronicleLayoutProps {
   pageId?: string;
   currentAnalysisId?: string;
   metricFocus?: string | null;
+  hypothesisMap?: Record<string, string>;
 }
 
 /* ---- Win detection helpers ---- */
@@ -99,6 +100,7 @@ export function ChronicleLayout({
   pageId,
   currentAnalysisId,
   metricFocus,
+  hypothesisMap,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -223,6 +225,7 @@ export function ChronicleLayout({
                       title={item.title}
                       change={item.change}
                       friendlyText={item.friendlyText}
+                      hypothesis={hypothesisMap?.[item.id]}
                     />
                   ))}
                 </div>
@@ -246,6 +249,7 @@ export function ChronicleLayout({
                       title={item.title}
                       change={item.change}
                       friendlyText={item.friendlyText}
+                      hypothesis={hypothesisMap?.[item.id]}
                     />
                   ))}
                 </div>
@@ -271,6 +275,8 @@ export function ChronicleLayout({
                         title={item.title}
                         daysRemaining={daysRemaining}
                         detectedAt={item.firstDetectedAt}
+                        hypothesis={hypothesisMap?.[item.id]}
+                        changeId={item.id}
                       />
                     );
                   })}

@@ -122,18 +122,37 @@ export async function GET(
         .single();
 
       if (page) {
-        // Single RPC call replaces 5 parallel queries
-        const { data: ctx } = await supabase.rpc("get_analysis_context", {
-          p_user_id: data.user_id,
-          p_url: data.url,
-          p_created_at: data.created_at,
-        }).single() as { data: {
+        // Parallel: analysis context + hypotheses
+        const [ctxResult, changeResult] = await Promise.all([
+          supabase.rpc("get_analysis_context", {
+            p_user_id: data.user_id,
+            p_url: data.url,
+            p_created_at: data.created_at,
+          }).single(),
+          supabase
+            .from("detected_changes")
+            .select("id, hypothesis")
+            .eq("page_id", page.id)
+            .not("hypothesis", "is", null),
+        ]);
+        const ctx = ctxResult.data as {
           scan_number: number;
           total_scans: number;
           prev_analysis_id: string | null;
           next_analysis_id: string | null;
           baseline_date: string;
-        } | null };
+        } | null;
+        const changeRows = changeResult.data;
+
+        // Build hypothesis map from detected_changes
+        let hypothesis_map: Record<string, string> | undefined;
+        if (changeRows && changeRows.length > 0) {
+          hypothesis_map = {};
+          for (const row of changeRows) {
+            if (row.hypothesis) hypothesis_map[row.id] = row.hypothesis;
+          }
+          if (Object.keys(hypothesis_map).length === 0) hypothesis_map = undefined;
+        }
 
         page_context = {
           page_id: page.id,
@@ -143,6 +162,7 @@ export async function GET(
           prev_analysis_id: ctx?.prev_analysis_id ?? null,
           next_analysis_id: ctx?.next_analysis_id ?? null,
           baseline_date: ctx?.baseline_date ?? data.created_at,
+          hypothesis_map,
         };
       }
     }
