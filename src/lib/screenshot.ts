@@ -68,7 +68,7 @@ export async function captureScreenshot(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1) + Math.random() * 1000;
       await new Promise((r) => setTimeout(r, delay));
     }
 

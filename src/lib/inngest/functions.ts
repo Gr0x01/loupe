@@ -62,6 +62,7 @@ export const analyzeUrl = inngest.createFunction(
   {
     id: "analyze-url",
     retries: 2,
+    concurrency: [{ limit: 2 }],
   },
   { event: "analysis/created" },
   async ({ event, step }) => {

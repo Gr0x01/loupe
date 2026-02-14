@@ -46,7 +46,7 @@ User enters URL → POST /api/analyze
 - **Decodo residential proxy** — `gate.decodo.com:7000` with username/password auth. Bypasses Vercel Security Checkpoint, Cloudflare, and similar bot protection
 - **Stealth plugin** — `puppeteer-extra-plugin-stealth` evades basic headless detection
 - **SSRF protection** — blocks private/internal IPs and non-HTTP protocols
-- **Concurrency limit** — max 3 concurrent screenshots. Client (`screenshot.ts`) retries 429s with exponential backoff (2s/4s/8s, max 3 retries)
+- **Concurrency limit** — max 3 concurrent screenshots. Client (`screenshot.ts`) retries 429s with exponential backoff + jitter (2s/4s/8s + 0-1s random, max 3 retries)
 - **Page render strategy** — `domcontentloaded` + 2.5s settle delay + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
 - **Request interception** — blocks non-visual resources to save proxy bandwidth: analytics (GA, GTM, Segment, Mixpanel, Amplitude, Heap, Clarity, FullStory, Hotjar), tracking pixels (Facebook), error monitoring (Sentry, Bugsnag), chat widgets (Intercom, Crisp), ads, embedded video, media/websocket/eventsource resource types. Fonts, CSS, images, and documents pass through.
 - **Browser crash recovery** — 30s health check interval, auto-relaunches dead browser instances
@@ -744,7 +744,7 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
 ### Functions
-- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
+- `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts), concurrency: 2 (prevents screenshot service 429s when daily scans fire simultaneously). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
 - `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
 - `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
