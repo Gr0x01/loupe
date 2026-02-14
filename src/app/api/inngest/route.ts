@@ -1,8 +1,8 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
-import { analyzeUrl, scheduledScan, scheduledScanDaily, deployDetected, dailyScanDigest, checkCorrelations } from "@/lib/inngest/functions";
+import { analyzeUrl, scheduledScan, scheduledScanDaily, deployDetected, dailyScanDigest, checkCorrelations, screenshotHealthCheck } from "@/lib/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [analyzeUrl, scheduledScan, scheduledScanDaily, deployDetected, dailyScanDigest, checkCorrelations],
+  functions: [analyzeUrl, scheduledScan, scheduledScanDaily, deployDetected, dailyScanDigest, checkCorrelations, screenshotHealthCheck],
 });

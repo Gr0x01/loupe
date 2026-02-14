@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
-import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
+import { captureScreenshot, uploadScreenshot, pingScreenshotService } from "@/lib/screenshot";
 import { runAnalysisPipeline, runPostAnalysisPipeline, runQuickDiff } from "@/lib/ai/pipeline";
 import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
@@ -1607,5 +1607,21 @@ export const checkCorrelations = inngest.createFunction(
       processed: readyChanges.length,
       ...results,
     };
+  }
+);
+
+/**
+ * Screenshot service health check — pings every 30 minutes.
+ * Sentry alert fires if the service is unreachable.
+ */
+export const screenshotHealthCheck = inngest.createFunction(
+  {
+    id: "screenshot-health-check",
+    retries: 0,
+  },
+  { cron: "*/30 * * * *" },
+  async () => {
+    const healthy = await pingScreenshotService();
+    return { healthy };
   }
 );

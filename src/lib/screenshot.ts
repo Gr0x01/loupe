@@ -72,15 +72,27 @@ export async function captureScreenshot(
       await new Promise((r) => setTimeout(r, delay));
     }
 
-    const response = await fetch(
-      `${SCREENSHOT_URL}/screenshot-and-extract?${params}`,
-      {
-        headers: {
-          "x-api-key": SCREENSHOT_API_KEY,
-        },
-        signal: AbortSignal.timeout(45000),
-      }
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `${SCREENSHOT_URL}/screenshot-and-extract?${params}`,
+        {
+          headers: {
+            "x-api-key": SCREENSHOT_API_KEY,
+          },
+          signal: AbortSignal.timeout(45000),
+        }
+      );
+    } catch (err) {
+      lastError = new Error(
+        `Screenshot service ${err instanceof DOMException ? "timed out (45s)" : "unreachable"}: ${err instanceof Error ? err.message : err}`
+      );
+      Sentry.captureException(lastError, {
+        tags: { service: "screenshot", reason: err instanceof DOMException ? "timeout" : "network" },
+        extra: { url, width: options?.width, attempt },
+      });
+      throw lastError;
+    }
 
     if (response.ok) {
       const data = await response.json();
@@ -106,6 +118,29 @@ export async function captureScreenshot(
   }
 
   throw lastError!;
+}
+
+/**
+ * Lightweight health ping — hits the service root with a 10s timeout.
+ * Returns true if reachable, false otherwise. Reports failures to Sentry.
+ */
+export async function pingScreenshotService(): Promise<boolean> {
+  try {
+    const res = await fetch(SCREENSHOT_URL, {
+      headers: { "x-api-key": SCREENSHOT_API_KEY },
+      signal: AbortSignal.timeout(10000),
+    });
+    return res.ok;
+  } catch (err) {
+    Sentry.captureException(
+      new Error(`Screenshot service health check failed: ${err instanceof Error ? err.message : err}`),
+      {
+        level: "error",
+        tags: { service: "screenshot", reason: "health_check" },
+      }
+    );
+    return false;
+  }
 }
 
 /**
