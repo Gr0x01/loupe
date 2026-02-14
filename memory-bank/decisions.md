@@ -598,3 +598,28 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - Bottom-of-page content may be lost in very tall pages — acceptable since the most impactful changes are typically above-the-fold
 - `sharp` is a transitive dep from Next.js (used for image optimization), not explicitly in package.json — works but fragile if Next.js drops it
 - Baseline images are now fetched and resized (was: passed as URL to API) — adds latency but ensures both images are within limits
+
+## D34: Single domain per account (Feb 14, 2026)
+
+**Decision**: Lock each account to one domain. First page creation auto-sets `account_domain` on the profile. Subsequent pages must match. Domain stored www-normalized.
+
+**Why**:
+- Integrations (PostHog, GA4, Supabase) are stored at user level but pages could be on any domain — analytics only apply to one domain
+- Eliminates redundant domain display everywhere — shown once in StatsBar subtitle
+- Simplifies AddPageModal for returning users: domain prefix + path-only input
+- Aligns with the typical user: solo founder tracking pages on their own site
+
+**Implementation**:
+- `profiles.account_domain` column (nullable, set on first page)
+- `POST /api/pages` enforces domain match with www normalization (`www.` stripped)
+- First-write-wins pattern (`.is("account_domain", null)`) prevents race on concurrent first-page creation
+- Dashboard shows paths (`getPath()`) instead of full domains in PageRow
+- DossierSidebar identity shows path; chrome bar keeps domain
+- No domain management UI or domain switching — if needed, can be added later gated behind deleting all pages
+
+**Supersedes D18** (domain claiming): D18 was about preventing multiple users from claiming the same domain. D34 is about preventing one user from claiming multiple domains. Both can coexist.
+
+**What we didn't build**:
+- Domain reset/change UI (would need to delete all pages first)
+- Subdomain support (e.g., `app.example.com` vs `example.com` treated as different domains)
+- Client-side enforcement (server is the source of truth)

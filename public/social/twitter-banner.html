@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Twitter/X Banner — 1500x500</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  .banner {
+    width: 1500px;
+    height: 500px;
+    background: #0F172A;
+    color: #F8FAFC;
+    position: relative;
+    overflow: hidden;
+    transform: scale(0.7);
+    transform-origin: center center;
+  }
+
+  /* Subtle grid texture */
+  .banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(148, 170, 189, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 170, 189, 0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  /* ── Top accent bar ── */
+  .accent-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 10px;
+    background: linear-gradient(90deg,
+      #FF6B4A 25%, #3B82F6 25%,
+      #3B82F6 50%, #8B5CF6 50%,
+      #8B5CF6 75%, #10B981 75%);
+    z-index: 3;
+  }
+
+  /* ── Layout: two big product blocks side by side ──
+       Left ~20% is dead zone (profile photo covers it on Twitter)
+       So we push content to start around 22% from left */
+  .products {
+    position: absolute;
+    top: 50%;
+    left: 340px; /* clear of profile photo overlay */
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 60px;
+    z-index: 2;
+  }
+
+  /* Each product: big colored slab with letter + name */
+  .product {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .product-icon {
+    width: 140px;
+    height: 140px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    font-weight: 700;
+    letter-spacing: -2px;
+    flex-shrink: 0;
+  }
+
+  .product-icon.boost {
+    background: #3B82F6;
+    color: #F8FAFC;
+    border: 2px solid #2563EB;
+    box-shadow: 4px 4px 0 rgba(59, 130, 246, 0.3);
+  }
+
+  .product-icon.loupe {
+    background: #FF6B4A;
+    color: #F8FAFC;
+    border: 2px solid #F85A38;
+    box-shadow: 4px 4px 0 rgba(255, 107, 74, 0.3);
+  }
+
+  .product-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .product-name {
+    font-size: 72px;
+    font-weight: 700;
+    letter-spacing: -3px;
+    line-height: 1;
+  }
+
+  .product-url {
+    font-size: 28px;
+    font-weight: 600;
+    color: #64748B;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Divider: vertical line between products ── */
+  .divider {
+    width: 3px;
+    height: 120px;
+    background: #334155;
+    flex-shrink: 0;
+  }
+
+  /* ── "I build things" tagline — top right area ── */
+  .tagline {
+    position: absolute;
+    top: 40px;
+    right: 60px;
+    font-size: 36px;
+    font-weight: 600;
+    color: #475569;
+    letter-spacing: -0.5px;
+    z-index: 2;
+  }
+
+  /* ── Follow nudge — bottom right ── */
+  .follow-nudge {
+    position: absolute;
+    bottom: 24px;
+    right: 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 2;
+  }
+
+  .follow-text {
+    font-size: 36px;
+    font-weight: 600;
+    color: #64748B;
+    letter-spacing: -0.5px;
+  }
+
+  .follow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: 3px solid #FF6B4A;
+    border-radius: 50%;
+  }
+
+  .follow-arrow svg {
+    width: 28px;
+    height: 28px;
+    stroke: #FF6B4A;
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="accent-bar"></div>
+
+    <div class="products">
+      <!-- Loupe (primary) -->
+      <div class="product">
+        <div class="product-icon loupe">L</div>
+        <div class="product-info">
+          <div class="product-name">Loupe</div>
+          <div class="product-url">getloupe.io</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Boost -->
+      <div class="product">
+        <div class="product-icon boost">B</div>
+        <div class="product-info">
+          <div class="product-name">Boost</div>
+          <div class="product-url">aboo.st</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="follow-nudge">
+      <span class="follow-text">building in public</span>
+      <div class="follow-arrow">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

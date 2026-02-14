@@ -141,17 +141,18 @@ Pick one. Maybe two. Not five. Brands with multiple personality disorder don't c
 
 Only after strategy is locked do we touch visuals. Aesthetics without strategy is decoration.
 
-### Loupe's Visual Identity: Soft Brutalism 2.0
+### Loupe's Visual Identity: Light Brutalist 2.0
 
 **Color Palette:**
 ```
-Primary Accent:  #FF5A36 (Signal Orange) — action, energy, attention
-Background:      #F7F4EC (Paper-0) — warm, approachable, not sterile
-Text:            #111111 (Ink-900) — confident, readable
-Borders:         #1a1a1a (Line) — strong, structural
-Success:         #15803D — positive outcomes
-Warning:         #B45309 — caution, attention needed
-Danger:          #B91C1C — problems, errors
+Primary CTA:     #FF6B4A (Coral) — action, energy, attention
+Background:      #F8FAFC (Paper-0) — cool gray, clean SaaS
+Text:            #0F172A (Ink-900) — confident, readable
+Borders:         #9AAABD (Line) — muted gray, never black
+Multi-accents:   Blue #3B82F6, Violet #8B5CF6, Emerald #10B981, Amber #F59E0B
+Success:         #059669 — positive outcomes
+Warning:         #D97706 — caution, attention needed
+Danger:          #DC2626 — problems, errors
 ```
 
 **Typography:**
@@ -161,10 +162,11 @@ Danger:          #B91C1C — problems, errors
 
 **Visual Principles:**
 - Solid surfaces, no glassmorphism
-- Strong borders (1.5-2px), minimal shadows
-- 8px border radius (12px max for larger elements)
-- Warm paper background, not cold gray
-- Signal orange replaces violet accent
+- 2px borders with muted gray (#9AAABD), offset shadows (2px 2px 0)
+- 10px border radius (12px for elevated elements)
+- Cool gray background (#F8FAFC), not warm paper
+- Multi-color section accents (blue, violet, emerald, amber badges)
+- Coral CTA (#FF6B4A) — not the old signal orange (#FF5A36)
 
 ### Logo
 - Does it work at 16px and 160px?

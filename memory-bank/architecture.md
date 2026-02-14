@@ -156,11 +156,13 @@ profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
   email text,
   email_notifications boolean NOT NULL DEFAULT true,  -- opt-out of scan emails
+  account_domain text,              -- locked domain for this account (www-normalized, set on first page creation)
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 )
 -- Auto-created via trigger on auth.users insert
 -- RLS: user can read/update own profile
+-- account_domain enforced in POST /api/pages: all pages must match this domain
 
 integrations (
   id uuid PK default gen_random_uuid(),
@@ -763,7 +765,7 @@ src/
 │   │   ├── changes/route.ts        # GET: detected changes with stats
 │   │   ├── changes/[id]/hypothesis/route.ts  # PATCH: set hypothesis on detected change
 │   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
-│   │   ├── profile/route.ts        # GET/PATCH: user profile preferences
+│   │   ├── profile/route.ts        # GET/PATCH: user profile preferences (includes account_domain)
 │   │   ├── integrations/           # GitHub + PostHog integration
 │   │   │   ├── route.ts            # GET: list integrations status
 │   │   │   ├── github/             # GitHub OAuth + repo management

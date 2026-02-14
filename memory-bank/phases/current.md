@@ -401,6 +401,38 @@ Converted single-column Chronicle (N+1 scan view) into two-panel "Dossier" layou
 
 ---
 
+## Phase 2E — Single Domain Per Account (DONE)
+
+Lock accounts to one domain. First page sets it, subsequent pages must match.
+
+| Step | What | Status |
+|------|------|--------|
+| 1 | Schema: `account_domain` on profiles | **DONE** |
+| 2 | API: Domain enforcement in POST /api/pages (www-normalized, first-write-wins) | **DONE** |
+| 3 | API: Expose `account_domain` in GET /api/profile | **DONE** |
+| 4 | Utility: `getPath()` in url.ts | **DONE** |
+| 5 | Dashboard: AddPageModal path-only input when domain set | **DONE** |
+| 6 | Dashboard: PageRow shows path not domain | **DONE** |
+| 7 | Dashboard: StatsBar shows domain in subtitle | **DONE** |
+| 8 | Dashboard: Remove domain from WinCard | **DONE** |
+| 9 | Dashboard: Wire up accountDomain state from profile | **DONE** |
+| 10 | DossierSidebar: Show path in identity, keep domain in chrome bar | **DONE** |
+| 11 | Demo page: Match new display patterns | **DONE** |
+
+### Key Files Modified
+| File | What |
+|------|------|
+| `src/app/api/pages/route.ts` | Domain enforcement + auto-set |
+| `src/app/api/profile/route.ts` | Expose `account_domain` |
+| `src/lib/utils/url.ts` | Added `getPath()` |
+| `src/app/dashboard/page.tsx` | AddPageModal, PageRow, StatsBar, WinCard, state wiring |
+| `src/components/chronicle/DossierSidebar.tsx` | Path display, import shared getDomain |
+| `src/app/demo/page.tsx` | Match new display |
+
+See `decisions.md` D34 for rationale.
+
+---
+
 ## Phase 2B — Intent Capture (DONE)
 
 Three new capabilities to compound knowledge across scans: metric focus, change hypothesis, and LLM-generated observations.

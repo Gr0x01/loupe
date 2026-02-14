@@ -10,34 +10,48 @@ You are an elite frontend development specialist with deep expertise in modern J
 
 ## CRITICAL: Design Implementation Protocol
 
-**For Loupe: Implement Soft Brutalism 2.0**
+**For Loupe: Implement Light Brutalist 2.0**
 
 This is the established aesthetic. Key implementation patterns:
 
 ```css
-/* Soft Brutalism 2.0 CSS patterns */
+/* Light Brutalist 2.0 CSS patterns */
 
-/* Cards — solid, bordered */
+/* Core palette */
+--paper-0: #F8FAFC;       /* Cool gray background */
+--ink-900: #0F172A;        /* Text */
+--line: #9AAABD;           /* Borders — muted gray, never black */
+--signal: #FF6B4A;         /* Coral — primary CTA */
+
+/* Multi-color accents */
+--blue: #3B82F6;
+--violet: #8B5CF6;
+--emerald: #10B981;
+--amber: #F59E0B;
+
+/* Cards — solid, bordered, offset shadow */
 .glass-card {
   background: #FFFFFF;
-  border: 1.5px solid var(--line);
-  border-radius: 8px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14);
   /* NO backdrop-filter blur */
 }
 
-/* Elevated cards — stronger border */
+/* Elevated cards — stronger shadow */
 .glass-card-elevated {
   background: #FFFFFF;
   border: 2px solid var(--line);
   border-radius: 12px;
+  box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.16);
 }
 
-/* Primary button — signal orange */
+/* Primary button — coral */
 .btn-primary {
-  background: var(--signal); /* #FF5A36 */
+  background: var(--signal); /* #FF6B4A */
   color: white;
   border: 2px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 /* Motion — snappy, controlled */
@@ -46,8 +60,10 @@ transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
 **NEVER use:**
 - `backdrop-filter: blur()` on any surface
-- Violet accent (#5B2E91)
-- Multi-layer soft shadows
+- Warm paper (#F7F4EC) — old palette
+- Signal orange (#FF5A36) — old accent
+- Dark borders (#1a1a1a) — old line color
+- Multi-layer soft shadows — use offset shadows
 - `border-radius` > 12px
 
 **For other projects:** Confirm aesthetic from `.claude/skills/frontend-design/SKILL.md`.
@@ -56,7 +72,7 @@ transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
 ## Typography Implementation (2025-2026)
 
-### Loupe Fonts (Soft Brutalism 2.0)
+### Loupe Fonts (Light Brutalist 2.0)
 
 ```tsx
 // next/font/google imports — keep CSS variable names for compatibility
@@ -86,7 +102,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 ### Fonts to Avoid
 - Instrument Serif, DM Sans (Loupe's old palette)
-- Poppins (no-code cliché)
+- Poppins (no-code cliche)
 - Roboto, Open Sans, Lato (always avoid)
 
 ### Variable Font Implementation
@@ -274,7 +290,7 @@ Oversaturated. Use Card Play instead - interactive cards that respond to hover, 
 Pick ONE hero moment. Animate 3-5 elements max per viewport.
 
 ### Purple Gradients on White
-The AI-startup cliché.
+The AI-startup cliche.
 
 ### Default Styling
 Never ship UI that looks like unstyled Tailwind or generic shadcn defaults.

@@ -7,50 +7,71 @@ description: Guidelines for creating distinctive, high-quality frontend UI. Use 
 
 ---
 
-## Loupe Project: Soft Brutalism 2.0
+## Loupe Project: Light Brutalist 2.0
 
-**Aesthetic: Refined brutalism with warmth.**
-Solid surfaces, strong borders, minimal shadows. Confident typography with a warm paper palette and signal orange accent.
+**Aesthetic: Refined brutalism — clean SaaS with personality.**
+Cool gray surfaces, solid 2px borders, offset shadows, multi-color accents. Confident typography with a cool paper palette and coral CTA.
 
 ### The Formula
 
 | Layer | Direction |
 |-------|-----------|
-| **Visuals** | Solid surfaces — warm paper backgrounds, strong 1.5-2px borders, no blur effects |
+| **Visuals** | Solid surfaces — cool gray backgrounds, 2px borders, offset shadows, no blur effects |
 | **Typography** | Geometric punch — Space Grotesk for headlines, Inter for body, IBM Plex Mono for data |
 | **Copy** | Supportive, celebratory — "You made the change. See what it did." not "Alert detected!" |
-| **Colors** | Signal orange (#FF5A36) accent on warm paper (#F7F4EC), ink-dark text |
+| **Colors** | Coral (#FF6B4A) primary CTA on cool paper (#F8FAFC), multi-color accents for sections |
 
 ### Color Palette
 
 ```css
 :root {
-  /* Core palette — Warm brutalism */
-  --ink-900: #111111;
-  --ink-700: #2a2a2a;
-  --ink-500: #555555;
-  --ink-300: #888888;
+  /* ===== REFINED BRUTALISM — CLEAN SAAS ===== */
 
-  --paper-0: #F7F4EC;
-  --paper-100: #ece7db;
-  --paper-200: #e0dace;
+  /* Ink — Text hierarchy */
+  --ink-900: #0F172A;
+  --ink-700: #334155;
+  --ink-500: #64748B;
+  --ink-300: #94A3B8;
 
-  --line: #1a1a1a;
-  --line-subtle: rgba(26, 26, 26, 0.12);
+  /* Paper — Cool gray backgrounds */
+  --paper-0: #F8FAFC;
+  --paper-100: #F1F5F9;
+  --paper-200: #E2E8F0;
 
-  /* Signal — Primary accent */
-  --signal: #FF5A36;
-  --signal-hover: #E64D2E;
-  --signal-subtle: rgba(255, 90, 54, 0.08);
-  --signal-border: rgba(255, 90, 54, 0.25);
+  /* Line — Borders (muted gray, never black) */
+  --line: #9AAABD;
+  --line-subtle: rgba(100, 116, 139, 0.34);
+
+  /* Multi-color accent palette */
+  --coral: #FF6B4A;
+  --coral-hover: #F85A38;
+  --coral-subtle: rgba(255, 107, 74, 0.1);
+  --coral-border: rgba(255, 107, 74, 0.3);
+
+  --blue: #3B82F6;
+  --blue-subtle: rgba(59, 130, 246, 0.1);
+
+  --violet: #8B5CF6;
+  --violet-subtle: rgba(139, 92, 246, 0.1);
+
+  --emerald: #10B981;
+  --emerald-subtle: rgba(16, 185, 129, 0.1);
+
+  --amber: #F59E0B;
+  --amber-subtle: rgba(245, 158, 11, 0.1);
+
+  /* Signal — Primary CTA (coral) */
+  --signal: var(--coral);
+  --signal-hover: var(--coral-hover);
+  --signal-subtle: var(--coral-subtle);
 
   /* Semantic colors */
-  --success: #15803D;
-  --success-subtle: rgba(21, 128, 61, 0.08);
-  --warning: #B45309;
-  --warning-subtle: rgba(180, 83, 9, 0.08);
-  --danger: #B91C1C;
-  --danger-subtle: rgba(185, 28, 28, 0.08);
+  --success: #059669;
+  --success-subtle: rgba(5, 150, 105, 0.1);
+  --warning: #D97706;
+  --warning-subtle: rgba(217, 119, 6, 0.1);
+  --danger: #DC2626;
+  --danger-subtle: rgba(220, 38, 38, 0.1);
 
   /* Surfaces */
   --surface: #FFFFFF;
@@ -86,11 +107,13 @@ Font loading via `next/font/google`:
 
 | Property | Value |
 |----------|-------|
-| Border radius | 8px default, 12px for larger elements |
-| Border width | 1.5px default, 2px for emphasis |
-| Shadows | None or minimal (0 2px 4px rgba(0,0,0,0.04)) |
+| Border radius | 10px default, 12px for larger/elevated elements |
+| Border width | 2px (consistent across cards and buttons) |
+| Border color | `var(--line)` (#9AAABD) — muted gray, never black |
+| Shadows | Offset: `2px 2px 0 rgba(51, 65, 85, 0.14)` (standard), `4px 4px 0` (elevated) |
 | Blur | NEVER use backdrop-filter blur on surfaces |
 | Motion | 180ms, `cubic-bezier(0.2, 0.8, 0.2, 1)` |
+| Section accents | Use colored badges (blue, violet, emerald, amber) to differentiate sections |
 
 ### Typography Weight & Balance
 
@@ -111,17 +134,17 @@ Sections on the results page use consistent spacing via CSS classes:
 
 ### Key Patterns
 
-**Cards (standard — brutalist)**
+**Cards (standard — brutalist with offset shadow)**
 ```jsx
 <div className="glass-card p-6">
 ```
-CSS: `background: #FFFFFF`, `border: 1.5px solid var(--line)`, `border-radius: 8px`, no blur
+CSS: `background: #FFFFFF`, `border: 2px solid var(--line)`, `border-radius: 10px`, `box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14)`
 
-**Cards (elevated — stronger border)**
+**Cards (elevated — stronger shadow)**
 ```jsx
 <div className="glass-card-elevated p-8">
 ```
-CSS: `background: #FFFFFF`, `border: 2px solid var(--line)`, `border-radius: 12px`
+CSS: `background: #FFFFFF`, `border: 2px solid var(--line)`, `border-radius: 12px`, `box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.16)`
 
 **Cards (active/selected)**
 ```jsx
@@ -129,17 +152,17 @@ CSS: `background: #FFFFFF`, `border: 2px solid var(--line)`, `border-radius: 12p
 ```
 CSS: `border: 2px solid var(--signal)`, signal-tinted shadow
 
-**Primary Button (signal orange)**
+**Primary Button (coral)**
 ```jsx
 <button className="btn-primary">Watch this page</button>
 ```
-CSS: `background: var(--signal)`, white text, `border: 2px solid var(--line)`, `border-radius: 8px`, `active: scale(0.98)`
+CSS: `background: var(--signal)` (#FF6B4A), white text, `border: 2px solid var(--line)`, `border-radius: 10px`, `active: scale(0.98)`
 
 **Secondary Button (outlined)**
 ```jsx
 <button className="btn-secondary">Share this audit</button>
 ```
-CSS: `background: var(--paper-0)`, `border: 1.5px solid var(--line)`, no blur
+CSS: `background: var(--paper-0)`, `border: 2px solid var(--line)`, no blur
 
 **Ghost Button**
 ```jsx
@@ -188,30 +211,26 @@ CSS: `background: var(--paper-0)`, `border: 1.5px solid var(--line)`, no blur
 </div>
 ```
 
-**Score Arc (SVG half-gauge, animated)**
-Uses a gradient arc from signal → paper on a subtle track. Letter grade + numeric score displayed inside.
-
-**Category Score Card (interactive)**
-```jsx
-<button className={isActive ? "glass-card-active p-5" : "glass-card p-5"}>
-  <p className="text-sm font-semibold text-ink-500 uppercase tracking-wide mb-2">
-    Category Name
-  </p>
-  <p className="text-4xl font-black" style={{ fontFamily: 'var(--font-display)' }}>
-    68
-  </p>
-  <div className="progress-track mb-3">
-    <div className="progress-fill" style={{ width: '68%', backgroundColor: 'var(--warning)' }} />
-  </div>
-</button>
-```
-
 **Badge/Pill**
 ```jsx
 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md
                  text-sm font-medium bg-paper-100 text-ink-700
                  border border-line-subtle">
-  Marketing <span className="font-bold text-ink-900">68</span>
+  Label
+</span>
+```
+
+**Section Accent Badges** — Use colored backgrounds to differentiate sections:
+```jsx
+{/* Blue badge for "Your page" section */}
+<span className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full"
+      style={{ background: 'var(--blue-subtle)', color: 'var(--blue)' }}>
+  Your page
+</span>
+
+{/* Violet badge for "Your results" section */}
+<span style={{ background: 'var(--violet-subtle)', color: 'var(--violet)' }}>
+  Your results
 </span>
 ```
 
@@ -219,17 +238,17 @@ Uses a gradient arc from signal → paper on a subtle track. Letter grade + nume
 
 **Homepage (landing / free audit tool)**
 1. Hero: Space Grotesk headline + subtext + brutalist input card + trust line. Centered on paper-0. No decorative orbs.
-2. Example result preview: static mock of a result card (score, categories, sample findings)
-3. Closing CTA: Space Grotesk headline + repeated input on paper-100 bg.
-4. No nav links, no logo bars, no pricing, no feature grids for MVP.
+2. Your Page: Audit preview showing what Loupe sees (findings, predictions)
+3. Your Results: Feature grid (timeline, verdicts, metrics, history)
+4. Closer: Space Grotesk headline + CTA on paper-100 bg.
 
 **Results page (the shareable moment) — 6 zones, max-w-[1080px]**
-1. Hero Score Band: Score arc (SVG animated 0→score) + verdict + category breakdown in elevated card. 3-column layout.
-2. Quick Diagnosis: Working vs. Leaking two-column grid with check/x icons.
-3. Top 3 Actions: Numbered items (1 large + prominent, 2-3 smaller). Ranked by conversion impact.
-4. Headline Rewrite: Current (strikethrough) → Suggested (signal-tinted card) with reasoning.
-5. Category Grid + Findings Panel: 3×2 interactive cards → clicking filters findings. Sticky sidebar nav + filtered findings.
-6. Bottom CTA: Email capture ("Watch this page") in elevated card + share links.
+1. Hero: Verdict-first display with impact bar + opportunity count
+2. Quick Diagnosis: Working vs. Leaking two-column grid
+3. Top 3 Actions: Ranked by conversion impact
+4. Headline Rewrite: Current → Suggested with reasoning
+5. Findings: Collapsible cards with predictions + methodology
+6. Bottom CTA: "Watch this page" + share links
 
 ### Copy Rules (In-Product)
 
@@ -254,8 +273,10 @@ Uses a gradient arc from signal → paper on a subtle track. Letter grade + nume
 ### What to Avoid
 
 - Glassmorphism (backdrop-blur, translucent rgba backgrounds)
-- Violet accent color (#5B2E91) — replaced by signal orange
-- Multi-layer soft shadows — use minimal or none
+- Warm paper backgrounds (#F7F4EC) — old palette, use cool gray #F8FAFC
+- Signal orange (#FF5A36) — old accent, use coral #FF6B4A
+- Dark borders (#1a1a1a) — old line color, use muted gray #9AAABD
+- Multi-layer soft shadows — use offset shadows only
 - Decorative blur orbs
 - Rounded corners > 12px (no rounded-2xl or rounded-3xl)
 - Near-black backgrounds (#0F1117)
@@ -272,16 +293,17 @@ Uses a gradient arc from signal → paper on a subtle track. Letter grade + nume
 ### Implementation Checklist
 
 Before shipping, verify:
-- [ ] Aesthetic is Soft Brutalism 2.0 (not glass, not generic minimal)
+- [ ] Aesthetic is Light Brutalist 2.0 (not glass, not generic minimal)
 - [ ] Headlines use Space Grotesk, body uses Inter, code uses IBM Plex Mono
-- [ ] Accent color is signal #FF5A36 (not violet, not cyan)
-- [ ] Cards use solid backgrounds with 1.5-2px borders (no blur)
-- [ ] Background is paper-0 #F7F4EC (warm, not cold gray)
-- [ ] Border radius is 8px (cards) or 12px (larger elements)
+- [ ] Primary CTA color is coral #FF6B4A (not orange #FF5A36, not violet, not cyan)
+- [ ] Cards use solid white backgrounds with 2px borders in `var(--line)` (#9AAABD)
+- [ ] Cards have offset shadows (`2px 2px 0` or `4px 4px 0`)
+- [ ] Background is paper-0 #F8FAFC (cool gray, not warm #F7F4EC)
+- [ ] Border radius is 10px (cards) or 12px (elevated elements)
+- [ ] Section accents use multi-color palette (blue, violet, emerald, amber badges)
 - [ ] No backdrop-filter blur anywhere
 - [ ] Light mode is the default
 - [ ] Mobile-first responsive (test at 375px)
-- [ ] Score colors: success #15803D (80+), warning #B45309 (60-79), danger #B91C1C (<60)
 - [ ] Buttons have active:scale-[0.98] for tactile feel
 - [ ] Does not look like generic AI startup template
 
@@ -289,7 +311,7 @@ Before shipping, verify:
 
 ## Design Decision Protocol
 
-**Before writing any code, confirm the aesthetic direction is Soft Brutalism 2.0 (as defined above).** For any new page or component, ask: does this feel confident, solid, and distinctive?
+**Before writing any code, confirm the aesthetic direction is Light Brutalist 2.0 (as defined above).** For any new page or component, ask: does this feel confident, solid, and distinctive?
 
 ---
 

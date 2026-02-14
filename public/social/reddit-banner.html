@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reddit Banner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+  }
+
+  .banner {
+    width: 1000px;
+    height: 200px;
+    background: #0F172A;
+    color: #F8FAFC;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(148, 170, 189, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 170, 189, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .content {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .product-card {
+    border: 2px solid #334155;
+    border-radius: 10px;
+    padding: 20px 28px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(15, 23, 42, 0.6);
+    position: relative;
+  }
+
+  .product-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    box-shadow: 3px 3px 0 rgba(51, 65, 85, 0.3);
+    pointer-events: none;
+  }
+
+  .product-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .product-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .product-icon.boost { background: #3B82F6; color: #F8FAFC; }
+  .product-icon.loupe { background: #FF6B4A; color: #F8FAFC; }
+
+  .product-name {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    line-height: 1;
+  }
+
+  .product-desc {
+    font-size: 13px;
+    color: #CBD5E1;
+    line-height: 1.4;
+  }
+
+  .product-url {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #64748B;
+  }
+
+  .divider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .divider span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #334155;
+    display: block;
+  }
+
+  .accent-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #FF6B4A 25%, #3B82F6 25%, #3B82F6 50%, #8B5CF6 50%, #8B5CF6 75%, #10B981 75%);
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="accent-bar"></div>
+    <div class="content">
+      <div class="product-card">
+        <div class="product-header">
+          <div class="product-icon boost">B</div>
+          <div class="product-name">Boost</div>
+        </div>
+        <div class="product-desc">Competitor research &rarr; marketing plans</div>
+        <div class="product-url">aboo.st</div>
+      </div>
+      <div class="divider">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="product-card">
+        <div class="product-header">
+          <div class="product-icon loupe">L</div>
+          <div class="product-name">Loupe</div>
+        </div>
+        <div class="product-desc">Track what changed on your site. See if it&nbsp;helped.</div>
+        <div class="product-url">getloupe.io</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -60,6 +60,16 @@ Keep docs lean. Intent over implementation. Agents can generate code from descri
 4. **No abandoned code**: If you replace a component or approach, delete the old one.
 5. **Verify references**: After any file operation, confirm imports and references still resolve.
 
+### CSS Rules
+**CSS is split by feature into `src/app/*.css`. Never dump styles into globals.css.**
+
+1. **Use the right file**: `shared.css` (cards, buttons, nav, modals), `chronicle.css`, `dashboard.css`, `landing.css`, `analysis.css`, `pricing.css`. `globals.css` is tokens + imports only.
+2. **Reuse before creating**: Check `shared.css` for existing patterns (`.glass-card`, `.btn-primary`, `.btn-secondary`, `.input-glass`, `.element-badge`, `.score-ring-glow-*`). Use Tailwind utilities for one-off styles.
+3. **Prefer Tailwind + existing classes**: Don't create new CSS classes for styles achievable with Tailwind or existing shared classes. New CSS classes are for reusable patterns used 3+ times.
+4. **Delete when replacing**: If you redesign a component, remove its old CSS classes. Grep to confirm they're unused first.
+5. **No orphan CSS**: When deleting/renaming a component, delete its CSS classes too. When removing a CSS class, also remove it from `@media (prefers-reduced-motion)` in globals.css if referenced there.
+6. **BEM-style prefixes**: Scope classes to their feature (`chronicle-*`, `landing-hero-*`, `result-card-*`). Never use generic names like `.card` or `.header`.
+
 ### LLM Model Usage - CRITICAL
 **NEVER change LLM model names or configurations without explicit authorization.**
 

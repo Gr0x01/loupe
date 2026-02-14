@@ -119,10 +119,13 @@ Two-panel layout: sticky left sidebar + scrollable right intelligence feed.
 **Mobile:** Sidebar renders as full-width top card with inline scorecard and truncated summary.
 
 ### 4. Dashboard
+- **Single domain per account**: first page sets `account_domain` on profile; subsequent pages must match (www-normalized)
 - Proof-first layout: StatsBar → ProofBanner (validated wins) → compact PageList
+- StatsBar shows domain once in subtitle: `"{domain} · {count} pages · Last scanned {time}"`
 - ProofBanner shows validated correlation wins with before/after, big metric %, and LLM observations
 - PageList: compact rows (~48px) sorted by urgency (attention → watching → scanning → stable)
-- Each row: status dot, page name, metric focus badge, status text, chevron
+- Each row: status dot, page name or path (via `getPath()`), metric focus badge, status text, chevron
+- AddPageModal: when domain set, shows `https://{domain}` prefix + path-only input; when null, full URL input
 - Scales from 1 to 25+ pages at max-w-4xl (896px)
 - No delete from dashboard — delete lives inside individual page view
 - Onboarding: 2-step flow (URL → metric focus selection)
@@ -171,6 +174,8 @@ Most users won't connect PostHog/GA4. The product must be valuable anyway.
 | Scans | Weekly | Daily+Deploy | Daily+Deploy |
 | Analytics | 0 | 1 | Unlimited |
 | Mobile | No | No | Yes |
+
+**Domain locking**: All pages must be on the same domain. First page sets the account domain automatically. No domain management UI — just works.
 
 ## Conversion Flywheel
 
