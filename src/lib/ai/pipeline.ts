@@ -887,13 +887,14 @@ function extractJson(text: string): string {
     return codeBlockMatch[1].trim();
   }
 
-  // 2. Fallback: find the first { and extract from there (handles truncated code blocks)
+  // 2. Fallback: find the first { and extract the matching JSON object
   const firstBrace = text.indexOf("{");
   if (firstBrace === -1) {
     return text.trim();
   }
 
-  const jsonCandidate = text.slice(firstBrace).trim();
+  // Find the matching closing brace (handles text after JSON)
+  const jsonCandidate = extractMatchingBraces(text, firstBrace);
 
   // Try parsing as-is first (complete JSON)
   try {
@@ -904,6 +905,34 @@ function extractJson(text: string): string {
     console.warn("LLM response truncated — attempting to close JSON. Data may be incomplete.");
     return closeJson(jsonCandidate);
   }
+}
+
+/**
+ * Extract substring from startIdx to the matching closing brace,
+ * handling strings and escapes. Falls back to slice-to-end if no match.
+ */
+function extractMatchingBraces(text: string, startIdx: number): string {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return text.slice(startIdx, i + 1);
+      }
+    }
+  }
+
+  // No matching close found — return everything (truncated case)
+  return text.slice(startIdx).trim();
 }
 
 /**
@@ -1269,7 +1298,9 @@ Return JSON:
 
 If the pages look identical, return: { "hasChanges": false, "changes": [] }
 
-Be concise. Focus on meaningful changes, not minor rendering differences.`;
+Be concise. Focus on meaningful changes, not minor rendering differences.
+
+IMPORTANT: Respond with ONLY the JSON object. No text before or after it.`;
 
 import type { QuickDiffResult } from "@/lib/types/analysis";
 
@@ -1370,7 +1401,7 @@ export async function runQuickDiff(
       },
     ],
     system: QUICK_DIFF_PROMPT,
-    maxOutputTokens: 1000,
+    maxOutputTokens: 2048,
   });
 
   // Extract JSON from response (handles text preamble and truncated code blocks)

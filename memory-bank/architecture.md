@@ -94,6 +94,8 @@ analyses (
   error_message text,
   created_at timestamptz DEFAULT now()
 )
+-- NOTE: analyses has NO page_id column. Linkage is via pages.last_scan_id → analyses.id.
+-- History is walked via parent_analysis_id chain (get_analysis_chain RPC).
 
 analytics_snapshots (
   id uuid PK default gen_random_uuid(),
@@ -286,9 +288,9 @@ Output:
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
 - `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available.
-- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff (maxOutputTokens: 1000). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory.
+- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff (maxOutputTokens: 2048). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory.
 - `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 4096). Has analytics/database tool access.
-- `extractJson(text)` — Robust JSON extraction from LLM responses. 3-tier: regex code block → brace-match → `closeJson()` (auto-close truncated JSON).
+- `extractJson(text)` — Robust JSON extraction from LLM responses. 3-tier: regex code block → `extractMatchingBraces()` (finds matching `}` ignoring postamble) → `closeJson()` (auto-close truncated JSON).
 - `formatUserFeedback(feedback)` — Formats user feedback for LLM context (with prompt injection protection)
 - `formatPageFocus(focus)` — Formats user's metric focus for LLM context (with prompt injection protection)
 - `formatChangeHypotheses(hypotheses)` — Formats change hypotheses for LLM context (with prompt injection protection)
@@ -740,6 +742,7 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 - `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
+- `screenshot-health-check` — cron (every 30 min), pings screenshot service, reports to Sentry if unreachable. Sentry alert rule "Screenshot Service Down" (ID: 16691420) triggers on `service:screenshot` tag.
 
 ## File Structure
 ```
@@ -759,7 +762,7 @@ src/
 │   ├── api/
 │   │   ├── analyze/route.ts        # POST: create analysis
 │   │   ├── analysis/[id]/route.ts  # GET: poll results (includes page_context)
-│   │   ├── rescan/route.ts         # POST: re-scan (auto-registers page)
+│   │   ├── rescan/route.ts         # POST: re-scan or first scan (accepts parentAnalysisId OR pageId)
 │   │   ├── pages/route.ts          # GET: list pages, POST: register page (with limits)
 │   │   ├── pages/[id]/route.ts     # GET/PATCH/DELETE: single page (DELETE cascades to analyses)
 │   │   ├── changes/route.ts        # GET: detected changes with stats
@@ -818,7 +821,7 @@ npm run dev                    # Next.js on port 3002
 
 1. **Bot protection on screenshots** — SOLVED with Decodo residential proxy ($4/mo for 2GB). Stealth plugin + residential IP bypasses Vercel/Cloudflare.
 2. **Screenshot speed** — MITIGATED with persistent browser pool + domcontentloaded strategy. 5-12s range.
-3. **LLM JSON parsing** — Gemini prepends text preamble before JSON and may truncate long responses. `extractJson()` helper handles this with 3-tier fallback: regex code block extraction → brace-matching → `closeJson()` (auto-closes truncated JSON by balancing braces/brackets). Applied to all 3 parse sites: `runAnalysisPipeline`, `runPostAnalysisPipeline`, `runQuickDiff`.
+3. **LLM JSON parsing** — LLMs prepend text preamble and/or append commentary around JSON. `extractJson()` handles this with 3-tier fallback: regex code block extraction → `extractMatchingBraces()` (walks from first `{` to matching `}`, ignoring postamble text) → `closeJson()` (auto-closes truncated JSON by balancing braces/brackets). Applied to all 3 parse sites: `runAnalysisPipeline`, `runPostAnalysisPipeline`, `runQuickDiff`. Quick diff prompt also includes explicit "respond with ONLY JSON" instruction.
 4. **Total pipeline latency** — Screenshot (5-12s) + LLM (15-30s) = 20-40s total. Acceptable for async background job with polling UI.
 
 ## Cost Estimates Per Analysis
@@ -1032,6 +1035,12 @@ Dashboard page
 - DSN host + project ID validated against `NEXT_PUBLIC_SENTRY_DSN` (prevents abuse as open relay)
 - 512KB body size limit (Content-Length header + actual body check)
 - CSP `connect-src` no longer includes `*.ingest.sentry.io` (tunneled through `'self'`)
+
+### Screenshot Service Monitoring
+- `captureScreenshot()` tags all failures with `service:screenshot` (HTTP errors, timeouts, network failures)
+- Timeout/network errors caught separately from HTTP errors with `reason: "timeout"` or `reason: "network"` tags
+- `pingScreenshotService()` health check runs every 30 min via Inngest cron
+- Sentry alert rule "Screenshot Service Down" (ID: 16691420) notifies on any new issue tagged `service:screenshot`
 
 ### Inngest Error Handling
 - All 6 `captureException` calls use `Sentry.withScope()` with `scope.setUser({ id: userId })` where available
