@@ -1,0 +1,56 @@
+# Loupe
+
+> Loupe connects page changes to business outcomes. When your metrics move, Loupe shows you which change caused it.
+
+Loupe tracks what changes on your website — headline copy, CTA placement, layout shifts, trust signals appearing or disappearing — and correlates those changes with your actual analytics data (bounce rate, signups, time on page, conversions). The result: you know which changes helped and which ones hurt.
+
+This is not change detection. Tools like VisualPing tell you something changed. Loupe tells you what changed, whether it mattered, and what to do next. The value is not speed of notification. It is understanding cause and effect — a week later, a month later. "Your headline changed Jan 28. Since then, bounce rate is up 12%."
+
+Loupe works by building a timeline of your site. Each scan captures a snapshot, runs LLM-powered analysis, and chains to the previous scan. When you connect analytics (PostHog, GA4, or your own database), Loupe overlays metric movements onto that timeline. When metrics move, you look back and see what changed. When you ship a change, you look forward and see what happened. Over time, suggestions get sharper because Loupe knows what actually moved the needle for your specific page.
+
+## Key Capabilities
+
+- [Free instant audit](https://getloupe.io): Paste any URL, get findings with predicted impact in 30 seconds. No signup required.
+- [Change-to-outcome correlation](https://getloupe.io): Connects page changes to metric movements — bounce rate, signups, conversions, time on page.
+- [Automated scanning](https://getloupe.io): Daily or weekly scans detect content, layout, CTA, and trust signal changes automatically.
+- [Deploy-triggered scanning](https://getloupe.io): GitHub webhook integration triggers analysis on every push to main.
+- [LLM-powered analysis](https://getloupe.io): Each scan produces a verdict, observations, and prioritized suggestions — not a raw diff.
+- [Intent capture](https://getloupe.io): Log what you were testing (your hypothesis) and Loupe validates it against real outcomes.
+- [Compounding intelligence](https://getloupe.io): Every scan adds context. Suggestions improve as Loupe learns what works for your specific page.
+- [Mobile and desktop screenshots](https://getloupe.io): Visual record of your page at every scan, both viewports.
+
+## Problems Loupe Solves
+
+- Conversions dropped but you do not know what changed on your page
+- You shipped a headline change, a layout tweak, or a new CTA — and never found out if it worked
+- Your AI coding tool (Lovable, Bolt, Cursor, Replit) changed something on your site without you noticing
+- You want A/B test-style insights without running an A/B test
+- You do not have time to manually check your landing page after every deploy
+- Your pricing section disappeared and you did not notice for two weeks
+- You see metric movements in PostHog or GA4 but cannot tie them to specific page changes
+
+## Who It Is For
+
+- Solo founders and small teams shipping web products (1-5 people)
+- Non-technical founders using AI-first tools like Lovable, Bolt, Base44, or Replit Agent who have no version control and no way to track what their AI changed
+- Technical indie hackers and developers at $500 to $10k MRR who ship fast and do not have time to watch the marketing layer
+- Anyone who deploys frequently via Vercel or Netlify and wants to know which changes actually moved the needle
+- Founders who wear all the hats — dev, marketing, support — and cannot afford to watch the site manually
+
+## How It Compares
+
+- Unlike VisualPing or Distill.io (change detection): Loupe does not just tell you something changed. It tells you what the change meant for your metrics and what to do about it.
+- Unlike Percy or Applitools (visual regression testing): Loupe catches meaning changes, not pixel changes. It knows your CTA copy shifted, not that a border moved 2 pixels.
+- Unlike DIY Playwright scripts: Loupe maintains the infrastructure — proxies, stealth plugins, screenshot services, LLM analysis. A homegrown setup breaks in 3 months.
+- Unlike manual checking: Loupe scans daily. You do not. It remembers what your page looked like last week. You do not.
+
+## Pricing
+
+- [Pricing](https://getloupe.io): Free tier (1 page, weekly scans), Starter at $12/month (3 pages, daily scans, 1 analytics connection), Pro at $29/month (10 pages, daily scans, unlimited analytics, mobile screenshots).
+
+## Links
+
+- [Website](https://getloupe.io)
+- [Free audit tool](https://getloupe.io): Paste a URL, get findings in 30 seconds
+- [Demo dashboard](https://getloupe.io/demo): See what the product looks like with real data
+- [Demo scan report](https://getloupe.io/demo/analysis): See what a scan report looks like

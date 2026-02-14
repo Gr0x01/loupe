@@ -30,19 +30,19 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://getloupe.io"),
   title: "Loupe — Your site changed. Did you notice?",
   description:
-    "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds. Free, no signup.",
+    "Loupe monitors your web pages and correlates changes with metrics like bounce rate and signups. Know which deploy helped, which one hurt, and what to do next.",
   openGraph: {
-    title: "Loupe — Free Page Audit",
+    title: "Loupe — Your site changed. Did you notice?",
     description:
-      "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds.",
+      "Monitor your site, detect changes, and see how they affect your metrics. Built for solo founders shipping fast.",
     siteName: "Loupe",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Loupe — Free Page Audit",
+    title: "Loupe — Your site changed. Did you notice?",
     description:
-      "Paste a URL. Get a full audit of your headlines, CTAs, trust signals, and layout in 60 seconds.",
+      "Monitor your site, detect changes, and see how they affect your metrics. Built for solo founders shipping fast.",
   },
 };
 
@@ -75,7 +75,19 @@ const jsonLd = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description:
-        "Monitor your web pages for meaningful changes. Catch drift in headlines, CTAs, trust signals, and layout before it costs you conversions.",
+        "Loupe connects page changes to business outcomes. It monitors your web pages for meaningful changes — headlines, CTAs, layout, trust signals — and correlates them with metrics like bounce rate, signups, and conversions. Know which deploy helped, which one hurt, and what to do next. Built for solo founders and small teams shipping fast with tools like Cursor, Lovable, and Bolt.",
+      featureList: [
+        "AI-powered page audit with actionable findings",
+        "Automated page change detection and monitoring",
+        "Change-to-metric correlation (bounce rate, signups, conversions)",
+        "Deploy impact analysis — see what each deploy did to your numbers",
+        "PostHog and GA4 analytics integration",
+        "GitHub webhook integration for deploy-triggered scans",
+        "Desktop and mobile screenshot comparison",
+        "Weekly and daily automated scanning",
+        "Hypothesis tracking — log what you changed and why",
+        "Observation reports linking changes to metric movements",
+      ],
       offers: [
         {
           "@type": "Offer",
