@@ -87,6 +87,9 @@ export async function captureScreenshot(
       lastError = new Error(
         `Screenshot service ${err instanceof DOMException ? "timed out (45s)" : "unreachable"}: ${err instanceof Error ? err.message : err}`
       );
+      if (attempt < MAX_RETRIES) {
+        continue;
+      }
       Sentry.captureException(lastError, {
         tags: { service: "screenshot", reason: err instanceof DOMException ? "timeout" : "network" },
         extra: { url, width: options?.width, attempt },
