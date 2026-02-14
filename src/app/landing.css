@@ -64,12 +64,6 @@
   animation-delay: 400ms;
 }
 
-.landing-hero-founding {
-  opacity: 0;
-  animation: landingFadeIn 0.4s ease-out forwards;
-  animation-delay: 1050ms;
-}
-
 /* ===== FREE AUDIT SHELL ===== */
 .free-audit-shell {
   background: #FFFFFF;
@@ -463,34 +457,6 @@
   .site-preview-metric {
     font-size: 32px;
   }
-}
-
-/* ===== FOUNDING COUNTER PILL ===== */
-.founding-counter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: #FFFFFF;
-  border: 2px solid var(--line);
-  border-radius: 12px;
-  padding: 8px 16px 8px 10px;
-  box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.1);
-}
-
-.founding-counter-track {
-  width: 56px;
-  height: 6px;
-  background: var(--paper-100);
-  border-radius: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.founding-counter-fill {
-  height: 100%;
-  background: var(--coral);
-  border-radius: 4px;
-  transition: width 800ms ease-out 1200ms;
 }
 
 /* ===== HOW IT WORKS — CONNECTOR LINE ===== */

@@ -1,34 +1,17 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { track } from "@/lib/analytics/track";
-
-interface FoundingStatus {
-  claimed: number;
-  total: number;
-  isFull: boolean;
-  remaining: number;
-}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [foundingStatus, setFoundingStatus] = useState<FoundingStatus | null>(null);
-  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
-  const [waitlistLoading, setWaitlistLoading] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
-
-  useEffect(() => {
-    fetch("/api/founding-status")
-      .then((res) => res.json())
-      .then((data) => setFoundingStatus(data))
-      .catch(() => {});
-  }, []);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -71,137 +54,6 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     }
-  }
-
-  async function handleWaitlist(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim() || waitlistLoading) return;
-
-    setWaitlistLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to join waitlist");
-        setWaitlistLoading(false);
-        return;
-      }
-
-      setWaitlistSubmitted(true);
-    } catch {
-      setError("Something went wrong. Please try again.");
-      setWaitlistLoading(false);
-    }
-  }
-
-  // Show waitlist form if founding 50 is full
-  const showWaitlist = foundingStatus?.isFull;
-
-  // Waitlist submitted success state
-  if (waitlistSubmitted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <Link
-            href="/"
-            className="text-sm text-text-muted hover:text-accent transition-colors"
-          >
-            &larr; Back to Loupe
-          </Link>
-          <div className="mt-8">
-            <div className="w-16 h-16 rounded-full bg-[rgba(255,90,54,0.1)] flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h1
-              className="text-4xl text-text-primary tracking-tight"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              You're on the list
-            </h1>
-            <p className="text-text-secondary mt-4 text-lg">
-              We'll email you when a spot opens up.
-            </p>
-            <div className="mt-8">
-              <Link href="/" className="btn-secondary inline-block">
-                Run a free audit
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Waitlist form (when founding 50 is full)
-  if (showWaitlist) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-10">
-            <Link
-              href="/"
-              className="text-sm text-text-muted hover:text-accent transition-colors"
-            >
-              &larr; Back to Loupe
-            </Link>
-            <h1
-              className="text-4xl text-text-primary tracking-tight mt-4"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Founding 50 is full
-            </h1>
-            <p className="text-text-secondary mt-3">
-              Join the waitlist and we'll notify you when a spot opens.
-            </p>
-          </div>
-
-          <div className="glass-card-elevated p-6">
-            <form onSubmit={handleWaitlist}>
-              <label htmlFor="email" className="block text-sm text-text-secondary mb-2">
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="input-glass w-full"
-              />
-              <button
-                type="submit"
-                disabled={!email.trim() || waitlistLoading}
-                className="btn-primary w-full mt-4
-                           disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {waitlistLoading ? "Joining..." : "Join waitlist"}
-              </button>
-            </form>
-
-            {error && (
-              <p className="text-sm text-score-low mt-3 text-center">{error}</p>
-            )}
-          </div>
-
-          <p className="text-center text-xs text-text-muted mt-6">
-            Free audits are still available.{" "}
-            <Link href="/" className="text-accent hover:underline">
-              Try one now
-            </Link>
-          </p>
-        </div>
-      </div>
-    );
   }
 
   // Normal login form

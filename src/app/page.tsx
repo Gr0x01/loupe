@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { createServiceClient } from "@/lib/supabase/server";
-import { FOUNDING_50_CAP } from "@/lib/constants";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import SitePreviewCard from "@/components/landing/SitePreviewCard";
 import TribeSignal from "@/components/landing/TribeSignal";
@@ -9,7 +7,6 @@ import YourPage from "@/components/landing/YourPage";
 import YourResults from "@/components/landing/YourResults";
 import YourIntegrations from "@/components/landing/YourIntegrations";
 import UrgencyCloser from "@/components/landing/UrgencyCloser";
-import FoundingCounter from "@/components/landing/FoundingCounter";
 
 export const revalidate = 300;
 
@@ -20,35 +17,6 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  let foundingData: {
-    claimed: number;
-    total: number;
-    remaining: number;
-    isFull: boolean;
-  } | null = null;
-
-  try {
-    // Service client needed: public count-only query (head: true, no row data).
-    // Do NOT add column selections or remove head: true without switching to anon client.
-    const supabase = createServiceClient();
-    const { count, error } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("is_founding_50", true);
-
-    if (!error) {
-      const claimed = count ?? 0;
-      foundingData = {
-        claimed,
-        total: FOUNDING_50_CAP,
-        isFull: claimed >= FOUNDING_50_CAP,
-        remaining: Math.max(0, FOUNDING_50_CAP - claimed),
-      };
-    }
-  } catch {
-    // Founding data is non-critical — render page without it
-  }
-
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Hero -- Two-column layout with visual card on right */}
@@ -89,20 +57,11 @@ export default async function Home() {
 
               {/* Trust line */}
               <p className="text-base font-medium text-text-secondary mt-5 landing-hero-trust">
-                Free. No signup. Results in 30 seconds.
+                Free forever for 1 page. Results in 30 seconds.
               </p>
 
               {/* Tribe signal — tool logos above the fold */}
               <TribeSignal />
-
-              {/* Founding 50 counter — pill with progress bar, real data */}
-              {/* Hide until 10+ claimed for better social proof */}
-              {foundingData && !foundingData.isFull && foundingData.claimed >= 10 && (
-                <FoundingCounter
-                  claimed={foundingData.claimed}
-                  total={foundingData.total}
-                />
-              )}
             </div>
 
             {/* Right column -- Site mockup with Loupe notifications */}
@@ -126,7 +85,7 @@ export default async function Home() {
       <YourIntegrations />
 
       {/* Urgency Closer -- Final push with dark treatment */}
-      <UrgencyCloser foundingData={foundingData} />
+      <UrgencyCloser />
     </div>
   );
 }

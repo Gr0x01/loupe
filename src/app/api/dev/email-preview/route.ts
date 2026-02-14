@@ -6,12 +6,11 @@ import {
   allQuietEmail,
   correlationUnlockedEmail,
   dailyDigestEmail,
-  waitlistConfirmationEmail,
   claimPageEmail,
 } from "@/lib/email/templates";
 
 /**
- * GET /api/dev/email-preview?template=scan|deploy|waitlist|change-detected|...
+ * GET /api/dev/email-preview?template=scan|deploy|change-detected|...
  *
  * Dev-only endpoint to preview email templates in browser.
  * Returns raw HTML that renders in the browser.
@@ -193,11 +192,6 @@ export async function GET(req: NextRequest) {
         ],
       }),
 
-    waitlist: () =>
-      waitlistConfirmationEmail({
-        email: "founder@startup.com",
-      }),
-
     "claim-page": () =>
       claimPageEmail({
         domain: "acme.io",
@@ -280,7 +274,6 @@ export async function GET(req: NextRequest) {
           <h2 style="margin-top: 32px; color: #666; font-size: 14px; text-transform: uppercase;">Digest & Other</h2>
           <ul style="line-height: 2;">
             <li><a href="?template=daily-digest">Daily Digest</a></li>
-            <li><a href="?template=waitlist">Waitlist Confirmation</a></li>
             <li><a href="?template=claim-page">Claim Page</a></li>
           </ul>
 

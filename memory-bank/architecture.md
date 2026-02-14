@@ -155,22 +155,12 @@ detected_changes (
 profiles (
   id uuid PK FK auth.users ON DELETE CASCADE,
   email text,
-  bonus_pages integer NOT NULL DEFAULT 0,  -- extra pages from sharing
-  is_founding_50 boolean NOT NULL DEFAULT false,  -- founding member flag
   email_notifications boolean NOT NULL DEFAULT true,  -- opt-out of scan emails
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 )
 -- Auto-created via trigger on auth.users insert
 -- RLS: user can read/update own profile
-
-waitlist (
-  id uuid PK default gen_random_uuid(),
-  email text NOT NULL UNIQUE,
-  referrer text,
-  created_at timestamptz DEFAULT now()
-)
--- RLS: anyone can insert (anon, authenticated)
 
 integrations (
   id uuid PK default gen_random_uuid(),
@@ -711,8 +701,6 @@ When correlating changes with database metrics, be specific:
    - Changed pages show primary change before/after detail
    - Stable pages shown as compact one-liners
    - Only sent if at least 1 page changed; all-quiet = no email
-5. **Waitlist confirmation** — When someone joins waitlist
-
 Manual re-scans do NOT trigger emails.
 
 ### Email Selection Logic
@@ -755,10 +743,9 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 ```
 src/
 ├── app/
-│   ├── page.tsx                    # Landing page (with Founding 50 progress)
-│   ├── login/page.tsx              # Sign in (magic link + Google, waitlist when full)
-│   ├── dashboard/page.tsx          # List of monitored pages (with page limits)
-│   ├── waitlist/page.tsx           # Waitlist signup page
+│   ├── page.tsx                    # Landing page
+│   ├── login/page.tsx              # Sign in (magic link + Google)
+│   ├── dashboard/page.tsx          # List of monitored pages (with tier-based page limits)
 │   ├── pages/[id]/page.tsx         # Page timeline (scan history, trend)
 │   ├── auth/
 │   │   ├── callback/route.ts       # OAuth + magic link callback (cap check)
@@ -777,9 +764,6 @@ src/
 │   │   ├── changes/[id]/hypothesis/route.ts  # PATCH: set hypothesis on detected change
 │   │   ├── pages/[id]/history/route.ts  # GET: scan history for page
 │   │   ├── profile/route.ts        # GET/PATCH: user profile preferences
-│   │   ├── founding-status/route.ts # GET: founding 50 progress
-│   │   ├── share-credit/route.ts   # POST: claim bonus page from sharing
-│   │   ├── waitlist/route.ts       # POST: join waitlist (+ sends confirmation email)
 │   │   ├── integrations/           # GitHub + PostHog integration
 │   │   │   ├── route.ts            # GET: list integrations status
 │   │   │   ├── github/             # GitHub OAuth + repo management
@@ -799,12 +783,10 @@ src/
 │   ├── hero-tablet.css           # Hero tablet breakpoints
 │   └── layout.tsx
 ├── components/
-│   ├── ShareModal.tsx              # Share-to-unlock modal
 │   ├── PostHogProvider.tsx         # PostHog analytics provider (client-side init)
 │   ├── PostHogPageView.tsx         # PostHog pageview tracking for SPA
 │   └── SentryUserProvider.tsx      # Auth state → Sentry user context
 ├── lib/
-│   ├── constants.ts                # Shared constants (FOUNDING_50_CAP, etc.)
 │   ├── supabase/
 │   │   ├── client.ts               # Browser client (anon key)
 │   │   ├── server.ts               # Cookie-based client + service role client
@@ -1174,7 +1156,7 @@ billing_period text  -- 'monthly' | 'annual'
 ```
 
 ### Permissions Module (`src/lib/permissions.ts`)
-- `getPageLimit(tier, bonusPages)` — Returns max pages for tier + bonus
+- `getPageLimit(tier)` — Returns max pages for tier
 - `canConnectAnalytics(tier, currentCount)` — Checks analytics integration limit
 - `canUseDeployScans(tier)` — Returns true for Starter/Pro
 - `canAccessMobile(tier)` — Returns true for Pro only
@@ -1206,9 +1188,6 @@ STRIPE_PRICE_STARTER_ANNUAL=price_...
 STRIPE_PRICE_PRO_MONTHLY=price_...
 STRIPE_PRICE_PRO_ANNUAL=price_...
 ```
-
-### Founding 50 Grandfathering
-Users with `is_founding_50=true` were migrated to `subscription_tier='starter'` during the pricing tier migration. They get Starter benefits (3 pages, daily scans, 1 analytics) without a Stripe subscription.
 
 ### Key Files
 - `src/lib/stripe.ts` — Stripe client, price ID mapping, checkout/portal helpers

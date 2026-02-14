@@ -207,10 +207,6 @@ body {
     animation: none;
   }
 
-  .founding-counter-fill {
-    transition: none;
-  }
-
   .landing-hero-qualifier,
   .landing-hero-headline-1,
   .landing-hero-headline-2,
@@ -218,7 +214,6 @@ body {
   .landing-hero-form,
   .landing-hero-trust,
   .landing-hero-card,
-  .landing-hero-founding,
   .pricing-hero-headline,
   .pricing-hero-sub,
   .pricing-hero-toggle {

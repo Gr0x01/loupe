@@ -1436,12 +1436,6 @@ export default function AnalysisPage() {
   const [claimError, setClaimError] = useState("");
   const [deployExpanded, setDeployExpanded] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [foundingStatus, setFoundingStatus] = useState<{
-    claimed: number;
-    total: number;
-    remaining: number;
-    isFull: boolean;
-  } | null>(null);
   const [claimModalType, setClaimModalType] = useState<ClaimModalType>(null);
 
   // Check for already_claimed URL param (from auth callback redirect)
@@ -1454,19 +1448,6 @@ export default function AnalysisPage() {
       window.history.replaceState({}, "", url.toString());
     }
   }, [searchParams]);
-
-  // Fetch founding status on mount
-  useEffect(() => {
-    fetch("/api/founding-status")
-      .then((res) => res.json())
-      .then((data) => {
-        // Validate response shape before setting
-        if (data && typeof data.claimed === "number" && typeof data.remaining === "number") {
-          setFoundingStatus(data);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const handleClaimEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1746,24 +1727,6 @@ export default function AnalysisPage() {
                   Free. No spam. Just drift alerts.
                 </p>
 
-                {/* Hide founding count until 10+ claimed for better social proof */}
-                {foundingStatus && !foundingStatus.isFull && foundingStatus.claimed >= 10 && (
-                  <div className="mt-4 text-center">
-                    <div className="flex items-center justify-center gap-0.5 mb-2">
-                      {Array.from({ length: Math.min(foundingStatus.total, 50) }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            i < foundingStatus.claimed ? "bg-accent" : "bg-border-subtle"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-text-muted">
-                      <span className="font-semibold text-accent">{foundingStatus.remaining}</span> spots — daily scans, free
-                    </p>
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -2114,6 +2077,7 @@ export default function AnalysisPage() {
             totalScans={pageCtx?.total_scans}
             pageId={pageCtx?.page_id}
             currentAnalysisId={analysis.id}
+            hypothesisMap={pageCtx?.hypothesis_map}
           />
         )}
 
@@ -2209,32 +2173,6 @@ export default function AnalysisPage() {
                   </p>
                 )}
 
-                {/* Founding 50 — hide until 10+ claimed for better social proof */}
-                {foundingStatus && !foundingStatus.isFull && foundingStatus.claimed >= 10 && !analysis.changes_summary && (
-                  <div className="pt-4 border-t border-border-outer">
-                    {/* Label */}
-                    <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-2">
-                      Founding 50
-                    </p>
-                    {/* Dots */}
-                    <div className="flex items-center justify-center gap-0.5 mb-2">
-                      {Array.from({ length: foundingStatus.total }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            i < foundingStatus.claimed
-                              ? "bg-accent"
-                              : "bg-[rgba(0,0,0,0.1)]"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    {/* Value line */}
-                    <p className="text-sm text-text-muted">
-                      {foundingStatus.remaining} spots left — free Pro (<span className="font-semibold text-text-secondary">$19/mo</span>) for life
-                    </p>
-                  </div>
-                )}
               </div>
             )}
           </div>

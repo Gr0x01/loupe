@@ -305,16 +305,14 @@ export async function POST(req: NextRequest) {
     // Get user profile to check page limit and tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("bonus_pages, is_founding_50, subscription_tier, subscription_status")
+      .select("subscription_tier, subscription_status")
       .eq("id", user.id)
       .single();
 
-    const bonusPages = profile?.bonus_pages ?? 0;
-    const isFounder = profile?.is_founding_50 ?? false;
     const rawTier = (profile?.subscription_tier as SubscriptionTier) || "free";
     const status = profile?.subscription_status as SubscriptionStatus | null;
     const tier = getEffectiveTier(rawTier, status);
-    const maxPages = getPageLimit(tier, bonusPages);
+    const maxPages = getPageLimit(tier);
 
     // Count current pages
     const { count: pageCount } = await supabase
@@ -324,28 +322,13 @@ export async function POST(req: NextRequest) {
 
     const currentPageCount = pageCount ?? 0;
 
-    // If this is the user's first page and not already a founder, attempt atomic claim
-    // Do this BEFORE the page limit check so we use the correct tier limits
-    let wasJustMarkedFounder = false;
-    if (currentPageCount === 0 && !isFounder) {
-      // Atomic RPC prevents race condition when multiple requests try to claim simultaneously
-      const { data: claimed } = await supabase.rpc("claim_founding_50", {
-        p_user_id: user.id,
-      });
-      wasJustMarkedFounder = claimed === true;
-    }
-
-    // Calculate effective tier and page limit (accounting for just-claimed founding status)
-    const effectiveTier: SubscriptionTier = wasJustMarkedFounder ? "starter" : tier;
-    const effectiveMaxPages = getPageLimit(effectiveTier, bonusPages);
-
     // Check page limit
-    if (currentPageCount >= effectiveMaxPages) {
+    if (currentPageCount >= maxPages) {
       return NextResponse.json(
         {
           error: "page_limit_reached",
           current: currentPageCount,
-          max: effectiveMaxPages,
+          max: maxPages,
         },
         { status: 403 }
       );
@@ -408,10 +391,9 @@ export async function POST(req: NextRequest) {
 
     // Determine scan frequency based on tier
     // Free tier can only use weekly; Starter/Pro can use daily
-    // Founding 50 are on Starter tier, so they get daily
     const frequency = validateScanFrequency(
-      effectiveTier,
-      scan_frequency || (effectiveTier === "free" ? "weekly" : "daily")
+      tier,
+      scan_frequency || (tier === "free" ? "weekly" : "daily")
     );
 
     // Create page record
@@ -482,17 +464,15 @@ export async function POST(req: NextRequest) {
     captureEvent(user.id, "page_claimed", {
       domain: parsedUrl.hostname,
       url: normalizedUrl,
-      tier: effectiveTier,
+      tier,
       page_number: currentPageCount + 1,
-      is_founding_50: isFounder || wasJustMarkedFounder,
     });
     captureEvent(user.id, "page_tracked", {
       domain: parsedUrl.hostname,
       is_first_page: currentPageCount === 0,
     });
     identifyUser(user.id, {
-      subscription_tier: effectiveTier,
-      is_founding_50: isFounder || wasJustMarkedFounder,
+      subscription_tier: tier,
       pages_count: currentPageCount + 1,
     });
     await flushEvents();

@@ -1,49 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
-import { FOUNDING_50_CAP } from "@/lib/constants";
+import {
+  getPageLimit,
+  getEffectiveTier,
+  type SubscriptionTier,
+  type SubscriptionStatus,
+} from "@/lib/permissions";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-async function checkFoundingCapAndRedirect(
-  redirectTo: URL,
-  userId: string
-): Promise<URL | null> {
-  const supabase = createServiceClient();
-
-  // Check if user is already a founding member
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("is_founding_50")
-    .eq("id", userId)
-    .single();
-
-  // Log unexpected errors (PGRST116 = no rows, which is expected for new users)
-  if (profileError && profileError.code !== "PGRST116") {
-    console.error("Failed to fetch profile in cap check:", profileError);
-  }
-
-  // If already a founding member, no need to check cap
-  if (profile?.is_founding_50) {
-    return null;
-  }
-
-  // Count founding members
-  const { count: founderCount } = await supabase
-    .from("profiles")
-    .select("*", { count: "exact", head: true })
-    .eq("is_founding_50", true);
-
-  // If cap is reached and user is not a founder, redirect to waitlist
-  if ((founderCount ?? 0) >= FOUNDING_50_CAP) {
-    redirectTo.pathname = "/waitlist";
-    return redirectTo;
-  }
-
-  return null;
-}
 
 async function handleRescan(
   redirectTo: URL,
@@ -157,22 +124,26 @@ async function handleClaim(
     return redirectTo;
   }
 
-  // Check page limit (Founding 50 = 1 page + bonus_pages)
+  // Check page limit using tier-based limits
   const { data: profile } = await supabase
     .from("profiles")
-    .select("bonus_pages")
+    .select("subscription_tier, subscription_status")
     .eq("id", userId)
     .single();
+
+  const rawTier = (profile?.subscription_tier as SubscriptionTier) || "free";
+  const status = profile?.subscription_status as SubscriptionStatus | null;
+  const tier = getEffectiveTier(rawTier, status);
 
   const { count: pageCount } = await supabase
     .from("pages")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId);
 
-  const maxPages = 1 + (profile?.bonus_pages ?? 0);
+  const maxPages = getPageLimit(tier);
   if ((pageCount ?? 0) >= maxPages) {
-    // At page limit — go to dashboard where they can see share-to-unlock
-    redirectTo.pathname = "/dashboard";
+    // At page limit — send to pricing
+    redirectTo.pathname = "/pricing";
     return redirectTo;
   }
 
@@ -244,7 +215,7 @@ export async function GET(request: NextRequest) {
     const serviceClient = createServiceClient();
     const { data: profile } = await serviceClient
       .from("profiles")
-      .select("subscription_tier, subscription_status, is_founding_50")
+      .select("subscription_tier, subscription_status")
       .eq("id", user.id)
       .single();
 
@@ -252,7 +223,6 @@ export async function GET(request: NextRequest) {
       email: user.email,
       subscription_tier: profile?.subscription_tier || "free",
       subscription_status: profile?.subscription_status || null,
-      is_founding_50: profile?.is_founding_50 || false,
     });
 
     if (isNewUser) {
@@ -275,12 +245,6 @@ export async function GET(request: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await identifyAuthenticatedUser(user);
-
-        // Check founding 50 cap — redirect to waitlist if full and not a founder
-        const waitlistRedirect = await checkFoundingCapAndRedirect(redirectTo, user.id);
-        if (waitlistRedirect) {
-          return NextResponse.redirect(waitlistRedirect);
-        }
 
         // Handle claim flow (registers page)
         if (claimId) {
@@ -309,12 +273,6 @@ export async function GET(request: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await identifyAuthenticatedUser(user);
-
-        // Check founding 50 cap — redirect to waitlist if full and not a founder
-        const waitlistRedirect = await checkFoundingCapAndRedirect(redirectTo, user.id);
-        if (waitlistRedirect) {
-          return NextResponse.redirect(waitlistRedirect);
-        }
 
         // Handle claim flow (registers page)
         if (claimId) {

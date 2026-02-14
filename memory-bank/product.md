@@ -172,8 +172,6 @@ Most users won't connect PostHog/GA4. The product must be valuable anyway.
 | Analytics | 0 | 1 | Unlimited |
 | Mobile | No | No | Yes |
 
-Founding 50 grandfathered as Starter tier. See `decisions.md` D29.
-
 ## Conversion Flywheel
 
 Free → Paid is driven by demonstrated value, not trial expiration:

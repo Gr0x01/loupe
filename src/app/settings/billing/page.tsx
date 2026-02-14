@@ -20,7 +20,6 @@ interface BillingData {
   analyticsUsed: number;
   analyticsLimit: number;
   hasStripeSubscription: boolean;
-  isFounder: boolean;
 }
 
 function CheckIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -102,18 +101,16 @@ function BillingPageContent() {
 
         const tier = (profile.subscription_tier as SubscriptionTier) || "free";
         const limits = TIER_LIMITS[tier];
-        const bonusPages = profile.bonus_pages || 0;
 
         setData({
           tier,
           status: profile.subscription_status || "active",
           billingPeriod: profile.billing_period || null,
           pagesUsed,
-          pagesLimit: limits.pages + bonusPages,
+          pagesLimit: limits.pages,
           analyticsUsed,
           analyticsLimit: limits.analyticsIntegrations,
           hasStripeSubscription: !!profile.stripe_subscription_id,
-          isFounder: profile.is_founding_50 || false,
         });
       } catch (err) {
         console.error("Failed to load billing:", err);
@@ -231,11 +228,6 @@ function BillingPageContent() {
                 <p className="text-sm text-ink-500 mb-1">Current plan</p>
                 <h2 className="text-2xl font-bold text-ink-900">
                   {tierInfo.name}
-                  {data.isFounder && data.tier === "starter" && (
-                    <span className="ml-2 text-sm font-normal text-emerald">
-                      Founding Member
-                    </span>
-                  )}
                 </h2>
               </div>
               {data.tier !== "free" && (
@@ -333,15 +325,6 @@ function BillingPageContent() {
           </div>
         </div>
 
-        {/* Founder note */}
-        {data.isFounder && data.tier === "starter" && (
-          <div className="mt-6 p-4 bg-blue-subtle border border-blue rounded-lg">
-            <p className="text-ink-900">
-              <strong>Founding Member Perk</strong> — You&apos;re on the Starter
-              plan for free, forever. Thanks for being an early supporter.
-            </p>
-          </div>
-        )}
       </main>
     </div>
   );

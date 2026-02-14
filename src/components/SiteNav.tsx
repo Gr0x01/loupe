@@ -41,7 +41,6 @@ export default function SiteNav() {
           setPersonProperties({
             subscription_tier: profile.subscription_tier || "free",
             subscription_status: profile.subscription_status || null,
-            is_founding_50: profile.is_founding_50 || false,
             billing_period: profile.billing_period || null,
           });
         }

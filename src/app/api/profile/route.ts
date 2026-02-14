@@ -20,8 +20,6 @@ export async function GET() {
     .select(`
       email,
       email_notifications,
-      bonus_pages,
-      is_founding_50,
       subscription_tier,
       subscription_status,
       billing_period,

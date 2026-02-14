@@ -58,10 +58,10 @@ export function getEffectiveTier(
 }
 
 /**
- * Get the page limit for a tier, including any bonus pages.
+ * Get the page limit for a tier.
  */
-export function getPageLimit(tier: SubscriptionTier, bonusPages: number = 0): number {
-  return TIER_LIMITS[tier].pages + bonusPages;
+export function getPageLimit(tier: SubscriptionTier): number {
+  return TIER_LIMITS[tier].pages;
 }
 
 /**

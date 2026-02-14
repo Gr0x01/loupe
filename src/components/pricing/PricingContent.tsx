@@ -522,10 +522,10 @@ function PricingContent() {
           className={`max-w-2xl mx-auto text-center scroll-reveal ${ctaReveal.revealed ? "revealed" : ""}`}
         >
           <p className="text-ink-500 mb-3">
-            Not ready to commit? No credit card required.
+            Not ready to commit? Track 1 page free, forever.
           </p>
           <Link href="/" className="text-signal font-medium hover:underline">
-            Run a free audit
+            Start with a free audit
           </Link>
         </div>
       </section>

@@ -560,38 +560,11 @@ Foundation for integrations. Users can track pages over time.
 
 **Status:** Complete. Users can monitor pages, see timeline, scheduled scans work, email notifications sent.
 
-## Phase 1C-2 — Launch Prep (DONE)
-Ship free for Founding 50, learn, then build billing with evidence.
+## Phase 1C-2 — Launch Prep (DONE → SUPERSEDED)
 
-### Founding 50 constraints
-- [x] User cap: 50 users max (check on signup, show waitlist after)
-- [x] Page limit: 1 page per user (check in `POST /api/pages`)
-- [x] Scan frequency: Daily scans for Founding 50
-
-### Share to unlock
-- [x] Share mechanic: +1 page per share (instant credit, honor system)
-- [x] UI: "Share to unlock more pages" with Twitter/LinkedIn/copy link
-- [x] Track shares in user record (`bonus_pages` column)
-
-### Waitlist (after 50)
-- [x] Waitlist table + form + API
-- [x] Landing page shows waitlist state when cap is hit
-- [x] Free audit stays accessible (acquisition engine)
-
-### Landing page updates
-- [x] "Founding 50" messaging
-- [x] Progress indicator ("X/50 spots claimed")
-
-**Status:** Complete. Founding 50 system implemented with page limits, share-to-unlock, and waitlist.
-
-### Implementation Details
-- DB: `profiles.bonus_pages` + `profiles.is_founding_50` columns, `waitlist` table
-- APIs: `/api/founding-status`, `/api/share-credit`, `/api/waitlist`
-- Page limit enforced in `POST /api/pages` (403 with `error: "page_limit_reached"`)
-- Auth callback redirects to `/waitlist` when cap reached and user is not founding member
-- Landing page shows X/50 progress bar or waitlist message
-- Dashboard shows slot count, opens ShareModal when at limit
-- Login page shows waitlist form when founding 50 is full
+> **Superseded (Feb 14, 2026):** Founding 50, share-to-unlock, and waitlist systems fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Starter/Pro) in Phase 1D. Page limits now enforced via `getPageLimit(tier)` from `src/lib/permissions.ts`. When users hit their page limit, they're redirected to `/pricing`.
+>
+> **Deleted:** ShareModal, FoundingCounter, constants.ts, founding-status API, share-credit API, waitlist page + API, waitlist email template. DB artifacts dropped: `waitlist` table, `claim_founding_50` RPC, `increment_bonus_pages` RPC, `profiles.bonus_pages`, `profiles.is_founding_50`.
 
 ---
 
@@ -670,14 +643,15 @@ Strengthen LLM analysis quality and redesign the "What changed" UI.
 
 **Status:** Complete. LLM provides nuanced quality evaluation, UI displays full context.
 
-## Phase 1D — Billing (DEFERRED)
-Build after learning from first 50 users.
+## Phase 1D — Billing (DONE)
 
-- [ ] Stripe integration (price TBD based on user feedback)
-- [ ] Grandfather early users
-- [x] Settings page (integrations, email preferences) — `/settings/integrations` done
+- [x] Stripe integration (Free/Starter $12/Pro $29)
+- [x] Checkout, portal, webhook routes (`/api/billing/*`)
+- [x] Tier-based page limits via `getPageLimit(tier)` — Free: 1, Starter: 3, Pro: 10
+- [x] Settings page (integrations, email preferences, billing) — `/settings/integrations`, `/settings/billing`
+- [x] Pricing page (`/pricing`)
 
-**Done when:** Someone can pay and use the pro tier.
+**Status:** Complete. Users can subscribe via Stripe, manage billing, upgrade/downgrade.
 
 ## Phase 1C-4 — Leaderboard (DELETED)
 ~~Public leaderboard showing top-scoring sites with backlinks.~~

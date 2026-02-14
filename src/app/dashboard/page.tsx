@@ -4,9 +4,9 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import ShareModal from "@/components/ShareModal";
 import { PageLoader } from "@/components/PageLoader";
 import type { DashboardPageData, DetectedChange } from "@/lib/types/analysis";
+import { TIER_LIMITS, getEffectiveTier, type SubscriptionTier, type SubscriptionStatus } from "@/lib/permissions";
 import { getDomain, timeAgo } from "@/lib/utils/url";
 import { usePages, useChanges, isUnauthorizedError } from "@/lib/hooks/use-data";
 import { ToastProvider, useToast } from "@/components/Toast";
@@ -20,7 +20,6 @@ import {
 interface UserLimits {
   current: number;
   max: number;
-  bonusPages: number;
 }
 
 type PageStatus = "stable" | "attention" | "watching" | "scanning";
@@ -393,6 +392,12 @@ function WinCard({
         </span>
       </div>
 
+      {change.hypothesis && (
+        <p className="mt-2 text-xs text-[var(--ink-400)] italic">
+          Your test: &ldquo;{truncate(change.hypothesis, 80)}&rdquo;
+        </p>
+      )}
+
       {metric && (
         <div className="mt-3 flex items-baseline gap-2">
           <span
@@ -431,11 +436,122 @@ function StatusDot({ status }: { status: PageStatus }) {
   );
 }
 
+const FOCUS_OPTIONS = [
+  { label: "Signups", value: "signups" },
+  { label: "Bounce Rate", value: "bounce rate" },
+  { label: "Time on Page", value: "time on page" },
+  { label: "Conversions", value: "conversions" },
+];
+
+function MetricFocusPopover({
+  currentFocus,
+  onSelect,
+  onClose,
+}: {
+  currentFocus: string | null;
+  onSelect: (value: string | null) => void;
+  onClose: () => void;
+}) {
+  const [customValue, setCustomValue] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={popoverRef}
+      className="v2-focus-popover"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+    >
+      {FOCUS_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          className={`v2-focus-popover-option ${currentFocus === opt.value ? "v2-focus-popover-option-active" : ""}`}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(opt.value); }}
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ background: (FOCUS_COLORS[opt.value] || { text: "var(--blue)" }).text }}
+          />
+          {opt.label}
+        </button>
+      ))}
+      {!showCustom ? (
+        <button
+          className="v2-focus-popover-option"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCustom(true); }}
+        >
+          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-[var(--ink-300)]" />
+          Custom...
+        </button>
+      ) : (
+        <form
+          className="flex gap-1.5 px-2 py-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const trimmed = customValue.trim();
+            if (trimmed) onSelect(trimmed.toLowerCase());
+          }}
+        >
+          <input
+            autoFocus
+            type="text"
+            value={customValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            placeholder="e.g. downloads"
+            className="text-xs px-2 py-1 rounded border border-[var(--line)] bg-[var(--paper-0)] flex-1 min-w-0"
+            maxLength={50}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="submit"
+            className="text-xs font-semibold text-[var(--signal)] px-1.5"
+            disabled={!customValue.trim()}
+          >
+            Save
+          </button>
+        </form>
+      )}
+      {currentFocus && (
+        <>
+          <div className="border-t border-[var(--line-subtle)] my-1" />
+          <button
+            className="v2-focus-popover-option text-[var(--ink-400)]"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(null); }}
+          >
+            Clear focus
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function PageRow({
   page,
+  onMetricFocusChange,
 }: {
   page: DashboardPageData;
+  onMetricFocusChange?: (pageId: string, value: string | null) => void;
 }) {
+  const [showFocusPopover, setShowFocusPopover] = useState(false);
   const status = getPageStatus(page);
   const statusText = getStatusText(page, status);
   const displayName = page.name || getDomain(page.url);
@@ -470,14 +586,34 @@ function PageRow({
           <span className="text-sm font-semibold text-[var(--ink-900)] truncate">
             {displayName}
           </span>
-          {focusColor && (
-            <span
-              className="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 hidden sm:inline"
-              style={{ background: focusColor.bg, color: focusColor.text }}
-            >
-              {page.metric_focus}
-            </span>
-          )}
+          <span className="relative hidden sm:inline">
+            {focusColor ? (
+              <button
+                className="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 hover:opacity-80 transition-opacity"
+                style={{ background: focusColor.bg, color: focusColor.text }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFocusPopover(!showFocusPopover); }}
+              >
+                {page.metric_focus}
+              </button>
+            ) : (
+              <button
+                className="text-[0.625rem] font-medium px-1.5 py-0.5 rounded flex-shrink-0 text-[var(--ink-300)] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[var(--signal)] hover:bg-[var(--signal-subtle)]"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFocusPopover(!showFocusPopover); }}
+              >
+                + focus
+              </button>
+            )}
+            {showFocusPopover && onMetricFocusChange && (
+              <MetricFocusPopover
+                currentFocus={page.metric_focus || null}
+                onSelect={(value) => {
+                  onMetricFocusChange(page.id, value);
+                  setShowFocusPopover(false);
+                }}
+                onClose={() => setShowFocusPopover(false)}
+              />
+            )}
+          </span>
         </div>
         <span
           className="text-xs text-[var(--ink-300)] truncate block"
@@ -512,10 +648,12 @@ function PageList({
   pages,
   onAddClick,
   isAtLimit,
+  onMetricFocusChange,
 }: {
   pages: DashboardPageData[];
   onAddClick: () => void;
   isAtLimit: boolean;
+  onMetricFocusChange?: (pageId: string, value: string | null) => void;
 }) {
   // Sort: attention first, then watching, then scanning, then stable
   const sortOrder: Record<PageStatus, number> = {
@@ -544,7 +682,7 @@ function PageList({
 
       <div className="v2-page-list">
         {sorted.map((page) => (
-          <PageRow key={page.id} page={page} />
+          <PageRow key={page.id} page={page} onMetricFocusChange={onMetricFocusChange} />
         ))}
       </div>
 
@@ -563,7 +701,7 @@ function PageList({
           />
         </svg>
         <span>
-          {isAtLimit ? "Share to unlock more pages" : "Watch another page"}
+          {isAtLimit ? "Upgrade to watch more pages" : "Watch another page"}
         </span>
       </button>
     </section>
@@ -598,12 +736,10 @@ function DashboardContent() {
   const { toastError } = useToast();
 
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [userLimits, setUserLimits] = useState<UserLimits>({
     current: 0,
     max: 1,
-    bonusPages: 0,
   });
   const highlightWinId = searchParams.get("win") || undefined;
   const rawHypothesisId = searchParams.get("hypothesis");
@@ -654,7 +790,22 @@ function DashboardContent() {
     }
   }, [pagesError, router]);
 
-  // Update limits when pages change
+  // Fetch tier-based page limit on mount
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => res.ok ? res.json() : null)
+      .then((profile) => {
+        if (!profile) return;
+        const tier = getEffectiveTier(
+          (profile.subscription_tier as SubscriptionTier) || "free",
+          profile.subscription_status as SubscriptionStatus | null
+        );
+        setUserLimits((prev) => ({ ...prev, max: TIER_LIMITS[tier].pages }));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Update current count when pages change
   useEffect(() => {
     setUserLimits((prev) => ({ ...prev, current: pages.length }));
   }, [pages.length]);
@@ -682,10 +833,9 @@ function DashboardContent() {
         setUserLimits({
           current: data.current,
           max: data.max,
-          bonusPages: 0,
         });
         setShowAddModal(false);
-        setShowShareModal(true);
+        router.push("/pricing");
         return;
       }
 
@@ -719,19 +869,28 @@ function DashboardContent() {
     }
   };
 
-  const handleShareSuccess = () => {
-    setUserLimits((prev) => ({
-      ...prev,
-      max: prev.max + 1,
-      bonusPages: prev.bonusPages + 1,
-    }));
-  };
-
   const handleAddClick = () => {
     if (pages.length >= userLimits.max && userLimits.max > 0) {
-      setShowShareModal(true);
+      router.push("/pricing");
     } else {
       setShowAddModal(true);
+    }
+  };
+
+  const handleMetricFocusChange = async (pageId: string, value: string | null) => {
+    try {
+      const res = await fetch(`/api/pages/${pageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metric_focus: value }),
+      });
+      if (!res.ok) {
+        toastError("Failed to update metric focus");
+        return;
+      }
+      await mutatePages();
+    } catch {
+      toastError("Failed to update metric focus");
     }
   };
 
@@ -821,6 +980,7 @@ function DashboardContent() {
               pages={pages}
               onAddClick={handleAddClick}
               isAtLimit={isAtLimit}
+              onMetricFocusChange={handleMetricFocusChange}
             />
           </>
         )}
@@ -832,14 +992,6 @@ function DashboardContent() {
         onSubmit={handleAddPage}
         loading={addLoading}
       />
-
-      <ShareModal
-        key={showShareModal ? "open" : "closed"}
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        onSuccess={handleShareSuccess}
-      />
-
     </>
   );
 }

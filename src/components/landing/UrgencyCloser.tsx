@@ -8,16 +8,7 @@ import FreeAuditForm from "@/components/seo/FreeAuditForm";
  * Forward-looking, not fear-based. About YOUR future.
  */
 
-export default function UrgencyCloser({
-  foundingData,
-}: {
-  foundingData: {
-    claimed: number;
-    total: number;
-    remaining: number;
-    isFull: boolean;
-  } | null;
-}) {
+export default function UrgencyCloser() {
   const { ref, revealed } = useScrollReveal(0.15);
 
   return (
@@ -50,8 +41,8 @@ export default function UrgencyCloser({
 
         {/* Subhead */}
         <p className="text-[1.05rem] md:text-[1.12rem] text-text-secondary mb-8 max-w-lg mx-auto leading-relaxed">
-          Start with a free audit. Loupe sets your baseline, watches for meaningful
-          changes, and tells you what to do next.
+          Start with a free audit. Keep tracking 1 page forever — Loupe watches
+          for changes and tells you what to do next.
         </p>
 
         {/* Form */}
@@ -60,22 +51,12 @@ export default function UrgencyCloser({
         </div>
 
         <p className="mt-5 text-sm text-text-muted">
-          Free in beta • No signup • No credit card
+          Track 1 page free forever • No credit card required
         </p>
 
         <p className="mt-3 text-xs text-text-secondary uppercase tracking-[0.08em]">
           Built for Lovable/Bolt builders and GitHub/Vercel teams.
         </p>
-
-        {/* Founding scarcity — hide until 10+ claimed for better social proof */}
-        {foundingData && !foundingData.isFull && foundingData.claimed >= 10 && (
-          <p className="text-sm text-text-muted mt-5">
-            <span className="text-coral font-medium">
-              {foundingData.remaining}
-            </span>{" "}
-            of {foundingData.total} founding spots remaining.
-          </p>
-        )}
       </div>
     </section>
   );

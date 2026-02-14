@@ -145,7 +145,9 @@
 - Supabase project name (`drift`) left as-is — it's an internal resource ID, not user-facing
 - Inngest client ID updated to `loupe`
 
-## D15: Launch strategy — Founding 50, skip billing (Feb 3, 2026)
+## D15: Launch strategy — Founding 50, skip billing (Feb 3, 2026) — DEPRECATED
+
+> **Deprecated (Feb 14, 2026):** Founding 50 system, share-to-unlock, and waitlist fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Starter/Pro). See D29. All DB artifacts dropped: `waitlist` table, `claim_founding_50` RPC, `increment_bonus_pages` RPC, `profiles.bonus_pages`, `profiles.is_founding_50`.
 
 **Decision**: Skip Stripe/billing for launch. Ship free for first 50 users ("Founding 50"), then waitlist. Use constraints to force conversations and learn pricing.
 
@@ -371,7 +373,9 @@ Prompt explicitly tells LLM: "Supabase provides REAL business outcomes, not prox
 - Celebration + curiosity converts better than fear for builders who are proud of their velocity
 - Tone should match the product experience: helpful advisor, not judgmental auditor
 
-## D26: Hide founding count until 10+ users (Feb 2026)
+## D26: Hide founding count until 10+ users (Feb 2026) — DEPRECATED
+
+> **Deprecated (Feb 14, 2026):** Founding counter removed along with all Founding 50 code. See D15 deprecation note.
 
 **Decision**: Don't display the "X of 50 spots claimed" counter until at least 10 users have signed up. Counter auto-appears once threshold is crossed.
 
@@ -505,7 +509,7 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - Business tier deferred — launching with Free/Starter/Pro only
 - Slack alerts marked as "Coming soon" on Pro tier
 - Mobile access gated by viewport check + tier
-- Founding 50 users migrated to Starter tier (grandfathered)
+- ~~Founding 50 users migrated to Starter tier (grandfathered)~~ — Founding 50 system fully removed (Feb 14, 2026)
 
 ## D30: Robust LLM JSON extraction + cron idempotency (Feb 12, 2026)
 
