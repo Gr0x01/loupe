@@ -42,7 +42,7 @@ export interface ScreenshotResult {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_BASE_MS = 2000;
+const RETRY_BASE_MS = 5000;
 
 /**
  * Capture a screenshot and extract page metadata via the Vultr Puppeteer service.
@@ -109,8 +109,10 @@ export async function captureScreenshot(
     const text = await response.text();
     lastError = new Error(`Screenshot failed (${response.status}): ${text}`);
 
-    if (response.status === 429 && attempt < MAX_RETRIES) {
-      continue;
+    // 429 = rate limiting, expected under load — retry silently, never report to Sentry
+    if (response.status === 429) {
+      if (attempt < MAX_RETRIES) continue;
+      throw lastError;
     }
 
     Sentry.captureException(lastError, {
