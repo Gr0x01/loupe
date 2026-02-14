@@ -21,7 +21,7 @@ CREATE OR REPLACE FUNCTION get_analysis_context(
       LEAD(id) OVER (ORDER BY created_at ASC) as next_id,
       FIRST_VALUE(created_at) OVER (ORDER BY created_at ASC) as baseline
     FROM analyses
-    WHERE user_id = p_user_id AND url = p_url
+    WHERE user_id = p_user_id AND url = p_url AND status != 'failed'
   )
   SELECT rn, total, prev_id, next_id, baseline
   FROM numbered
