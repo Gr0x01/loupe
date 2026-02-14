@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createServiceClient } from "@/lib/supabase/server";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 import SitePreviewCard from "@/components/landing/SitePreviewCard";
 import TribeSignal from "@/components/landing/TribeSignal";
@@ -10,6 +11,23 @@ import UrgencyCloser from "@/components/landing/UrgencyCloser";
 
 export const revalidate = 300;
 
+async function getIssuesFound(): Promise<number> {
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase.rpc("get_total_findings_count");
+    return typeof data === "number" ? data : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function formatCount(n: number): string {
+  if (n < 100) return "";
+  // Round down to nearest 100
+  const rounded = Math.floor(n / 100) * 100;
+  return `${rounded.toLocaleString()}+`;
+}
+
 export const metadata: Metadata = {
   title: "Loupe — See what your last deploy actually did",
   description:
@@ -17,6 +35,9 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
+  const issuesFound = await getIssuesFound();
+  const issuesLabel = formatCount(issuesFound);
+
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Hero -- Two-column layout with visual card on right */}
@@ -57,7 +78,19 @@ export default async function Home() {
 
               {/* Trust line */}
               <p className="text-base font-medium text-text-secondary mt-5 landing-hero-trust">
-                Free forever for 1 page. Results in 30 seconds.
+                {issuesLabel ? (
+                  <>
+                    <span
+                      className="font-bold text-text-primary"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      {issuesLabel}
+                    </span>{" "}
+                    issues found. Free for 1 page.
+                  </>
+                ) : (
+                  "Free forever for 1 page. Results in 30 seconds."
+                )}
               </p>
 
               {/* Tribe signal — tool logos above the fold */}
