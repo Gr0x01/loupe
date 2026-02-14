@@ -81,6 +81,23 @@ export default function PrivacyPage() {
               <strong>Resend:</strong> Email delivery
             </li>
           </ul>
+          <p className="mt-4 mb-4">
+            We also use additional service providers for:
+          </p>
+          <ul className="list-disc list-inside space-y-2 ml-2">
+            <li>
+              <strong>AI processing:</strong> To analyze your monitored pages
+              and generate insights
+            </li>
+            <li>
+              <strong>Analytics:</strong> To understand how Loupe is used and
+              improve the service
+            </li>
+            <li>
+              <strong>Error monitoring:</strong> To detect and fix issues
+              quickly
+            </li>
+          </ul>
           <p className="mt-4">
             These services have their own privacy policies governing how they
             handle your data. Your data may be processed in the United States
