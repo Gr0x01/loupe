@@ -1,9 +1,2 @@
-export { AttentionZone } from "./AttentionZone";
-export { WatchingZone } from "./WatchingZone";
-export { AttentionCard } from "./AttentionCard";
-export { WatchingCard } from "./WatchingCard";
-export { ResultsZone } from "./ResultsZone";
-export { ResultCard } from "./ResultCard";
-export { EmptySuccessState } from "./EmptySuccessState";
 export { EmptyOnboardingState } from "./EmptyOnboardingState";
 export { HypothesisPrompt } from "./HypothesisPrompt";
