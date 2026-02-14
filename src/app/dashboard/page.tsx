@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import ShareModal from "@/components/ShareModal";
@@ -206,6 +206,31 @@ function DashboardContent() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const highlightWinId = searchParams.get("win") || undefined;
+  const autoLinkAttempted = useRef(false);
+
+  // Auto-link a pending anonymous audit from localStorage (homepage → sign-up → dashboard)
+  useEffect(() => {
+    if (pagesLoading || autoLinkAttempted.current) return;
+    if (pages.length > 0) return; // Only for brand-new users with no pages
+
+    autoLinkAttempted.current = true;
+    try {
+      const raw = localStorage.getItem("loupe_pending_audit");
+      if (!raw) return;
+      const { analysisId: pendingId, url, ts } = JSON.parse(raw) as {
+        analysisId: string;
+        url: string;
+        ts?: number;
+      };
+      // Expire after 30 minutes
+      if (!url || (ts && Date.now() - ts > 30 * 60 * 1000)) {
+        localStorage.removeItem("loupe_pending_audit");
+        return;
+      }
+      localStorage.removeItem("loupe_pending_audit");
+      handleAddPage(url, "", pendingId);
+    } catch { /* ignore parse errors */ }
+  }, [pagesLoading, pages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Redirect on auth error
   useEffect(() => {
@@ -219,13 +244,17 @@ function DashboardContent() {
     setUserLimits((prev) => ({ ...prev, current: pages.length }));
   }, [pages.length]);
 
-  const handleAddPage = async (url: string, name: string) => {
+  const handleAddPage = async (url: string, name: string, existingAnalysisId?: string) => {
     setAddLoading(true);
     try {
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, name: name || undefined }),
+        body: JSON.stringify({
+          url,
+          name: name || undefined,
+          existingAnalysisId: existingAnalysisId || undefined,
+        }),
       });
 
       const data = await res.json();
@@ -251,6 +280,12 @@ function DashboardContent() {
 
       setShowAddModal(false);
       await mutatePages(); // Revalidate SWR cache
+
+      // If a first scan was triggered, send the user to watch it
+      if (data.analysisId) {
+        router.push(`/analysis/${data.analysisId}`);
+        return;
+      }
     } catch {
       toastError("Failed to add page");
     } finally {
@@ -364,7 +399,7 @@ function DashboardContent() {
 
         {/* Content: Empty state or zones */}
         {pages.length === 0 ? (
-          <EmptyOnboardingState />
+          <EmptyOnboardingState onAddPage={handleAddPage} loading={addLoading} />
         ) : (
           <>
             {/* Results zone — validated/regressed changes at TOP */}

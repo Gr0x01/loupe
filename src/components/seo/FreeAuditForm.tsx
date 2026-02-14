@@ -80,6 +80,14 @@ export default function FreeAuditForm({
         return;
       }
 
+      // Store pending audit so dashboard can auto-link after sign-up
+      try {
+        localStorage.setItem(
+          "loupe_pending_audit",
+          JSON.stringify({ analysisId: data.id, url: trimmedUrl, ts: Date.now() })
+        );
+      } catch { /* localStorage may be unavailable */ }
+
       router.push(`/analysis/${data.id}`);
     } catch {
       setError("Failed to start analysis. Please try again.");

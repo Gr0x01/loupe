@@ -15,8 +15,10 @@ import {
   type SubscriptionStatus,
 } from "@/lib/permissions";
 import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
+import { inngest } from "@/lib/inngest/client";
 
 const MAX_URL_LENGTH = 2048;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Compute attention status for a page based on its last scan data.
@@ -267,7 +269,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { url, name, scan_frequency } = await req.json();
+    const { url, name, scan_frequency, existingAnalysisId } = await req.json();
 
     // Validate URL
     if (!url || typeof url !== "string" || url.length > MAX_URL_LENGTH) {
@@ -362,16 +364,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user has an existing analysis for this URL to link
-    const { data: existingAnalysis } = await supabase
-      .from("analyses")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("url", normalizedUrl)
-      .eq("status", "complete")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    // Check if user has an existing analysis for this URL to link.
+    // Also check for an anonymous (no user_id) analysis if the client passed one
+    // (e.g., from a free audit run before sign-up).
+    let existingAnalysis: { id: string } | null = null;
+
+    // First: try linking the specific anonymous analysis the client told us about
+    if (existingAnalysisId && typeof existingAnalysisId === "string" && UUID_RE.test(existingAnalysisId)) {
+      const { data: anonAnalysis } = await supabase
+        .from("analyses")
+        .select("id")
+        .eq("id", existingAnalysisId)
+        .eq("url", normalizedUrl)
+        .is("user_id", null)
+        .in("status", ["complete", "processing", "pending"])
+        .single();
+
+      if (anonAnalysis) {
+        // Claim the anonymous analysis for this user
+        await supabase
+          .from("analyses")
+          .update({ user_id: user.id })
+          .eq("id", anonAnalysis.id);
+        existingAnalysis = anonAnalysis;
+      }
+    }
+
+    // Fallback: check for an analysis already owned by this user
+    if (!existingAnalysis) {
+      const { data: ownedAnalysis } = await supabase
+        .from("analyses")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("url", normalizedUrl)
+        .eq("status", "complete")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      existingAnalysis = ownedAnalysis;
+    }
 
     // Determine scan frequency based on tier
     // Free tier can only use weekly; Starter/Pro can use daily
@@ -402,6 +433,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Link the existing analysis to this page
+    let analysisId: string | null = null;
+    if (existingAnalysis && page) {
+      analysisId = existingAnalysis.id;
+      await supabase
+        .from("analyses")
+        .update({ page_id: page.id })
+        .eq("id", existingAnalysis.id);
+    }
+
+    // If no existing analysis was linked, trigger a first scan automatically
+    if (!existingAnalysis && page) {
+      const { data: newAnalysis } = await supabase
+        .from("analyses")
+        .insert({
+          url: normalizedUrl,
+          user_id: user.id,
+          page_id: page.id,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (newAnalysis) {
+        analysisId = newAnalysis.id;
+
+        // Point the page at this analysis
+        await supabase
+          .from("pages")
+          .update({ last_scan_id: newAnalysis.id })
+          .eq("id", page.id);
+
+        // Fire the Inngest event to start the scan
+        await inngest.send({
+          name: "analysis/created",
+          data: {
+            analysisId: newAnalysis.id,
+            url: normalizedUrl,
+          },
+        });
+      }
+    }
+
     // Track page claim + page tracked in PostHog
     captureEvent(user.id, "page_claimed", {
       domain: parsedUrl.hostname,
@@ -421,7 +495,7 @@ export async function POST(req: NextRequest) {
     });
     await flushEvents();
 
-    return NextResponse.json({ page });
+    return NextResponse.json({ page, analysisId });
   } catch (err) {
     console.error("Pages POST error:", err);
     return NextResponse.json(

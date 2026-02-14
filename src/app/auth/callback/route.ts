@@ -293,6 +293,9 @@ export async function GET(request: NextRequest) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
         }
+
+        // Default: send new/returning users to the dashboard
+        redirectTo.pathname = "/dashboard";
       }
       return NextResponse.redirect(redirectTo);
     }
@@ -324,6 +327,9 @@ export async function GET(request: NextRequest) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
         }
+
+        // Default: send new/returning users to the dashboard
+        redirectTo.pathname = "/dashboard";
       }
       return NextResponse.redirect(redirectTo);
     }
