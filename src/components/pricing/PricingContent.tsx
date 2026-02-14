@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { TIER_INFO, type SubscriptionTier } from "@/lib/permissions";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
+import FreeAuditForm from "@/components/seo/FreeAuditForm";
 
 const tiers: SubscriptionTier[] = ["free", "starter", "pro"];
 
@@ -234,10 +235,10 @@ function PricingCard({ tier, isAnnual, isPopular, currentTier, isLoggedIn, onSel
             </Link>
           ) : (
             <Link
-              href="/login"
+              href="/#hero-form"
               className="btn-secondary w-full text-center"
             >
-              Start with 1 page free
+              Run a free audit
             </Link>
           )
         ) : (
@@ -438,7 +439,7 @@ function PricingContent() {
       )}
 
       {/* Hero */}
-      <section className="pt-12 pb-10 sm:pt-16 sm:pb-12 px-4">
+      <section className="pt-12 pb-2 sm:pt-16 sm:pb-3 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <p className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-line bg-white text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-700 mb-4">
             Pricing for fast-shipping founders
@@ -449,12 +450,24 @@ function PricingContent() {
           >
             Know what changed while you were shipping
           </h1>
-          <p className="text-lg text-ink-500 mb-8 max-w-xl mx-auto pricing-hero-sub">
+          <p className="text-lg text-ink-500 mb-6 max-w-xl mx-auto pricing-hero-sub">
             Loupe watches your key pages and shows whether each change helped or hurt. Connect PostHog, GA4, or Supabase for proof.
           </p>
 
-          {/* Billing toggle */}
-          <div className="pricing-toggle pricing-hero-toggle mt-1">
+        </div>
+      </section>
+
+      {/* Pricing cards */}
+      <section
+        className="pt-5 sm:pt-6 pb-12 sm:pb-16 px-4 relative overflow-hidden"
+        style={{
+          backgroundImage: "radial-gradient(rgba(148,163,184,0.26) 1px, transparent 1px)",
+          backgroundSize: "18px 18px",
+        }}
+      >
+        {/* Billing toggle */}
+        <div className="flex justify-center mb-8 relative">
+          <div className="pricing-toggle pricing-hero-toggle">
             <div
               className="pricing-toggle-slider"
               style={{ transform: isAnnual ? "translateX(100%)" : "translateX(0)" }}
@@ -478,24 +491,6 @@ function PricingContent() {
             </button>
           </div>
         </div>
-      </section>
-
-      {/* Pricing cards */}
-      <section
-        className="pt-7 sm:pt-10 pb-12 sm:pb-16 px-4 relative overflow-hidden"
-        style={{
-          backgroundImage: "radial-gradient(rgba(148,163,184,0.26) 1px, transparent 1px)",
-          backgroundSize: "18px 18px",
-        }}
-      >
-        <div className="max-w-5xl mx-auto text-center mb-5 sm:mb-6 relative">
-          <p className="text-sm text-ink-700 font-medium">
-            Choose the depth of monitoring and correlation your site needs right now.
-          </p>
-        </div>
-        <div className="max-w-5xl mx-auto mb-6 sm:mb-8 relative">
-          <hr className="section-divider" />
-        </div>
         <div
           ref={cardsReveal.ref}
           className={`max-w-5xl mx-auto grid sm:grid-cols-2 lg:grid-cols-3 gap-6 scroll-reveal-stagger ${cardsReveal.revealed ? "revealed" : ""}`}
@@ -515,18 +510,36 @@ function PricingContent() {
         </div>
       </section>
 
-      {/* Secondary CTA */}
-      <section className="pb-12 sm:pb-16 px-4">
+      {/* Try It First — Audit CTA */}
+      <section className="py-10 sm:py-14 px-4 bg-white border-y-2 border-line-subtle">
         <div
           ref={ctaReveal.ref}
           className={`max-w-2xl mx-auto text-center scroll-reveal ${ctaReveal.revealed ? "revealed" : ""}`}
         >
-          <p className="text-ink-500 mb-3">
-            Not ready to commit? Track 1 page free, forever.
+          <span
+            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-4"
+            style={{ background: 'var(--violet-subtle)', color: 'var(--violet)' }}
+          >
+            Try it first
+          </span>
+          <h2
+            className="text-xl sm:text-2xl font-bold text-ink-900 mb-2"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            See what Loupe finds on your page
+          </h2>
+          <p className="text-ink-500 mb-6">
+            Paste any URL. Get findings and predictions in 30 seconds. No signup.
           </p>
-          <Link href="/" className="text-signal font-medium hover:underline">
-            Start with a free audit
-          </Link>
+          <FreeAuditForm
+            ctaText="Run free audit"
+            placeholder="https://yoursite.com"
+            className="max-w-lg mx-auto"
+            source="pricing"
+          />
+          <p className="text-xs text-ink-400 mt-4">
+            Free forever for 1 page. Upgrade when you need more.
+          </p>
         </div>
       </section>
 
@@ -544,6 +557,17 @@ function PricingContent() {
           </h2>
 
           <div className="space-y-4 sm:space-y-6">
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="font-semibold text-ink-900 mb-2">
+                Can I try Loupe before signing up?
+              </h3>
+              <p className="text-ink-700">
+                Yes. Paste any URL above and get findings in 30 seconds — no
+                account needed. If you want to track changes over time, the free
+                plan gives you 1 page forever.
+              </p>
+            </div>
+
             <div className="glass-card p-4 sm:p-6">
               <h3 className="font-semibold text-ink-900 mb-2">
                 Can I switch plans later?
@@ -585,16 +609,6 @@ function PricingContent() {
                 Loupe watches your site and tells you exactly what&apos;s different.
                 When your bounce rate moves, you&apos;ll know whether it was the
                 headline you tweaked last Tuesday or the CTA your AI changed on Friday.
-              </p>
-            </div>
-
-            <div className="glass-card p-4 sm:p-6">
-              <h3 className="font-semibold text-ink-900 mb-2">
-                Can I see what Loupe looks like before paying?
-              </h3>
-              <p className="text-ink-700">
-                Yes. Run a free audit on any page — no signup required. Or start
-                free and track 1 page over time. No credit card, no time limit.
               </p>
             </div>
 

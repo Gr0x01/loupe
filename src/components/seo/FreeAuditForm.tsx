@@ -21,6 +21,8 @@ interface FreeAuditFormProps {
   className?: string;
   /** Show loading state inline (default) or redirect immediately */
   showLoadingInline?: boolean;
+  /** Analytics source identifier (default: "homepage") */
+  source?: "homepage" | "dashboard" | "page_detail" | "pricing";
 }
 
 export default function FreeAuditForm({
@@ -28,6 +30,7 @@ export default function FreeAuditForm({
   placeholder = "https://yoursite.com",
   className = "",
   showLoadingInline = true,
+  source = "homepage",
 }: FreeAuditFormProps) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,7 +66,7 @@ export default function FreeAuditForm({
     const trimmedUrl = url.trim();
     let domain = trimmedUrl;
     try { domain = new URL(trimmedUrl.startsWith("http") ? trimmedUrl : `https://${trimmedUrl}`).hostname; } catch { /* use raw */ }
-    track("audit_started", { source: "homepage", url: trimmedUrl, domain });
+    track("audit_started", { source, url: trimmedUrl, domain });
 
     try {
       const res = await fetch("/api/analyze", {
@@ -112,6 +115,7 @@ export default function FreeAuditForm({
             <input
               type="text"
               inputMode="url"
+              aria-label="Website URL to audit"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder={placeholder}

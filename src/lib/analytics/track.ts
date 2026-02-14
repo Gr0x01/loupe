@@ -11,7 +11,7 @@ import posthog from "posthog-js";
 // Event definitions with typed properties
 type TrackEvents = {
   // Acquisition — visitor → audit
-  audit_started: { source: "homepage" | "dashboard" | "page_detail"; url: string; domain: string };
+  audit_started: { source: "homepage" | "dashboard" | "page_detail" | "pricing"; url: string; domain: string };
   audit_completed: { domain: string; url: string; findings_count: number; impact_range: string };
   audit_viewed: { domain: string; url: string; is_owner: boolean };
 
