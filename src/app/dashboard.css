@@ -138,6 +138,46 @@
   box-shadow: 0 0 0 3px var(--danger-subtle) !important;
 }
 
+/* ===== METRIC FOCUS ONBOARDING ===== */
+.metric-focus-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.metric-focus-option {
+  padding: 0.75rem 1rem;
+  background: var(--paper-0);
+  border: 2px solid var(--line-subtle);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: all 160ms ease;
+  text-align: center;
+}
+
+.metric-focus-option:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--paper-100);
+}
+
+.metric-focus-option:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.metric-focus-option-selected {
+  border-color: var(--signal);
+  background: var(--signal-subtle);
+  color: var(--ink-900);
+}
+
+.metric-focus-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ===== DASHBOARD RESULTS ZONE ===== */
 .results-zone-header {
   display: inline-flex;

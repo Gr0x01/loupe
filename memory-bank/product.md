@@ -38,6 +38,12 @@ No other tool does this. The closest analogy is Facebook Ad suggestions — "thi
 12. If not enough data: "Watching metrics. We'll update when we know more."
 13. Always suggestions: "Here's what to do next based on current state."
 
+### Intent Capture (Compounding Intelligence)
+14. **Metric focus** — User tells Loupe what matters ("signups", "bounce rate") during onboarding or later
+15. **Hypothesis** — When a change is detected, email asks "What were you testing?" → user logs their intent
+16. **Observations** — When correlations resolve, LLM writes observations referencing hypothesis + metrics
+17. These compound: each scan the LLM knows more about the user's goals and their page's behavior
+
 ### With Integrations: Full Correlation
 14. Connect GitHub → changes linked to specific commits
 15. Connect PostHog/GA4 → real metric correlation
@@ -99,10 +105,12 @@ Each scan tracks:
 - **Progress:** Validated / Watching / Open
 
 ### 4. Dashboard
-- Activity stream (not page list)
-- What happened + what to do next
-- Per-page: last change, suggestions count
-- Empty state: "All quiet. Your homepage is being watched."
+- Three zones: Results (validated/regressed correlations) → Attention → Watching
+- Results zone shows correlation wins/losses with big percentage hero
+- Attention zone surfaces items needing user action
+- Watching zone shows stable pages
+- Onboarding: 2-step flow (URL → metric focus selection)
+- Hypothesis prompt: inline card when change detected (from email deep link or auto-prompt)
 
 ### 5. Settings
 - Connected integrations (GitHub, PostHog, GA4)
@@ -139,11 +147,17 @@ Showcase Loupe's ideal state with mock data for "xyz.io". No auth required.
 
 Most users won't connect PostHog/GA4. The product must be valuable anyway.
 
-## Pricing (Deferred)
+## Pricing
 
-Building for Founding 50 first. Pricing TBD based on user feedback.
+| | Free | Starter | Pro |
+|---|:---:|:---:|:---:|
+| Price | $0 | $12/mo | $29/mo |
+| Pages | 1 | 3 | 10 |
+| Scans | Weekly | Daily+Deploy | Daily+Deploy |
+| Analytics | 0 | 1 | Unlimited |
+| Mobile | No | No | Yes |
 
-Candidates: $9, $15, $19, or $29/mo — will learn from early users.
+Founding 50 grandfathered as Starter tier. See `decisions.md` D29.
 
 ## Conversion Flywheel
 

@@ -166,6 +166,11 @@ export interface DetectedChange {
   // Source context
   deploy_id?: string;
 
+  // Intent capture
+  hypothesis?: string;
+  hypothesis_at?: string;
+  observation_text?: string;
+
   created_at: string;
   updated_at: string;
 }
@@ -220,6 +225,8 @@ export interface ChangesSummary {
   tool_calls_made?: string[];
   /** IDs of pending changes that were reverted (from LLM revert detection) */
   revertedChangeIds?: string[];
+  /** LLM-generated observations for resolved correlations */
+  observations?: Array<{ changeId: string; text: string }>;
   /** Internal: set when post-analysis pipeline failed */
   _error?: string;
 }
@@ -334,6 +341,7 @@ export interface DashboardPageData {
   url: string;
   name: string | null;
   scan_frequency: string;
+  metric_focus: string | null;
   created_at: string;
   last_scan: {
     id: string;

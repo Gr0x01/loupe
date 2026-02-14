@@ -33,6 +33,7 @@ export async function GET(
         url,
         name,
         scan_frequency,
+        metric_focus,
         repo_id,
         last_scan_id,
         created_at,
@@ -82,7 +83,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, scan_frequency, repo_id } = await req.json();
+    const { name, scan_frequency, repo_id, metric_focus } = await req.json();
 
     const supabase = createServiceClient();
 
@@ -103,6 +104,7 @@ export async function PATCH(
       name?: string | null;
       scan_frequency?: string;
       repo_id?: string | null;
+      metric_focus?: string | null;
     } = {};
 
     if (name !== undefined) {
@@ -117,6 +119,13 @@ export async function PATCH(
     if (repo_id !== undefined) {
       updates.repo_id = repo_id || null;
     }
+    if (metric_focus !== undefined) {
+      if (metric_focus === null || metric_focus === "" || metric_focus === "__custom__") {
+        updates.metric_focus = null;
+      } else if (typeof metric_focus === "string") {
+        updates.metric_focus = metric_focus.trim().slice(0, 200) || null;
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid updates provided" }, { status: 400 });
@@ -126,7 +135,7 @@ export async function PATCH(
       .from("pages")
       .update(updates)
       .eq("id", id)
-      .select("id, url, name, scan_frequency, repo_id, last_scan_id, created_at")
+      .select("id, url, name, scan_frequency, metric_focus, repo_id, last_scan_id, created_at")
       .single();
 
     if (error) {

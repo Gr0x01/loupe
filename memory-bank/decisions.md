@@ -559,6 +559,27 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - `src/lib/ai/pipeline.ts` — `previousScanDate` on interface, temporal context block, hardened prompt rules, enforcement block
 - `src/lib/inngest/functions.ts` — Pass `previousScanDate` from parent analysis `created_at`
 
+## D33: Intent Capture — metric focus, hypotheses, observations (Feb 14, 2026)
+
+**Decision**: Add three user-facing intelligence layers to compound knowledge across scans: metric focus (what the user cares about), change hypotheses (why they made a change), and LLM-generated observations (what Loupe learned when correlations resolve).
+
+**Why**:
+- The correlation engine already compounds knowledge internally, but the user-facing experience doesn't show it
+- Metric focus lets the LLM evaluate changes through the right lens ("signups" vs "bounce rate")
+- Hypotheses give correlations context ("Testing outcome-focused language" vs just "headline changed")
+- Observations prove $29/mo value: "Look at what Loupe has learned about your page"
+- Prepares data layer for Phase 2 (Page Record view) where observations populate a sidebar
+
+**Design choices**:
+- All text fields, no enums — LLM output is unpredictable, stay flexible
+- Metric focus: 4 guided options + custom free-form (max 200 chars)
+- Hypothesis: captured via email deep link or in-app prompt (max 500 chars)
+- Observations: dual-path generation — LLM writes nuanced ones during post-analysis, correlation cron writes basic fallback one-liners
+- Prompt injection defense: `sanitizeUserInput()` + XML data tags + UNTRUSTED warnings (same pattern as finding feedback)
+- Observation changeIds validated against sent IDs set (prevents LLM hallucinating IDs for other pages)
+
+**Key files**: `pipeline.ts` (formatPageFocus, formatChangeHypotheses, observations prompt), `functions.ts` (data feeding, storage), `EmptyOnboardingState.tsx` (2-step flow), `HypothesisPrompt.tsx` (capture UI), `changes/[id]/hypothesis/route.ts` (API)
+
 ## D32: Cap screenshot height before Haiku vision API (Feb 12, 2026)
 
 **Decision**: Resize all screenshots to max 7500px height using `sharp` before sending to Anthropic Haiku.

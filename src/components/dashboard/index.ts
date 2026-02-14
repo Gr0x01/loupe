@@ -6,3 +6,4 @@ export { ResultsZone } from "./ResultsZone";
 export { ResultCard } from "./ResultCard";
 export { EmptySuccessState } from "./EmptySuccessState";
 export { EmptyOnboardingState } from "./EmptyOnboardingState";
+export { HypothesisPrompt } from "./HypothesisPrompt";

@@ -174,6 +174,7 @@ export async function GET() {
         url,
         name,
         scan_frequency,
+        metric_focus,
         last_scan_id,
         created_at,
         analyses:last_scan_id (
@@ -215,6 +216,7 @@ export async function GET() {
         url: page.url,
         name: page.name,
         scan_frequency: page.scan_frequency,
+        metric_focus: page.metric_focus ?? null,
         created_at: page.created_at,
         last_scan: lastScan
           ? {

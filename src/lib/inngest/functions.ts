@@ -308,7 +308,7 @@ export const analyzeUrl = inngest.createFunction(
         // Look up page_id via url + user_id
         const { data: pageForFeedback } = await supabase
           .from("pages")
-          .select("id")
+          .select("id, metric_focus")
           .eq("url", url)
           .eq("user_id", analysis.user_id)
           .maybeSingle();
@@ -359,13 +359,25 @@ export const analyzeUrl = inngest.createFunction(
           first_detected_at: string;
         }[] | null = null;
 
+        let watchingChanges: Array<{
+          id: string;
+          element: string;
+          before_value: string;
+          after_value: string;
+          scope: string;
+          first_detected_at: string;
+          hypothesis: string | null;
+        }> | null = null;
+
         if (pageForFeedback) {
-          const { data: watchingChanges } = await supabase
+          const { data } = await supabase
             .from("detected_changes")
-            .select("id, element, before_value, after_value, scope, first_detected_at")
+            .select("id, element, before_value, after_value, scope, first_detected_at, hypothesis")
             .eq("page_id", pageForFeedback.id)
             .eq("status", "watching")
             .limit(20); // Cap to prevent prompt bloat
+
+          watchingChanges = data;
 
           if (watchingChanges && watchingChanges.length > 0) {
             pendingChanges = watchingChanges.map((c) => ({
@@ -382,6 +394,14 @@ export const analyzeUrl = inngest.createFunction(
         // Run post-analysis if we have previous findings OR analytics OR database OR deploy context OR user feedback OR pending changes
         if (previousFindings || analyticsCredentials || databaseCredentials || deployContext || userFeedback?.length || pendingChanges?.length) {
           try {
+            // Build change hypotheses from watching changes that have hypotheses
+            const changeHypotheses = watchingChanges
+              ?.filter((wc) => wc.hypothesis)
+              .map((wc) => ({
+                element: wc.element,
+                hypothesis: wc.hypothesis as string,
+              })) || null;
+
             const changesSummary = await runPostAnalysisPipeline(
               {
                 analysisId,
@@ -394,6 +414,8 @@ export const analyzeUrl = inngest.createFunction(
                 userFeedback,
                 pendingChanges,
                 previousScanDate,
+                pageFocus: pageForFeedback?.metric_focus || null,
+                changeHypotheses: changeHypotheses?.length ? changeHypotheses : null,
               },
               {
                 supabase,
@@ -416,6 +438,28 @@ export const analyzeUrl = inngest.createFunction(
               .from("analyses")
               .update(updateData)
               .eq("id", analysisId);
+
+            // Store LLM-generated observations on detected_changes
+            if (changesSummary.observations?.length && pendingChanges?.length) {
+              const sentIds = new Set(pendingChanges.map((c) => c.id));
+              for (const obs of changesSummary.observations) {
+                if (
+                  obs.changeId &&
+                  sentIds.has(obs.changeId) &&
+                  obs.text &&
+                  typeof obs.text === "string"
+                ) {
+                  await supabase
+                    .from("detected_changes")
+                    .update({
+                      observation_text: obs.text.slice(0, 2000),
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", obs.changeId)
+                    .eq("user_id", analysis.user_id);
+                }
+              }
+            }
 
             // Check for correlation unlock: watching item became validated
             if (parentAnalysisId && changesSummary?.progress?.validatedItems?.length) {
@@ -657,6 +701,20 @@ export const analyzeUrl = inngest.createFunction(
             // Only send email if we have changes_summary (always true for scheduled/deploy scans)
             if (changesSummary) {
               if (hasChanges) {
+                // Get first watching change ID for hypothesis link
+                let hypothesisChangeId: string | undefined;
+                if (updatedPage?.id) {
+                  const { data: recentWatching } = await supabase
+                    .from("detected_changes")
+                    .select("id")
+                    .eq("page_id", updatedPage.id)
+                    .eq("status", "watching")
+                    .order("created_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  hypothesisChangeId = recentWatching?.id;
+                }
+
                 // Send changeDetectedEmail
                 const primaryChange = changesSummary.changes[0];
                 const { subject, html } = changeDetectedEmail({
@@ -690,6 +748,7 @@ export const analyzeUrl = inngest.createFunction(
                     : undefined,
                   commitSha: deployInfo?.commitSha,
                   commitMessage: deployInfo?.commitMessage ?? undefined,
+                  hypothesisChangeId,
                 });
                 sendEmail({ to: profile.email, subject, html }).catch(console.error);
               } else {
@@ -1070,6 +1129,20 @@ export const deployDetected = inngest.createFunction(
             .single();
 
           if (profile?.email && profile.email_notifications) {
+            // Capture first inserted change ID for hypothesis link
+            let firstChangeId: string | undefined;
+            {
+              const { data: recentChange } = await supabase
+                .from("detected_changes")
+                .select("id")
+                .eq("page_id", page.id)
+                .eq("deploy_id", deployId)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              firstChangeId = recentChange?.id;
+            }
+
             // Send a lightweight "watching" email
             const primaryChange = diffResult.changes[0];
             const { subject, html } = changeDetectedEmail({
@@ -1085,6 +1158,7 @@ export const deployDetected = inngest.createFunction(
               correlation: {
                 hasEnoughData: false, // Always watching for deploy
               },
+              hypothesisChangeId: firstChangeId,
             });
             sendEmail({ to: profile.email, subject, html }).catch(console.error);
           }
@@ -1423,6 +1497,45 @@ export const checkCorrelations = inngest.createFunction(
               ? "regressed"
               : "inconclusive";
 
+            // Generate fallback observation if none exists yet
+            let observationUpdate: { observation_text?: string } = {};
+            if (newStatus === "validated" || newStatus === "regressed") {
+              // Check if observation already exists (from post-analysis LLM)
+              const { data: existing } = await supabase
+                .from("detected_changes")
+                .select("observation_text")
+                .eq("id", change.id)
+                .single();
+
+              if (!existing?.observation_text) {
+                const changeDate = new Date(change.first_detected_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                });
+                const topMetric = result.metrics.metrics.find(
+                  (m) => m.assessment === "improved" || m.assessment === "regressed"
+                );
+                if (topMetric) {
+                  const direction = topMetric.change_percent > 0 ? "up" : "down";
+                  const daysSince = Math.floor(
+                    (Date.now() - new Date(change.first_detected_at).getTime()) / 86400000
+                  );
+                  const friendlyNames: Record<string, string> = {
+                    bounce_rate: "Bounce rate",
+                    conversion_rate: "Conversion rate",
+                    time_on_page: "Time on page",
+                    ctr: "Click-through rate",
+                    scroll_depth: "Scroll depth",
+                    form_completion: "Form completion",
+                    pageviews: "Pageviews",
+                  };
+                  const metricName = friendlyNames[topMetric.name] || topMetric.name;
+                  observationUpdate.observation_text =
+                    `${change.element} changed on ${changeDate}. ${metricName} ${direction} ${Math.abs(topMetric.change_percent)}% over ${daysSince} days.`;
+                }
+              }
+            }
+
             await supabase
               .from("detected_changes")
               .update({
@@ -1430,6 +1543,7 @@ export const checkCorrelations = inngest.createFunction(
                 correlation_metrics: result.metrics,
                 correlation_unlocked_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
+                ...observationUpdate,
               })
               .eq("id", change.id);
 

@@ -90,6 +90,7 @@ const mockAttentionPages: DashboardPageData[] = [
     url: "https://xyz.io/pricing",
     name: "Pricing",
     scan_frequency: "daily",
+    metric_focus: null,
     created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     last_scan: {
       id: "demo-scan-1",
@@ -112,6 +113,7 @@ const mockWatchingPages: DashboardPageData[] = [
     url: "https://xyz.io",
     name: "Homepage",
     scan_frequency: "daily",
+    metric_focus: null,
     created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
     last_scan: {
       id: "demo-scan-2",
@@ -131,6 +133,7 @@ const mockWatchingPages: DashboardPageData[] = [
     url: "https://xyz.io/features",
     name: "Features",
     scan_frequency: "daily",
+    metric_focus: null,
     created_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
     last_scan: {
       id: "demo-scan-3",
@@ -150,6 +153,7 @@ const mockWatchingPages: DashboardPageData[] = [
     url: "https://xyz.io/about",
     name: "About",
     scan_frequency: "weekly",
+    metric_focus: null,
     created_at: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
     last_scan: {
       id: "demo-scan-4",

@@ -15,6 +15,7 @@ import {
   ResultsZone,
   EmptySuccessState,
   EmptyOnboardingState,
+  HypothesisPrompt,
 } from "@/components/dashboard";
 
 interface UserLimits {
@@ -206,7 +207,13 @@ function DashboardContent() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const highlightWinId = searchParams.get("win") || undefined;
+  const rawHypothesisId = searchParams.get("hypothesis");
+  const hypothesisChangeId = rawHypothesisId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawHypothesisId)
+    ? rawHypothesisId
+    : undefined;
+  const [hypothesisDismissed, setHypothesisDismissed] = useState(false);
   const autoLinkAttempted = useRef(false);
+  const pendingAnalysisRef = useRef<string | null>(null);
 
   // Auto-link a pending anonymous audit from localStorage (homepage → sign-up → dashboard)
   useEffect(() => {
@@ -244,7 +251,7 @@ function DashboardContent() {
     setUserLimits((prev) => ({ ...prev, current: pages.length }));
   }, [pages.length]);
 
-  const handleAddPage = async (url: string, name: string, existingAnalysisId?: string) => {
+  const handleAddPage = async (url: string, name: string, existingAnalysisId?: string): Promise<string | void> => {
     setAddLoading(true);
     try {
       const res = await fetch("/api/pages", {
@@ -279,6 +286,15 @@ function DashboardContent() {
       }
 
       setShowAddModal(false);
+
+      // For onboarding flow: if this is the first page and a scan was triggered,
+      // return the page ID so EmptyOnboardingState can show metric focus step
+      if (pages.length === 0 && data.page?.id && data.analysisId) {
+        // Store analysisId for redirect after metric focus
+        pendingAnalysisRef.current = data.analysisId;
+        return data.page.id;
+      }
+
       await mutatePages(); // Revalidate SWR cache
 
       // If a first scan was triggered, send the user to watch it
@@ -397,9 +413,39 @@ function DashboardContent() {
           )}
         </div>
 
+        {/* Hypothesis prompt (from email link) */}
+        {hypothesisChangeId && !hypothesisDismissed && pages.length > 0 && (
+          <HypothesisPrompt
+            changeId={hypothesisChangeId}
+            elementName="an element"
+            onSubmit={() => {
+              setHypothesisDismissed(true);
+              const url = new URL(window.location.href);
+              url.searchParams.delete("hypothesis");
+              router.replace(url.pathname + url.search, { scroll: false });
+            }}
+            onDismiss={() => {
+              setHypothesisDismissed(true);
+              const url = new URL(window.location.href);
+              url.searchParams.delete("hypothesis");
+              router.replace(url.pathname + url.search, { scroll: false });
+            }}
+          />
+        )}
+
         {/* Content: Empty state or zones */}
         {pages.length === 0 ? (
-          <EmptyOnboardingState onAddPage={handleAddPage} loading={addLoading} />
+          <EmptyOnboardingState
+            onAddPage={handleAddPage}
+            loading={addLoading}
+            onMetricFocusDone={() => {
+              if (pendingAnalysisRef.current) {
+                router.push(`/analysis/${pendingAnalysisRef.current}`);
+              } else {
+                mutatePages();
+              }
+            }}
+          />
         ) : (
           <>
             {/* Results zone — validated/regressed changes at TOP */}

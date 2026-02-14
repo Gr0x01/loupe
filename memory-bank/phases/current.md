@@ -359,6 +359,106 @@ See `decisions.md` D31 for rationale.
 
 ---
 
+## Phase 2B — Intent Capture (DONE)
+
+Three new capabilities to compound knowledge across scans: metric focus, change hypothesis, and LLM-generated observations.
+
+**Plan file:** `.claude/plans/jaunty-popping-quasar.md`
+
+### Summary
+
+| Step | What | Status |
+|------|------|--------|
+| 1. Schema | 4 new columns (pages.metric_focus, detected_changes.hypothesis/hypothesis_at/observation_text) | **DONE** |
+| 2. Types | Extended DetectedChange, ChangesSummary, DashboardPageData | **DONE** |
+| 3. APIs | metric_focus on pages endpoints, new PATCH /api/changes/[id]/hypothesis | **DONE** |
+| 4. Metric Focus UI | 2-step onboarding (URL → metric focus), editable | **DONE** |
+| 5. Email Hypothesis | "What were you testing?" link in change detection emails | **DONE** |
+| 6. In-App Hypothesis | HypothesisPrompt component, ?hypothesis= deep link | **DONE** |
+| 7. LLM Prompt | formatPageFocus(), formatChangeHypotheses(), injected into post-analysis | **DONE** |
+| 8. Observations | LLM generates observations in post-analysis + fallback in correlation cron | **DONE** |
+
+### Step 1: Schema Migration
+- [x] `pages.metric_focus text` — user's primary metric (e.g., "signups", "bounce rate")
+- [x] `detected_changes.hypothesis text` — why the user made this change
+- [x] `detected_changes.hypothesis_at timestamptz` — when hypothesis was set
+- [x] `detected_changes.observation_text text` — LLM-generated observation when correlation resolves
+
+### Step 2: Type Updates
+- [x] Added `hypothesis`, `hypothesis_at`, `observation_text` to `DetectedChange` interface
+- [x] Added `observations?: Array<{ changeId: string; text: string }>` to `ChangesSummary`
+- [x] Added `metric_focus: string | null` to `DashboardPageData`
+
+### Step 3: API Changes
+- [x] `GET /api/pages` and `GET /api/pages/[id]` return `metric_focus`
+- [x] `PATCH /api/pages/[id]` accepts `metric_focus` (trim, max 200 chars, blocks `__custom__` sentinel)
+- [x] New `PATCH /api/changes/[id]/hypothesis` — auth + rate limiting + UUID validation + ownership check
+- [x] `GET /api/changes` returns `hypothesis`, `hypothesis_at`, `observation_text`; supports `?status=watching` filter
+
+### Step 4: Metric Focus UI
+- [x] `EmptyOnboardingState` rewritten with 2-step flow: URL input → metric focus selection
+- [x] 4 guided tap targets: Signups, Bounce Rate, Time on Page, Custom (free-form text)
+- [x] Auto-save on non-custom selection; "Skip" link for later
+- [x] `onAddPage` returns page ID for metric focus step
+- [x] CSS: `.metric-focus-grid`, `.metric-focus-option`, `.metric-focus-option-selected` in `dashboard.css`
+
+### Step 5: Email Hypothesis Link
+- [x] `hypothesisChangeId?: string` added to `ChangeDetectedEmailParams`
+- [x] "What were you testing? Tell Loupe →" link after change detail
+- [x] Links to `https://getloupe.io/dashboard?hypothesis={changeId}`
+- [x] Passed from both deploy and scheduled scan email flows
+
+### Step 6: In-App Hypothesis Prompt
+- [x] `HypothesisPrompt` component: inline card with text input + submit/dismiss
+- [x] Dashboard reads `?hypothesis=` from URL params (UUID-validated)
+- [x] On submit/dismiss: `router.replace` clears URL param (prevents re-show on refresh)
+- [x] 404 response auto-dismisses (change no longer exists)
+
+### Step 7: LLM Prompt Integration
+- [x] Extended `PostAnalysisContext` with `pageFocus` and `changeHypotheses`
+- [x] `formatPageFocus()` — wraps in `<page_focus_data>` XML tags with UNTRUSTED warning
+- [x] `formatChangeHypotheses()` — wraps in `<change_hypotheses_data>` XML tags
+- [x] Both use `sanitizeUserInput()` for prompt injection defense
+- [x] Injected into post-analysis prompt after pending changes, before findings
+- [x] Inngest feeds `pageFocus` from `pages.metric_focus` and `changeHypotheses` from watching changes with non-null hypothesis
+
+### Step 8: Observation Generation
+- [x] Added observations section to `POST_ANALYSIS_PROMPT` with voice guide
+- [x] LLM outputs `observations: [{ changeId, text }]` for resolved correlations
+- [x] Stored after post-analysis: validates changeId against sent IDs set (prevents hallucinated IDs)
+- [x] Fallback in `checkCorrelations` cron: generates one-liner observation from metrics data with friendly metric names
+- [x] Every resolved change gets at least a basic observation
+
+### Code Reviews (2 rounds)
+Security and correctness fixes applied:
+- Rate limiting on hypothesis endpoint (`RATE_LIMITS.changes`)
+- `user_id` constraint on UPDATE query (defense-in-depth)
+- `__custom__` sentinel blocked server-side
+- Single timestamp for `hypothesis_at`/`updated_at`
+- Observation changeIds validated against sent IDs set
+- Client-side UUID validation on `?hypothesis=` param
+- URL param cleanup via `router.replace`
+- Malformed JSON handling (try/catch → 400)
+- 404 auto-dismiss in HypothesisPrompt
+
+### Key Files Modified
+| File | What |
+|------|------|
+| `src/lib/types/analysis.ts` | DetectedChange, ChangesSummary, DashboardPageData types |
+| `src/app/api/pages/route.ts` | metric_focus in GET response |
+| `src/app/api/pages/[id]/route.ts` | metric_focus in GET/PATCH |
+| `src/app/api/changes/route.ts` | hypothesis/observation fields, watching filter |
+| `src/app/api/changes/[id]/hypothesis/route.ts` | NEW: hypothesis endpoint |
+| `src/components/dashboard/EmptyOnboardingState.tsx` | 2-step onboarding |
+| `src/components/dashboard/HypothesisPrompt.tsx` | NEW: hypothesis capture |
+| `src/app/dashboard/page.tsx` | ?hypothesis= deep link, metric focus flow |
+| `src/lib/email/templates.ts` | "What were you testing?" link |
+| `src/lib/ai/pipeline.ts` | formatPageFocus, formatChangeHypotheses, observations prompt |
+| `src/lib/inngest/functions.ts` | Feed data to pipeline, store observations, email changeIds |
+| `src/app/dashboard.css` | Metric focus tap target styles |
+
+---
+
 ## Phase 1A — Free Audit (DONE)
 The lead magnet. Paste URL → get findings with predictions.
 

@@ -19,6 +19,9 @@ interface DetectedChangeRow {
   status: string;
   correlation_metrics: CorrelationMetrics | null;
   correlation_unlocked_at: string | null;
+  hypothesis: string | null;
+  hypothesis_at: string | null;
+  observation_text: string | null;
   deploy_id: string | null;
   created_at: string;
   updated_at: string;
@@ -107,6 +110,9 @@ export async function GET(req: NextRequest) {
         first_detected_at,
         first_detected_analysis_id,
         status,
+        hypothesis,
+        hypothesis_at,
+        observation_text,
         correlation_metrics,
         correlation_unlocked_at,
         deploy_id,
@@ -125,6 +131,8 @@ export async function GET(req: NextRequest) {
       query = query.eq("status", "validated");
     } else if (statusFilter === "regressed") {
       query = query.eq("status", "regressed");
+    } else if (statusFilter === "watching") {
+      query = query.eq("status", "watching");
     } else {
       // Default: get both validated and regressed
       query = query.in("status", ["validated", "regressed"]);
@@ -197,6 +205,9 @@ export async function GET(req: NextRequest) {
         first_detected_at: row.first_detected_at,
         first_detected_analysis_id: row.first_detected_analysis_id ?? undefined,
         status: row.status as DetectedChange["status"],
+        hypothesis: row.hypothesis ?? undefined,
+        hypothesis_at: row.hypothesis_at ?? undefined,
+        observation_text: row.observation_text ?? undefined,
         correlation_metrics: row.correlation_metrics ?? undefined,
         correlation_unlocked_at: row.correlation_unlocked_at ?? undefined,
         deploy_id: row.deploy_id ?? undefined,

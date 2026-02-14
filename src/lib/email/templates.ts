@@ -126,6 +126,8 @@ interface ChangeDetectedEmailParams {
   };
   commitSha?: string;
   commitMessage?: string;
+  /** ID of primary detected_change for hypothesis prompt link */
+  hypothesisChangeId?: string;
 }
 
 /**
@@ -141,6 +143,7 @@ export function changeDetectedEmail({
   topSuggestion,
   commitSha,
   commitMessage,
+  hypothesisChangeId,
 }: ChangeDetectedEmailParams): { subject: string; html: string } {
   const resultsUrl = `https://getloupe.io/analysis/${analysisId}`;
   const domain = new URL(pageUrl).hostname;
@@ -222,6 +225,18 @@ export function changeDetectedEmail({
     </table>
   `;
 
+  // Hypothesis prompt — "What were you testing?"
+  let hypothesisHtml = "";
+  if (hypothesisChangeId) {
+    const hypothesisUrl = `https://getloupe.io/dashboard?hypothesis=${encodeURIComponent(hypothesisChangeId)}`;
+    hypothesisHtml = `
+      <p style="margin: 0 0 24px 0; font-size: 14px; color: ${colors.textSecondary}; line-height: 1.5;">
+        What were you testing?
+        <a href="${hypothesisUrl}" style="color: ${colors.accent}; text-decoration: none; font-weight: 500;"> Tell Loupe &rarr;</a>
+      </p>
+    `;
+  }
+
   // Additional changes note (inline, not a separate section)
   const additionalChangesHtml = additionalChangesCount > 0
     ? `<p style="margin: 0 0 28px 0; font-size: 14px; color: ${colors.textMuted};">
@@ -264,6 +279,7 @@ export function changeDetectedEmail({
     ${headlineHtml}
     ${deployContextHtml}
     ${changeDetailHtml}
+    ${hypothesisHtml}
     ${additionalChangesHtml}
     ${suggestionHtml}
 
