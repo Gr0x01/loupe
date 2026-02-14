@@ -1,14 +1,16 @@
 "use client";
 
+import { useMemo } from "react";
 import type {
   ChangesSummary,
   DeployContextAPI,
   ValidatedItem,
 } from "@/lib/types/analysis";
-import { ProofScreenshot } from "./ProofScreenshot";
-import { WinCard } from "./WinCard";
-import { WatchingStrip } from "./WatchingStrip";
-import { UnifiedTimeline } from "./UnifiedTimeline";
+import { DossierSidebar } from "./DossierSidebar";
+
+import { MetricStrip } from "./MetricStrip";
+import { ObservationCard } from "./ObservationCard";
+import { UnifiedTimelineCard } from "./UnifiedTimelineCard";
 import { NextMoveSection } from "./NextMoveSection";
 
 interface ChronicleLayoutProps {
@@ -21,6 +23,12 @@ interface ChronicleLayoutProps {
   pageUrl?: string;
   createdAt?: string;
   onViewFullScreenshot?: (view?: "desktop" | "mobile") => void;
+  // New dossier props
+  scanNumber?: number;
+  totalScans?: number;
+  pageId?: string;
+  currentAnalysisId?: string;
+  metricFocus?: string | null;
 }
 
 /* ---- Win detection helpers ---- */
@@ -71,6 +79,11 @@ function timeAgo(dateStr: string) {
   return `${days}d ago`;
 }
 
+function getTimelineItemId(element: string, type: string, id?: string): string {
+  if (id) return `timeline-${type}-${id}`;
+  return `timeline-${type}-${element.toLowerCase().replace(/\s+/g, "-")}`;
+}
+
 export function ChronicleLayout({
   changesSummary,
   deployContext,
@@ -81,6 +94,11 @@ export function ChronicleLayout({
   pageUrl,
   createdAt,
   onViewFullScreenshot,
+  scanNumber,
+  totalScans,
+  pageId,
+  currentAnalysisId,
+  metricFocus,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -95,135 +113,242 @@ export function ChronicleLayout({
         ? "concerning"
         : "neutral";
 
-  // All suggestions sorted by impact (top suggestion no longer split out)
-  const sortedSuggestions = [...changesSummary.suggestions].sort((a, b) => {
-    const order = { high: 0, medium: 1, low: 2 };
-    return order[a.impact] - order[b.impact];
-  });
+  // All suggestions sorted by impact
+  const sortedSuggestions = useMemo(
+    () =>
+      [...changesSummary.suggestions].sort((a, b) => {
+        const order = { high: 0, medium: 1, low: 2 };
+        return order[a.impact] - order[b.impact];
+      }),
+    [changesSummary.suggestions]
+  );
 
   // Mode detection
-  const hasWins = bestWin !== null;
   const isQuietScan =
     changesSummary.changes.length === 0 &&
     validatedItems.length === 0 &&
     watchingItems.length === 0;
 
-  // Other validated results (excluding the best win)
-  const otherResults = bestWin
-    ? validatedItems.filter((item) => item !== bestWin)
-    : [];
+  // Group items by outcome
+  const wins = useMemo(
+    () => validatedItems.filter(isWin),
+    [validatedItems]
+  );
+  const regressions = useMemo(
+    () => validatedItems.filter((item) => !isWin(item)),
+    [validatedItems]
+  );
 
+  // Ungrouped changes (not in validated or watching)
+  const ungroupedChanges = useMemo(() => {
+    const validatedElements = new Set(validatedItems.map((i) => i.element));
+    const watchingElements = new Set(watchingItems.map((i) => i.element));
+    return changesSummary.changes.filter(
+      (c) => !validatedElements.has(c.element) && !watchingElements.has(c.element)
+    );
+  }, [changesSummary.changes, validatedItems, watchingItems]);
 
-
-  // Accent class for verdict text
-  const verdictAccentClass =
+  // Verdict accent
+  const verdictClass =
     verdictTone === "positive"
-      ? "chronicle-verdict-positive"
+      ? "dossier-verdict-positive"
       : verdictTone === "concerning"
-        ? "chronicle-verdict-concerning"
+        ? "dossier-verdict-concerning"
         : "";
 
+  // Sidebar props
+  const sidebarProps = {
+    screenshotUrl,
+    mobileScreenshotUrl,
+    pageUrl,
+    baselineDate,
+    metricFocus,
+    scanNumber,
+    totalScans,
+    runningSummary: changesSummary.running_summary,
+    progress: changesSummary.progress,
+    onViewFullScreenshot,
+    pageId,
+    currentAnalysisId,
+  };
+
   return (
-    <div className="chronicle-layout">
-      {/* ===== VERDICT — bare text, no card ===== */}
-      <section className="chronicle-verdict">
-        <h1 className={`chronicle-verdict-headline ${verdictAccentClass}`}>
-          {changesSummary.verdict}
-        </h1>
+    <div className="dossier-layout">
+      {/* Mobile: sidebar as top card */}
+      <div className="md:hidden">
+        <DossierSidebar {...sidebarProps} mobile />
+      </div>
 
+      {/* Desktop: sticky sidebar */}
+      <aside className="dossier-sidebar hidden md:block">
+        <DossierSidebar {...sidebarProps} />
+      </aside>
 
-        {/* Deploy context as small footer */}
-        {deployContext && (
-          <p className="chronicle-verdict-deploy">
-            Triggered by deploy{" "}
-            <span className="font-mono">{deployContext.commit_sha.slice(0, 7)}</span>
-            {" "}{timeAgo(deployContext.commit_timestamp)}
-          </p>
-        )}
-      </section>
-
-      {/* ===== PROOF ZONE — two-column grid when changes exist ===== */}
-      {!isQuietScan && (
-        <section className="chronicle-proof-zone">
-          {screenshotUrl && pageUrl && (
-            <div className="chronicle-proof-left">
-              <ProofScreenshot
-                screenshotUrl={screenshotUrl}
-                mobileScreenshotUrl={mobileScreenshotUrl}
-                pageUrl={pageUrl}
-                onViewFull={onViewFullScreenshot}
-              />
-            </div>
+      {/* Right feed */}
+      <div className="dossier-feed">
+        {/* 1. Verdict */}
+        <section className="dossier-verdict-section">
+          <h1 className={`dossier-verdict ${verdictClass}`}>
+            {changesSummary.verdict}
+          </h1>
+          {deployContext && (
+            <p className="dossier-verdict-deploy">
+              Triggered by deploy{" "}
+              <span className="font-mono">{deployContext.commit_sha.slice(0, 7)}</span>
+              {" "}{timeAgo(deployContext.commit_timestamp)}
+            </p>
           )}
-          <div className="chronicle-proof-right">
-            {hasWins ? (
-              <WinCard bestWin={bestWin} otherResults={otherResults} />
-            ) : (
-              <UnifiedTimeline
-                changes={changesSummary.changes}
-                validatedItems={validatedItems}
-                watchingItems={watchingItems}
-                hasError={!!changesSummary._error}
-                compact
-              />
+        </section>
+
+        {/* 2. MetricStrip */}
+        <MetricStrip correlation={changesSummary.correlation} />
+
+        {/* 3. Outcome groups */}
+        {!isQuietScan && (
+          <div className="dossier-outcomes">
+            {/* Paid off */}
+            {wins.length > 0 && (
+              <div className="dossier-outcome-group">
+                <h3 className="dossier-outcome-group-label dossier-outcome-group-emerald">
+                  Paid off
+                  <span className="dossier-outcome-group-count">{wins.length}</span>
+                </h3>
+                <div className="unified-timeline">
+                  {wins.map((item) => (
+                    <UnifiedTimelineCard
+                      key={item.id || item.element}
+                      id={getTimelineItemId(item.element, "validated", item.id)}
+                      type="validated"
+                      element={item.element}
+                      title={item.title}
+                      change={item.change}
+                      friendlyText={item.friendlyText}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Backfired */}
+            {regressions.length > 0 && (
+              <div className="dossier-outcome-group">
+                <h3 className="dossier-outcome-group-label dossier-outcome-group-coral">
+                  Backfired
+                  <span className="dossier-outcome-group-count">{regressions.length}</span>
+                </h3>
+                <div className="unified-timeline">
+                  {regressions.map((item) => (
+                    <UnifiedTimelineCard
+                      key={item.id || item.element}
+                      id={getTimelineItemId(item.element, "regressed", item.id)}
+                      type="regressed"
+                      element={item.element}
+                      title={item.title}
+                      change={item.change}
+                      friendlyText={item.friendlyText}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Still measuring */}
+            {watchingItems.length > 0 && (
+              <div className="dossier-outcome-group">
+                <h3 className="dossier-outcome-group-label dossier-outcome-group-amber">
+                  Still measuring
+                  <span className="dossier-outcome-group-count">{watchingItems.length}</span>
+                </h3>
+                <div className="unified-timeline">
+                  {watchingItems.map((item) => {
+                    const daysRemaining = Math.max(0, item.daysNeeded - item.daysOfData);
+                    return (
+                      <UnifiedTimelineCard
+                        key={item.id || item.element}
+                        id={getTimelineItemId(item.element, "watching", item.id)}
+                        type="watching"
+                        element={item.element}
+                        title={item.title}
+                        daysRemaining={daysRemaining}
+                        detectedAt={item.firstDetectedAt}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Ungrouped changes */}
+            {ungroupedChanges.length > 0 && (
+              <div className="dossier-outcome-group">
+                <h3 className="dossier-outcome-group-label dossier-outcome-group-gray">
+                  Other changes
+                  <span className="dossier-outcome-group-count">{ungroupedChanges.length}</span>
+                </h3>
+                <div className="unified-timeline">
+                  {ungroupedChanges.map((change) => (
+                    <UnifiedTimelineCard
+                      key={`change-${change.element}-${change.detectedAt}`}
+                      id={getTimelineItemId(change.element, "change")}
+                      type="change"
+                      element={change.element}
+                      title={change.description}
+                      before={change.before}
+                      after={change.after}
+                      detectedAt={change.detectedAt}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-        </section>
-      )}
+        )}
 
-      {/* ===== STANDALONE SCREENSHOT — quiet scans still show proof ===== */}
-      {isQuietScan && screenshotUrl && pageUrl && (
-        <section className="chronicle-proof-standalone">
-          <ProofScreenshot
-            screenshotUrl={screenshotUrl}
-            mobileScreenshotUrl={mobileScreenshotUrl}
-            pageUrl={pageUrl}
-            onViewFull={onViewFullScreenshot}
+        {/* 5. Observations */}
+        {changesSummary.observations && changesSummary.observations.length > 0 && (
+          <ObservationCard
+            observations={changesSummary.observations}
+            validatedItems={validatedItems}
           />
-        </section>
-      )}
+        )}
 
-      {/* ===== WATCHING STRIP — only in win mode ===== */}
-      {hasWins && watchingItems.length > 0 && (
-        <WatchingStrip items={watchingItems} />
-      )}
+        {/* 6. Next Move */}
+        {sortedSuggestions.length > 0 && (
+          <NextMoveSection suggestions={sortedSuggestions} />
+        )}
 
-      {/* ===== FULL TIMELINE — only in win mode (watching mode already shows it in proof zone) ===== */}
-      {hasWins && !isQuietScan && (
-        <UnifiedTimeline
-          changes={changesSummary.changes}
-          validatedItems={validatedItems}
-          watchingItems={watchingItems}
-          hasError={!!changesSummary._error}
-        />
-      )}
-
-      {/* ===== YOUR NEXT MOVE ===== */}
-      {sortedSuggestions.length > 0 && (
-        <NextMoveSection suggestions={sortedSuggestions} />
-      )}
-
-      {/* ===== QUIET SCAN empty state ===== */}
-      {isQuietScan && sortedSuggestions.length === 0 && (
-        <section className="chronicle-section">
-          <div className="chronicle-empty-card text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(16,185,129,0.1)] mb-4">
-              <svg
-                className="w-6 h-6 text-emerald"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="4 12 9 17 20 6" />
-              </svg>
-            </div>
-            <p className="text-text-secondary">
-              Nothing changed. If metrics shift, it&apos;s not your page.
+        {/* 7. Deploy context footer */}
+        {deployContext && triggerType === "deploy" && (
+          <div className="dossier-deploy-footer">
+            <p>
+              Deploy by {deployContext.commit_author}:{" "}
+              <span className="font-mono text-xs">{deployContext.commit_message}</span>
             </p>
           </div>
-        </section>
-      )}
+        )}
+
+        {/* 8. Quiet scan empty state */}
+        {isQuietScan && sortedSuggestions.length === 0 && (
+          <section className="chronicle-section">
+            <div className="chronicle-empty-card text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(16,185,129,0.1)] mb-4">
+                <svg
+                  className="w-6 h-6 text-emerald"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="4 12 9 17 20 6" />
+                </svg>
+              </div>
+              <p className="text-text-secondary">
+                Nothing changed. If metrics shift, it&apos;s not your page.
+              </p>
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

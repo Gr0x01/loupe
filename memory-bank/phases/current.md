@@ -167,21 +167,34 @@ Major repositioning from "website grader with scores" to "correlation layer with
 - [x] Simplified footer to just "Manage emails" link
 - [x] Added `textMuted` and `borderSubtle` color tokens
 
-### Phase 4.1 Completed (Two-Zone Dashboard)
+### Phase 4.1 Completed (Two-Zone Dashboard → Replaced by V2)
 
-**Two-Zone Activity Stream:**
-- [x] Added `AttentionStatus` and `DashboardPageData` types to `src/lib/types/analysis.ts`
-- [x] Created `computeAttentionStatus()` function in `/api/pages` route
-- [x] Attention categorization priority: scan_failed → no_scans_yet → negative_correlation → recent_change → high_impact_suggestions → stable
-- [x] Built zone components in `src/components/dashboard/`:
-  - `AttentionZone.tsx` — Zone header + sorted AttentionCards (by severity then recency)
-  - `WatchingZone.tsx` — Zone header + WatchingCards + "Watch another page" button
-  - `AttentionCard.tsx` — Severity dot, domain, headline, subheadline, "See details →" link
-  - `WatchingCard.tsx` — Minimal line with name + "stable, last checked X ago"
-  - `EmptySuccessState.tsx` — "All quiet" message when no attention items
-  - `EmptyOnboardingState.tsx` — "Start watching your site" for new users
-- [x] Refactored dashboard page to split pages into attention vs watching arrays
-- [x] Added `.zone-header` and `.zone-count` CSS classes
+**Original two-zone layout** (ResultsZone, AttentionZone, WatchingZone) replaced by proof-first V2 layout.
+
+### Dashboard V2 Redesign (Feb 2026)
+
+Replaced three-zone dashboard (ResultsZone, AttentionZone, WatchingZone) with proof-first layout. Scales from 1 to 25+ pages.
+
+**New layout:**
+- StatsBar: page count, last scan time, attention/watching/wins pills, add page button
+- ProofBanner: validated wins with before/after, big metric %, LLM observations (only `status === "validated"`, regressed filtered out)
+- PageList: compact rows sorted by urgency, status dots, metric focus badges, status text
+
+**Deleted 7 components:**
+- AttentionZone, AttentionCard, WatchingZone, WatchingCard, ResultsZone, ResultCard, EmptySuccessState
+
+**Kept:** EmptyOnboardingState, HypothesisPrompt (still used)
+
+**Design decisions:**
+- No delete button on dashboard rows — destructive action belongs in page detail view
+- max-w-4xl (896px) — work surface, not a showcase
+- Compact ~48px rows with status dot + name + metric badge + status text + chevron
+- ProofBanner only shows when validated wins exist (hidden when empty)
+- Demo page updated to match V2 layout with static mock data
+
+**CSS:** Old zone/card classes removed from dashboard.css. V2 classes use `v2-` prefix.
+
+**Key file:** `src/app/dashboard/page.tsx` — all V2 components defined inline (StatsBar, ProofBanner, WinCard, PageList, PageRow, StatusDot, StatPill)
 
 ### Security Audit Completed (Feb 2026)
 
@@ -263,42 +276,14 @@ Major refactor to reduce deploy scan costs and fix correlation windows.
 
 **Cost reduction:** ~60-80% savings on deploy scans for active deployers.
 
-### Dashboard Results Zone (Feb 2026)
+### Dashboard Results Zone (Feb 2026) → Replaced by V2 ProofBanner
 
-Surfaced validated/regressed correlations in the dashboard UI. The flywheel is now complete:
+Original ResultsZone/ResultCard components replaced by V2 ProofBanner (see Dashboard V2 Redesign above).
 
-```
-Free audit → Track page → First correlation proves it works → Upgrade
-                                    ↑
-                           NOW VISIBLE IN DASHBOARD
-```
-
-**New files:**
+**Still active:**
 - `src/app/api/changes/route.ts` — API endpoint for detected_changes with stats
-- `src/components/dashboard/ResultsZone.tsx` — Zone with header, grid, "see all" link
-- `src/components/dashboard/ResultCard.tsx` — Individual validated/regressed change card
 - `src/lib/utils/date.ts` — formatDistanceToNow utility
-
-**Modified files:**
-- `src/app/dashboard/page.tsx` — Added ResultsZone at TOP, ?win= highlight param
-- `src/lib/email/templates.ts` — Correlation email deep links to dashboard with ?win= param
-- `src/lib/inngest/functions.ts` — Pass changeId to email template
-- `src/components/dashboard/index.ts` — Export new components
-- `src/app/globals.css` — Result card CSS (emerald/coral accents, big percentage)
-
-**User flow:**
-1. User deploys change → detected_changes record created with status "watching"
-2. 7 days later → correlation cron runs → status "validated" or "regressed"
-3. Email sent → "Your headline change helped" with deep link
-4. User clicks → Dashboard shows ResultsZone at top with their win highlighted
-5. Card shows: element, before/after, big percentage, metric name
-
-**Design decisions:**
-- ResultsZone at TOP of dashboard (before Attention) — wins ARE the proof
-- Emerald accent for validated, coral for regressed
-- Big percentage number is hero moment (shareable)
-- Hidden when empty — appears organically on first correlation
-- Max 4 cards in grid, "See all X results" link if more
+- Email deep links with `?win=` param still work (ProofBanner highlights matching card)
 
 ### Mobile Screenshots (Feb 2026)
 
@@ -356,6 +341,63 @@ See `decisions.md` D31 for rationale.
 
 ### Key Changes (remaining)
 - None — Phase 2A complete
+
+---
+
+## Phase 2C — Chronicle Dossier Redesign (DONE)
+
+Converted single-column Chronicle (N+1 scan view) into two-panel "Dossier" layout with sticky sidebar and scrollable intelligence feed.
+
+### Summary
+
+| Step | What | Status |
+|------|------|--------|
+| 1 | Create DossierSidebar (desktop + mobile variants) | **DONE** |
+| 2 | Create MetricStrip (correlation metric badges) | **DONE** |
+| 3 | Create ObservationCard (LLM observations display) | **DONE** |
+| 4 | Rewrite ChronicleLayout (two-panel orchestrator) | **DONE** |
+| 5 | Update chronicle.css (dossier classes, remove deprecated) | **DONE** |
+| 6 | Update barrel exports (index.ts) | **DONE** |
+| 7 | Wire up analysis page (new props, breadcrumb nav) | **DONE** |
+| 8 | Update demo page (mock correlation, observations, summary) | **DONE** |
+| 9 | Cleanup (delete WinCard, WatchingStrip, DotTimeline) | **DONE** |
+
+### Key Changes
+
+**New components:**
+- `DossierSidebar.tsx` — Sticky sidebar with screenshot thumbnails (desktop + mobile phone frame), page identity with embedded ScanPicker, 4-row scorecard, running summary
+- `MetricStrip.tsx` — Horizontal correlation metric badges (emerald/coral/gray by assessment)
+- `ObservationCard.tsx` — LLM observations with violet accent bars, maps changeId to element names
+
+**Rewritten:**
+- `ChronicleLayout.tsx` — Two-panel dossier orchestrator. Groups items by outcome: "Paid off" (wins), "Backfired" (regressions), "Still measuring" (watching), "Other changes". New props: `scanNumber, totalScans, pageId, currentAnalysisId, metricFocus`
+
+**Modified:**
+- `chronicle.css` — Added `.dossier-*` classes (layout grid, sidebar sticky, feed, verdict, scorecard, metric badges, observations, outcome groups, phone frame). Removed deprecated `.chronicle-layout`, `.chronicle-verdict*`, `.chronicle-proof-zone*`, `.chronicle-win-card*`, `.chronicle-watching-strip*`
+- `analysis/[id]/page.tsx` — Context bar simplified to breadcrumb only; ScanPicker moved into DossierSidebar; passes scanNumber/totalScans/pageId/currentAnalysisId to ChronicleLayout
+- `demo/analysis/page.tsx` — Added mock correlation (3 metrics), observations (2 analyst notes), running_summary; passes dossier props
+
+**Deleted:**
+- `WinCard.tsx` — Replaced by grouped outcome sections
+- `WatchingStrip.tsx` — Replaced by grouped outcome sections
+- `DotTimeline.tsx` — Created then deleted (doesn't scale to 365+ dots/year)
+
+### Design Decisions
+- ScanPicker lives inside sidebar (not top nav) — reduces chrome, keeps navigation contextual
+- DotTimeline removed — daily scans = too many dots; ScanPicker + scorecard handle navigation/tally
+- Sidebar sticky top: `5.5rem` to clear 72px sticky nav; `max-height: calc(100vh - 6.5rem)`
+- Mobile phone frame: smaller inset next to desktop screenshot with matching offset shadow
+- MetricStrip may need filtering — LLM can hallucinate metric names (e.g., "COMPLETED ANALYSES")
+- Context bar reduced to breadcrumb ("Your pages / domain") — sidebar handles all identity/navigation
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `src/components/chronicle/DossierSidebar.tsx` | Sticky sidebar (desktop + mobile) |
+| `src/components/chronicle/MetricStrip.tsx` | Correlation metric badges |
+| `src/components/chronicle/ObservationCard.tsx` | LLM observation display |
+| `src/components/chronicle/ChronicleLayout.tsx` | Two-panel dossier orchestrator |
+| `src/app/chronicle.css` | All dossier CSS |
 
 ---
 

@@ -17,7 +17,7 @@ import type {
   Finding,
   ElementType,
 } from "@/lib/types/analysis";
-import { ChronicleLayout, ScanPicker } from "@/components/chronicle";
+import { ChronicleLayout } from "@/components/chronicle";
 import { ClaimModal, type ClaimModalType } from "@/components/ClaimModal";
 
 // Type guard for Chronicle format (N+1 scans with new ChangesSummary)
@@ -1825,70 +1825,11 @@ export default function AnalysisPage() {
           <div className="analysis-context-shell pt-6 pb-3">
             {/* Chronicle scans: Page-centric header */}
             {isChronicle ? (
-              <>
               <nav className="analysis-context-breadcrumb">
                 <Link href="/dashboard">Your pages</Link>
                 <span>/</span>
                 <span>{getPageLabel(analysis.url)}</span>
               </nav>
-              <div className="analysis-context-bar">
-                <div className="analysis-context-left">
-                  <h1
-                    className="analysis-context-domain"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    {getPageLabel(analysis.url)}
-                  </h1>
-                  {analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
-                    <div className="analysis-context-stats">
-                      {pageCtx.baseline_date && (
-                        <span>Since {new Date(pageCtx.baseline_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                      )}
-                      {analysis.trigger_type && analysis.trigger_type in { daily: 1, weekly: 1, deploy: 1, manual: 1 } && (
-                        <>
-                          <span className="analysis-context-sep">&middot;</span>
-                          <span>
-                            {{ daily: "Daily scan", weekly: "Weekly scan", deploy: "Deploy scan", manual: "Manual scan" }[analysis.trigger_type as "daily" | "weekly" | "deploy" | "manual"]}
-                          </span>
-                        </>
-                      )}
-                      {(analysis.changes_summary as ChangesSummary).progress.validated > 0 && (
-                        <>
-                          <span className="analysis-context-sep">&middot;</span>
-                          <span>{(analysis.changes_summary as ChangesSummary).progress.validated} confirmed</span>
-                        </>
-                      )}
-                      {(analysis.changes_summary as ChangesSummary).progress.watching > 0 && (
-                        <>
-                          <span className="analysis-context-sep">&middot;</span>
-                          <span>{(analysis.changes_summary as ChangesSummary).progress.watching} tracking</span>
-                        </>
-                      )}
-                      {(analysis.changes_summary as ChangesSummary).progress.open > 0 && (
-                        <>
-                          <span className="analysis-context-sep">&middot;</span>
-                          <span>{(analysis.changes_summary as ChangesSummary).progress.open} open</span>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="analysis-context-meta">
-                  <Link
-                    href={`/pages/${pageCtx.page_id}`}
-                    className="analysis-context-link"
-                  >
-                    View history
-                  </Link>
-                  <ScanPicker
-                    currentScanNumber={pageCtx.scan_number}
-                    totalScans={pageCtx.total_scans}
-                    pageId={pageCtx.page_id}
-                    currentAnalysisId={analysis.id}
-                  />
-                </div>
-              </div>
-              </>
             ) : (
               /* Initial audit: Original header style */
               <div className="space-y-2">
@@ -2169,6 +2110,10 @@ export default function AnalysisPage() {
             pageUrl={analysis.url}
             createdAt={analysis.created_at}
             onViewFullScreenshot={(view) => setShowScreenshot(view || "desktop")}
+            scanNumber={pageCtx?.scan_number}
+            totalScans={pageCtx?.total_scans}
+            pageId={pageCtx?.page_id}
+            currentAnalysisId={analysis.id}
           />
         )}
 

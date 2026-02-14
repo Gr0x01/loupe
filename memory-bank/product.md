@@ -98,17 +98,33 @@ Each scan tracks:
 - **Summary:** Pull-quote card with overall assessment
 - **CTA:** "Track this page to see if changes help"
 
-### 3. Audit Results (N+1 / Chronicle)
-- **Hero:** Verdict ("You made 2 changes. One helped.")
-- **What changed:** Timeline of changes with correlation
-- **What to do next:** Updated suggestions
-- **Progress:** Validated / Watching / Open
+### 3. Audit Results (N+1 / Chronicle — "The Dossier")
+Two-panel layout: sticky left sidebar + scrollable right intelligence feed.
+
+**Left Sidebar (280px, sticky):**
+- Screenshot thumbnails (desktop browser chrome + mobile phone frame)
+- Page identity: domain, "Tracking since {date}", ScanPicker (navigate between scans), metric focus pill
+- Scorecard: 4 rows with colored accents (wins/regressions/watching/suggestions)
+- Running summary: editorial paragraph of page's evolution (Intelligence section)
+
+**Right Feed:**
+- Verdict (Space Grotesk, color-coded by tone: positive/concerning/neutral)
+- MetricStrip: horizontal badges from correlation.metrics[] (emerald/coral/gray)
+- Outcome groups: "Paid off" (wins) → "Backfired" (regressions) → "Still measuring" (watching) → "Other changes"
+- ObservationCard: LLM observations with violet accent bars
+- NextMoveSection: prioritized suggestions
+- Deploy context footer (conditional)
+- Quiet scan empty state
+
+**Mobile:** Sidebar renders as full-width top card with inline scorecard and truncated summary.
 
 ### 4. Dashboard
-- Three zones: Results (validated/regressed correlations) → Attention → Watching
-- Results zone shows correlation wins/losses with big percentage hero
-- Attention zone surfaces items needing user action
-- Watching zone shows stable pages
+- Proof-first layout: StatsBar → ProofBanner (validated wins) → compact PageList
+- ProofBanner shows validated correlation wins with before/after, big metric %, and LLM observations
+- PageList: compact rows (~48px) sorted by urgency (attention → watching → scanning → stable)
+- Each row: status dot, page name, metric focus badge, status text, chevron
+- Scales from 1 to 25+ pages at max-w-4xl (896px)
+- No delete from dashboard — delete lives inside individual page view
 - Onboarding: 2-step flow (URL → metric focus selection)
 - Hypothesis prompt: inline card when change detected (from email deep link or auto-prompt)
 
@@ -121,18 +137,17 @@ Each scan tracks:
 Showcase Loupe's ideal state with mock data for "xyz.io". No auth required.
 
 **`/demo`** — Demo Dashboard
-- Results Zone: 3 validated wins (+23% conversions, -12% bounce, +38% time on page)
-- Attention Zone: 1 low-severity suggestion
-- Watching Zone: 3 stable pages
+- Proof banner: 3 validated wins (+23% conversions, -12% bounce, +38% time on page) with observations
+- Compact page list: 4 pages (1 attention, 3 stable) with metric focus badges
 - Link to demo scan report
 
-**`/demo/analysis`** — Demo Scan Report (Chronicle view)
-- Page header with scan picker (Scan 16 of 20)
+**`/demo/analysis`** — Demo Scan Report (Dossier view)
+- Dossier layout: sidebar with screenshot, scorecard, running summary + feed with verdict, metrics, outcomes
+- Scan 16 of 20 via ScanPicker in sidebar
 - Verdict: "You polished the timeline and added logos, but ignored the messaging friction."
-- Progress gauges: 1 watching, 3 open
-- Deploy context showing commit trigger
-- Changes caught section with 2 detected changes
-- "Your next move" with 3 prioritized suggestions
+- MetricStrip: 3 mock metrics (conversion rate, bounce rate, time on page)
+- 2 detected changes, 3 prioritized suggestions
+- 2 LLM observations with violet accent
 
 **Implementation:** Uses real components with `demo` prop that renders static (non-navigable) versions. Ensures demos always match actual UI.
 

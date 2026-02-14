@@ -8,6 +8,7 @@ import type {
   WatchingItem,
   ValidatedItem,
   ChronicleSuggestion,
+  Correlation,
 } from "@/lib/types/analysis";
 import { ChronicleLayout } from "@/components/chronicle";
 
@@ -116,11 +117,53 @@ const mockSuggestions: ChronicleSuggestion[] = [
   },
 ];
 
+const mockCorrelation: Correlation = {
+  hasEnoughData: true,
+  insights: "The CTA copy change correlates strongly with improved conversion rates. The headline change likely contributed to reduced bounce rate.",
+  metrics: [
+    {
+      name: "conversion_rate",
+      friendlyName: "Conversion Rate",
+      before: 3.2,
+      after: 3.79,
+      change: "+18.4%",
+      assessment: "improved",
+    },
+    {
+      name: "bounce_rate",
+      friendlyName: "Bounce Rate",
+      before: 42.1,
+      after: 39.5,
+      change: "-6.2%",
+      assessment: "improved",
+    },
+    {
+      name: "time_on_page",
+      friendlyName: "Time on Page",
+      before: 47,
+      after: 49,
+      change: "+4.3%",
+      assessment: "neutral",
+    },
+  ],
+};
+
+const mockObservations = [
+  {
+    changeId: "val-1",
+    text: "The CTA copy shift from 'Get Started' to 'Try it free' removed the biggest friction point. Visitors now see a clear, low-commitment next step. The 18.4% lift is consistent with what we see when generic CTAs get specific.",
+  },
+  {
+    changeId: "val-2",
+    text: "The headline change moved from describing the product to describing the outcome. Bounce rate dropped because visitors immediately understand the value proposition. This is a durable improvement.",
+  },
+];
+
 const mockChangesSummary: ChangesSummary = {
   verdict: "Your CTA is converting better. The headline change helped too.",
   changes: mockChanges,
   suggestions: mockSuggestions,
-  correlation: null,
+  correlation: mockCorrelation,
   progress: {
     validated: 2,
     watching: 1,
@@ -134,7 +177,9 @@ const mockChangesSummary: ChangesSummary = {
       impact: s.impact,
     })),
   },
-  running_summary: "",
+  running_summary:
+    "xyz.io has been tracked for 30 days across 20 scans. Two changes have paid off: the CTA copy update drove an 18% conversion lift, and the headline rewrite reduced bounce by 6%. The integration strip expansion is still being measured. Overall, the page is trending in the right direction with clear wins from copy improvements.",
+  observations: mockObservations,
 };
 
 // ============================================
@@ -213,6 +258,10 @@ export default function DemoAnalysisPage() {
           triggerType="deploy"
           screenshotUrl="/demo-screenshot.png"
           pageUrl="https://xyz.io"
+          scanNumber={16}
+          totalScans={20}
+          pageId="demo"
+          currentAnalysisId="demo"
         />
 
         {/* CTA Section */}
