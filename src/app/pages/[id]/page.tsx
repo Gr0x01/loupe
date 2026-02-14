@@ -208,8 +208,26 @@ export default function PageTimelinePage() {
       }
 
       if (result.id) {
-        // Refresh to show new scan
-        await mutate();
+        // Optimistically inject the pending scan so the user sees it immediately
+        await mutate(
+          (current) => {
+            if (!current) return current;
+            const optimisticScan: ScanHistoryItem = {
+              id: result.id,
+              scan_number: (current.total_scans || 0) + 1,
+              status: "pending",
+              progress: null,
+              created_at: new Date().toISOString(),
+              is_baseline: !latestComplete,
+            };
+            return {
+              ...current,
+              history: [optimisticScan, ...current.history],
+              total_scans: (current.total_scans || 0) + 1,
+            };
+          },
+          { revalidate: true }
+        );
       }
     } catch (err) {
       console.error("Rescan error:", err);
