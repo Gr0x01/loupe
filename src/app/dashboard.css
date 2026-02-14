@@ -127,6 +127,17 @@
   border-top: 1px solid rgba(51, 65, 85, 0.08);
 }
 
+/* ===== DASHBOARD ONBOARDING EMPTY STATE ===== */
+.onboarding-card-focused {
+  box-shadow: 4px 4px 0 rgba(255, 107, 74, 0.12);
+  border-color: var(--coral-border);
+}
+
+.onboarding-input-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px var(--danger-subtle) !important;
+}
+
 /* ===== DASHBOARD RESULTS ZONE ===== */
 .results-zone-header {
   display: inline-flex;
