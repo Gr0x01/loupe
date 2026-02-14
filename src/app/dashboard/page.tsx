@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PageLoader } from "@/components/PageLoader";
 import type { DashboardPageData, DetectedChange } from "@/lib/types/analysis";
 import { TIER_LIMITS, getEffectiveTier, type SubscriptionTier, type SubscriptionStatus } from "@/lib/permissions";
-import { getDomain, timeAgo } from "@/lib/utils/url";
+import { getPath, timeAgo } from "@/lib/utils/url";
 import { usePages, useChanges, isUnauthorizedError } from "@/lib/hooks/use-data";
 import { ToastProvider, useToast } from "@/components/Toast";
 import {
@@ -111,13 +111,16 @@ function AddPageModal({
   onClose,
   onSubmit,
   loading,
+  accountDomain,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (url: string, name: string) => void;
   loading: boolean;
+  accountDomain: string | null;
 }) {
   const [url, setUrl] = useState("");
+  const [path, setPath] = useState("");
   const [name, setName] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -125,13 +128,25 @@ function AddPageModal({
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) { setUrl(""); setPath(""); setName(""); }
+  }, [isOpen]);
+
   if (!isOpen || !mounted) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url) return;
-    onSubmit(url, name);
+    if (accountDomain) {
+      const trimmed = path.trim();
+      const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+      onSubmit(`https://${accountDomain}${cleanPath}`, name);
+    } else {
+      if (!url) return;
+      onSubmit(url, name);
+    }
   };
+
+  const isValid = accountDomain ? path.trim().length > 0 : url.trim().length > 0;
 
   return createPortal(
     <div
@@ -151,17 +166,34 @@ function AddPageModal({
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-sm font-medium text-text-secondary mb-2">
-              URL
+              {accountDomain ? "Path" : "URL"}
             </label>
-            <input
-              type="text"
-              inputMode="url"
-              placeholder="https://yoursite.com"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="input-glass w-full"
-              required
-            />
+            {accountDomain ? (
+              <div className="flex items-stretch">
+                <span className="inline-flex items-center px-3 text-sm text-[var(--ink-400)] bg-[var(--paper-1)] border border-r-0 border-[var(--line)] rounded-l-lg whitespace-nowrap">
+                  https://{accountDomain}
+                </span>
+                <input
+                  type="text"
+                  placeholder="/pricing"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  className="input-glass w-full rounded-l-none"
+                  required
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <input
+                type="text"
+                inputMode="url"
+                placeholder="https://yoursite.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="input-glass w-full"
+                required
+              />
+            )}
           </div>
           <div className="mb-6">
             <label className="block text-sm font-medium text-text-secondary mb-2">
@@ -187,7 +219,7 @@ function AddPageModal({
             <button
               type="submit"
               className="btn-primary flex-1"
-              disabled={loading || !url}
+              disabled={loading || !isValid}
             >
               {loading ? "Adding..." : "Add page"}
             </button>
@@ -225,11 +257,13 @@ function StatsBar({
   winCount,
   onAddClick,
   isAtLimit,
+  accountDomain,
 }: {
   pages: DashboardPageData[];
   winCount: number;
   onAddClick: () => void;
   isAtLimit: boolean;
+  accountDomain: string | null;
 }) {
   const attentionCount = pages.filter(
     (p) => getPageStatus(p) === "attention"
@@ -255,6 +289,7 @@ function StatsBar({
           Your pages
         </h1>
         <p className="text-sm text-[var(--ink-500)] mt-1">
+          {accountDomain ? `${accountDomain} · ` : ""}
           {pages.length} page{pages.length !== 1 ? "s" : ""}
           {lastScanTime ? ` · Last scanned ${timeAgo(lastScanTime)}` : ""}
         </p>
@@ -372,9 +407,6 @@ function WinCard({
       <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)]">
         {change.element}
       </p>
-      {change.domain && (
-        <p className="text-xs text-[var(--ink-300)] mt-0.5">{change.domain}</p>
-      )}
 
       <div className="mt-3 text-sm sm:text-base leading-relaxed">
         <span
@@ -554,8 +586,7 @@ function PageRow({
   const [showFocusPopover, setShowFocusPopover] = useState(false);
   const status = getPageStatus(page);
   const statusText = getStatusText(page, status);
-  const displayName = page.name || getDomain(page.url);
-  const domain = getDomain(page.url);
+  const displayName = page.name || getPath(page.url);
   const focusColor = page.metric_focus
     ? FOCUS_COLORS[page.metric_focus] || {
         bg: "var(--blue-subtle)",
@@ -615,12 +646,6 @@ function PageRow({
             )}
           </span>
         </div>
-        <span
-          className="text-xs text-[var(--ink-300)] truncate block"
-          style={{ fontFamily: "var(--font-geist-mono, monospace)" }}
-        >
-          {domain}
-        </span>
       </div>
 
       <span className={`v2-row-status ${statusColorClass[status]}`}>
@@ -735,6 +760,7 @@ function DashboardContent() {
 
   const { toastError } = useToast();
 
+  const [accountDomain, setAccountDomain] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [userLimits, setUserLimits] = useState<UserLimits>({
@@ -801,6 +827,7 @@ function DashboardContent() {
           profile.subscription_status as SubscriptionStatus | null
         );
         setUserLimits((prev) => ({ ...prev, max: TIER_LIMITS[tier].pages }));
+        if (profile.account_domain) setAccountDomain(profile.account_domain);
       })
       .catch(() => {});
   }, []);
@@ -829,6 +856,11 @@ function DashboardContent() {
 
       const data = await res.json();
 
+      if (res.status === 403 && data.error === "domain_mismatch") {
+        toastError(`All pages must be on ${data.account_domain}`);
+        return;
+      }
+
       if (res.status === 403 && data.error === "page_limit_reached") {
         setUserLimits({
           current: data.current,
@@ -850,6 +882,11 @@ function DashboardContent() {
       }
 
       setShowAddModal(false);
+
+      // Set accountDomain after first page creation (normalize www)
+      if (!accountDomain && data.page?.url) {
+        try { setAccountDomain(new URL(data.page.url).hostname.replace(/^www\./, "")); } catch {}
+      }
 
       if (pages.length === 0 && data.page?.id && data.analysisId) {
         pendingAnalysisRef.current = data.analysisId;
@@ -939,6 +976,7 @@ function DashboardContent() {
               winCount={resultsStats.totalValidated}
               onAddClick={handleAddClick}
               isAtLimit={isAtLimit}
+              accountDomain={accountDomain}
             />
 
             {/* Hypothesis prompt (from email link) */}
@@ -991,6 +1029,7 @@ function DashboardContent() {
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddPage}
         loading={addLoading}
+        accountDomain={accountDomain}
       />
     </>
   );

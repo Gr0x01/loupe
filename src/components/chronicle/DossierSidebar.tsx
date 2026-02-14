@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ScanPicker } from "./ScanPicker";
+import { getDomain, getPath } from "@/lib/utils/url";
 
 interface DossierSidebarProps {
   screenshotUrl?: string | null;
@@ -22,16 +23,6 @@ interface DossierSidebarProps {
   mobile?: boolean;
   pageId?: string;
   currentAnalysisId?: string;
-}
-
-function getDomain(url: string): string {
-  try {
-    const u = new URL(url);
-    const path = u.pathname.replace(/\/+$/, "");
-    return path && path !== "" ? u.hostname + path : u.hostname;
-  } catch {
-    return url;
-  }
 }
 
 function formatTrackingSince(dateStr: string): string {
@@ -77,6 +68,7 @@ export function DossierSidebar({
   const wins = countWins(progress.validatedItems);
   const regressions = countRegressions(progress.validatedItems);
   const domain = pageUrl ? getDomain(pageUrl) : "";
+  const pagePath = pageUrl ? getPath(pageUrl) : "";
 
   const summaryText =
     runningSummary && runningSummary.trim()
@@ -98,8 +90,8 @@ export function DossierSidebar({
       <div className="dossier-mobile-header">
         {/* Page identity */}
         <div className="dossier-mobile-identity">
-          {domain && (
-            <p className="dossier-sidebar-domain">{domain}</p>
+          {pagePath && (
+            <p className="dossier-sidebar-domain">{pagePath}</p>
           )}
           <div className="dossier-mobile-meta">
             {hasScanPicker ? (
@@ -199,8 +191,8 @@ export function DossierSidebar({
 
       {/* Page identity */}
       <div className="dossier-sidebar-identity">
-        {domain && (
-          <p className="dossier-sidebar-domain">{domain}</p>
+        {pagePath && (
+          <p className="dossier-sidebar-domain">{pagePath}</p>
         )}
         {baselineDate && (
           <p className="dossier-sidebar-tracking">

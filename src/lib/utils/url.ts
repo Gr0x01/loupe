@@ -11,6 +11,18 @@ export function getDomain(url: string): string {
 }
 
 /**
+ * Extract the pathname from a URL string, stripping trailing slashes.
+ * Returns "/" for root paths. Falls back to the original string on parse failure.
+ */
+export function getPath(url: string): string {
+  try {
+    return new URL(url).pathname.replace(/\/+$/, '') || '/';
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Format a relative time string (e.g., "2h ago", "yesterday").
  */
 export function timeAgo(dateStr: string): string {

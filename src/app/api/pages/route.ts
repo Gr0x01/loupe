@@ -305,13 +305,24 @@ export async function POST(req: NextRequest) {
     // Get user profile to check page limit and tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("subscription_tier, subscription_status")
+      .select("subscription_tier, subscription_status, account_domain")
       .eq("id", user.id)
       .single();
 
     const rawTier = (profile?.subscription_tier as SubscriptionTier) || "free";
     const status = profile?.subscription_status as SubscriptionStatus | null;
     const tier = getEffectiveTier(rawTier, status);
+
+    // Enforce single-domain-per-account (normalize www)
+    const normalizeDomain = (h: string) => h.replace(/^www\./, "");
+    const accountDomain = (profile?.account_domain as string) || null;
+    const incomingDomain = normalizeDomain(parsedUrl.hostname);
+    if (accountDomain && normalizeDomain(accountDomain) !== incomingDomain) {
+      return NextResponse.json(
+        { error: "domain_mismatch", account_domain: accountDomain },
+        { status: 403 }
+      );
+    }
     const maxPages = getPageLimit(tier);
 
     // Count current pages
@@ -415,6 +426,15 @@ export async function POST(req: NextRequest) {
         { error: "Failed to create page" },
         { status: 500 }
       );
+    }
+
+    // Set account_domain on first page creation (first-write-wins)
+    if (!accountDomain && page) {
+      await supabase
+        .from("profiles")
+        .update({ account_domain: incomingDomain })
+        .eq("id", user.id)
+        .is("account_domain", null);
     }
 
     // Link the existing analysis to this page

@@ -26,7 +26,6 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     correlation_unlocked_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    domain: "xyz.io",
     hypothesis: "Testing outcome-focused language instead of generic growth copy",
     observation_text: "The new headline directly addresses curiosity about impact, which aligns with your signups focus.",
   },
@@ -50,7 +49,6 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     correlation_unlocked_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     created_at: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    domain: "xyz.io",
     hypothesis: "Testing action-oriented CTA with lower commitment",
     observation_text: "Lower commitment CTA reduced friction for first-time visitors.",
   },
@@ -74,7 +72,6 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     correlation_unlocked_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    domain: "xyz.io",
     observation_text: "Adding social proof increased trust signals, keeping visitors engaged longer.",
   },
 ];
@@ -84,7 +81,7 @@ type PageStatus = "stable" | "attention" | "watching" | "scanning";
 interface DemoPage {
   id: string;
   name: string;
-  domain: string;
+  path: string;
   metricFocus: string;
   lastScan: string;
   lastScanId: string;
@@ -96,7 +93,7 @@ const DEMO_PAGES: DemoPage[] = [
   {
     id: "p1",
     name: "Homepage",
-    domain: "xyz.io",
+    path: "/",
     metricFocus: "signups",
     lastScan: "2h ago",
     lastScanId: "demo-scan-2",
@@ -105,7 +102,7 @@ const DEMO_PAGES: DemoPage[] = [
   {
     id: "p2",
     name: "Pricing",
-    domain: "xyz.io/pricing",
+    path: "/pricing",
     metricFocus: "conversions",
     lastScan: "2h ago",
     lastScanId: "demo-scan-1",
@@ -115,7 +112,7 @@ const DEMO_PAGES: DemoPage[] = [
   {
     id: "p3",
     name: "Features",
-    domain: "xyz.io/features",
+    path: "/features",
     metricFocus: "signups",
     lastScan: "2h ago",
     lastScanId: "demo-scan-3",
@@ -124,7 +121,7 @@ const DEMO_PAGES: DemoPage[] = [
   {
     id: "p4",
     name: "About",
-    domain: "xyz.io/about",
+    path: "/about",
     metricFocus: "bounce rate",
     lastScan: "1d ago",
     lastScanId: "demo-scan-4",
@@ -190,19 +187,14 @@ function StatsBar() {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <div className="flex items-center gap-3 mb-1">
-          <h1
-            className="text-2xl sm:text-3xl font-bold text-[var(--ink-900)]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Demo Dashboard
-          </h1>
-          <span className="px-2 py-0.5 text-xs font-medium bg-[var(--coral-subtle)] text-[var(--coral)] rounded-full">
-            xyz.io
-          </span>
-        </div>
+        <h1
+          className="text-2xl sm:text-3xl font-bold text-[var(--ink-900)]"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          Demo Dashboard
+        </h1>
         <p className="text-sm text-[var(--ink-500)] mt-1">
-          {DEMO_PAGES.length} pages · Last scanned 2 hours ago
+          xyz.io · {DEMO_PAGES.length} pages · Last scanned 2 hours ago
         </p>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
@@ -275,9 +267,6 @@ function WinCard({ change }: { change: DetectedChange & { domain?: string } }) {
       <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)]">
         {change.element}
       </p>
-      {change.domain && (
-        <p className="text-xs text-[var(--ink-300)] mt-0.5">{change.domain}</p>
-      )}
 
       <div className="mt-3 text-sm sm:text-base leading-relaxed">
         <span
@@ -400,12 +389,6 @@ function PageRow({ page }: { page: DemoPage }) {
             {page.metricFocus}
           </span>
         </div>
-        <span
-          className="text-xs text-[var(--ink-300)] truncate block"
-          style={{ fontFamily: "var(--font-geist-mono, monospace)" }}
-        >
-          {page.domain}
-        </span>
       </div>
 
       <span className={`v2-row-status ${statusColorClass[page.status]}`}>

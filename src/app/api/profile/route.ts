@@ -24,7 +24,8 @@ export async function GET() {
       subscription_status,
       billing_period,
       stripe_customer_id,
-      stripe_subscription_id
+      stripe_subscription_id,
+      account_domain
     `)
     .eq("id", user.id)
     .single();
