@@ -3,9 +3,11 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
 import { createClient } from "@/lib/supabase/client";
 import { track } from "@/lib/analytics/track";
+import { TIER_INFO, TIER_LIMITS, type SubscriptionTier } from "@/lib/permissions";
 
 interface GitHubRepo {
   id: number;
@@ -785,6 +787,22 @@ function SettingsContent() {
   const [togglingEmail, setTogglingEmail] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  // Plan section state
+  const [tier, setTier] = useState<SubscriptionTier>("free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
+  const [pageCount, setPageCount] = useState(0);
+  const [portalLoading, setPortalLoading] = useState(false);
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Show success/error messages from OAuth callback
   const successParam = searchParams.get("success");
@@ -797,9 +815,24 @@ function SettingsContent() {
       if (res.ok) {
         const data = await res.json();
         setEmailNotifications(data.email_notifications ?? true);
+        setTier(data.subscription_tier || "free");
+        setSubscriptionStatus(data.subscription_status || null);
+        setStripeCustomerId(data.stripe_customer_id || null);
       }
     } catch {
       // Ignore profile fetch errors - default to enabled
+    }
+  };
+
+  const fetchPageCount = async () => {
+    try {
+      const res = await fetch("/api/pages");
+      if (res.ok) {
+        const data = await res.json();
+        setPageCount(Array.isArray(data) ? data.length : 0);
+      }
+    } catch {
+      // Ignore
     }
   };
 
@@ -824,13 +857,18 @@ function SettingsContent() {
   };
 
   const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUserEmail(user?.email ?? null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserEmail(user?.email ?? null);
+    } catch {
+      // Non-critical, leave email as null
+    }
   };
 
   useEffect(() => {
     fetchIntegrations();
     fetchProfile();
+    fetchPageCount();
     fetchUser();
   }, []);
 
@@ -1015,6 +1053,59 @@ function SettingsContent() {
     await supabase.auth.signOut();
     router.push("/");
   };
+
+  const handleOpenPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error || "Failed to open billing portal");
+        setPortalLoading(false);
+      }
+    } catch {
+      setError("Failed to open billing portal");
+      setPortalLoading(false);
+    }
+  };
+
+  const deletingRef = useRef(false);
+  const handleDeleteAccount = async () => {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (res.ok) {
+        await supabase.auth.signOut();
+        router.push("/");
+      } else {
+        const data = await res.json();
+        setDeleteError(data.error || "Failed to delete account");
+        deletingRef.current = false;
+      }
+    } catch {
+      setDeleteError("Something went wrong. Please try again.");
+      deletingRef.current = false;
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Escape key handler for delete modal
+  useEffect(() => {
+    if (!showDeleteModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !deleting) {
+        setShowDeleteModal(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showDeleteModal, deleting]);
 
   if (loading) {
     return <PageLoader />;
@@ -1515,6 +1606,75 @@ function SettingsContent() {
           </section>
         </div>
 
+        {/* ===== PLAN SECTION ===== */}
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-6">
+            <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+              Plan
+            </h2>
+          </div>
+
+          <section>
+            <div className="glass-card-elevated p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg sm:text-xl font-semibold text-text-primary">
+                        {TIER_INFO[tier].name}
+                      </h3>
+                      {tier !== "free" && subscriptionStatus && (
+                        subscriptionStatus === "active" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-score-high/10 text-score-high">
+                            Active
+                          </span>
+                        ) : subscriptionStatus === "past_due" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-score-mid/10 text-score-mid">
+                            Past due
+                          </span>
+                        ) : subscriptionStatus === "trialing" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-accent/10 text-accent">
+                            Trial
+                          </span>
+                        ) : subscriptionStatus === "canceled" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-text-muted/10 text-text-muted">
+                            Canceled
+                          </span>
+                        ) : null
+                      )}
+                    </div>
+                    <p className="text-sm text-text-secondary">
+                      {pageCount} of {TIER_LIMITS[tier].pages} pages used
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-border-subtle flex flex-wrap gap-3">
+                {tier !== "pro" && (
+                  <Link href="/pricing" className="btn-primary">
+                    Upgrade
+                  </Link>
+                )}
+                {stripeCustomerId && (
+                  <button
+                    onClick={handleOpenPortal}
+                    disabled={portalLoading}
+                    className="btn-secondary"
+                  >
+                    {portalLoading ? "Opening..." : "Manage subscription"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+
         {/* ===== ACCOUNT SECTION ===== */}
         <div>
           <div className="flex items-center gap-2 mb-6">
@@ -1554,13 +1714,23 @@ function SettingsContent() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-border-subtle">
+              <div className="mt-6 pt-6 border-t border-border-subtle flex items-center justify-between">
                 <button
                   onClick={handleSignOut}
                   disabled={signingOut}
                   className="text-sm text-text-muted hover:text-score-low transition-colors disabled:opacity-50"
                 >
                   {signingOut ? "Signing out..." : "Sign out"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(true);
+                    setDeleteConfirmText("");
+                    setDeleteError("");
+                  }}
+                  className="text-sm text-text-muted hover:text-score-low transition-colors"
+                >
+                  Delete account
                 </button>
               </div>
             </div>
@@ -1592,6 +1762,75 @@ function SettingsContent() {
         onClose={() => setShowSupabaseConnect(false)}
         onSuccess={() => fetchIntegrations()}
       />
+
+      {showDeleteModal && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4"
+          onClick={() => !deleting && setShowDeleteModal(false)}
+        >
+          <div
+            className="bg-surface-solid rounded-2xl shadow-xl p-6 w-full max-w-md border border-border-subtle"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+          >
+            <h2
+              id="delete-account-title"
+              className="text-2xl font-bold text-text-primary mb-2"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Delete account
+            </h2>
+            <p className="text-sm text-text-secondary mb-4">
+              This will permanently delete your account and all associated data:
+            </p>
+            <ul className="text-sm text-text-secondary mb-6 space-y-1 list-disc list-inside">
+              <li>All tracked pages and scan history</li>
+              <li>Detected changes and observations</li>
+              <li>Connected integrations</li>
+              {stripeCustomerId && <li>Your subscription will be canceled</li>}
+            </ul>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Type <span className="font-mono font-bold text-text-primary">delete</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="input-glass w-full"
+                placeholder="delete"
+                disabled={deleting}
+                autoFocus
+              />
+            </div>
+
+            {deleteError && (
+              <div className="text-score-low text-sm mb-4">{deleteError}</div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="btn-secondary flex-1"
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText.trim().toLowerCase() !== "delete" || deleting}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-score-low text-white hover:bg-score-low/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? "Deleting..." : "Delete account"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
