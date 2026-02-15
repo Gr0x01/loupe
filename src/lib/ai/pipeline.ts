@@ -76,6 +76,16 @@ const SYSTEM_PROMPT = `You are an observant analyst who notices what founders mi
 - Does navigation collapse appropriately?
 - Is mobile a thoughtful adaptation or just a squeezed desktop?
 
+## CRITICAL: Mobile Screenshot Artifacts
+Mobile screenshots are captured by an automated service and may contain rendering failures that do NOT reflect the real user experience:
+- Cookie consent banners or overlays blocking content
+- Lazy-loaded sections appearing as blank voids or solid color blocks
+- JavaScript-dependent content not rendering
+
+If desktop shows rich content but mobile shows blank areas in the same region, it is a screenshot rendering failure — NOT a real mobile issue. Do not flag it.
+
+Only flag mobile issues you can confirm are real responsive design problems: text too small to read, elements overlapping or cut off, navigation not collapsing, layout breaks at 390px.
+
 ## FriendlyText Translation Table
 When writing predictions, use these human-friendly phrases with emotional stakes:
 | Metric | Direction | FriendlyText |
@@ -344,6 +354,9 @@ const POST_ANALYSIS_PROMPT = `You are an observant analyst tracking what changed
 - Verdicts should be punchy: "You made 2 changes. One helped."
 - No hedging ("perhaps", "consider") — be direct
 - Use human-friendly language, not marketing jargon
+
+## CRITICAL: Mobile Screenshot Artifacts
+Mobile screenshots may have rendering failures (cookie banners, blank voids from lazy-loading). If desktop shows content but mobile shows blank areas in the same region, it's a screenshot artifact — ignore it. Only flag confirmed responsive design issues.
 
 ## FriendlyText Translation Table
 Use these phrases when describing metric impacts:
@@ -1304,6 +1317,8 @@ Do NOT report changes that are merely:
 - Anti-aliasing or font rendering variance
 - Tiny positioning shifts (<5 pixels)
 - Browser rendering differences (shadows, gradients)
+- Mobile screenshots with blank/void areas where desktop shows content (rendering failure, not a real change)
+- Cookie consent banners appearing or disappearing between captures
 
 Only report substantive changes: text rewrites, layout restructuring, visual design changes, functional changes. If the pages look essentially identical, return { "hasChanges": false, "changes": [] }.
 

@@ -47,8 +47,11 @@ User enters URL → POST /api/analyze
 - **Stealth plugin** — `puppeteer-extra-plugin-stealth` evades basic headless detection
 - **SSRF protection** — blocks private/internal IPs and non-HTTP protocols
 - **Concurrency limit** — max 8 concurrent screenshots. Client (`screenshot.ts`) retries 429s with exponential backoff + jitter (2s/4s/8s + 0-1s random, max 3 retries). Inngest `analyzeUrl` concurrency: 4 (each does 2 screenshots = 8 max)
-- **Page render strategy** — `domcontentloaded` + 2.5s settle delay + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
+- **Page render strategy** — `networkidle2` (waits for ≤2 active connections for 500ms) + 1s settle delay + cookie banner dismissal + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
+- **Cookie banner dismissal** — `dismissCookieBanners(page)` runs after settle, before scroll. Two-pass: (1) text matching on buttons ("Accept", "Agree", "Allow All", etc.), (2) fallback CSS selector matching for common CMPs (OneTrust, CookieConsent, GDPR banners). Non-fatal — silently skips pages without banners.
+- **Mobile device emulation** — When viewport ≤480px: mobile Safari UA, `isMobile: true`, `hasTouch: true`, `deviceScaleFactor: 1`. Desktop: Chrome UA, `deviceScaleFactor: 1`. Ensures sites serve responsive mobile content and CSS media queries like `(pointer: coarse)` fire correctly.
 - **Request interception** — blocks non-visual resources to save proxy bandwidth: analytics (GA, GTM, Segment, Mixpanel, Amplitude, Heap, Clarity, FullStory, Hotjar), tracking pixels (Facebook), error monitoring (Sentry, Bugsnag), chat widgets (Intercom, Crisp), ads, embedded video, media/websocket/eventsource resource types. Fonts, CSS, images, and documents pass through.
+- **Screenshot optimization** — JPEG quality 70, `deviceScaleFactor: 1` for all viewports. Produces ~1-2MB desktop, ~500KB-800KB mobile screenshots — sufficient for LLM vision analysis.
 - **Browser crash recovery** — 30s health check interval, auto-relaunches dead browser instances
 
 ### Endpoints
@@ -287,9 +290,9 @@ Output:
 ```
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
-- `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available.
-- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff (maxOutputTokens: 2048). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory.
-- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 4096). Has analytics/database tool access.
+- `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available. SYSTEM_PROMPT includes "Mobile Screenshot Artifacts" guardrail warning.
+- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff (maxOutputTokens: 2048). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory. QUICK_DIFF_PROMPT includes mobile artifact + cookie banner ignore rules.
+- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 4096). Has analytics/database tool access. POST_ANALYSIS_PROMPT includes mobile artifact guardrail.
 - `extractJson(text)` — Robust JSON extraction from LLM responses. 3-tier: regex code block → `extractMatchingBraces()` (finds matching `}` ignoring postamble) → `closeJson()` (auto-close truncated JSON).
 - `formatUserFeedback(feedback)` — Formats user feedback for LLM context (with prompt injection protection)
 - `formatPageFocus(focus)` — Formats user's metric focus for LLM context (with prompt injection protection)
@@ -820,7 +823,7 @@ npm run dev                    # Next.js on port 3002
 ## Key Technical Challenges
 
 1. **Bot protection on screenshots** — SOLVED with Decodo residential proxy ($4/mo for 2GB). Stealth plugin + residential IP bypasses Vercel/Cloudflare.
-2. **Screenshot speed** — MITIGATED with persistent browser pool + domcontentloaded strategy. 5-12s range.
+2. **Screenshot speed** — MITIGATED with persistent browser pool + networkidle2 strategy. 5-12s range.
 3. **LLM JSON parsing** — LLMs prepend text preamble and/or append commentary around JSON. `extractJson()` handles this with 3-tier fallback: regex code block extraction → `extractMatchingBraces()` (walks from first `{` to matching `}`, ignoring postamble text) → `closeJson()` (auto-closes truncated JSON by balancing braces/brackets). Applied to all 3 parse sites: `runAnalysisPipeline`, `runPostAnalysisPipeline`, `runQuickDiff`. Quick diff prompt also includes explicit "respond with ONLY JSON" instruction.
 4. **Total pipeline latency** — Screenshot (5-12s) + LLM (15-30s) = 20-40s total. Acceptable for async background job with polling UI.
 

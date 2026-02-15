@@ -623,3 +623,32 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - Domain reset/change UI (would need to delete all pages first)
 - Subdomain support (e.g., `app.example.com` vs `example.com` treated as different domains)
 - Client-side enforcement (server is the source of truth)
+
+## D35: Fix false mobile findings from broken screenshots (Feb 16, 2026)
+
+**Decision**: Multi-layered fix for mobile screenshots producing incomplete captures that the LLM then flags as real mobile UX issues.
+
+**Problem**: Mobile screenshots (390px viewport) frequently captured cookie consent banners covering content and lazy-loaded sections as blank voids. The LLM confidently reported these as real issues (e.g., "Your mobile site is a blue void"), damaging user trust.
+
+**Root causes**: (1) No cookie banner dismissal, (2) desktop Chrome UA sent for mobile viewports, (3) no mobile device flags in viewport config, (4) `domcontentloaded` didn't wait for page resources.
+
+**Fixes (screenshot service on Vultr)**:
+1. **Cookie banner dismissal** — `dismissCookieBanners(page)` runs after settle, before scroll. Text matching ("Accept All", "Agree", etc.) + CSS selector fallback for common CMPs.
+2. **Mobile device emulation** — Mobile UA (iPhone Safari), `isMobile: true`, `hasTouch: true` when viewport ≤480px. Sites now serve actual mobile-optimized content.
+3. **`networkidle2`** — Replaced `domcontentloaded` + 2.5s blind wait with `networkidle2` + 1s settle. Waits for actual network idle (≤2 connections for 500ms), more reliable for JS-heavy sites.
+4. **`deviceScaleFactor: 1`** — Reduced from 2 for all viewports. LLM vision doesn't need retina resolution. Desktop screenshots dropped from 4.2MB to 1.8MB.
+5. **JPEG quality 70** — Down from 80. Adequate for LLM analysis. Further reduces file size.
+
+**Fixes (LLM prompts in pipeline.ts)**:
+6. **SYSTEM_PROMPT** — "CRITICAL: Mobile Screenshot Artifacts" section after Mobile Experience. If desktop shows content but mobile shows blanks, it's a rendering failure — don't flag it.
+7. **POST_ANALYSIS_PROMPT** — Same artifact warning before FriendlyText table.
+8. **QUICK_DIFF_PROMPT** — Extended "Ignore Screenshot Artifacts" with mobile blank areas + cookie banner rules.
+
+**What we didn't build**:
+- `@duckduckgo/autoconsent` library integration — Our hand-rolled cookie dismissal covers ~80% of cases. The library handles hundreds of CMPs but adds a dependency. Revisit if cookie banner failures persist.
+- Content verification after scroll — Could check that viewport height increased or images loaded, but adds complexity. Current approach (networkidle2 + scroll + settle) is sufficient.
+
+**Trade-offs**:
+- `networkidle2` adds ~0-3s latency vs `domcontentloaded` for sites with persistent background connections, but timeout increased to 25s to compensate
+- `deviceScaleFactor: 1` means LLM sees 1280px-wide (not 2560px) desktop images — fine for layout/copy analysis, might miss fine visual details
+- Prompt guardrails are a safety net, not a fix — they tell the LLM to ignore artifacts but can't guarantee it will
