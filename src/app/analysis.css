@@ -578,3 +578,52 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ===== BOTTOM LINE (scan 1 pull-quote) ===== */
+.bottom-line-section {
+  max-width: 640px;
+  padding: 1.5rem 0 2rem;
+}
+
+.bottom-line-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.bottom-line-quote {
+  position: relative;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.bottom-line-mark {
+  position: absolute;
+  top: -0.35rem;
+  left: -0.15rem;
+  font-family: var(--font-display);
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(255, 107, 74, 0.15);
+  pointer-events: none;
+  user-select: none;
+}
+
+.bottom-line-text {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink-700);
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .bottom-line-text {
+    font-size: 1.4rem;
+  }
+}

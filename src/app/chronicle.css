@@ -451,6 +451,16 @@
   font-style: italic;
 }
 
+/* N+1 sidebar summary accent bar */
+.dossier-sidebar-summary-accent {
+  border-left: 2px solid var(--violet);
+  padding-left: 0.65rem;
+}
+
+.dossier-sidebar-summary-accent .dossier-sidebar-summary-text {
+  font-size: 0.875rem;
+}
+
 /* Mobile header */
 .dossier-mobile-header {
   display: flex;

@@ -158,24 +158,26 @@ export function DossierSidebar({
           ))}
         </div>
 
-        {/* Running summary — truncated with expand */}
-        <div className="dossier-mobile-summary">
-          <p
-            className={`dossier-sidebar-summary-text ${isFallback ? "dossier-sidebar-summary-fallback" : ""} ${
-              !summaryExpanded ? "dossier-mobile-summary-clamped" : ""
-            }`}
-          >
-            {summaryText}
-          </p>
-          {!isFallback && summaryText.length > 140 && (
-            <button
-              onClick={() => setSummaryExpanded(!summaryExpanded)}
-              className="dossier-mobile-summary-toggle"
+        {/* Running summary — truncated with expand (N+1 only) */}
+        {!isScan1 && (
+          <div className="dossier-mobile-summary">
+            <p
+              className={`dossier-sidebar-summary-text ${isFallback ? "dossier-sidebar-summary-fallback" : ""} ${
+                !summaryExpanded ? "dossier-mobile-summary-clamped" : ""
+              }`}
             >
-              {summaryExpanded ? "Show less" : "Read more"}
-            </button>
-          )}
-        </div>
+              {summaryText}
+            </p>
+            {!isFallback && summaryText.length > 140 && (
+              <button
+                onClick={() => setSummaryExpanded(!summaryExpanded)}
+                className="dossier-mobile-summary-toggle"
+              >
+                {summaryExpanded ? "Show less" : "Read more"}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Cached result nudge (mobile) */}
         {cachedAt && (
@@ -283,15 +285,19 @@ export function DossierSidebar({
         ))}
       </div>
 
-      {/* Running summary */}
-      <div className="dossier-sidebar-summary">
-        <p className="dossier-sidebar-summary-label">{isScan1 ? "Summary" : "Intelligence"}</p>
-        <p
-          className={`dossier-sidebar-summary-text ${isFallback ? "dossier-sidebar-summary-fallback" : ""}`}
-        >
-          {summaryText}
-        </p>
-      </div>
+      {/* Running summary (N+1 only — scan 1 shows bottom-line in feed) */}
+      {!isScan1 && (
+        <div className="dossier-sidebar-summary">
+          <p className="dossier-sidebar-summary-label">Intelligence</p>
+          <div className="dossier-sidebar-summary-accent">
+            <p
+              className={`dossier-sidebar-summary-text ${isFallback ? "dossier-sidebar-summary-fallback" : ""}`}
+            >
+              {summaryText}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Cached result nudge */}
       {cachedAt && (

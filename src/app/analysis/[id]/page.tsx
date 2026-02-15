@@ -1530,6 +1530,20 @@ export default function AnalysisPage() {
                   <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} claimStatus={analysis.claim_status} />
                 </>
               )}
+
+              {/* Bottom Line */}
+              {s.summary && (
+                <>
+                  <hr className="section-divider" />
+                  <section className="bottom-line-section">
+                    <p className="bottom-line-label">The bottom line</p>
+                    <blockquote className="bottom-line-quote">
+                      <span className="bottom-line-mark" aria-hidden="true">&ldquo;</span>
+                      <p className="bottom-line-text">{s.summary}</p>
+                    </blockquote>
+                  </section>
+                </>
+              )}
             </div>
           </div>
         )}
