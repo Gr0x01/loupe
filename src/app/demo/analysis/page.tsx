@@ -17,6 +17,7 @@ import { ChronicleLayout } from "@/components/chronicle";
 // ============================================
 
 const mockBaselineDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+const mockCreatedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(); // 2h ago
 
 const mockDeployContext: DeployContextAPI = {
   commit_sha: "a3f82b1c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
@@ -183,72 +184,23 @@ const mockChangesSummary: ChangesSummary = {
 };
 
 // ============================================
-// Demo Scan Picker (non-interactive)
-// ============================================
-
-function DemoScanPicker() {
-  return (
-    <div className="analysis-context-picker">
-      <span>Scan 16 of 20</span>
-      <svg
-        className="w-3.5 h-3.5 text-text-muted"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
-
-// ============================================
 // Demo Page
 // ============================================
 
 export default function DemoAnalysisPage() {
-  const domain = "xyz.io";
-
   return (
     <main className="min-h-screen text-text-primary">
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
-        <div className="analysis-context-shell pt-6 pb-3">
-          <div className="analysis-context-bar">
-            <div className="analysis-context-main">
-              <div className="analysis-context-domain-row">
-                <p className="analysis-context-label">Tracked page</p>
-              </div>
-              <div className="analysis-context-domain-row">
-                <h1
-                  className="analysis-context-domain"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {domain}
-                </h1>
-                <span className="analysis-context-badge">Demo</span>
-              </div>
-              <div className="analysis-context-meta">
-                <DemoScanPicker />
-                <Link
-                  href="/demo"
-                  className="analysis-context-link"
-                >
-                  Back to dashboard
-                </Link>
-              </div>
-            </div>
-
-            <div className="analysis-context-thumb-corner">
-              <img
-                src="/demo-screenshot.png"
-                alt="Page screenshot"
-                className="analysis-context-thumb-img"
-              />
-            </div>
-
-            <span className="analysis-context-date">Feb 10</span>
-          </div>
+        {/* Breadcrumb — matches real analysis page */}
+        <div className="pt-6 pb-3 flex items-center gap-2 text-sm text-text-muted">
+          <Link href="/demo" className="hover:text-text-primary transition-colors">
+            Your pages
+          </Link>
+          <span>/</span>
+          <span className="text-text-primary">xyz.io</span>
+          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
+            Demo
+          </span>
         </div>
 
         <ChronicleLayout
@@ -256,12 +208,15 @@ export default function DemoAnalysisPage() {
           deployContext={mockDeployContext}
           baselineDate={mockBaselineDate}
           triggerType="deploy"
-          screenshotUrl="/demo-screenshot.png"
+          screenshotUrl="/demo-screenshot.jpg"
+          mobileScreenshotUrl="/demo-screenshot-mobile.jpg"
           pageUrl="https://xyz.io"
+          createdAt={mockCreatedAt}
           scanNumber={16}
           totalScans={20}
           pageId="demo"
           currentAnalysisId="demo"
+          metricFocus="conversions"
         />
 
         {/* CTA Section */}
