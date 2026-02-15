@@ -48,9 +48,8 @@ function getErrorMessage(status: number): string {
   }
 }
 
-// Fetcher with typed error handling
-// Uses cache: "no-cache" to bypass browser HTTP cache on SWR revalidation
-// (Cache-Control headers still work for CDN/proxy caching)
+// Default fetcher — bypasses browser cache so mutate() always gets fresh data
+// Used by usePages, useChanges, usePageHistory (endpoints that change after user actions)
 const fetcher = async (url: string) => {
   const res = await fetch(url, { cache: "no-cache" });
   if (res.status === 401) {
@@ -84,6 +83,19 @@ export function useChanges() {
   });
 }
 
+// Cacheable fetcher — respects server Cache-Control headers for browser caching
+// Used by useAnalysis where data is immutable once complete (revisits benefit from cache)
+const cacheableFetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (res.status === 401) {
+    throw new UnauthorizedError();
+  }
+  if (!res.ok) {
+    throw new FetchError(getErrorMessage(res.status), res.status);
+  }
+  return res.json();
+};
+
 /**
  * Fetch a single analysis by ID
  * Polls every 3s while status is pending/processing
@@ -92,7 +104,7 @@ export function useChanges() {
 export function useAnalysis(id: string | null) {
   return useSWR(
     id ? `/api/analysis/${id}` : null,
-    fetcher,
+    cacheableFetcher,
     {
       revalidateOnFocus: false,
       dedupingInterval: 60000,

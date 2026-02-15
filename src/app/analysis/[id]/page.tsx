@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ChronicleSkeleton } from "@/components/chronicle";
 import { track } from "@/lib/analytics/track";
 import { useAnalysis } from "@/lib/hooks/use-data";
@@ -964,7 +965,16 @@ function ScreenshotModal({
             Close
           </button>
         </div>
-        <img src={currentUrl} alt={`${activeView === "mobile" ? "Mobile" : "Desktop"} screenshot of ${pageUrl}`} className="w-full rounded-b-[20px]" />
+        <Image
+          src={currentUrl}
+          alt={`${activeView === "mobile" ? "Mobile" : "Desktop"} screenshot of ${pageUrl}`}
+          width={activeView === "mobile" ? 390 : 1440}
+          height={activeView === "mobile" ? 844 : 900}
+          priority
+          sizes="(max-width: 768px) 100vw, 80vw"
+          className="w-full rounded-b-[20px]"
+          style={{ height: "auto" }}
+        />
       </div>
     </div>
   );

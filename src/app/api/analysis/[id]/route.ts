@@ -32,15 +32,60 @@ export async function GET(
     );
   }
 
-  // Get current user (if logged in)
-  let currentUserId: string | null = null;
-  try {
-    const authClient = await createClient();
-    const { data: { user } } = await authClient.auth.getUser();
-    currentUserId = user?.id ?? null;
-  } catch {
-    // Not logged in
-  }
+  // Run auth, parent, deploy, and claim queries in parallel
+  // (all independent once we have the analysis data)
+  const [authResult, parentResult, deployResult, claimResult] = await Promise.all([
+    // Auth: get current user
+    (async () => {
+      try {
+        const authClient = await createClient();
+        const { data: { user } } = await authClient.auth.getUser();
+        return user?.id ?? null;
+      } catch {
+        return null;
+      }
+    })(),
+    // Parent: structured_output for comparison view
+    data.parent_analysis_id
+      ? supabase
+          .from("analyses")
+          .select("structured_output")
+          .eq("id", data.parent_analysis_id)
+          .single()
+          .then(({ data: parent }) => parent?.structured_output ?? null)
+      : Promise.resolve(null),
+    // Deploy: commit context
+    data.deploy_id
+      ? supabase
+          .from("deploys")
+          .select("commit_sha, commit_message, commit_author, commit_timestamp, changed_files")
+          .eq("id", data.deploy_id)
+          .single()
+          .then(({ data: deploy }) =>
+            deploy
+              ? {
+                  commit_sha: deploy.commit_sha,
+                  commit_message: deploy.commit_message,
+                  commit_author: deploy.commit_author,
+                  commit_timestamp: deploy.commit_timestamp,
+                  changed_files: deploy.changed_files || [],
+                }
+              : null
+          )
+      : Promise.resolve(null),
+    // Claim: check if URL is claimed
+    supabase
+      .from("pages")
+      .select("id, user_id")
+      .eq("url", data.url)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data: claimedPage }) => claimedPage),
+  ]);
+
+  const currentUserId = authResult;
+  const parent_structured_output = parentResult;
+  const deploy_context = deployResult;
 
   // Privacy check: If analysis has a user_id, only that user can view it
   // Analyses without user_id (anonymous/free audits) remain public
@@ -51,39 +96,8 @@ export async function GET(
     );
   }
 
-  // If this is a re-scan, include parent's structured_output for comparison view
-  let parent_structured_output = null;
-  if (data.parent_analysis_id) {
-    const { data: parent } = await supabase
-      .from("analyses")
-      .select("structured_output")
-      .eq("id", data.parent_analysis_id)
-      .single();
-    parent_structured_output = parent?.structured_output ?? null;
-  }
-
-  // If this analysis was triggered by a deploy, include the deploy info
-  let deploy_context = null;
-  if (data.deploy_id) {
-    const { data: deploy } = await supabase
-      .from("deploys")
-      .select("commit_sha, commit_message, commit_author, commit_timestamp, changed_files")
-      .eq("id", data.deploy_id)
-      .single();
-
-    if (deploy) {
-      deploy_context = {
-        commit_sha: deploy.commit_sha,
-        commit_message: deploy.commit_message,
-        commit_author: deploy.commit_author,
-        commit_timestamp: deploy.commit_timestamp,
-        changed_files: deploy.changed_files || [],
-      };
-    }
-  }
-
-  // Check if this URL is claimed by anyone (for showing/hiding claim form)
-  let claim_status: {
+  // Build claim status from parallel result
+  const claim_status: {
     is_claimed: boolean;
     claimed_by_current_user: boolean;
     claimed_page_id: string | null;
@@ -93,18 +107,11 @@ export async function GET(
     claimed_page_id: null,
   };
 
-  const { data: claimedPage } = await supabase
-    .from("pages")
-    .select("id, user_id")
-    .eq("url", data.url)
-    .limit(1)
-    .maybeSingle();
-
-  if (claimedPage) {
+  if (claimResult) {
     claim_status.is_claimed = true;
-    if (currentUserId && claimedPage.user_id === currentUserId) {
+    if (currentUserId && claimResult.user_id === currentUserId) {
       claim_status.claimed_by_current_user = true;
-      claim_status.claimed_page_id = claimedPage.id;
+      claim_status.claimed_page_id = claimResult.id;
     }
   }
 

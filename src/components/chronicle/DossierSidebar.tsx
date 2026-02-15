@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { ScanPicker } from "./ScanPicker";
 import { getDomain, getPath } from "@/lib/utils/url";
 
@@ -220,10 +221,14 @@ export function DossierSidebar({
               <span className="dossier-sidebar-chrome-url">{domain}</span>
             </div>
             <div className="dossier-sidebar-screenshot-img">
-              <img
+              <Image
                 src={screenshotUrl}
                 alt={`Desktop screenshot of ${domain}`}
+                width={260}
+                height={180}
+                loading="lazy"
                 onError={() => setImgError(true)}
+                style={{ width: "100%", height: "auto" }}
               />
             </div>
           </button>
@@ -234,10 +239,14 @@ export function DossierSidebar({
             >
               <div className="dossier-sidebar-phone-notch" />
               <div className="dossier-sidebar-screenshot-img">
-                <img
+                <Image
                   src={mobileScreenshotUrl}
                   alt={`Mobile screenshot of ${domain}`}
+                  width={120}
+                  height={200}
+                  loading="lazy"
                   onError={() => setMobileImgError(true)}
+                  style={{ width: "100%", height: "auto" }}
                 />
               </div>
               <div className="dossier-sidebar-phone-bar" />
