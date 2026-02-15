@@ -11,12 +11,19 @@ export function getDomain(url: string): string {
 }
 
 /**
- * Extract the pathname from a URL string, stripping trailing slashes.
- * Returns "/" for root paths. Falls back to the original string on parse failure.
+ * Extract a display-friendly path from a URL string.
+ * Root paths show the domain (e.g. "getloupe.io").
+ * Non-root paths show ".../last-segment" (e.g. ".../pricing").
+ * Falls back to the original string on parse failure.
  */
 export function getPath(url: string): string {
   try {
-    return new URL(url).pathname.replace(/\/+$/, '') || '/';
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/\/+$/, '');
+    if (!path) return parsed.hostname.replace(/^www\./, '');
+    const segments = path.split('/').filter(Boolean);
+    const last = segments[segments.length - 1];
+    return `…/${last}`;
   } catch {
     return url;
   }
