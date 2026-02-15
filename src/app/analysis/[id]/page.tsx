@@ -171,27 +171,6 @@ function getPageLabel(url: string) {
   }
 }
 
-// --- Hooks ---
-
-function useCountUp(target: number, duration = 1000) {
-  const [value, setValue] = useState(0);
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current || target === 0) return;
-    started.current = true;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(eased * target));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [target, duration]);
-  return value;
-}
-
 // --- Components ---
 
 // --- Hero Components ---
@@ -221,296 +200,6 @@ function VerdictDisplay({
 }
 
 // ImpactBar, AnimatedCount, DomainBadge removed — consolidated into hero footer
-
-// Hero Screenshot - floats in corner as visual proof
-function HeroScreenshot({
-  url,
-  mobileUrl,
-  pageUrl,
-  domain,
-  createdAt,
-  onDesktopClick,
-  onMobileClick,
-}: {
-  url: string;
-  mobileUrl?: string | null;
-  pageUrl: string;
-  domain: string;
-  createdAt: string;
-  onDesktopClick: () => void;
-  onMobileClick?: () => void;
-}) {
-  const [desktopError, setDesktopError] = useState(false);
-  const [mobileError, setMobileError] = useState(false);
-
-  if (desktopError) return null;
-
-  return (
-    <div className={mobileUrl && !mobileError ? "w-[300px]" : "w-[260px]"}>
-      <div className="flex gap-3 items-end">
-        {/* Desktop screenshot */}
-        <button
-          className="hero-screenshot-wrapper cursor-pointer group flex-1 appearance-none bg-transparent border-none p-0 text-left"
-          onClick={onDesktopClick}
-        >
-          <div className="hero-screenshot">
-            {/* Browser chrome */}
-            <div className="browser-chrome flex items-center gap-1.5 rounded-t-lg py-2 px-3">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-                <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-                <div className="w-2 h-2 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              </div>
-              <span className="text-[10px] text-text-muted font-mono ml-1.5 truncate">
-                {getDomain(pageUrl)}
-              </span>
-            </div>
-            {/* Screenshot */}
-            <div className="relative overflow-hidden rounded-b-lg">
-              <img
-                src={url}
-                alt={`Desktop screenshot of ${pageUrl}`}
-                className="w-full h-auto max-h-[180px] object-cover object-top"
-                onError={() => setDesktopError(true)}
-              />
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 px-2 py-1 rounded shadow-sm">
-                  View full
-                </span>
-              </div>
-            </div>
-          </div>
-        </button>
-
-        {/* Mobile screenshot */}
-        {mobileUrl && !mobileError && (
-          <button
-            className="w-[90px] cursor-pointer group flex-shrink-0 appearance-none bg-transparent border-none p-0"
-            onClick={onMobileClick}
-          >
-            {/* Phone frame */}
-            <div className="border-[1.5px] border-[var(--line)] rounded-[10px] overflow-hidden bg-white">
-              {/* Notch indicator */}
-              <div className="flex justify-center py-1">
-                <div className="w-8 h-1 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              </div>
-              {/* Screenshot */}
-              <div className="relative overflow-hidden">
-                <img
-                  src={mobileUrl}
-                  alt={`Mobile screenshot of ${pageUrl}`}
-                  className="w-full h-auto max-h-[150px] object-cover object-top"
-                  onError={() => setMobileError(true)}
-                />
-                <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/5 transition-colors flex items-center justify-center">
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium text-accent bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
-                    View
-                  </span>
-                </div>
-              </div>
-              {/* Bottom bar */}
-              <div className="flex justify-center py-1">
-                <div className="w-6 h-0.5 rounded-full bg-[rgba(0,0,0,0.08)]" />
-              </div>
-            </div>
-          </button>
-        )}
-      </div>
-      {/* Caption */}
-      <p className="text-[11px] text-text-muted text-center mt-2">
-        {domain} · {new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-      </p>
-    </div>
-  );
-}
-
-interface NewHeroSectionProps {
-  structured: AnalysisResult["structured"];
-  findings?: Finding[];
-  domain: string;
-  createdAt: string;
-  screenshotUrl: string | null;
-  mobileScreenshotUrl?: string | null;
-  onScreenshotClick: (view: "desktop" | "mobile") => void;
-  claimStatus?: ClaimStatus;
-  onShareLink: () => void;
-  linkCopied: boolean;
-  claimEmailSent: boolean;
-  claimEmail: string;
-  setClaimEmail: (email: string) => void;
-  claimLoading: boolean;
-  onClaimEmail: (e: React.FormEvent) => void;
-  claimError: string;
-  claimedPageId?: string | null;
-  pageUrl: string;
-}
-
-function NewHeroSection({
-  structured,
-  findings,
-  domain,
-  createdAt,
-  screenshotUrl,
-  mobileScreenshotUrl,
-  onScreenshotClick,
-  claimStatus,
-  onShareLink,
-  linkCopied,
-  claimEmailSent,
-  claimEmail,
-  setClaimEmail,
-  claimLoading,
-  onClaimEmail,
-  claimError,
-  claimedPageId,
-  pageUrl,
-}: NewHeroSectionProps) {
-  const top3 = findings?.slice(0, 3) ?? [];
-  return (
-    <section className="py-8 lg:py-12">
-      <div className="glass-card-elevated mx-auto overflow-hidden">
-        {/* Main content */}
-        <div className="px-6 sm:px-8 py-8 lg:py-10 relative">
-          {/* Screenshot floats in top-right on desktop */}
-          {screenshotUrl && (
-            <div className="hidden lg:block float-right ml-8 mb-4">
-              <HeroScreenshot
-                url={screenshotUrl}
-                mobileUrl={mobileScreenshotUrl}
-                pageUrl={pageUrl}
-                domain={domain}
-                createdAt={createdAt}
-                onDesktopClick={() => onScreenshotClick("desktop")}
-                onMobileClick={() => onScreenshotClick("mobile")}
-              />
-            </div>
-          )}
-
-          <div className="space-y-5 flex flex-col items-start">
-            {/* Verdict — the star */}
-            <VerdictDisplay
-              verdict={structured.verdict}
-              verdictContext={structured.verdictContext}
-            />
-
-            {/* Metrics summary line — consolidated */}
-            <p className="hero-reveal-impact text-base text-text-primary">
-              <span className="text-accent font-semibold">+{structured.projectedImpactRange}</span>
-              {" "}potential
-              <span className="text-text-muted mx-2">·</span>
-              <span className="font-bold">{structured.findingsCount}</span>
-              {" "}opportunit{structured.findingsCount !== 1 ? "ies" : "y"} below
-            </p>
-
-            {/* Top 3 fixes — scannable preview */}
-            {top3.length > 0 && (
-              <ol className="hero-reveal-impact flex flex-col gap-1 text-sm text-text-secondary list-none p-0 m-0">
-                {top3.map((f, i) => (
-                  <li key={f.id} className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-text-muted w-4 text-right">{i + 1}.</span>
-                    <span>{f.title}</span>
-                    <span className={`text-xs font-semibold uppercase ${f.impact === 'high' ? 'text-score-low' : 'text-text-muted'}`}>
-                      {f.impact === 'high' ? 'HIGH' : ''}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            {/* Domain + date — mobile only (desktop shows under screenshot) */}
-            <p className="lg:hidden text-xs text-text-muted">
-              {domain} · {new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-            </p>
-          </div>
-        </div>
-
-        {/* Card footer — email capture */}
-        <div className="hero-reveal-actions border-t border-border-outer px-6 sm:px-8 py-5 bg-[rgba(0,0,0,0.015)]">
-          {claimStatus?.claimed_by_current_user ? (
-            /* Current user already watching */
-            <div className="flex items-center justify-between">
-              <Link
-                href={`/pages/${claimedPageId}`}
-                className="text-sm text-accent hover:underline font-medium"
-              >
-                You&apos;re tracking this → View history
-              </Link>
-              <button
-                onClick={onShareLink}
-                className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
-              >
-                {linkCopied ? "Copied!" : "Share"}
-              </button>
-            </div>
-          ) : claimStatus?.is_claimed ? (
-            /* Domain claimed by someone else */
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text-muted">Already being monitored by someone else</span>
-              <button
-                onClick={onShareLink}
-                className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
-              >
-                {linkCopied ? "Copied!" : "Share"}
-              </button>
-            </div>
-          ) : claimEmailSent ? (
-            /* Success state */
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                </svg>
-                <span className="text-sm text-text-primary font-medium">Check your inbox — you&apos;re in</span>
-              </div>
-              <button
-                onClick={onShareLink}
-                className="text-xs px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
-              >
-                {linkCopied ? "Copied!" : "Share"}
-              </button>
-            </div>
-          ) : (
-            /* Default state — form first */
-            <div className="space-y-3 lg:space-y-0 lg:flex lg:items-center lg:justify-between lg:gap-4">
-              {/* Form — stacks on mobile, inline on desktop */}
-              <form onSubmit={onClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-2">
-                <input
-                  type="email"
-                  placeholder="you@company.com"
-                  value={claimEmail}
-                  onChange={(e) => setClaimEmail(e.target.value)}
-                  className="input-glass text-sm py-2.5 flex-1 sm:flex-none sm:w-48"
-                  aria-label="Email address"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={claimLoading}
-                  className="btn-primary text-sm py-2.5 px-5 whitespace-nowrap"
-                >
-                  {claimLoading ? "..." : "Watch for results"}
-                </button>
-              </form>
-              {claimError && <p className="text-xs text-score-low lg:hidden">{claimError}</p>}
-
-              {/* Trust line + share */}
-              <div className="flex items-center justify-between lg:justify-end gap-4 text-xs">
-                <span className="text-text-muted">Free for one page. No credit&nbsp;card.</span>
-                <button
-                  onClick={onShareLink}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
-                >
-                  {linkCopied ? "Copied!" : "Share"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 // Collapsed Finding Card - compact for 2-column grid
 function CollapsedFindingCard({
@@ -1079,202 +768,6 @@ function HeadlineRewriteSection({ headlineRewrite }: {
   );
 }
 
-// Bottom Line Section — merged Summary + Wayback value bridge
-interface WaybackSnapshot {
-  timestamp: string;
-  original: string;
-  thumbnailUrl: string;
-  snapshotUrl: string;
-  date: string;
-}
-
-function BottomLineSection({ url, summary, screenshotUrl }: { url: string; summary?: string; screenshotUrl?: string | null }) {
-  const [snapshots, setSnapshots] = useState<WaybackSnapshot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchSnapshots() {
-      try {
-        const res = await fetch(`/api/wayback?url=${encodeURIComponent(url)}`, {
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        if (data.snapshots && data.snapshots.length > 0) {
-          setSnapshots(data.snapshots.slice(0, 4)); // Max 4 snapshots
-        } else {
-          setError(true);
-        }
-      } catch (err) {
-        // Don't set error state if aborted
-        if (err instanceof Error && err.name === "AbortError") return;
-        setError(true);
-      }
-      setLoading(false);
-    }
-    fetchSnapshots();
-
-    return () => controller.abort();
-  }, [url]);
-
-  // Shared header with summary lead-in
-  const renderHeader = () => (
-    <div className="text-center max-w-2xl mx-auto mb-8">
-      <p className="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-4">
-        The bottom line
-      </p>
-      {summary && (
-        <blockquote className="relative mb-8">
-          <span
-            className="absolute -top-2 left-1/2 -translate-x-1/2 text-5xl text-accent opacity-10 select-none leading-none pointer-events-none"
-            style={{ fontFamily: "var(--font-display)" }}
-            aria-hidden="true"
-          >
-            "
-          </span>
-          <p
-            className="text-xl lg:text-2xl text-text-primary leading-relaxed pt-4"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {summary}
-          </p>
-        </blockquote>
-      )}
-    </div>
-  );
-
-  // Show mock timeline if no Wayback history
-  if (error || (!loading && snapshots.length === 0)) {
-    return (
-      <section className="result-section">
-        {renderHeader()}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-start">
-          {/* Today's screenshot first */}
-          <div>
-            <div className="aspect-[4/3] rounded-lg bg-bg-inset border-2 border-accent overflow-hidden">
-              {screenshotUrl ? (
-                <img
-                  src={screenshotUrl}
-                  alt="Today's snapshot"
-                  className="w-full h-full object-cover object-top"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-accent text-center mt-2 font-medium">Today</p>
-          </div>
-          {/* Placeholder past snapshots */}
-          {["1 month from now", "3 months", "6 months"].map((label, i) => (
-            <div key={i}>
-              <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-border-subtle/50" />
-                </div>
-              </div>
-              <p className="text-xs text-text-muted text-center mt-2">{label}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-sm text-text-secondary text-center mt-6">
-          <a href="#claim-cta" className="text-accent hover:underline font-medium">Watch for results</a>
-          <span className="mx-1">—</span>
-          we&apos;ll show you what moved.
-        </p>
-      </section>
-    );
-  }
-
-  if (loading) {
-    return (
-      <section className="result-section">
-        {renderHeader()}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="aspect-[4/3] rounded-lg bg-bg-inset animate-pulse" />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  // Show Today first, then 3 Wayback snapshots (going back in time)
-  const displaySnapshots = snapshots.slice(0, 3);
-
-  return (
-    <section className="result-section">
-      {renderHeader()}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-start">
-        {/* Today's screenshot first */}
-        <div>
-          <div className="aspect-[4/3] rounded-lg bg-bg-inset border-2 border-accent overflow-hidden">
-            {screenshotUrl ? (
-              <img
-                src={screenshotUrl}
-                alt="Today's snapshot"
-                className="w-full h-full object-cover object-top"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-accent text-center mt-2 font-medium">Today</p>
-        </div>
-        {/* Historical snapshots */}
-        {displaySnapshots.map((snapshot, i) => (
-          <a
-            key={i}
-            href={snapshot.snapshotUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group block"
-          >
-            <div className="aspect-[4/3] rounded-lg bg-bg-inset border border-border-subtle overflow-hidden transition-all group-hover:border-accent group-hover:shadow-lg">
-              {failedImages.has(snapshot.timestamp) ? (
-                <div className="w-full h-full flex items-center justify-center bg-bg-inset">
-                  <div className="w-10 h-10 rounded-full bg-border-subtle/50" />
-                </div>
-              ) : (
-                <img
-                  src={snapshot.thumbnailUrl}
-                  alt={`Snapshot from ${snapshot.date}`}
-                  className="w-full h-full object-cover object-top"
-                  loading="lazy"
-                  onError={() => {
-                    setFailedImages((prev) => new Set(prev).add(snapshot.timestamp));
-                  }}
-                />
-              )}
-            </div>
-            <p className="text-xs text-text-muted text-center mt-2 group-hover:text-accent transition-colors">
-              {snapshot.date}
-            </p>
-          </a>
-        ))}
-      </div>
-      <p className="text-sm text-text-secondary text-center mt-6">
-        <a href="#claim-cta" className="text-accent hover:underline font-medium">Watch for results</a>
-        <span className="mx-1">—</span>
-        we&apos;ll show you what moved.
-      </p>
-    </section>
-  );
-}
 
 // PDF Download Button with email capture modal
 function PdfDownloadButton({
@@ -1528,6 +1021,7 @@ export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const previewLoading = searchParams.get("preview") === "loading";
+  const [isCachedResult] = useState(() => searchParams.get("cached") === "1");
 
   // Use SWR hook for analysis fetching with automatic polling
   const { data: analysis, error: analysisError, isLoading } = useAnalysis(id);
@@ -1567,7 +1061,6 @@ export default function AnalysisPage() {
   const claimSubmittedRef = useRef(false);
   const [claimEmailSent, setClaimEmailSent] = useState(false);
   const [claimError, setClaimError] = useState("");
-  const [deployExpanded, setDeployExpanded] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [claimModalType, setClaimModalType] = useState<ClaimModalType>(null);
 
@@ -1575,12 +1068,20 @@ export default function AnalysisPage() {
   useEffect(() => {
     if (searchParams.get("already_claimed") === "true") {
       setClaimModalType("already_claimed");
-      // Clean up URL without reload
       const url = new URL(window.location.href);
       url.searchParams.delete("already_claimed");
       window.history.replaceState({}, "", url.toString());
     }
   }, [searchParams]);
+
+  // Strip ?cached=1 param after capturing it in state
+  useEffect(() => {
+    if (isCachedResult) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("cached");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [isCachedResult]);
 
   const handleClaimEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1911,8 +1412,6 @@ export default function AnalysisPage() {
 
   const s = analysis.structured_output;
   const isChronicle = analysis.parent_analysis_id && analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
-  const isClaimed = !!analysis.claim_status?.claimed_by_current_user;
-  const isClaimedScan1 = isClaimed && !isChronicle;
   const pageCtx = analysis.page_context;
 
   // Findings counts for scan-1 dossier sidebar
@@ -1925,148 +1424,18 @@ export default function AnalysisPage() {
   return (
     <main className="min-h-screen text-text-primary">
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
-        {/* Page context banner — shown when analysis belongs to a registered page */}
+        {/* Page context breadcrumb — shown when analysis belongs to a registered page */}
         {pageCtx && (
           <div className="analysis-context-shell pt-6 pb-3">
-            {/* Chronicle or claimed scan 1: Page-centric breadcrumb (sidebar has details) */}
-            {isChronicle || isClaimedScan1 ? (
-              <nav className="analysis-context-breadcrumb">
-                <Link href="/dashboard">Your pages</Link>
-                <span>/</span>
-                <span>{getPageLabel(analysis.url)}</span>
-              </nav>
-            ) : (
-              /* Initial audit: Original header style */
-              <div className="space-y-2">
-                {/* Breadcrumb — just two segments */}
-                <nav className="flex items-center gap-2 text-sm">
-                  <Link
-                    href="/dashboard"
-                    className="text-text-muted hover:text-accent transition-colors"
-                  >
-                    Your pages
-                  </Link>
-                  <span className="text-text-muted">/</span>
-                  <span className="text-text-primary">
-                    {getDomain(analysis.url)}
-                  </span>
-                </nav>
-
-                {/* Page header — scan info left, actions right */}
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold text-text-primary">
-                      Scan #{pageCtx.scan_number}
-                    </span>
-                    {analysis.deploy_context ? (
-                      <>
-                        <span className="text-text-muted">·</span>
-                        <button
-                          onClick={() => setDeployExpanded(!deployExpanded)}
-                          className="flex items-center gap-1 text-text-muted hover:text-accent transition-colors"
-                        >
-                          <span>Deploy {analysis.deploy_context.commit_sha.slice(0, 7)}</span>
-                          <svg
-                            className={`w-3 h-3 transition-transform ${deployExpanded ? 'rotate-180' : ''}`}
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          >
-                            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </button>
-                      </>
-                    ) : analysis.trigger_type && analysis.trigger_type !== "manual" ? (
-                      <>
-                        <span className="text-text-muted">·</span>
-                        <span className="text-text-muted">
-                          {analysis.trigger_type === "daily" && "Daily scan"}
-                          {analysis.trigger_type === "weekly" && "Weekly scan"}
-                        </span>
-                      </>
-                    ) : null}
-                    <span className="text-text-muted">·</span>
-                    <span className="text-text-muted">
-                      {new Date(analysis.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </span>
-                  </div>
-
-                  {/* Actions — History + Prev/Next */}
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/pages/${pageCtx.page_id}`}
-                      className="text-sm text-text-muted hover:text-accent transition-colors"
-                    >
-                      History
-                    </Link>
-                    <span className="text-border-subtle">·</span>
-                    {pageCtx.prev_analysis_id ? (
-                      <Link
-                        href={`/analysis/${pageCtx.prev_analysis_id}`}
-                        className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M13 15l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        Prev
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-text-muted opacity-50">Prev</span>
-                    )}
-                    {pageCtx.next_analysis_id ? (
-                      <Link
-                        href={`/analysis/${pageCtx.next_analysis_id}`}
-                        className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
-                      >
-                        Next
-                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M7 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-text-muted opacity-50">Next</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Deploy context expanded dropdown */}
-                {analysis.deploy_context && deployExpanded && (
-                  <div className="glass-card p-4 max-w-md">
-                    <p className="font-medium text-text-primary text-sm">
-                      &ldquo;{analysis.deploy_context.commit_message}&rdquo;
-                    </p>
-                    <p className="text-xs text-text-muted mt-1">
-                      {analysis.deploy_context.commit_author} committed {timeAgo(analysis.deploy_context.commit_timestamp)}
-                    </p>
-
-                    {analysis.deploy_context.changed_files.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-border-outer">
-                        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-                          Changed files
-                        </p>
-                        <ul className="space-y-0.5">
-                          {analysis.deploy_context.changed_files.slice(0, 3).map((file: string, i: number) => (
-                            <li key={i} className="text-xs font-mono text-text-secondary truncate">
-                              {file}
-                            </li>
-                          ))}
-                          {analysis.deploy_context.changed_files.length > 3 && (
-                            <li className="text-xs text-text-muted">
-                              +{analysis.deploy_context.changed_files.length - 3} more
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+            <nav className="analysis-context-breadcrumb">
+              <Link href="/dashboard">Your pages</Link>
+              <span>/</span>
+              <span>{getPageLabel(analysis.url)}</span>
+            </nav>
           </div>
         )}
 
-{/* Three-way layout: Chronicle (scan 2+) | Claimed scan 1 (dossier) | Unclaimed (single-column) */}
+        {/* Two-way layout: Chronicle (scan 2+) | Dossier (all scan 1) */}
         {isChronicle ? (
           <ChronicleLayout
             changesSummary={analysis.changes_summary as ChangesSummary}
@@ -2084,8 +1453,8 @@ export default function AnalysisPage() {
             currentAnalysisId={analysis.id}
             hypothesisMap={pageCtx?.hypothesis_map}
           />
-        ) : isClaimedScan1 ? (
-          /* Claimed scan 1 — dossier shell with scan-1 feed content */
+        ) : (
+          /* Scan 1 (claimed or unclaimed) — dossier layout */
           <div className="dossier-layout">
             {/* Mobile: sidebar as top card */}
             <div className="md:hidden">
@@ -2098,6 +1467,7 @@ export default function AnalysisPage() {
                 scanNumber={1}
                 totalScans={pageCtx?.total_scans || 1}
                 progress={{ validated: 0, watching: 0, open: 0 }}
+                onViewFullScreenshot={(view) => setShowScreenshot(view || "desktop")}
                 findingsCounts={findingsCounts}
                 auditSummary={s.summary}
                 mobile
@@ -2123,6 +1493,14 @@ export default function AnalysisPage() {
 
             {/* Feed: scan-1 content */}
             <div className="dossier-feed">
+              {/* Cached result nudge */}
+              {isCachedResult && !analysis.claim_status?.is_claimed && (
+                <p className="text-sm text-text-muted mb-4">
+                  Last scanned {timeAgo(analysis.created_at)}.
+                  Making changes? <a href="#claim-cta" className="text-accent hover:underline">Track this page</a> for fresh scans.
+                </p>
+              )}
+
               {/* Verdict */}
               <section className="dossier-verdict-section">
                 <VerdictDisplay verdict={s.verdict} verdictContext={s.verdictContext} />
@@ -2160,65 +1538,6 @@ export default function AnalysisPage() {
               )}
             </div>
           </div>
-        ) : (
-          /* Unclaimed audit — single-column layout */
-          <>
-            {/* Hero Section */}
-            <NewHeroSection
-              structured={s}
-              findings={s.findings}
-              domain={getDomain(analysis.url)}
-              createdAt={analysis.created_at}
-              screenshotUrl={analysis.screenshot_url}
-              mobileScreenshotUrl={analysis.mobile_screenshot_url}
-              onScreenshotClick={(view) => setShowScreenshot(view)}
-              claimStatus={analysis.claim_status}
-              onShareLink={handleShareLink}
-              linkCopied={linkCopied}
-              claimEmailSent={claimEmailSent}
-              claimEmail={claimEmail}
-              setClaimEmail={setClaimEmail}
-              claimLoading={claimLoading}
-              onClaimEmail={handleClaimEmail}
-              claimError={claimError}
-              claimedPageId={analysis.claim_status?.claimed_page_id}
-              pageUrl={analysis.url}
-            />
-
-            <hr className="section-divider" />
-
-            {/* Headline Rewrite */}
-            {s.headlineRewrite && (
-              <>
-                <HeadlineRewriteSection
-                  headlineRewrite={s.headlineRewrite as {
-                    current: string;
-                    suggested: string;
-                    currentAnnotation?: string;
-                    suggestedAnnotation?: string;
-                    reasoning?: string;
-                  }}
-                />
-                <hr className="section-divider" />
-              </>
-            )}
-
-            {/* Findings */}
-            {s.findings && s.findings.length > 0 && (
-              <>
-                <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} claimStatus={analysis.claim_status} />
-                <hr className="section-divider" />
-              </>
-            )}
-
-            {/* Bottom Line — Wayback value bridge (unclaimed only) */}
-            {!analysis.claim_status?.claimed_by_current_user && !analysis.claim_status?.is_claimed && (
-              <>
-                <BottomLineSection url={analysis.url} summary={s.summary} screenshotUrl={analysis.screenshot_url} />
-                <hr className="section-divider" />
-              </>
-            )}
-          </>
         )}
 
         {/* Zone 6: Claim CTA — not shown when current user owns this page */}
