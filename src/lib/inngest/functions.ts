@@ -18,7 +18,7 @@ import { safeDecrypt } from "@/lib/crypto";
 import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
 import { correlateChange } from "@/lib/analytics/correlation";
 import { createProvider } from "@/lib/analytics/provider";
-import { canUseDeployScans, type SubscriptionTier } from "@/lib/permissions";
+import { canUseDeployScans, canAccessMobile, getEffectiveTier, type SubscriptionTier } from "@/lib/permissions";
 import { captureEvent, flushEvents } from "@/lib/posthog-server";
 
 /**
@@ -83,17 +83,40 @@ export const analyzeUrl = inngest.createFunction(
         .eq("id", analysisId);
     });
 
+    // Step 1b: Check if user has mobile access
+    const canMobile = await step.run("check-mobile-tier", async () => {
+      const { data: analysis } = await supabase
+        .from("analyses")
+        .select("user_id")
+        .eq("id", analysisId)
+        .single();
+      if (!analysis?.user_id) return false;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("subscription_tier, subscription_status")
+        .eq("id", analysis.user_id)
+        .single();
+      if (!profile) return false;
+      const tier = getEffectiveTier(
+        (profile.subscription_tier as SubscriptionTier) || "free",
+        profile.subscription_status
+      );
+      return canAccessMobile(tier);
+    });
+
     // Step 2: Screenshot + upload (expensive, isolated to prevent re-capture on LLM failure)
     const { screenshotUrl, mobileScreenshotUrl, base64, mobileBase64, metadata } = await step.run(
       "capture-screenshot",
       async () => {
-        // Capture desktop + mobile in parallel
+        // Capture desktop + mobile in parallel (mobile only for Pro tier)
         const [desktop, mobileResult] = await Promise.all([
           captureScreenshot(url),
-          captureScreenshot(url, { width: 390 }).catch((err) => {
-            console.warn(`Mobile screenshot failed for ${url}:`, err);
-            return null;
-          }),
+          canMobile
+            ? captureScreenshot(url, { width: 390 }).catch((err) => {
+                console.warn(`Mobile screenshot failed for ${url}:`, err);
+                return null;
+              })
+            : Promise.resolve(null),
         ]);
 
         // Upload both in parallel (mobile only if captured)
@@ -1094,10 +1117,11 @@ export const deployDetected = inngest.createFunction(
             continue;
           }
 
-          // 3. Screenshot current page (desktop + mobile in parallel if baseline has mobile)
+          // 3. Screenshot current page (desktop + mobile if Pro and baseline has mobile)
+          const deployCanMobile = canAccessMobile(userTier) && !!baseline.mobile_screenshot_url;
           const [desktopResult, mobileResult] = await Promise.all([
             captureScreenshot(page.url),
-            baseline.mobile_screenshot_url
+            deployCanMobile
               ? captureScreenshot(page.url, { width: 390 }).catch((err) => {
                   console.warn(`Mobile screenshot failed for ${page.url}:`, err);
                   return null;
