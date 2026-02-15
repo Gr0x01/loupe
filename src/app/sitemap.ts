@@ -58,7 +58,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${BASE_URL}/guides/${integration}`,
     lastModified: now,
     changeFrequency: "monthly" as const,
-    priority: 0.7,
+    priority: integration === "github" ? 0.8 : 0.7,
   }));
 
   return [...staticPages, ...toolPages, ...guidePages];

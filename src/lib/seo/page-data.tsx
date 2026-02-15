@@ -719,7 +719,7 @@ export const visualpingAlternativeData: CoreSEOPageData & {
 
 // ===== INTEGRATION GUIDES DATA =====
 
-export const INTEGRATIONS = ["posthog", "ga4", "github"] as const;
+export const INTEGRATIONS = ["posthog", "ga4"] as const;
 export type Integration = (typeof INTEGRATIONS)[number];
 
 export interface IntegrationGuideData {
@@ -827,52 +827,6 @@ export const integrationGuideData: Record<Integration, IntegrationGuideData> = {
     },
   },
 
-  github: {
-    name: "GitHub",
-    tagline: "Connect GitHub",
-    headline: "Know what shipped with every deploy",
-    subheadline:
-      "Connect your repo. We watch for pushes and scan your site right after deploy. See which commit changed what.",
-    steps: [
-      {
-        title: "Install the GitHub App",
-        description:
-          "Select which repos to connect. We only need push event access.",
-      },
-      {
-        title: "Deploy triggers scan",
-        description:
-          "Push to main → we wait for deploy → we screenshot and analyze.",
-      },
-      {
-        title: "See the commit context",
-        description:
-          "Each change shows the commit that triggered it. Files changed, author, message.",
-      },
-    ],
-    benefits: [
-      {
-        title: "Automatic monitoring",
-        description:
-          "No manual scheduling. Every deploy gets captured and analyzed.",
-      },
-      {
-        title: "Commit attribution",
-        description:
-          '"This change came from commit abc123." Debug faster.',
-      },
-      {
-        title: "Team visibility",
-        description:
-          "Everyone sees what shipped. No more 'who changed the homepage?'",
-      },
-    ],
-    metadata: {
-      title: "GitHub Integration — Loupe",
-      description:
-        "Connect GitHub to Loupe. Automatically scan your site after every deploy. See which commits changed what.",
-    },
-  },
 };
 
 // ===== SHARED ICONS =====
