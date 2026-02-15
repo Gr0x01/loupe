@@ -283,6 +283,28 @@
   color: rgba(255, 90, 54, 0.25);
 }
 
+/* ===== CLAIM CTA (dark end section) ===== */
+.claim-cta-input {
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--paper-0);
+  font-size: 0.9375rem;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.claim-cta-input::placeholder {
+  color: rgba(247, 244, 236, 0.35);
+}
+
+.claim-cta-input:focus {
+  outline: none;
+  border-color: var(--signal);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+
 /* ===== FAQ ACCORDION ANIMATION ===== */
 .faq-item {
   overflow: hidden;

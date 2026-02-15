@@ -843,7 +843,7 @@ function PdfDownloadButton({
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+        className="inline-flex items-center gap-1.5 hover:text-accent transition-colors"
       >
         <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M8 2v8m0 0l-3-3m3 3l3-3" strokeLinecap="round" strokeLinejoin="round" />
@@ -1548,14 +1548,17 @@ export default function AnalysisPage() {
           </div>
         )}
 
-        {/* Zone 6: Claim CTA — not shown when current user owns this page */}
-        {!analysis.claim_status?.claimed_by_current_user && (
-        <section id="claim-cta" className="py-10">
-          <div className="glass-card-elevated p-6 md:p-8 max-w-[540px] mx-auto">
+      </div>
+      {/* END max-w container — CTA is full-bleed */}
+
+      {/* Zone 6: Claim CTA — not shown when current user owns this page */}
+      {!analysis.claim_status?.claimed_by_current_user && (
+        <section id="claim-cta" className="section-dark mt-20">
+          <div className="max-w-4xl mx-auto px-6 lg:px-10 py-12 md:py-16">
             {analysis.claim_status?.is_claimed ? (
               /* Domain already claimed by another user */
-              <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(0,0,0,0.05)] mb-4">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,255,255,0.08)] mb-4">
                   <svg className="w-6 h-6 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
@@ -1574,8 +1577,8 @@ export default function AnalysisPage() {
               </div>
             ) : claimEmailSent ? (
               /* Post-submit state */
-              <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.1)] mb-4">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.15)] mb-4">
                   <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
@@ -1591,96 +1594,95 @@ export default function AnalysisPage() {
                 </p>
               </div>
             ) : (
-              /* Claim form */
-              <div className="text-center">
-                {/* Headline + subhead */}
-                <h2
-                  className="text-2xl md:text-3xl font-bold text-text-primary"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {analysis.changes_summary
-                    ? "Want to know if your changes helped?"
-                    : "Fix something. We\u2019ll tell you if it worked."}
-                </h2>
-                <p className="text-base text-text-secondary mt-2 mb-6">
-                  {analysis.changes_summary
-                    ? "We\u2019ll re-scan after you make changes and show you what improved."
-                    : "Loupe re-scans automatically and tells you what changed \u2014 and whether it helped or hurt."}
-                </p>
-
-                {/* Email form — the hero */}
-                <form onSubmit={handleClaimEmail} className="flex flex-col sm:flex-row items-stretch gap-3 mb-3">
-                  <input
-                    type="email"
-                    placeholder="you@company.com"
-                    value={claimEmail}
-                    onChange={(e) => setClaimEmail(e.target.value)}
-                    className="input-glass flex-1 text-center sm:text-left"
-                    aria-label="Email address"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={claimLoading}
-                    className="btn-primary whitespace-nowrap"
+              /* Claim form — two-column on desktop */
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+                {/* Left: headline + subhead */}
+                <div>
+                  <h2
+                    className="text-2xl md:text-3xl font-bold text-text-primary"
+                    style={{ fontFamily: "var(--font-display)" }}
                   >
-                    {claimLoading ? "Sending..." : "Watch for results"}
-                  </button>
-                </form>
+                    {analysis.changes_summary
+                      ? "Want to know if your changes helped?"
+                      : "Fix something. See if it\u00a0worked."}
+                  </h2>
+                  <p className="text-base text-text-secondary mt-2">
+                    {analysis.changes_summary
+                      ? "We re-scan after you make changes and show you what improved."
+                      : "We re-scan automatically and show you what changed \u2014 and whether it helped or hurt."}
+                  </p>
+                </div>
 
-                {/* Error message */}
-                {claimError && (
-                  <p className="text-sm text-score-low mt-2 mb-4">{claimError}</p>
-                )}
+                {/* Right: form */}
+                <div>
+                  <form onSubmit={handleClaimEmail} className="flex flex-col gap-3">
+                    <input
+                      type="email"
+                      placeholder="you@company.com"
+                      value={claimEmail}
+                      onChange={(e) => setClaimEmail(e.target.value)}
+                      className="claim-cta-input w-full"
+                      aria-label="Email address"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={claimLoading}
+                      className="btn-primary w-full"
+                    >
+                      {claimLoading ? "Sending..." : "Start tracking"}
+                    </button>
+                  </form>
 
-                {/* Trust line + urgency */}
-                {!claimError && (
-                  <div className="text-sm text-text-muted mb-6">
-                    <p>Free for one page. No credit card.</p>
-                    <p className="mt-1 text-xs">Your first scan runs Monday.</p>
-                  </div>
-                )}
+                  {claimError && (
+                    <p className="text-sm text-score-low mt-2">{claimError}</p>
+                  )}
 
+                  {!claimError && (
+                    <p className="text-sm text-text-muted mt-3">
+                      Free for one page · No credit card · First scan Monday
+                    </p>
+                  )}
+                </div>
               </div>
             )}
-          </div>
 
-          {/* Footer actions */}
-          <div className="flex items-center justify-center gap-3 text-sm text-text-muted mt-6">
-            <button
-              onClick={handleShareLink}
-              className="hover:text-accent transition-colors"
-            >
-              {linkCopied ? "Copied!" : "Copy link"}
-            </button>
-            <span className="text-border-subtle">·</span>
-            <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                `"${s.verdict}"\n\nGot this from my @getloupe audit:`
-              )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-accent transition-colors"
-            >
-              Post on X
-            </a>
-            <span className="text-border-subtle">·</span>
-            <PdfDownloadButton
-              analysis={{
-                id: analysis.id,
-                url: analysis.url,
-                created_at: analysis.created_at,
-                structured_output: s,
-              }}
-            />
-            <span className="text-border-subtle">·</span>
-            <Link href="/" className="hover:text-accent transition-colors">
-              New audit
-            </Link>
+            {/* Share actions */}
+            <div className="flex items-center justify-center gap-3 text-sm text-text-muted mt-10 pt-8 border-t border-[rgba(255,255,255,0.08)]">
+              <button
+                onClick={handleShareLink}
+                className="hover:text-accent transition-colors"
+              >
+                {linkCopied ? "Copied!" : "Copy link"}
+              </button>
+              <span className="opacity-30">·</span>
+              <a
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                  `"${s.verdict}"\n\nGot this from my @getloupe audit:`
+                )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-accent transition-colors"
+              >
+                Post on X
+              </a>
+              <span className="opacity-30">·</span>
+              <PdfDownloadButton
+                analysis={{
+                  id: analysis.id,
+                  url: analysis.url,
+                  created_at: analysis.created_at,
+                  structured_output: s,
+                }}
+              />
+              <span className="opacity-30">·</span>
+              <Link href="/" className="hover:text-accent transition-colors">
+                New audit
+              </Link>
+            </div>
           </div>
         </section>
-        )}
-      </div>
+      )}
 
       {/* Screenshot modal */}
       {showScreenshot && analysis.screenshot_url && (
