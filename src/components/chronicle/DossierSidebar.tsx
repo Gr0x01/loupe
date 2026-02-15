@@ -31,6 +31,19 @@ interface DossierSidebarProps {
   currentAnalysisId?: string;
   findingsCounts?: FindingsCounts;
   auditSummary?: string;
+  /** Show cached-result nudge with relative time + track CTA */
+  cachedAt?: string | null;
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 function formatTrackingSince(dateStr: string): string {
@@ -70,6 +83,7 @@ export function DossierSidebar({
   currentAnalysisId,
   findingsCounts,
   auditSummary,
+  cachedAt,
 }: DossierSidebarProps) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -162,6 +176,25 @@ export function DossierSidebar({
             </button>
           )}
         </div>
+
+        {/* Cached result nudge (mobile) */}
+        {cachedAt && (
+          <div className="dossier-cached-nudge">
+            <p className="dossier-cached-time">
+              <svg className="dossier-cached-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="8" cy="8" r="6" />
+                <path d="M8 5v3l2 1.5" />
+              </svg>
+              Scanned {formatTimeAgo(cachedAt)}
+            </p>
+            <a href="#claim-cta" className="dossier-cached-cta" onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
+            }}>
+              Track this page for fresh scans&thinsp;→
+            </a>
+          </div>
+        )}
       </div>
     );
   }
@@ -259,6 +292,25 @@ export function DossierSidebar({
           {summaryText}
         </p>
       </div>
+
+      {/* Cached result nudge */}
+      {cachedAt && (
+        <div className="dossier-cached-nudge">
+          <p className="dossier-cached-time">
+            <svg className="dossier-cached-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="8" r="6" />
+              <path d="M8 5v3l2 1.5" />
+            </svg>
+            Scanned {formatTimeAgo(cachedAt)}
+          </p>
+          <a href="#claim-cta" className="dossier-cached-cta" onClick={(e) => {
+            e.preventDefault();
+            document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
+          }}>
+            Track this page for fresh scans&thinsp;→
+          </a>
+        </div>
+      )}
     </div>
   );
 }

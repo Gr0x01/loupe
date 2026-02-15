@@ -1470,6 +1470,7 @@ export default function AnalysisPage() {
                 onViewFullScreenshot={(view) => setShowScreenshot(view || "desktop")}
                 findingsCounts={findingsCounts}
                 auditSummary={s.summary}
+                cachedAt={isCachedResult && !analysis.claim_status?.is_claimed ? analysis.created_at : null}
                 mobile
               />
             </div>
@@ -1488,19 +1489,12 @@ export default function AnalysisPage() {
                 onViewFullScreenshot={(view) => setShowScreenshot(view || "desktop")}
                 findingsCounts={findingsCounts}
                 auditSummary={s.summary}
+                cachedAt={isCachedResult && !analysis.claim_status?.is_claimed ? analysis.created_at : null}
               />
             </aside>
 
             {/* Feed: scan-1 content */}
             <div className="dossier-feed">
-              {/* Cached result nudge */}
-              {isCachedResult && !analysis.claim_status?.is_claimed && (
-                <p className="text-sm text-text-muted mb-4">
-                  Last scanned {timeAgo(analysis.created_at)}.
-                  Making changes? <a href="#claim-cta" className="text-accent hover:underline">Track this page</a> for fresh scans.
-                </p>
-              )}
-
               {/* Verdict */}
               <section className="dossier-verdict-section">
                 <VerdictDisplay verdict={s.verdict} verdictContext={s.verdictContext} />

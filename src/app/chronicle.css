@@ -161,6 +161,7 @@
   position: relative;
   max-width: 1080px;
   margin: 0 auto;
+  padding-top: 2.5rem;
 }
 
 @media (min-width: 768px) {
@@ -172,11 +173,11 @@
   }
 }
 
-/* Desktop sticky sidebar — clears the 72px sticky nav */
+/* Desktop sticky sidebar — clears the 72px sticky nav + breathing room */
 .dossier-sidebar {
   position: sticky;
-  top: 5.5rem;
-  max-height: calc(100vh - 6.5rem);
+  top: 8rem;
+  max-height: calc(100vh - 9rem);
   overflow-y: auto;
   padding-bottom: 2rem;
 }
@@ -342,6 +343,45 @@
   font-size: 0.68rem;
   font-weight: 600;
   margin-top: 0.15rem;
+}
+
+/* Cached result nudge */
+.dossier-cached-nudge {
+  background: rgba(100, 116, 139, 0.06);
+  border-radius: 8px;
+  padding: 0.625rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dossier-cached-time {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.dossier-cached-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--ink-300);
+  flex-shrink: 0;
+}
+
+.dossier-cached-cta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--coral);
+  text-decoration: none;
+  padding-left: calc(12px + 0.375rem); /* align with text after icon */
+}
+
+.dossier-cached-cta:hover {
+  text-decoration: underline;
 }
 
 /* Scorecard */
