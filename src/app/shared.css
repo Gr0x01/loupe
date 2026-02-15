@@ -118,12 +118,7 @@
 }
 
 .section-header::before {
-  content: "";
-  display: block;
-  width: 3px;
-  height: 24px;
-  background: var(--signal);
-  border-radius: 2px;
+  display: none;
 }
 
 /* ===== INPUT ===== */

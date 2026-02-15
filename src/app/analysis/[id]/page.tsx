@@ -231,40 +231,30 @@ function CollapsedFindingCard({
       aria-expanded={false}
       aria-label={`${finding.title}. ${finding.impact} impact. Click to expand.`}
     >
-      {/* Top row: Impact badge + expand hint */}
-      <div className="flex items-center justify-between mb-2">
-        <span className={getImpactBadgeClass(finding.impact)}>
-          {finding.impact.toUpperCase()}
-        </span>
-        <span className="text-xs text-text-muted opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-          View fix
-          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+      <div className={`finding-card-accent finding-card-accent-${finding.impact}`} />
+      <div className="finding-card-body">
+        {/* Title */}
+        <h3
+          className="text-lg font-bold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {finding.title}
+        </h3>
+
+        {/* Problem preview - what's wrong on their page */}
+        <p className="finding-problem-preview">
+          &ldquo;{problemPreview}&rdquo;
+        </p>
+
+        {/* Prediction with friendly text */}
+        <div className="mt-auto pt-2 flex items-center gap-1.5 text-score-high">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="2 12 6 8 9 11 14 4" />
+            <polyline points="10 4 14 4 14 8" />
           </svg>
-        </span>
-      </div>
-
-      {/* Title */}
-      <h3
-        className="text-lg font-bold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {finding.title}
-      </h3>
-
-      {/* Problem preview - what's wrong on their page */}
-      <p className="finding-problem-preview">
-        &ldquo;{problemPreview}&rdquo;
-      </p>
-
-      {/* Prediction with friendly text */}
-      <div className="mt-auto pt-2 flex items-center gap-1.5 text-score-high">
-        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="2 12 6 8 9 11 14 4" />
-          <polyline points="10 4 14 4 14 8" />
-        </svg>
-        <span className="font-semibold">+{finding.prediction.range}</span>
-        <span className="text-text-muted font-normal text-sm truncate">{finding.prediction.friendlyText}</span>
+          <span className="font-semibold">+{finding.prediction.range}</span>
+          <span className="text-text-muted font-normal text-sm truncate">{finding.prediction.friendlyText}</span>
+        </div>
       </div>
     </div>
   );
@@ -393,11 +383,10 @@ function ExpandedFindingCard({
 
   return (
     <div className={`new-finding-card-expanded ${isDimmed ? 'finding-card-dimmed' : ''}`}>
+      <div className={`finding-card-accent finding-card-accent-${finding.impact}`} />
+      <div className="finding-card-expanded-body">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-5">
-        <span className={getImpactBadgeClass(finding.impact)}>
-          {impactLabel}
-        </span>
+      <div className="flex items-center justify-end mb-5">
         <button
           onClick={onToggle}
           className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-[rgba(0,0,0,0.04)] transition-colors"
@@ -600,6 +589,7 @@ function ExpandedFindingCard({
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
