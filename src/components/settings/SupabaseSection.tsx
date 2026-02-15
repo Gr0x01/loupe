@@ -133,12 +133,10 @@ export function SupabaseSection({
               </div>
             )}
 
-            <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
-              <p className="text-sm text-text-secondary">
-                <span className="font-medium text-text-primary">How it works:</span>{" "}
-                We track row counts in tables like signups, orders, and waitlist to correlate page changes with real business outcomes.
-              </p>
-            </div>
+            <p className="text-sm text-text-muted">
+              <span className="font-medium">How it works:</span>{" "}
+              We track row counts in tables like signups, orders, and waitlist to correlate page changes with real business outcomes.
+            </p>
           </div>
         )}
       </div>

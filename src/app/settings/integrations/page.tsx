@@ -486,12 +486,10 @@ function SettingsContent() {
               </div>
 
               <div className="mt-6 pt-6 border-t border-border-subtle">
-                <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
-                  <p className="text-sm text-text-secondary">
-                    <span className="font-medium text-text-primary">What you&apos;ll get:</span>{" "}
-                    Emails when your daily or weekly scans complete, and after GitHub-triggered deploy scans.
-                  </p>
-                </div>
+                <p className="text-sm text-text-muted">
+                  <span className="font-medium">What you&apos;ll get:</span>{" "}
+                  Emails when your daily or weekly scans complete, and after GitHub-triggered deploy scans.
+                </p>
               </div>
             </div>
           </section>
@@ -539,29 +537,35 @@ function SettingsContent() {
                         ) : null
                       )}
                     </div>
-                    <p className="text-sm text-text-secondary">
-                      {pageCount} of {TIER_LIMITS[tier].pages} pages used
-                    </p>
                   </div>
+                </div>
+
+                <div className="text-right flex-shrink-0">
+                  <p className="text-2xl sm:text-3xl font-bold text-text-primary">
+                    {pageCount}<span className="text-text-muted font-normal">/{TIER_LIMITS[tier].pages}</span>
+                  </p>
+                  <p className="text-xs text-text-muted">pages used</p>
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-border-subtle flex flex-wrap gap-3">
-                {tier !== "pro" && (
-                  <Link href="/pricing" className="btn-primary">
-                    Upgrade
-                  </Link>
-                )}
-                {stripeCustomerId && (
-                  <button
-                    onClick={handleOpenPortal}
-                    disabled={portalLoading}
-                    className="btn-secondary"
-                  >
-                    {portalLoading ? "Opening..." : "Manage subscription"}
-                  </button>
-                )}
-              </div>
+              {(tier !== "pro" || stripeCustomerId) && (
+                <div className="mt-6 pt-6 border-t border-border-subtle flex flex-wrap gap-3">
+                  {tier !== "pro" && (
+                    <Link href="/pricing" className="btn-primary">
+                      Upgrade
+                    </Link>
+                  )}
+                  {stripeCustomerId && (
+                    <button
+                      onClick={handleOpenPortal}
+                      disabled={portalLoading}
+                      className="btn-secondary"
+                    >
+                      {portalLoading ? "Opening..." : "Manage subscription"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         </div>

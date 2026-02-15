@@ -73,12 +73,10 @@ export function PostHogSection({
               </div>
             </div>
 
-            <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
-              <p className="text-sm text-text-secondary">
-                <span className="font-medium text-text-primary">How it works:</span>{" "}
-                We&apos;ll pull your analytics so you can see if changes actually moved the&nbsp;needle.
-              </p>
-            </div>
+            <p className="text-sm text-text-muted">
+              <span className="font-medium">How it works:</span>{" "}
+              We&apos;ll pull your analytics so you can see if changes actually moved the&nbsp;needle.
+            </p>
           </div>
         )}
       </div>

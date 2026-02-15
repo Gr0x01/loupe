@@ -143,13 +143,10 @@ export function GitHubSection({
               )}
             </div>
 
-            {/* How it works */}
-            <div className="glass-card p-4 bg-[rgba(255,90,54,0.04)]">
-              <p className="text-sm text-text-secondary">
-                <span className="font-medium text-text-primary">How it works:</span>{" "}
-                When you push to the default branch, we wait 45 seconds for your deploy to finish, then scan all pages linked to the repo.
-              </p>
-            </div>
+            <p className="text-sm text-text-muted">
+              <span className="font-medium">How it works:</span>{" "}
+              When you push to the default branch, we wait 45 seconds for your deploy to finish, then scan all pages linked to the repo.
+            </p>
           </div>
         )}
       </div>
