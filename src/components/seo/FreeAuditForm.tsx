@@ -91,7 +91,7 @@ export default function FreeAuditForm({
         );
       } catch { /* localStorage may be unavailable */ }
 
-      router.push(`/analysis/${data.id}`);
+      router.push(`/analysis/${data.id}${data.cached ? "?cached=1" : ""}`);
     } catch {
       setError("Failed to start analysis. Please try again.");
       setLoading(false);

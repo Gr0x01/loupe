@@ -9,6 +9,7 @@ const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const MAX_URL_LENGTH = 2048;
 const MAX_EMAIL_LENGTH = 320;
+const CACHE_WINDOW_HOURS = 6;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 export async function POST(req: NextRequest) {
@@ -75,6 +76,23 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createServiceClient();
+
+    // Return recent unclaimed analysis for the same URL (6h cache)
+    const { data: cached } = await supabase
+      .from("analyses")
+      .select("id, created_at")
+      .eq("url", parsedUrl.toString())
+      .eq("status", "complete")
+      .is("parent_analysis_id", null)
+      .is("user_id", null)
+      .gte("created_at", new Date(Date.now() - CACHE_WINDOW_HOURS * 60 * 60 * 1000).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (cached) {
+      return NextResponse.json({ id: cached.id, cached: true });
+    }
 
     let analysisId: string;
 

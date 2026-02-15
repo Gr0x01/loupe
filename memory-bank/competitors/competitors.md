@@ -104,6 +104,59 @@ Or complementary framing: Landkit is the "before," Loupe is the "after."
 
 ---
 
+## UX Audit (tryuxaudit.com)
+
+**Not a direct threat** — different job-to-be-done, different buyer.
+
+### Overview
+
+| Field | Value |
+|-------|-------|
+| **URL** | tryuxaudit.com |
+| **Discovered** | Feb 15, 2026 |
+| **Positioning** | "Automated UX insights for better digital products" |
+| **Target** | Designers, agencies, UX teams |
+
+### Product
+
+One-shot UX audit tool. Paste URL → AI scans 50+ UX heuristics, accessibility violations, visual bugs → scored PDF report.
+
+**How it works:** Input URL → AI Analysis → Download PDF report
+
+**Features:** Visual hierarchy, accessibility (WCAG), typography, interaction (broken links/hit areas), contrast issues.
+
+**Selling points:** "Objective scoring", "Agency-ready reports", white-label PDF exports.
+
+### Pricing
+
+| | Free | Starter | Pro | Agency |
+|---|---|---|---|---|
+| **Price** | $0/mo | $12/mo | $39/mo | $79/mo |
+| **Audits/mo** | 2 | 8 | 30 | 75 |
+| **Pages/audit** | 3 | 15 | 30 | 75 |
+| **Key features** | Standard insights | PDF reports | Advanced insights, Priority support, Commercial use | Team members, White-label, Priority support |
+
+Also sells one-time credit packs: 50/$12, 200/$40, 500/$80, 1000/$140.
+
+### UX Audit vs Loupe
+
+| Aspect | UX Audit | Loupe |
+|--------|----------|-------|
+| **Core job** | "Grade my UX" (point-in-time) | "What changed and did it help?" (longitudinal) |
+| **Output** | Scored PDF report | Timeline + metric correlation |
+| **Audience** | Designers, agencies | Solo founders, vibe coders |
+| **Value model** | Bulk audits (credits) | Ongoing monitoring (pages) |
+| **Repeat value** | Manual re-audit | Auto-scans, auto-correlates |
+| **Moat** | Low — checklist audit is commoditized | Change-to-outcome correlation |
+
+### Assessment
+
+They validate the market for AI audits but aren't solving the same problem. They audit UX heuristics; Loupe connects changes to outcomes. Their existence sharpens Loupe's positioning: *"UX Audit tells you what's wrong. Loupe tells you what worked."*
+
+**Where they could pull attention:** Agency/team tier, white-label PDFs, multi-page crawling.
+
+---
+
 ## LandingBoost
 
 Screenshots captured in `/competitors/landingboost/`. Score-based auditor (48/100 shown). Less feature-rich than Landkit. No detailed analysis done yet.
