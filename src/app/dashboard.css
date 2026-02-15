@@ -264,7 +264,7 @@
 
 /* Dimmed state for inaccurate findings */
 .finding-card-dimmed {
-  opacity: 0.6;
+  opacity: 0.82;
   transition: opacity 300ms ease;
 }
 

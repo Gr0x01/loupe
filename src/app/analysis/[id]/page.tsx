@@ -15,7 +15,6 @@ import type {
   AnalysisResult,
   ChangesSummary,
   Finding,
-  ElementType,
 } from "@/lib/types/analysis";
 import { ChronicleLayout, DossierSidebar } from "@/components/chronicle";
 import { ClaimModal, type ClaimModalType } from "@/components/ClaimModal";
@@ -73,66 +72,6 @@ const DRIFT_EXAMPLES = [
   "Conversions dropped 23% the same week your social proof disappeared",
   "Your CTA says 'Submit' instead of 'Get My Plan' — changed 3 deploys ago",
 ];
-
-// Element type icons for new finding cards
-const ELEMENT_ICONS: Record<ElementType, React.ReactNode> = {
-  headline: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 4h12M2 8h8M2 12h10" />
-    </svg>
-  ),
-  cta: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="12" height="8" rx="2" />
-      <path d="M5 8h6" />
-    </svg>
-  ),
-  copy: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 4h12M2 7h10M2 10h8M2 13h6" />
-    </svg>
-  ),
-  layout: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="12" height="12" rx="1" />
-      <path d="M2 6h12M6 6v8" />
-    </svg>
-  ),
-  "social-proof": (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 2l1.5 4.5H14l-3.5 3 1.5 4.5L8 11l-4 3 1.5-4.5L2 6.5h4.5z" />
-    </svg>
-  ),
-  form: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="3" width="12" height="3" rx="0.5" />
-      <rect x="2" y="8" width="12" height="3" rx="0.5" />
-      <rect x="5" y="13" width="6" height="2" rx="0.5" />
-    </svg>
-  ),
-  image: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="12" height="12" rx="1" />
-      <circle cx="5.5" cy="5.5" r="1.5" />
-      <path d="M14 10l-3-3-5 5-2-2-2 2" />
-    </svg>
-  ),
-  navigation: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 4h12M2 8h12M2 12h12" />
-    </svg>
-  ),
-  pricing: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 2v12M5 4.5c0-1.5 1.5-2 3-2s3 .5 3 2-1.5 2-3 2.5-3 1-3 2.5 1.5 2 3 2 3-.5 3-2" />
-    </svg>
-  ),
-  other: (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="8" cy="8" r="6" />
-    </svg>
-  ),
-};
 
 // Impact badge class helper for new findings
 function getImpactBadgeClass(impact: "high" | "medium" | "low"): string {
@@ -209,6 +148,16 @@ function CollapsedFindingCard({
   finding: Finding;
   onToggle: () => void;
 }) {
+  const impactLabel = {
+    high: "High",
+    medium: "Medium",
+    low: "Low",
+  }[finding.impact];
+  const diagnosisSource = finding.methodology.trim();
+  const diagnosisSummary = diagnosisSource.length > 30
+    ? `${diagnosisSource.slice(0, 30).trimEnd()}...`
+    : diagnosisSource;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -233,9 +182,19 @@ function CollapsedFindingCard({
     >
       <div className={`finding-card-accent finding-card-accent-${finding.impact}`} />
       <div className="finding-card-body">
+        <p className="finding-collapsed-meta">
+          <span className={`finding-impact-inline finding-impact-inline-${finding.impact}`}>
+            {impactLabel}
+          </span>
+          <span className="finding-meta-separator" aria-hidden="true">•</span>
+          <span className="finding-diagnosis-inline">
+            {diagnosisSummary || finding.element}
+          </span>
+        </p>
+
         {/* Title */}
         <h3
-          className="text-lg font-bold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors"
+          className="finding-collapsed-title"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {finding.title}
@@ -247,13 +206,13 @@ function CollapsedFindingCard({
         </p>
 
         {/* Prediction with friendly text */}
-        <div className="mt-auto pt-2 flex items-center gap-1.5 text-score-high">
+        <div className="finding-collapsed-lift">
           <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="2 12 6 8 9 11 14 4" />
             <polyline points="10 4 14 4 14 8" />
           </svg>
-          <span className="font-semibold">+{finding.prediction.range}</span>
-          <span className="text-text-muted font-normal text-sm truncate">{finding.prediction.friendlyText}</span>
+          <span className="finding-collapsed-lift-range">+{finding.prediction.range}</span>
+          <span className="finding-collapsed-lift-text">{finding.prediction.friendlyText}</span>
         </div>
       </div>
     </div>
@@ -263,6 +222,68 @@ function CollapsedFindingCard({
 // Feedback types for finding cards - accuracy-based for LLM calibration
 type FindingFeedbackType = 'accurate' | 'inaccurate' | null;
 
+function CurrentVsRecommended({
+  currentLabel,
+  currentText,
+  currentNote,
+  recommendedLabel,
+  recommendedText,
+  copied,
+  onCopy,
+  copyTitle,
+  copyAriaLabel,
+  containerClassName = "",
+}: {
+  currentLabel: string;
+  currentText: string;
+  currentNote?: string;
+  recommendedLabel: string;
+  recommendedText: string;
+  copied: boolean;
+  onCopy: (e: React.MouseEvent) => void;
+  copyTitle: string;
+  copyAriaLabel: string;
+  containerClassName?: string;
+}) {
+  return (
+    <div className={`finding-expanded-comparison ${containerClassName}`.trim()}>
+      <div className="finding-content-box finding-content-current">
+        <span className="finding-content-label">{currentLabel}</span>
+        <p className="finding-content-text">
+          &ldquo;{currentText}&rdquo;
+        </p>
+        {currentNote && <p className="finding-content-note">{currentNote}</p>}
+      </div>
+
+      <div className="fix-block finding-content-fix">
+        <div className="fix-block-header">
+          <span className="fix-block-label">{recommendedLabel}</span>
+          <button
+            onClick={onCopy}
+            className="fix-block-copy"
+            title={copyTitle}
+            aria-label={copyAriaLabel}
+          >
+            {copied ? (
+              <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+              </svg>
+            )}
+          </button>
+        </div>
+        <p className="fix-block-text">
+          &ldquo;{recommendedText}&rdquo;
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Expanded Finding Card - full-width with 2-column interior
 function ExpandedFindingCard({
   finding,
@@ -271,7 +292,6 @@ function ExpandedFindingCard({
   onFeedback,
   analysisId,
   domain,
-  showVerifyCta,
 }: {
   domain: string;
   finding: Finding;
@@ -279,7 +299,6 @@ function ExpandedFindingCard({
   feedback: FindingFeedbackType;
   onFeedback: (type: FindingFeedbackType, feedbackText?: string) => void;
   analysisId: string;
-  showVerifyCta?: boolean;
 }) {
   const [suggestionCopied, setSuggestionCopied] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
@@ -377,19 +396,30 @@ function ExpandedFindingCard({
     medium: "MEDIUM IMPACT",
     low: "LOW IMPACT",
   }[finding.impact];
+  const methodologyPreview = finding.methodology.trim();
+  const diagnosisSummary = methodologyPreview.length > 48
+    ? `${methodologyPreview.slice(0, 48).trimEnd()}...`
+    : methodologyPreview;
 
   // Determine if card should be dimmed (inaccurate feedback)
   const isDimmed = feedback === 'inaccurate';
 
   return (
     <div className={`new-finding-card-expanded ${isDimmed ? 'finding-card-dimmed' : ''}`}>
-      <div className={`finding-card-accent finding-card-accent-${finding.impact}`} />
-      <div className="finding-card-expanded-body">
-      {/* Header row */}
-      <div className="flex items-center justify-end mb-5">
+      {/* Header row: impact + element context + close */}
+      <div className="finding-expanded-header">
+        <p className="finding-expanded-meta-line">
+          <span className={`finding-impact-inline finding-impact-inline-${finding.impact}`}>
+            {impactLabel}
+          </span>
+          <span className="finding-meta-separator" aria-hidden="true">•</span>
+          <span className="finding-diagnosis-inline">
+            {diagnosisSummary ? `Diagnosis: ${diagnosisSummary}` : finding.element}
+          </span>
+        </p>
         <button
           onClick={onToggle}
-          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-[rgba(0,0,0,0.04)] transition-colors"
+          className="finding-card-close-btn"
           aria-label="Close"
         >
           <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -400,77 +430,38 @@ function ExpandedFindingCard({
 
       {/* Title */}
       <h3
-        className="text-2xl font-bold text-text-primary mb-6"
+        className="finding-expanded-title"
         style={{ fontFamily: "var(--font-display)" }}
       >
         {finding.title}
       </h3>
 
       {/* Two-column content: Current | Suggestion — matching structure */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        {/* Left: Current */}
-        <div className="finding-content-box finding-content-current">
-          <span className="finding-content-label">Current</span>
-          <p className="finding-content-text">
-            &ldquo;{finding.currentValue}&rdquo;
-          </p>
-        </div>
-
-        {/* Right: The fix — dark block matching Chronicle */}
-        <div className="fix-block">
-          <div className="fix-block-header">
-            <span className="fix-block-label">The fix</span>
-            <button
-              onClick={handleCopySuggestion}
-              className="fix-block-copy"
-              title={suggestionCopied ? "Copied!" : "Copy"}
-              aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion"}
-            >
-              {suggestionCopied ? (
-                <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                  <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                </svg>
-              )}
-            </button>
-          </div>
-          <p className="fix-block-text">
-            &ldquo;{finding.suggestion}&rdquo;
-          </p>
-        </div>
-      </div>
+      <CurrentVsRecommended
+        currentLabel="Current wording"
+        currentText={finding.currentValue}
+        recommendedLabel="Recommended change"
+        recommendedText={finding.suggestion}
+        copied={suggestionCopied}
+        onCopy={handleCopySuggestion}
+        copyTitle={suggestionCopied ? "Copied!" : "Copy"}
+        copyAriaLabel={suggestionCopied ? "Copied to clipboard" : "Copy suggestion"}
+      />
 
       {/* Prediction line - full width */}
-      <div className="prediction-badge mb-5">
+      <div className="finding-prediction-row">
         <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="2 12 6 8 9 11 14 4" />
           <polyline points="10 4 14 4 14 8" />
         </svg>
+        <span className="finding-prediction-kicker">Modeled lift</span>
         <span className="font-bold">+{finding.prediction.range}</span>
         <span className="text-text-secondary">{finding.prediction.friendlyText}</span>
       </div>
 
-      {/* Verify CTA — bridge audit to monitoring */}
-      {showVerifyCta && (
-        <a
-          href="#claim-cta"
-          className="block text-sm text-text-muted hover:text-accent transition-colors mb-5"
-          onClick={(e) => {
-            e.preventDefault();
-            document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
-          }}
-        >
-          Fix this → we&apos;ll re-scan and show you if it worked.
-        </a>
-      )}
-
       {/* Footer: Why this matters + Feedback */}
       <div className="pt-4 border-t border-border-outer">
-        <div className="flex items-center justify-between gap-4">
+        <div className="finding-footer-row">
           {/* Left: Why this matters toggle */}
           {finding.assumption ? (
             <button
@@ -490,7 +481,7 @@ function ExpandedFindingCard({
               >
                 <polyline points="4 6 8 10 12 6" />
               </svg>
-              Why this matters
+              Why this should work
             </button>
           ) : (
             <div /> /* Spacer */
@@ -583,21 +574,20 @@ function ExpandedFindingCard({
             data-open={whyOpen}
           >
             <div className="finding-expandable-inner">
-              <div className="mt-3 p-4 bg-[rgba(0,0,0,0.02)] rounded-lg">
+              <div className="finding-assumption-panel">
                 <p className="text-sm text-text-secondary leading-relaxed">{finding.assumption}</p>
               </div>
             </div>
           </div>
         )}
       </div>
-      </div>
     </div>
   );
 }
 
 // Findings Section for new format - 2-column grid layout
-function FindingsSection({ findings, analysisId, domain, claimStatus }: { findings: Finding[]; analysisId: string; domain: string; claimStatus?: ClaimStatus }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]; analysisId: string; domain: string }) {
+  const [expandedId, setExpandedId] = useState<string | null>(findings[0]?.id ?? null);
   // Lift feedback state so it persists across card collapse/expand
   const [feedbackMap, setFeedbackMap] = useState<Record<string, FindingFeedbackType>>({});
 
@@ -622,7 +612,7 @@ function FindingsSection({ findings, analysisId, domain, claimStatus }: { findin
             What to fix
           </h2>
           <p className="text-sm text-text-muted mt-1">
-            Ranked by conversion impact. Start at the top.
+            Ranked by likely conversion lift. Start at the top. Fix any of these and we&apos;ll re-scan to show the delta.
           </p>
         </div>
       </div>
@@ -644,7 +634,6 @@ function FindingsSection({ findings, analysisId, domain, claimStatus }: { findin
                   onFeedback={(type) => handleFeedback(finding.id, type)}
                   analysisId={analysisId}
                   domain={domain}
-                  showVerifyCta={!claimStatus?.claimed_by_current_user && !claimStatus?.is_claimed}
                 />
               ) : (
                 <CollapsedFindingCard
@@ -697,56 +686,32 @@ function HeadlineRewriteSection({ headlineRewrite }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
+      <div className="headline-rewrite-layout">
         {/* Left: the rewrite card */}
-        <div className="glass-card-elevated p-6">
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">Current</p>
-          <p className="text-base text-ink-300 leading-relaxed mb-1">
-            &ldquo;{headlineRewrite.current}&rdquo;
-          </p>
-          {annotation && (
-            <p className="text-sm text-text-muted italic mb-4">
-              {annotation}
-            </p>
-          )}
-          {!annotation && <div className="mb-4" />}
-
-          <div className="fix-block">
-            <div className="fix-block-header">
-              <span className="fix-block-label">The fix</span>
-              <button
-                onClick={handleCopy}
-                className="fix-block-copy"
-                title={copied ? "Copied!" : "Copy headline"}
-                aria-label={copied ? "Copied to clipboard" : "Copy suggested headline"}
-              >
-                {copied ? (
-                  <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                    <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            <p
-              className="fix-block-text font-bold"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {headlineRewrite.suggested}
-            </p>
-          </div>
+        <div className="headline-rewrite-card">
+          <CurrentVsRecommended
+            currentLabel="Current wording"
+            currentText={headlineRewrite.current}
+            currentNote={annotation}
+            recommendedLabel="Recommended change"
+            recommendedText={headlineRewrite.suggested}
+            copied={copied}
+            onCopy={(e) => {
+              e.stopPropagation();
+              handleCopy();
+            }}
+            copyTitle={copied ? "Copied!" : "Copy headline"}
+            copyAriaLabel={copied ? "Copied to clipboard" : "Copy suggested headline"}
+            containerClassName="headline-rewrite-comparison"
+          />
         </div>
 
         {/* Right: why this works — open text, no card */}
         {explanation && (
-          <div className="flex flex-col justify-center">
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
+          <div className="headline-rewrite-why">
+            <p className="headline-rewrite-why-label">Why this should work</p>
             <p
-              className="text-xl lg:text-2xl text-text-primary leading-snug"
+              className="headline-rewrite-why-text"
               style={{ fontFamily: "var(--font-display)" }}
             >
               {explanation}
@@ -1020,15 +985,24 @@ export default function AnalysisPage() {
   const [progress, setProgress] = useState(0);
   const [stageIndex, setStageIndex] = useState(0);
   const [exampleIndex, setExampleIndex] = useState(0);
-  const loadingStartTime = useRef(Date.now());
+  const loadingStartTime = useRef(0);
   const hasTrackedCompletion = useRef(false);
   const hasTrackedView = useRef(false);
+  const [showScreenshot, setShowScreenshot] = useState<false | "desktop" | "mobile">(false);
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimEmail, setClaimEmail] = useState("");
+  const [submittedClaimAnalysisId, setSubmittedClaimAnalysisId] = useState<string | null>(null);
+  const [claimEmailSent, setClaimEmailSent] = useState(false);
+  const [claimError, setClaimError] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+  const claimModalType: ClaimModalType = searchParams.get("already_claimed") === "true"
+    ? "already_claimed"
+    : null;
 
   // Reset tracking refs when navigating between analyses
   useEffect(() => {
     hasTrackedCompletion.current = false;
     hasTrackedView.current = false;
-    claimSubmittedRef.current = false;
   }, [id]);
 
   // Track audit page view (fires once per analysis load)
@@ -1043,27 +1017,6 @@ export default function AnalysisPage() {
     }
   }, [analysis]);
 
-  const [showScreenshot, setShowScreenshot] = useState<false | "desktop" | "mobile">(false);
-  const [claimLoading, setClaimLoading] = useState(false);
-  const [claimEmail, setClaimEmail] = useState("");
-  const claimEmailRef = useRef(claimEmail);
-  claimEmailRef.current = claimEmail;
-  const claimSubmittedRef = useRef(false);
-  const [claimEmailSent, setClaimEmailSent] = useState(false);
-  const [claimError, setClaimError] = useState("");
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [claimModalType, setClaimModalType] = useState<ClaimModalType>(null);
-
-  // Check for already_claimed URL param (from auth callback redirect)
-  useEffect(() => {
-    if (searchParams.get("already_claimed") === "true") {
-      setClaimModalType("already_claimed");
-      const url = new URL(window.location.href);
-      url.searchParams.delete("already_claimed");
-      window.history.replaceState({}, "", url.toString());
-    }
-  }, [searchParams]);
-
   // Strip ?cached=1 param after capturing it in state
   useEffect(() => {
     if (isCachedResult) {
@@ -1073,10 +1026,17 @@ export default function AnalysisPage() {
     }
   }, [isCachedResult]);
 
+  const handleClaimModalClose = () => {
+    if (claimModalType !== "already_claimed") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("already_claimed");
+    window.history.replaceState({}, "", url.toString());
+  };
+
   const handleClaimEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!claimEmail || !analysis || claimSubmittedRef.current) return;
-    claimSubmittedRef.current = true;
+    if (!claimEmail || !analysis || claimLoading || submittedClaimAnalysisId === analysis.id) return;
+    setSubmittedClaimAnalysisId(analysis.id);
     setClaimLoading(true);
     setClaimError("");
     try {
@@ -1096,9 +1056,11 @@ export default function AnalysisPage() {
         const data = await res.json();
         console.error("Claim link error:", data.error);
         setClaimError("Failed to send link. Try again.");
+        setSubmittedClaimAnalysisId(null);
       }
     } catch {
       setClaimError("Network error. Try again.");
+      setSubmittedClaimAnalysisId(null);
     }
     setClaimLoading(false);
   };
@@ -1126,12 +1088,11 @@ export default function AnalysisPage() {
       });
 
       // Auto-handle email typed during loading screen
-      const email = claimEmailRef.current.trim();
-      if (email && !claimSubmittedRef.current) {
+      const email = claimEmail.trim();
+      if (email && !claimEmailSent && submittedClaimAnalysisId !== analysis.id) {
         const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         if (isValid) {
           // Valid email — auto-submit claim link
-          claimSubmittedRef.current = true;
           fetch("/api/auth/claim-link", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1139,10 +1100,10 @@ export default function AnalysisPage() {
           }).then((res) => {
             if (res.ok) {
               setClaimEmailSent(true);
+              setSubmittedClaimAnalysisId(analysis.id);
               track("page_claimed", { domain: getDomain(analysis.url), url: analysis.url });
             } else {
               // Claim failed — save as lead so email isn't lost
-              claimSubmittedRef.current = false;
               return fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1170,7 +1131,7 @@ export default function AnalysisPage() {
         }
       }
     }
-  }, [analysis?.status, analysis?.structured_output, analysis?.id, analysis?.url]);
+  }, [analysis?.status, analysis?.structured_output, analysis?.id, analysis?.url, claimEmail, claimEmailSent, submittedClaimAnalysisId]);
 
   // Steady progress animation (no looping, no fast jumps)
   useEffect(() => {
@@ -1517,7 +1478,7 @@ export default function AnalysisPage() {
               {s.findings && s.findings.length > 0 && (
                 <>
                   <hr className="section-divider" />
-                  <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} claimStatus={analysis.claim_status} />
+                  <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} />
                 </>
               )}
 
@@ -1688,7 +1649,7 @@ export default function AnalysisPage() {
       {/* Claim error modal */}
       <ClaimModal
         type={claimModalType}
-        onClose={() => setClaimModalType(null)}
+        onClose={handleClaimModalClose}
         domain={getDomain(analysis.url)}
         onShare={handleShareLink}
       />
