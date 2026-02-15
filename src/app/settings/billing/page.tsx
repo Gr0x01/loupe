@@ -230,21 +230,15 @@ function BillingPageContent() {
                   {tierInfo.name}
                 </h2>
               </div>
-              {data.tier !== "free" && (
+              {data.tier !== "free" && data.status !== "active" && (
                 <span
                   className={`px-2 py-1 text-xs font-medium rounded ${
-                    data.status === "active"
-                      ? "bg-emerald-subtle text-emerald"
-                      : data.status === "past_due"
+                    data.status === "past_due"
                       ? "bg-amber-subtle text-amber"
                       : "bg-paper-100 text-ink-500"
                   }`}
                 >
-                  {data.status === "active"
-                    ? "Active"
-                    : data.status === "past_due"
-                    ? "Past due"
-                    : "Canceled"}
+                  {data.status === "past_due" ? "Past due" : "Canceled"}
                 </span>
               )}
             </div>
