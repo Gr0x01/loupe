@@ -4,6 +4,12 @@ import { useState } from "react";
 import { ScanPicker } from "./ScanPicker";
 import { getDomain, getPath } from "@/lib/utils/url";
 
+interface FindingsCounts {
+  high: number;
+  medium: number;
+  low: number;
+}
+
 interface DossierSidebarProps {
   screenshotUrl?: string | null;
   mobileScreenshotUrl?: string | null;
@@ -23,6 +29,8 @@ interface DossierSidebarProps {
   mobile?: boolean;
   pageId?: string;
   currentAnalysisId?: string;
+  findingsCounts?: FindingsCounts;
+  auditSummary?: string;
 }
 
 function formatTrackingSince(dateStr: string): string {
@@ -60,6 +68,8 @@ export function DossierSidebar({
   mobile = false,
   pageId,
   currentAnalysisId,
+  findingsCounts,
+  auditSummary,
 }: DossierSidebarProps) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -70,20 +80,30 @@ export function DossierSidebar({
   const domain = pageUrl ? getDomain(pageUrl) : "";
   const pagePath = pageUrl ? getPath(pageUrl) : "";
 
+  const isScan1 = !!findingsCounts;
+  const summarySource = isScan1 ? auditSummary : runningSummary;
   const summaryText =
-    runningSummary && runningSummary.trim()
-      ? runningSummary
-      : "Loupe is building intelligence about this page. Insights appear after a few scans.";
-  const isFallback = !runningSummary || !runningSummary.trim();
+    summarySource && summarySource.trim()
+      ? summarySource
+      : isScan1
+        ? "Your baseline audit is complete. Loupe will track changes from here."
+        : "Loupe is building intelligence about this page. Insights appear after a few scans.";
+  const isFallback = !summarySource || !summarySource.trim();
 
-  const hasScanPicker = !!(pageId && currentAnalysisId && scanNumber && totalScans);
+  const hasScanPicker = !isScan1 && !!(pageId && currentAnalysisId && scanNumber && totalScans);
 
-  const scorecard = [
-    { label: "Wins", count: wins, accent: "dossier-scorecard-emerald" },
-    { label: "Regressions", count: regressions, accent: "dossier-scorecard-coral" },
-    { label: "Watching", count: progress.watching, accent: "dossier-scorecard-amber" },
-    { label: "Suggestions", count: progress.open, accent: "dossier-scorecard-gray" },
-  ];
+  const scorecard = isScan1
+    ? [
+        { label: "High", count: findingsCounts.high, accent: "dossier-scorecard-coral" },
+        { label: "Medium", count: findingsCounts.medium, accent: "dossier-scorecard-amber" },
+        { label: "Low", count: findingsCounts.low, accent: "dossier-scorecard-gray" },
+      ]
+    : [
+        { label: "Wins", count: wins, accent: "dossier-scorecard-emerald" },
+        { label: "Regressions", count: regressions, accent: "dossier-scorecard-coral" },
+        { label: "Watching", count: progress.watching, accent: "dossier-scorecard-amber" },
+        { label: "Suggestions", count: progress.open, accent: "dossier-scorecard-gray" },
+      ];
 
   if (mobile) {
     return (
@@ -94,7 +114,9 @@ export function DossierSidebar({
             <p className="dossier-sidebar-domain">{pagePath}</p>
           )}
           <div className="dossier-mobile-meta">
-            {hasScanPicker ? (
+            {isScan1 ? (
+              <span className="dossier-sidebar-scan-label">Baseline Scan</span>
+            ) : hasScanPicker ? (
               <ScanPicker
                 currentScanNumber={scanNumber}
                 totalScans={totalScans}
@@ -199,7 +221,9 @@ export function DossierSidebar({
             Tracking since {formatTrackingSince(baselineDate)}
           </p>
         )}
-        {hasScanPicker ? (
+        {isScan1 ? (
+          <p className="dossier-sidebar-scan-label">Baseline Scan</p>
+        ) : hasScanPicker ? (
           <ScanPicker
             currentScanNumber={scanNumber}
             totalScans={totalScans}
@@ -228,7 +252,7 @@ export function DossierSidebar({
 
       {/* Running summary */}
       <div className="dossier-sidebar-summary">
-        <p className="dossier-sidebar-summary-label">Intelligence</p>
+        <p className="dossier-sidebar-summary-label">{isScan1 ? "Summary" : "Intelligence"}</p>
         <p
           className={`dossier-sidebar-summary-text ${isFallback ? "dossier-sidebar-summary-fallback" : ""}`}
         >

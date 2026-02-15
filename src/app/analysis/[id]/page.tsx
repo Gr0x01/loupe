@@ -17,7 +17,7 @@ import type {
   Finding,
   ElementType,
 } from "@/lib/types/analysis";
-import { ChronicleLayout } from "@/components/chronicle";
+import { ChronicleLayout, DossierSidebar } from "@/components/chronicle";
 import { ClaimModal, type ClaimModalType } from "@/components/ClaimModal";
 
 // Type guard for Chronicle format (N+1 scans with new ChangesSummary)
@@ -327,6 +327,7 @@ function HeroScreenshot({
 
 interface NewHeroSectionProps {
   structured: AnalysisResult["structured"];
+  findings?: Finding[];
   domain: string;
   createdAt: string;
   screenshotUrl: string | null;
@@ -347,6 +348,7 @@ interface NewHeroSectionProps {
 
 function NewHeroSection({
   structured,
+  findings,
   domain,
   createdAt,
   screenshotUrl,
@@ -364,6 +366,7 @@ function NewHeroSection({
   claimedPageId,
   pageUrl,
 }: NewHeroSectionProps) {
+  const top3 = findings?.slice(0, 3) ?? [];
   return (
     <section className="py-8 lg:py-12">
       <div className="glass-card-elevated mx-auto overflow-hidden">
@@ -399,6 +402,21 @@ function NewHeroSection({
               <span className="font-bold">{structured.findingsCount}</span>
               {" "}opportunit{structured.findingsCount !== 1 ? "ies" : "y"} below
             </p>
+
+            {/* Top 3 fixes — scannable preview */}
+            {top3.length > 0 && (
+              <ol className="hero-reveal-impact flex flex-col gap-1 text-sm text-text-secondary list-none p-0 m-0">
+                {top3.map((f, i) => (
+                  <li key={f.id} className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-text-muted w-4 text-right">{i + 1}.</span>
+                    <span>{f.title}</span>
+                    <span className={`text-xs font-semibold uppercase ${f.impact === 'high' ? 'text-score-low' : 'text-text-muted'}`}>
+                      {f.impact === 'high' ? 'HIGH' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
 
             {/* Domain + date — mobile only (desktop shows under screenshot) */}
             <p className="lg:hidden text-xs text-text-muted">
@@ -471,14 +489,14 @@ function NewHeroSection({
                   disabled={claimLoading}
                   className="btn-primary text-sm py-2.5 px-5 whitespace-nowrap"
                 >
-                  {claimLoading ? "..." : "Track this page"}
+                  {claimLoading ? "..." : "Watch for results"}
                 </button>
               </form>
               {claimError && <p className="text-xs text-score-low lg:hidden">{claimError}</p>}
 
               {/* Trust line + share */}
               <div className="flex items-center justify-between lg:justify-end gap-4 text-xs">
-                <span className="text-text-muted">Free — we&apos;ll tell you when something&nbsp;changes</span>
+                <span className="text-text-muted">Free for one page. No credit&nbsp;card.</span>
                 <button
                   onClick={onShareLink}
                   className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-border-subtle text-text-secondary hover:border-accent hover:text-accent transition-colors"
@@ -511,7 +529,7 @@ function CollapsedFindingCard({
 
   // Truncate currentValue for preview
   const problemPreview = finding.currentValue.length > 45
-    ? finding.currentValue.slice(0, 45).trim() + "…"
+    ? finding.currentValue.slice(0, 45).trim() + "..."
     : finding.currentValue;
 
   return (
@@ -574,6 +592,7 @@ function ExpandedFindingCard({
   onFeedback,
   analysisId,
   domain,
+  showVerifyCta,
 }: {
   domain: string;
   finding: Finding;
@@ -581,6 +600,7 @@ function ExpandedFindingCard({
   feedback: FindingFeedbackType;
   onFeedback: (type: FindingFeedbackType, feedbackText?: string) => void;
   analysisId: string;
+  showVerifyCta?: boolean;
 }) {
   const [suggestionCopied, setSuggestionCopied] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
@@ -718,13 +738,13 @@ function ExpandedFindingCard({
           </p>
         </div>
 
-        {/* Right: Suggestion */}
-        <div className="finding-content-box finding-content-suggestion">
-          <div className="flex items-center justify-between">
-            <span className="finding-content-label finding-content-label-accent">Suggestion</span>
+        {/* Right: The fix — dark block matching Chronicle */}
+        <div className="fix-block">
+          <div className="fix-block-header">
+            <span className="fix-block-label">The fix</span>
             <button
               onClick={handleCopySuggestion}
-              className="new-finding-copy-btn"
+              className="fix-block-copy"
               title={suggestionCopied ? "Copied!" : "Copy"}
               aria-label={suggestionCopied ? "Copied to clipboard" : "Copy suggestion"}
             >
@@ -740,7 +760,7 @@ function ExpandedFindingCard({
               )}
             </button>
           </div>
-          <p className="finding-content-text finding-content-text-bold">
+          <p className="fix-block-text">
             &ldquo;{finding.suggestion}&rdquo;
           </p>
         </div>
@@ -755,6 +775,20 @@ function ExpandedFindingCard({
         <span className="font-bold">+{finding.prediction.range}</span>
         <span className="text-text-secondary">{finding.prediction.friendlyText}</span>
       </div>
+
+      {/* Verify CTA — bridge audit to monitoring */}
+      {showVerifyCta && (
+        <a
+          href="#claim-cta"
+          className="block text-sm text-text-muted hover:text-accent transition-colors mb-5"
+          onClick={(e) => {
+            e.preventDefault();
+            document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
+          }}
+        >
+          Fix this → we&apos;ll re-scan and show you if it worked.
+        </a>
+      )}
 
       {/* Footer: Why this matters + Feedback */}
       <div className="pt-4 border-t border-border-outer">
@@ -883,7 +917,7 @@ function ExpandedFindingCard({
 }
 
 // Findings Section for new format - 2-column grid layout
-function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]; analysisId: string; domain: string }) {
+function FindingsSection({ findings, analysisId, domain, claimStatus }: { findings: Finding[]; analysisId: string; domain: string; claimStatus?: ClaimStatus }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Lift feedback state so it persists across card collapse/expand
   const [feedbackMap, setFeedbackMap] = useState<Record<string, FindingFeedbackType>>({});
@@ -931,6 +965,7 @@ function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]
                   onFeedback={(type) => handleFeedback(finding.id, type)}
                   analysisId={analysisId}
                   domain={domain}
+                  showVerifyCta={!claimStatus?.claimed_by_current_user && !claimStatus?.is_claimed}
                 />
               ) : (
                 <CollapsedFindingCard
@@ -941,6 +976,104 @@ function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]
             </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+// Headline Rewrite Section — single-column before/after flow
+function HeadlineRewriteSection({ headlineRewrite }: {
+  headlineRewrite: {
+    current: string;
+    suggested: string;
+    currentAnnotation?: string;
+    suggestedAnnotation?: string;
+    reasoning?: string;
+  };
+}) {
+  const [copied, setCopied] = useState(false);
+  const annotation = headlineRewrite.currentAnnotation;
+  const explanation = headlineRewrite.suggestedAnnotation || headlineRewrite.reasoning || "";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(headlineRewrite.suggested);
+    setCopied(true);
+    track("suggestion_copied", { element_type: "headline", domain: "" });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <section className="result-section">
+      <div className="section-header">
+        <div>
+          <h2
+            className="text-4xl font-bold text-text-primary"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Headline rewrite
+          </h2>
+          <p className="text-sm text-text-muted mt-1">
+            One change that could shift perception immediately.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
+        {/* Left: the rewrite card */}
+        <div className="glass-card-elevated p-6">
+          <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">Current</p>
+          <p className="text-base text-ink-300 leading-relaxed mb-1">
+            &ldquo;{headlineRewrite.current}&rdquo;
+          </p>
+          {annotation && (
+            <p className="text-sm text-text-muted italic mb-4">
+              {annotation}
+            </p>
+          )}
+          {!annotation && <div className="mb-4" />}
+
+          <div className="fix-block">
+            <div className="fix-block-header">
+              <span className="fix-block-label">The fix</span>
+              <button
+                onClick={handleCopy}
+                className="fix-block-copy"
+                title={copied ? "Copied!" : "Copy headline"}
+                aria-label={copied ? "Copied to clipboard" : "Copy suggested headline"}
+              >
+                {copied ? (
+                  <svg className="w-4 h-4 text-score-high" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                    <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <p
+              className="fix-block-text font-bold"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {headlineRewrite.suggested}
+            </p>
+          </div>
+        </div>
+
+        {/* Right: why this works — open text, no card */}
+        {explanation && (
+          <div className="flex flex-col justify-center">
+            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
+            <p
+              className="text-xl lg:text-2xl text-text-primary leading-snug"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {explanation}
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1053,7 +1186,7 @@ function BottomLineSection({ url, summary, screenshotUrl }: { url: string; summa
           ))}
         </div>
         <p className="text-sm text-text-secondary text-center mt-6">
-          <a href="#claim-cta" className="text-accent hover:underline font-medium">Track this page</a>
+          <a href="#claim-cta" className="text-accent hover:underline font-medium">Watch for results</a>
           <span className="mx-1">—</span>
           we&apos;ll show you what moved.
         </p>
@@ -1135,7 +1268,7 @@ function BottomLineSection({ url, summary, screenshotUrl }: { url: string; summa
         ))}
       </div>
       <p className="text-sm text-text-secondary text-center mt-6">
-        <a href="#claim-cta" className="text-accent hover:underline font-medium">Track this page</a>
+        <a href="#claim-cta" className="text-accent hover:underline font-medium">Watch for results</a>
         <span className="mx-1">—</span>
         we&apos;ll show you what moved.
       </p>
@@ -1717,14 +1850,14 @@ export default function AnalysisPage() {
                     disabled={claimLoading}
                     className="btn-primary whitespace-nowrap"
                   >
-                    {claimLoading ? "..." : "Watch my page"}
+                    {claimLoading ? "..." : "Watch for results"}
                   </button>
                 </form>
                 {claimError && (
                   <p className="text-xs text-score-low mt-2 text-center">{claimError}</p>
                 )}
                 <p className="text-xs text-text-muted text-center mt-4">
-                  Free. No spam. Just drift alerts.
+                  Free for one page. No credit card.
                 </p>
 
               </>
@@ -1778,7 +1911,16 @@ export default function AnalysisPage() {
 
   const s = analysis.structured_output;
   const isChronicle = analysis.parent_analysis_id && analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
+  const isClaimed = !!analysis.claim_status?.claimed_by_current_user;
+  const isClaimedScan1 = isClaimed && !isChronicle;
   const pageCtx = analysis.page_context;
+
+  // Findings counts for scan-1 dossier sidebar
+  const findingsCounts = s.findings ? {
+    high: s.findings.filter((f: Finding) => f.impact === "high").length,
+    medium: s.findings.filter((f: Finding) => f.impact === "medium").length,
+    low: s.findings.filter((f: Finding) => f.impact === "low").length,
+  } : { high: 0, medium: 0, low: 0 };
 
   return (
     <main className="min-h-screen text-text-primary">
@@ -1786,8 +1928,8 @@ export default function AnalysisPage() {
         {/* Page context banner — shown when analysis belongs to a registered page */}
         {pageCtx && (
           <div className="analysis-context-shell pt-6 pb-3">
-            {/* Chronicle scans: Page-centric header */}
-            {isChronicle ? (
+            {/* Chronicle or claimed scan 1: Page-centric breadcrumb (sidebar has details) */}
+            {isChronicle || isClaimedScan1 ? (
               <nav className="analysis-context-breadcrumb">
                 <Link href="/dashboard">Your pages</Link>
                 <span>/</span>
@@ -1924,147 +2066,10 @@ export default function AnalysisPage() {
           </div>
         )}
 
-{/* Initial Audit Layout — hidden for Chronicle scans */}
-        {!isChronicle && (
-          <>
-        {/* Hero Section */}
-        <NewHeroSection
-          structured={s}
-          domain={getDomain(analysis.url)}
-          createdAt={analysis.created_at}
-          screenshotUrl={analysis.screenshot_url}
-          mobileScreenshotUrl={analysis.mobile_screenshot_url}
-          onScreenshotClick={(view) => setShowScreenshot(view)}
-          claimStatus={analysis.claim_status}
-          onShareLink={handleShareLink}
-          linkCopied={linkCopied}
-          claimEmailSent={claimEmailSent}
-          claimEmail={claimEmail}
-          setClaimEmail={setClaimEmail}
-          claimLoading={claimLoading}
-          onClaimEmail={handleClaimEmail}
-          claimError={claimError}
-          claimedPageId={analysis.claim_status?.claimed_page_id}
-          pageUrl={analysis.url}
-        />
-
-        <hr className="section-divider" />
-
-        {/* Findings Section */}
-        {s.findings && s.findings.length > 0 && (
-          <>
-            <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} />
-            <hr className="section-divider" />
-          </>
-        )}
-
-        {/* Headline Rewrite Spotlight */}
-        {s.headlineRewrite && (
-          <>
-            <section className="result-section">
-              <div className="section-header">
-                <div>
-                  <h2
-                    className="text-4xl font-bold text-text-primary"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    Headline rewrite
-                  </h2>
-                  <p className="text-sm text-text-muted mt-1">
-                    One change that could shift perception immediately.
-                  </p>
-                </div>
-              </div>
-              {(() => {
-                // Type-safe headline rewrite handling
-                const headlineRewrite = s.headlineRewrite as {
-                  current: string;
-                  suggested: string;
-                  currentAnnotation?: string;
-                  suggestedAnnotation?: string;
-                  reasoning?: string;
-                };
-                const annotation = headlineRewrite.currentAnnotation;
-                const explanation = headlineRewrite.suggestedAnnotation || headlineRewrite.reasoning || "";
-
-                return (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
-                    {/* Left: the rewrite card */}
-                    <div className="glass-card-elevated p-6">
-                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1.5">Current</p>
-                      <p className="headline-rewrite-current text-base leading-relaxed mb-2">
-                        {headlineRewrite.current}
-                      </p>
-                      {/* New format: show currentAnnotation as diagnosis */}
-                      {annotation && (
-                        <div className="mt-2 mb-4 flex items-start gap-2 p-3 rounded-lg bg-[rgba(194,59,59,0.05)] border border-[rgba(194,59,59,0.1)]">
-                          <svg className="w-4 h-4 text-score-low flex-shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <circle cx="8" cy="8" r="6" />
-                            <path d="M8 5v3" strokeLinecap="round" />
-                            <circle cx="8" cy="11" r="0.5" fill="currentColor" />
-                          </svg>
-                          <p className="text-sm text-text-secondary leading-relaxed">
-                            {annotation}
-                          </p>
-                        </div>
-                      )}
-                      {!annotation && <div className="mb-2" />}
-
-                      <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-1.5">Suggested</p>
-                      <div className="headline-rewrite-suggested relative">
-                        <p
-                          className="text-base font-bold leading-relaxed pr-8"
-                          style={{ fontFamily: "var(--font-display)" }}
-                        >
-                          {headlineRewrite.suggested}
-                        </p>
-                        <button
-                          onClick={() => navigator.clipboard.writeText(headlineRewrite.suggested)}
-                          className="absolute top-3 right-3 text-text-muted hover:text-accent transition-colors p-1 rounded-md
-                                     hover:bg-[rgba(255,90,54,0.08)] active:scale-[0.95]"
-                          title="Copy headline"
-                        >
-                          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                            <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Right: reasoning/annotation */}
-                    <div className="flex flex-col justify-center">
-                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">Why this works</p>
-                      <p
-                        className="text-xl lg:text-2xl text-text-primary leading-snug"
-                        style={{ fontFamily: "var(--font-display)" }}
-                      >
-                        {explanation}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-            </section>
-
-            <hr className="section-divider" />
-          </>
-        )}
-
-        {/* Bottom Line — merged Summary + Wayback value bridge (only for unclaimed initial audits) */}
-        {!analysis.claim_status?.claimed_by_current_user && !analysis.claim_status?.is_claimed && (
-          <>
-            <BottomLineSection url={analysis.url} summary={s.summary} screenshotUrl={analysis.screenshot_url} />
-            <hr className="section-divider" />
-          </>
-        )}
-          </>
-        )}
-
-        {/* Chronicle Layout for new format N+1 scans */}
-        {analysis.parent_analysis_id && analysis.changes_summary && isChronicleFormat(analysis.changes_summary) && (
+{/* Three-way layout: Chronicle (scan 2+) | Claimed scan 1 (dossier) | Unclaimed (single-column) */}
+        {isChronicle ? (
           <ChronicleLayout
-            changesSummary={analysis.changes_summary}
+            changesSummary={analysis.changes_summary as ChangesSummary}
             deployContext={analysis.deploy_context}
             baselineDate={pageCtx?.baseline_date}
             triggerType={analysis.trigger_type}
@@ -2079,6 +2084,141 @@ export default function AnalysisPage() {
             currentAnalysisId={analysis.id}
             hypothesisMap={pageCtx?.hypothesis_map}
           />
+        ) : isClaimedScan1 ? (
+          /* Claimed scan 1 — dossier shell with scan-1 feed content */
+          <div className="dossier-layout">
+            {/* Mobile: sidebar as top card */}
+            <div className="md:hidden">
+              <DossierSidebar
+                screenshotUrl={analysis.screenshot_url}
+                mobileScreenshotUrl={analysis.mobile_screenshot_url}
+                pageUrl={analysis.url}
+                baselineDate={pageCtx?.baseline_date}
+                metricFocus={null}
+                scanNumber={1}
+                totalScans={pageCtx?.total_scans || 1}
+                progress={{ validated: 0, watching: 0, open: 0 }}
+                findingsCounts={findingsCounts}
+                auditSummary={s.summary}
+                mobile
+              />
+            </div>
+
+            {/* Desktop: sticky sidebar */}
+            <aside className="dossier-sidebar hidden md:block">
+              <DossierSidebar
+                screenshotUrl={analysis.screenshot_url}
+                mobileScreenshotUrl={analysis.mobile_screenshot_url}
+                pageUrl={analysis.url}
+                baselineDate={pageCtx?.baseline_date}
+                metricFocus={null}
+                scanNumber={1}
+                totalScans={pageCtx?.total_scans || 1}
+                progress={{ validated: 0, watching: 0, open: 0 }}
+                onViewFullScreenshot={(view) => setShowScreenshot(view || "desktop")}
+                findingsCounts={findingsCounts}
+                auditSummary={s.summary}
+              />
+            </aside>
+
+            {/* Feed: scan-1 content */}
+            <div className="dossier-feed">
+              {/* Verdict */}
+              <section className="dossier-verdict-section">
+                <VerdictDisplay verdict={s.verdict} verdictContext={s.verdictContext} />
+                <p className="text-base text-text-primary mt-4">
+                  <span className="text-accent font-semibold">+{s.projectedImpactRange}</span>
+                  {" "}potential
+                  <span className="text-text-muted mx-2">·</span>
+                  <span className="font-bold">{s.findingsCount}</span>
+                  {" "}opportunit{s.findingsCount !== 1 ? "ies" : "y"}
+                </p>
+              </section>
+
+              {/* Headline Rewrite */}
+              {s.headlineRewrite && (
+                <>
+                  <hr className="section-divider" />
+                  <HeadlineRewriteSection
+                    headlineRewrite={s.headlineRewrite as {
+                      current: string;
+                      suggested: string;
+                      currentAnnotation?: string;
+                      suggestedAnnotation?: string;
+                      reasoning?: string;
+                    }}
+                  />
+                </>
+              )}
+
+              {/* Findings */}
+              {s.findings && s.findings.length > 0 && (
+                <>
+                  <hr className="section-divider" />
+                  <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} claimStatus={analysis.claim_status} />
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Unclaimed audit — single-column layout */
+          <>
+            {/* Hero Section */}
+            <NewHeroSection
+              structured={s}
+              findings={s.findings}
+              domain={getDomain(analysis.url)}
+              createdAt={analysis.created_at}
+              screenshotUrl={analysis.screenshot_url}
+              mobileScreenshotUrl={analysis.mobile_screenshot_url}
+              onScreenshotClick={(view) => setShowScreenshot(view)}
+              claimStatus={analysis.claim_status}
+              onShareLink={handleShareLink}
+              linkCopied={linkCopied}
+              claimEmailSent={claimEmailSent}
+              claimEmail={claimEmail}
+              setClaimEmail={setClaimEmail}
+              claimLoading={claimLoading}
+              onClaimEmail={handleClaimEmail}
+              claimError={claimError}
+              claimedPageId={analysis.claim_status?.claimed_page_id}
+              pageUrl={analysis.url}
+            />
+
+            <hr className="section-divider" />
+
+            {/* Headline Rewrite */}
+            {s.headlineRewrite && (
+              <>
+                <HeadlineRewriteSection
+                  headlineRewrite={s.headlineRewrite as {
+                    current: string;
+                    suggested: string;
+                    currentAnnotation?: string;
+                    suggestedAnnotation?: string;
+                    reasoning?: string;
+                  }}
+                />
+                <hr className="section-divider" />
+              </>
+            )}
+
+            {/* Findings */}
+            {s.findings && s.findings.length > 0 && (
+              <>
+                <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} claimStatus={analysis.claim_status} />
+                <hr className="section-divider" />
+              </>
+            )}
+
+            {/* Bottom Line — Wayback value bridge (unclaimed only) */}
+            {!analysis.claim_status?.claimed_by_current_user && !analysis.claim_status?.is_claimed && (
+              <>
+                <BottomLineSection url={analysis.url} summary={s.summary} screenshotUrl={analysis.screenshot_url} />
+                <hr className="section-divider" />
+              </>
+            )}
+          </>
         )}
 
         {/* Zone 6: Claim CTA — not shown when current user owns this page */}
@@ -2133,7 +2273,7 @@ export default function AnalysisPage() {
                 >
                   {analysis.changes_summary
                     ? "Want to know if your changes helped?"
-                    : "This is your page today. What happens next?"}
+                    : "Fix something. We\u2019ll tell you if it worked."}
                 </h2>
                 <p className="text-base text-text-secondary mt-2 mb-6">
                   {analysis.changes_summary
@@ -2157,7 +2297,7 @@ export default function AnalysisPage() {
                     disabled={claimLoading}
                     className="btn-primary whitespace-nowrap"
                   >
-                    {claimLoading ? "Sending..." : "Track this page"}
+                    {claimLoading ? "Sending..." : "Watch for results"}
                   </button>
                 </form>
 
@@ -2166,11 +2306,12 @@ export default function AnalysisPage() {
                   <p className="text-sm text-score-low mt-2 mb-4">{claimError}</p>
                 )}
 
-                {/* Trust line */}
+                {/* Trust line + urgency */}
                 {!claimError && (
-                  <p className="text-sm text-text-muted mb-6">
-                    Free forever. No credit card.
-                  </p>
+                  <div className="text-sm text-text-muted mb-6">
+                    <p>Free for one page. No credit card.</p>
+                    <p className="mt-1 text-xs">Your first scan runs Monday.</p>
+                  </div>
                 )}
 
               </div>

@@ -498,6 +498,11 @@
   min-width: 0;
 }
 
+/* Force single-column inside dossier feed (container too narrow for 2-col grid) */
+.dossier-feed .grid.grid-cols-1.lg\:grid-cols-2 {
+  grid-template-columns: 1fr;
+}
+
 /* Verdict */
 .dossier-verdict-section {
   padding-top: 1rem;
