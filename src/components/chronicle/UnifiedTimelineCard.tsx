@@ -178,6 +178,8 @@ export function UnifiedTimelineCard({
       id={id}
       className={`unified-timeline-card unified-timeline-card-${type}`}
     >
+      <div className={`unified-timeline-card-accent unified-timeline-card-accent-${type}`} />
+      <div className="unified-timeline-card-body">
       {/* Header: element name + state badge */}
       <div className="unified-timeline-card-header">
         <div className="unified-timeline-card-heading">
@@ -255,6 +257,7 @@ export function UnifiedTimelineCard({
             <span className="unified-timeline-card-date">{formattedDate}</span>
           )
         )}
+      </div>
       </div>
     </article>
   );

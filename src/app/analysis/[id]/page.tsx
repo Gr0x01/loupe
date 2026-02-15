@@ -1426,7 +1426,7 @@ export default function AnalysisPage() {
       <div className="max-w-[1080px] mx-auto px-6 lg:px-10">
         {/* Page context breadcrumb — shown when analysis belongs to a registered page */}
         {pageCtx && (
-          <div className="analysis-context-shell pt-6 pb-3">
+          <div className="analysis-context-shell pt-4 pb-0">
             <nav className="analysis-context-breadcrumb">
               <Link href="/dashboard">Your pages</Link>
               <span>/</span>

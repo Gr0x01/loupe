@@ -3,7 +3,7 @@
 /* Analysis header shell */
 .analysis-context-shell {
   max-width: 1080px;
-  margin: 0 auto 0.75rem;
+  margin: 0 auto;
 }
 
 .analysis-context-bar {
@@ -162,6 +162,12 @@
   max-width: 1080px;
   margin: 0 auto;
   padding-top: 2.5rem;
+  padding-bottom: 4rem;
+}
+
+/* When breadcrumb precedes dossier, it provides the top spacing — collapse dossier's own padding */
+.analysis-context-shell + .dossier-layout {
+  padding-top: 0;
 }
 
 @media (min-width: 768px) {
@@ -889,8 +895,9 @@
 .unified-timeline-card {
   background: #fff;
   border: 1.5px solid rgba(100, 116, 139, 0.28);
-  border-left-width: 4px;
   border-radius: 8px;
+  display: flex;
+  align-items: stretch;
   padding: 0.92rem 1rem;
   transition: all 160ms ease;
 }
@@ -900,20 +907,23 @@
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
 }
 
-.unified-timeline-card-validated {
-  border-left-color: var(--emerald);
+/* Internal accent bar — matches suggestion card pattern */
+.unified-timeline-card-accent {
+  width: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  align-self: stretch;
 }
 
-.unified-timeline-card-regressed {
-  border-left-color: var(--coral);
-}
+.unified-timeline-card-accent-validated { background: var(--emerald); }
+.unified-timeline-card-accent-regressed { background: var(--coral); }
+.unified-timeline-card-accent-watching { background: var(--amber); }
+.unified-timeline-card-accent-change { background: #94a3b8; }
 
-.unified-timeline-card-watching {
-  border-left-color: var(--amber);
-}
-
-.unified-timeline-card-change {
-  border-left-color: #94a3b8;
+.unified-timeline-card-body {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0.75rem;
 }
 
 .unified-timeline-card-header {
