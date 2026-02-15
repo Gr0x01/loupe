@@ -21,245 +21,33 @@ function CheckIcon({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
-function XIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        d="M4.28 3.22a.75.75 0 00-1.06 1.06L8.94 10l-5.72 5.72a.75.75 0 101.06 1.06L10 11.06l5.72 5.72a.75.75 0 101.06-1.06L11.06 10l5.72-5.72a.75.75 0 00-1.06-1.06L10 8.94 4.28 3.22z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-interface FeatureRow {
-  text: string;
-  included: boolean;
-}
-
-/** Ordered feature rows per tier (keeps row order consistent across cards) */
-const FEATURE_ROWS: Record<SubscriptionTier, FeatureRow[]> = {
-  free: [
-    { text: "1 page tracked", included: true },
-    { text: "Weekly automated scans", included: true },
-    { text: "GitHub commit tracking", included: false },
-    { text: "Analytics integrations", included: false },
-    { text: "Email alerts", included: true },
-    { text: "Mobile + desktop page checks", included: false },
-  ],
-  starter: [
-    { text: "3 pages tracked", included: true },
-    { text: "Daily automated scans", included: true },
-    { text: "GitHub commit tracking", included: true },
-    { text: "1 integration: PostHog, GA4, or Supabase", included: true },
-    { text: "Email alerts", included: true },
-    { text: "Mobile + desktop page checks", included: false },
-  ],
-  pro: [
-    { text: "10 pages tracked", included: true },
-    { text: "Daily automated scans", included: true },
-    { text: "GitHub commit tracking", included: true },
-    { text: "All integrations: PostHog + GA4 + Supabase", included: true },
-    { text: "Email alerts", included: true },
-    { text: "Mobile + desktop page checks", included: true },
-  ],
+const TIER_TAGLINE: Record<SubscriptionTier, string> = {
+  free: "1 page, weekly scans.",
+  starter: "3 pages, daily scans.",
+  pro: "10 pages, daily scans.",
 };
 
-const TIER_BEST_FOR: Record<SubscriptionTier, string> = {
-  free: "Trying one critical page",
-  starter: "Solo founders shipping fast",
-  pro: "Founders with multiple funnels",
+const TIER_CTA: Record<SubscriptionTier, string> = {
+  free: "Start free",
+  starter: "Track my 3 pages",
+  pro: "Upgrade to Pro",
 };
 
-const TIER_VALUE_LINE: Record<SubscriptionTier, string> = {
-  free: "Set baseline for homepage",
-  starter: "Catch risky changes after deploy",
-  pro: "Correlate commits to outcomes",
+const TIER_BENEFIT: Record<SubscriptionTier, string> = {
+  free: "Weekly baseline checks.",
+  starter: "Desktop screenshots + deploy tracking.",
+  pro: "Mobile + desktop screenshots.",
 };
 
-const TIER_THEME: Record<SubscriptionTier, {
-  cardBorder: string;
-  headerBg: string;
-  headerText: string;
-  headerSubtle: string;
-  valueText: string;
-}> = {
-  free: {
-    cardBorder: "border-line",
-    headerBg: "bg-paper-100",
-    headerText: "text-ink-900",
-    headerSubtle: "text-ink-500",
-    valueText: "text-ink-700",
-  },
-  starter: {
-    cardBorder: "border-signal",
-    headerBg: "bg-signal",
-    headerText: "text-white",
-    headerSubtle: "text-white/85",
-    valueText: "text-signal",
-  },
-  pro: {
-    cardBorder: "border-blue",
-    headerBg: "bg-blue",
-    headerText: "text-white",
-    headerSubtle: "text-white/85",
-    valueText: "text-blue",
-  },
-};
-
-interface PricingCardProps {
-  tier: SubscriptionTier;
-  isAnnual: boolean;
-  isPopular?: boolean;
-  currentTier?: SubscriptionTier | null;
-  isLoggedIn: boolean;
-  onSelect: () => void;
-  loading?: boolean;
-}
-
-function PricingCard({ tier, isAnnual, isPopular, currentTier, isLoggedIn, onSelect, loading }: PricingCardProps) {
-  const isCurrentPlan = currentTier === tier;
-  const isPro = tier === "pro";
-  const info = TIER_INFO[tier];
-  const price = isAnnual ? info.annualPrice / 12 : info.monthlyPrice;
-  const savings = isAnnual && tier !== "free" ? Math.round((1 - info.annualPrice / (info.monthlyPrice * 12)) * 100) : 0;
-  const features = FEATURE_ROWS[tier];
-  const bestFor = TIER_BEST_FOR[tier];
-  const valueLine = TIER_VALUE_LINE[tier];
-  const theme = TIER_THEME[tier];
-  const badge = isCurrentPlan
-    ? { label: "Current Plan", className: "bg-emerald text-white border border-emerald-hover" }
-    : isPopular
-      ? { label: "Most Popular", className: "bg-white text-signal border border-signal/40" }
-      : isPro
-        ? { label: "For Teams", className: "bg-white text-blue border border-blue/40" }
-        : null;
-
-  return (
-    <div
-      className={`relative flex flex-col rounded-2xl overflow-hidden border-2 ${theme.cardBorder} bg-white shadow-[2px_2px_0_rgba(51,65,85,0.14)] transition-all duration-200 hover:-translate-y-[3px] hover:shadow-[4px_4px_0_rgba(51,65,85,0.2)]`}
-    >
-      <div className={`px-5 sm:px-6 py-4 border-b-2 ${theme.cardBorder} ${theme.headerBg} ${theme.headerText}`}>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-2xl font-bold">{info.name}</h3>
-          {badge && (
-            <span className={`px-2.5 py-1 text-[11px] leading-none font-semibold rounded-full ${badge.className}`}>
-              {badge.label}
-            </span>
-          )}
-        </div>
-        <p className={`text-sm mt-1 ${theme.headerSubtle}`}>{info.description}</p>
-        <p className={`text-xs mt-2 ${theme.headerSubtle} flex items-baseline gap-1 min-w-0 whitespace-nowrap`}>
-          <span>Best for:</span>
-          <span className="font-semibold min-w-0 truncate" title={bestFor}>
-            {bestFor}
-          </span>
-        </p>
-      </div>
-
-      <div className="px-5 sm:px-6 pt-5 pb-6 flex flex-col flex-1">
-        <div className="flex items-baseline gap-1">
-          <span className="text-4xl sm:text-5xl font-bold text-ink-900" style={{ fontFamily: "var(--font-display)" }}>
-            ${tier === "free" ? 0 : Math.round(price)}
-          </span>
-          {tier !== "free" && (
-            <span className="text-ink-500">/mo</span>
-          )}
-        </div>
-        {isAnnual && tier !== "free" && (
-          <p className="text-sm text-emerald font-medium mt-1">
-            Save {savings}% — 2 months free
-          </p>
-        )}
-        {isAnnual && tier !== "free" && (
-          <p className="text-xs text-ink-500 mt-1">
-            ${info.annualPrice}/year billed annually
-          </p>
-        )}
-        {isAnnual && tier === "free" && (
-          <div aria-hidden="true" className="mt-1">
-            <p className="text-sm mt-1 opacity-0 select-none">
-              Save 17% — 2 months free
-            </p>
-            <p className="text-xs text-ink-500 mt-1 opacity-0 select-none">
-              $120/year billed annually
-            </p>
-          </div>
-        )}
-        <p className={`mt-2 text-[11px] uppercase tracking-[0.08em] font-semibold ${theme.valueText} leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis`}>
-          {valueLine}
-        </p>
-
-        <div className="h-px bg-line-subtle my-6" />
-
-        <ul className="space-y-2.5 mb-8 flex-1">
-          {features.map((feature) => (
-            <li
-              key={feature.text}
-              className="grid grid-cols-[20px_1fr] items-start gap-2.5 pb-2 border-b border-dashed border-line-subtle last:border-0 last:pb-0"
-            >
-              {feature.included ? (
-                <CheckIcon className="w-5 h-5 text-emerald flex-shrink-0 mt-0.5" />
-              ) : (
-                <XIcon className="w-5 h-5 text-ink-300 flex-shrink-0 mt-0.5" />
-              )}
-              <span className={feature.included ? "text-ink-700 leading-snug" : "text-ink-400 leading-snug"}>
-                {feature.text}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {/* 30-day guarantee for paid tiers */}
-        {tier !== "free" && !isCurrentPlan && (
-          <p className="text-xs text-ink-500 text-center mb-3 pt-3 border-t border-line-subtle">
-            30-day money-back guarantee
-          </p>
-        )}
-
-        {isCurrentPlan ? (
-          <Link
-            href="/settings/billing"
-            className="btn-secondary w-full text-center"
-          >
-            Manage subscription
-          </Link>
-        ) : tier === "free" ? (
-          isLoggedIn ? (
-            <Link
-              href="/dashboard"
-              className="btn-secondary w-full text-center"
-            >
-              You&apos;re on Free
-            </Link>
-          ) : (
-            <Link
-              href="/#hero-form"
-              className="btn-secondary w-full text-center"
-            >
-              Run a free audit
-            </Link>
-          )
-        ) : (
-          <button
-            onClick={onSelect}
-            disabled={loading}
-            className={`w-full font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-              isPopular
-                ? "btn-primary"
-                : isPro
-                  ? "py-3 px-5 bg-blue text-white border-2 border-blue-hover rounded-[10px] shadow-[2px_2px_0_rgba(37,99,235,0.24)] hover:bg-blue-hover"
-                  : "btn-secondary"
-            }`}
-          >
-            {loading ? "Loading..." : tier === "starter" ? "Start watching 3 pages" : "Track revenue pages"}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+/** Comparison table rows: [label, free, starter, pro] — ✓ = included, — = not */
+const COMPARE_ROWS: { label: string; free: string; starter: string; pro: string }[] = [
+  { label: "Pages tracked", free: "1", starter: "3", pro: "10" },
+  { label: "Scan frequency", free: "Weekly", starter: "Daily", pro: "Daily" },
+  { label: "Mobile screenshots", free: "—", starter: "—", pro: "✓" },
+  { label: "GitHub deploy tracking", free: "—", starter: "✓", pro: "✓" },
+  { label: "Analytics sources", free: "—", starter: "1", pro: "All" },
+  { label: "Email alerts", free: "✓", starter: "✓", pro: "✓" },
+];
 
 function PricingSkeleton() {
   return (
@@ -273,17 +61,12 @@ function PricingSkeleton() {
         </div>
       </section>
       <section className="pt-7 sm:pt-10 pb-12 sm:pb-16 px-4">
-        <div className="max-w-5xl mx-auto grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl border-2 border-line bg-white p-6 space-y-4">
-              <div className="h-6 w-24 bg-border-subtle/40 rounded animate-pulse" />
-              <div className="h-10 w-20 bg-border-subtle/30 rounded animate-pulse" />
-              <div className="space-y-2">
-                {[1, 2, 3, 4].map((j) => (
-                  <div key={j} className="h-4 w-full bg-border-subtle/20 rounded animate-pulse" />
-                ))}
-              </div>
-              <div className="h-11 w-full bg-border-subtle/30 rounded-lg animate-pulse" />
+            <div key={i} className="rounded-xl border-2 border-line bg-white p-5 space-y-3">
+              <div className="h-5 w-16 bg-border-subtle/40 rounded animate-pulse" />
+              <div className="h-8 w-20 bg-border-subtle/30 rounded animate-pulse" />
+              <div className="h-10 w-full bg-border-subtle/30 rounded-lg animate-pulse" />
             </div>
           ))}
         </div>
@@ -391,6 +174,7 @@ function PricingContent() {
   }
 
   const cardsReveal = useScrollReveal(0.15);
+  const tableReveal = useScrollReveal(0.1);
   const ctaReveal = useScrollReveal(0.3);
   const faqReveal = useScrollReveal(0.15);
 
@@ -448,16 +232,15 @@ function PricingContent() {
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-ink-900 mb-6 pricing-hero-headline"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Know what changed while you were shipping
+            Conversions dropped. What changed?
           </h1>
           <p className="text-lg text-ink-500 mb-6 max-w-xl mx-auto pricing-hero-sub">
-            Loupe watches your key pages and shows whether each change helped or hurt. Connect PostHog, GA4, or Supabase for proof.
+            Loupe tracks what changed on your pages and connects it to your PostHog, GA4, or Supabase numbers — so you stop guessing and start knowing.
           </p>
-
         </div>
       </section>
 
-      {/* Pricing cards */}
+      {/* Compact tier cards + comparison table */}
       <section
         className="pt-5 sm:pt-6 pb-12 sm:pb-16 px-4 relative overflow-hidden"
         style={{
@@ -491,22 +274,205 @@ function PricingContent() {
             </button>
           </div>
         </div>
-        <div
-          ref={cardsReveal.ref}
-          className={`max-w-5xl mx-auto grid sm:grid-cols-2 lg:grid-cols-3 gap-6 scroll-reveal-stagger ${cardsReveal.revealed ? "revealed" : ""}`}
-        >
-          {tiers.map((tier) => (
-            <PricingCard
-              key={tier}
-              tier={tier}
-              isAnnual={isAnnual}
-              isPopular={tier === "starter"}
-              currentTier={currentTier}
-              isLoggedIn={isLoggedIn}
-              onSelect={() => handleSelect(tier)}
-              loading={loading === tier}
-            />
-          ))}
+
+        <div className="max-w-3xl mx-auto">
+          {/* Compact cards row */}
+          <div
+            ref={cardsReveal.ref}
+            className={`grid grid-cols-1 sm:grid-cols-3 gap-4 scroll-reveal-stagger ${cardsReveal.revealed ? "revealed" : ""}`}
+          >
+            {tiers.map((tier) => {
+              const info = TIER_INFO[tier];
+              const price = isAnnual ? info.annualPrice / 12 : info.monthlyPrice;
+              const isStarter = tier === "starter";
+              const isPro = tier === "pro";
+              const isCurrent = currentTier === tier;
+              const savings = isAnnual && tier !== "free" ? Math.round((1 - info.annualPrice / (info.monthlyPrice * 12)) * 100) : 0;
+
+              return (
+                <div
+                  key={tier}
+                  className={`rounded-xl border-2 bg-white p-5 transition-all duration-200 flex flex-col ${
+                    isStarter
+                      ? "border-signal shadow-[2px_2px_0_rgba(248,90,56,0.16)] order-first sm:order-none"
+                    : isPro
+                        ? "border-line shadow-[2px_2px_0_rgba(51,65,85,0.14)]"
+                        : "border-line-subtle border-dashed shadow-none order-last sm:order-none"
+                  }`}
+                >
+                  {/* Badge area */}
+                  <div className="h-5 mb-2 flex items-center">
+                    {isCurrent && (
+                      <span className="text-[11px] font-semibold text-emerald uppercase tracking-wider">
+                        Current plan
+                      </span>
+                    )}
+                    {!isCurrent && isStarter && (
+                      <span className="text-[11px] font-semibold text-signal uppercase tracking-wider">
+                        Most popular
+                      </span>
+                    )}
+                    {!isCurrent && isPro && (
+                      <span className="text-[11px] font-semibold text-emerald uppercase tracking-wider">
+                        Mobile included
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Name + tagline */}
+                  <h3
+                    className="text-lg font-bold text-ink-900"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {info.name}
+                  </h3>
+                  <p className="text-sm text-ink-500 mt-0.5">
+                    {TIER_TAGLINE[tier]}
+                  </p>
+
+                  {/* Price */}
+                  <div className="mt-4 mb-1">
+                    <span
+                      className="text-4xl font-bold text-ink-900"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      ${tier === "free" ? 0 : Math.round(price)}
+                    </span>
+                    {tier !== "free" && (
+                      <span className="text-ink-500 ml-1">/mo</span>
+                    )}
+                  </div>
+                  {isAnnual && tier !== "free" ? (
+                    <p className="text-xs text-emerald font-medium">
+                      Save {savings}% — ${info.annualPrice}/yr
+                    </p>
+                  ) : (
+                    <div className="h-4" />
+                  )}
+
+                  <p
+                    className={`mt-3 text-sm min-h-[52px] ${
+                      isPro ? "text-ink-900 font-semibold" : "text-ink-600"
+                    }`}
+                  >
+                    {TIER_BENEFIT[tier]}
+                  </p>
+
+                  {/* CTA */}
+                  <div className="mt-auto pt-3">
+                    {isCurrent ? (
+                      <Link
+                        href="/settings/billing"
+                        className="btn-secondary w-full h-12 inline-flex items-center justify-center text-sm"
+                      >
+                        {isPro ? "Manage Pro plan" : "Manage plan"}
+                      </Link>
+                    ) : tier === "free" ? (
+                      isLoggedIn ? (
+                        currentTier === "free" ? (
+                          <Link
+                            href="/dashboard"
+                            className="btn-secondary w-full h-12 inline-flex items-center justify-center text-sm"
+                          >
+                            You&apos;re on Free
+                          </Link>
+                        ) : (
+                          <Link
+                            href="/settings/billing"
+                            className="btn-secondary w-full h-12 inline-flex items-center justify-center text-sm"
+                          >
+                            Downgrade in billing
+                          </Link>
+                        )
+                      ) : (
+                        <Link
+                          href="/#hero-form"
+                          className="btn-secondary w-full h-12 inline-flex items-center justify-center text-sm"
+                        >
+                          {TIER_CTA[tier]}
+                        </Link>
+                      )
+                    ) : (
+                      <button
+                        onClick={() => handleSelect(tier)}
+                        disabled={loading === tier}
+                        className={`w-full h-12 inline-flex items-center justify-center text-sm font-semibold rounded-[10px] px-4 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isStarter
+                            ? "btn-primary"
+                            : "bg-ink-900 text-white border-2 border-ink-900 hover:bg-ink-700 hover:border-ink-700"
+                        }`}
+                      >
+                        {loading === tier ? "Loading..." : TIER_CTA[tier]}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Comparison table */}
+          <div
+            ref={tableReveal.ref}
+            className={`mt-10 scroll-reveal ${tableReveal.revealed ? "revealed" : ""}`}
+          >
+            <h3 className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-4">
+              Compare features
+            </h3>
+            <div className="rounded-xl border-2 border-line bg-white shadow-[2px_2px_0_rgba(51,65,85,0.14)] overflow-x-auto">
+              {/* Table header — tier names aligned to cards */}
+              <div className="grid grid-cols-[140px_repeat(3,minmax(80px,1fr))] sm:grid-cols-[1fr_repeat(3,minmax(0,1fr))] border-b-2 border-line min-w-[420px] sm:min-w-0">
+                <div className="px-4 py-3" />
+                {tiers.map((tier) => (
+                  <div
+                    key={tier}
+                    className={`px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider ${
+                      tier === "starter"
+                        ? "text-signal bg-signal/5 border-x-2 border-signal/20"
+                        : "text-ink-500"
+                    }`}
+                  >
+                    {TIER_INFO[tier].name}
+                  </div>
+                ))}
+              </div>
+
+              {/* Table rows */}
+              {COMPARE_ROWS.map((row) => (
+                <div
+                  key={row.label}
+                  className="grid grid-cols-[140px_repeat(3,minmax(80px,1fr))] sm:grid-cols-[1fr_repeat(3,minmax(0,1fr))] border-b border-line-subtle last:border-0 min-w-[420px] sm:min-w-0"
+                >
+                  <div className="px-4 py-3 text-sm text-ink-700 font-medium">
+                    {row.label}
+                  </div>
+                  {(["free", "starter", "pro"] as const).map((tier) => {
+                    const val = row[tier];
+                    const isCheck = val === "✓";
+                    const isDash = val === "—";
+                    return (
+                      <div
+                        key={tier}
+                        className={`px-3 py-3 text-center text-sm ${
+                          tier === "starter"
+                            ? "bg-signal/5 border-x-2 border-signal/20 text-ink-900 font-medium"
+                            : isDash
+                              ? "text-ink-300"
+                              : "text-ink-500"
+                        }`}
+                      >
+                        {isCheck ? (
+                          <CheckIcon className={`w-5 h-5 mx-auto ${tier === "starter" ? "text-signal" : "text-emerald"}`} />
+                        ) : (
+                          val
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -570,6 +536,18 @@ function PricingContent() {
 
             <div className="glass-card p-4 sm:p-6">
               <h3 className="font-semibold text-ink-900 mb-2">
+                I use Cursor/Lovable/Bolt — do I need this?
+              </h3>
+              <p className="text-ink-700">
+                If you ship code without always remembering what changed, yes.
+                Loupe watches your site and tells you exactly what&apos;s different.
+                When your bounce rate moves, you&apos;ll know whether it was the
+                headline you tweaked last Tuesday or the CTA your AI changed on Friday.
+              </p>
+            </div>
+
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="font-semibold text-ink-900 mb-2">
                 Can I switch plans later?
               </h3>
               <p className="text-ink-700">
@@ -597,18 +575,6 @@ function PricingContent() {
                 Each tool counts as one: PostHog, Google Analytics 4, or Supabase.
                 Connect one on Starter, all of them on Pro. You can disconnect
                 and switch anytime.
-              </p>
-            </div>
-
-            <div className="glass-card p-4 sm:p-6">
-              <h3 className="font-semibold text-ink-900 mb-2">
-                I use Cursor/Lovable/Bolt — do I need this?
-              </h3>
-              <p className="text-ink-700">
-                If you ship code without always remembering what changed, yes.
-                Loupe watches your site and tells you exactly what&apos;s different.
-                When your bounce rate moves, you&apos;ll know whether it was the
-                headline you tweaked last Tuesday or the CTA your AI changed on Friday.
               </p>
             </div>
 
