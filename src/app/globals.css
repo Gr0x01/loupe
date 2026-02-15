@@ -228,4 +228,9 @@ body {
   .scenario-card-wrapper {
     animation: none;
   }
+
+  .dossier-skeleton-bar,
+  .dossier-skeleton-card-accent {
+    animation: none;
+  }
 }

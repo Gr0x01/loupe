@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { PageLoader } from "@/components/PageLoader";
+import { ChronicleSkeleton } from "@/components/chronicle";
 import { track } from "@/lib/analytics/track";
 import { useAnalysis } from "@/lib/hooks/use-data";
 import type {
@@ -1226,7 +1226,7 @@ export default function AnalysisPage() {
 
   // Skeleton loader for initial content fetch (before we know the status)
   if (isLoading && !analysis) {
-    return <PageLoader />;
+    return <ChronicleSkeleton />;
   }
 
   // Generating loader (analysis in progress)
