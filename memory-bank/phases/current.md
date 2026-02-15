@@ -339,6 +339,21 @@ LLM was fabricating correlation data (validated items with fake metric percentag
 
 See `decisions.md` D31 for rationale.
 
+### Bugfix: Initial scan + rescan failures (Feb 14, 2026)
+
+**Problem:** Adding a page created the record but the initial scan never triggered. "Scan again" button did nothing when history was empty.
+
+**Root cause:** Code wrote `page_id` to `analyses` table — but that column doesn't exist. Insert silently failed → no analysis → no Inngest event → no scan.
+
+**Fixes:**
+- Removed `page_id` from 3 write sites: `pages/route.ts` (insert + update), `auth/callback/route.ts` (update)
+- Added `pageId`-based branch to `POST /api/rescan` — creates first scan without requiring a parent analysis
+- Client sends `{ pageId }` when no complete scan exists, `{ parentAnalysisId }` otherwise
+- Optimistic UI: pending scan card injected immediately after API returns (bypasses SWR 30s dedup)
+- Added error logging on analysis insert failure + warning in response
+
+**Key pattern:** `analyses` ↔ `pages` linkage is via `pages.last_scan_id`, NOT a `page_id` FK on analyses.
+
 ### Key Changes (remaining)
 - None — Phase 2A complete
 

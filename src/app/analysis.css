@@ -160,21 +160,6 @@
   border: 1px solid rgba(26, 140, 91, 0.15);
 }
 
-/* ===== HEADLINE REWRITE CARD ===== */
-.headline-rewrite-current {
-  color: var(--ink-300);
-  text-decoration: line-through;
-  text-decoration-color: var(--line-subtle);
-}
-
-.headline-rewrite-suggested {
-  color: var(--ink-900);
-  background: var(--signal-subtle);
-  border: 1.5px solid var(--signal-border);
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-
 /* ===== HERO STAGGER REVEAL ANIMATIONS ===== */
 @keyframes heroFadeIn {
   from {
@@ -556,10 +541,7 @@
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.finding-content-suggestion {
-  background: var(--signal-subtle);
-  border: 1.5px solid var(--signal-border);
-}
+/* .finding-content-suggestion removed — now uses .fix-block */
 
 .finding-content-label {
   display: block;

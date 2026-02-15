@@ -280,7 +280,7 @@ export default function DemoAnalysisPage() {
               Try it free
             </Link>
             <p className="text-sm text-text-muted mt-4">
-              Free forever. No credit card.
+              Free for one page. No credit card.
             </p>
           </div>
         </section>

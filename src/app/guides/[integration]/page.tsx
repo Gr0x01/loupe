@@ -189,7 +189,7 @@ export default async function IntegrationGuidePage({ params }: PageProps) {
         headline={`Connect ${data.name} today`}
         subheadline="Free audit first. Integrations available after signup."
         ctaText="Get your free audit"
-        trustSignals={["Free forever", "One-click connect", "Read-only access"]}
+        trustSignals={["Free for one page", "One-click connect", "Read-only access"]}
       />
     </div>
   );

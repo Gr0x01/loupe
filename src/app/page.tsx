@@ -89,7 +89,7 @@ export default async function Home() {
                     issues found. Free for 1 page.
                   </>
                 ) : (
-                  "Free forever for 1 page. Results in 30 seconds."
+                  "Free for one page. Results in 30 seconds."
                 )}
               </p>
 

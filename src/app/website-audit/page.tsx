@@ -467,7 +467,7 @@ export default function WebsiteAuditPage() {
         headline="See what's working. Fix what's&nbsp;not."
         subheadline="30 seconds. No signup. Stuff you can actually fix today."
         ctaText="Audit my page"
-        trustSignals={["Free forever", "No signup required", "Results in 30 seconds"]}
+        trustSignals={["Free for one page", "No signup required", "Results in 30 seconds"]}
       />
     </div>
   );

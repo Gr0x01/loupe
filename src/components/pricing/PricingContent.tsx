@@ -538,7 +538,7 @@ function PricingContent() {
             source="pricing"
           />
           <p className="text-xs text-ink-400 mt-4">
-            Free forever for 1 page. Upgrade when you need more.
+            Free for one page. Upgrade when you need more.
           </p>
         </div>
       </section>
