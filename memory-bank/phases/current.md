@@ -236,6 +236,15 @@ See `architecture.md` Security section for details.
 
 See `decisions.md` D27-D28 and `homepage-story.md` for details.
 
+### Deploy Scan File Filtering (Feb 2026)
+
+Filter deploy scans by `changed_files` so backend-only deploys don't screenshot all pages.
+
+- [x] New `src/lib/utils/deploy-filter.ts` — `couldAffectPage(changedFiles, pageUrl)` categorizes files as non-visual (skip), global (all pages), or route-scoped (match only)
+- [x] `deployDetected` fetches `changed_files` from deploys table, filters pages before scanning
+- [x] Early return when no pages affected (marks deploy complete)
+- [x] `QUICK_DIFF_PROMPT` hardened: "Ignore Screenshot Artifacts" section (JPEG compression, anti-aliasing, tiny shifts)
+
 ### Deploy Scanning & Correlation System Fix (Feb 2026)
 
 Major refactor to reduce deploy scan costs and fix correlation windows.

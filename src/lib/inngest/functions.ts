@@ -13,6 +13,7 @@ import {
 } from "@/lib/email/templates";
 import type { ChangesSummary, ChronicleSuggestion, DetectedChange, CommitData } from "@/lib/types/analysis";
 import { filterRelevantCommits } from "@/lib/utils/commit-filter";
+import { couldAffectPage } from "@/lib/utils/deploy-filter";
 import { safeDecrypt } from "@/lib/crypto";
 import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
 import { correlateChange } from "@/lib/analytics/correlation";
@@ -1015,20 +1016,41 @@ export const deployDetected = inngest.createFunction(
       return data || [];
     });
 
-    if (pages.length === 0) {
-      await supabase
+    // Fetch deploy's changed_files to filter pages
+    const deploy = await step.run("fetch-deploy", async () => {
+      const { data } = await supabase
         .from("deploys")
-        .update({ status: "complete" })
-        .eq("id", deployId);
+        .select("changed_files")
+        .eq("id", deployId)
+        .single();
+      return data;
+    });
 
-      return { scanned: 0, message: "No pages found for user" };
+    // Filter pages to only those affected by the deploy's changed files
+    const changedFiles: string[] = deploy?.changed_files || [];
+    const filteredPages = changedFiles.length > 0
+      ? pages.filter((p) => couldAffectPage(changedFiles, p.url))
+      : pages;
+
+    if (filteredPages.length === 0) {
+      await step.run("mark-complete-no-affected", async () => {
+        await supabase
+          .from("deploys")
+          .update({ status: "complete" })
+          .eq("id", deployId);
+      });
+
+      console.log(`Deploy ${deployId}: 0 of ${pages.length} pages affected by changed files`);
+      return { scanned: 0, message: `No pages affected by deploy (${pages.length} pages, ${changedFiles.length} changed files)` };
     }
+
+    console.log(`Deploy ${deployId}: Scanning ${filteredPages.length} of ${pages.length} pages`);
 
     // Process each page
     const results = await step.run("detect-changes", async () => {
       const processed: { pageId: string; hadChanges: boolean; usedFullAnalysis: boolean; error?: string }[] = [];
 
-      for (const page of pages) {
+      for (const page of filteredPages) {
         try {
           // 1. Get stable baseline
           const baseline = await getStableBaseline(supabase, page.id);

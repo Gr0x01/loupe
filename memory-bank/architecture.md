@@ -739,7 +739,7 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts), concurrency: 4 (prevents screenshot service 429s when daily scans fire simultaneously). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
 - `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
-- `deploy-detected` — triggered by GitHub webhook push. Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
+- `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
 - `screenshot-health-check` — cron (every 30 min), pings screenshot service, reports to Sentry if unreachable. Sentry alert rule "Screenshot Service Down" (ID: 16691420) triggers on `service:screenshot` tag.
@@ -944,6 +944,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 
 | Scenario | Behavior |
 |----------|----------|
+| Backend-only deploy | `couldAffectPage` skips non-visual files → 0 pages scanned |
 | No baseline | Falls back to full analysis (establishes baseline) |
 | Stale baseline (>14d) | Falls back to full analysis |
 | Deploy fallback to full | Now sets stable_baseline_id to prevent infinite loop |
@@ -957,6 +958,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 | File | Purpose |
 |------|---------|
 | `src/lib/inngest/functions.ts` | `deployDetected`, `checkCorrelations`, `analyzeUrl` mods |
+| `src/lib/utils/deploy-filter.ts` | `couldAffectPage()` — filters pages by deploy's changed files |
 | `src/lib/ai/pipeline.ts` | `runQuickDiff` (Haiku), `formatPendingChanges`, revertedChangeIds |
 | `src/lib/analysis/baseline.ts` | `getStableBaseline` (3-tier fallback), `isBaselineStale` |
 | `src/lib/analytics/correlation.ts` | `correlateChange` (absolute date windows) |

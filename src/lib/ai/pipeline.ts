@@ -1298,6 +1298,15 @@ Return JSON:
 
 If the pages look identical, return: { "hasChanges": false, "changes": [] }
 
+## Important: Ignore Screenshot Artifacts
+Do NOT report changes that are merely:
+- JPEG compression differences or color banding
+- Anti-aliasing or font rendering variance
+- Tiny positioning shifts (<5 pixels)
+- Browser rendering differences (shadows, gradients)
+
+Only report substantive changes: text rewrites, layout restructuring, visual design changes, functional changes. If the pages look essentially identical, return { "hasChanges": false, "changes": [] }.
+
 Be concise. Focus on meaningful changes, not minor rendering differences.
 
 IMPORTANT: Respond with ONLY the JSON object. No text before or after it.`;
