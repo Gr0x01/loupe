@@ -132,6 +132,10 @@ export default function SiteNav() {
 
   const isActive = (href: string) => pathname === href;
   const isSettingsActive = pathname.startsWith("/settings");
+  const loginHref =
+    pathname && pathname !== "/login" && !pathname.startsWith("/auth/")
+      ? `/login?redirect=${encodeURIComponent(pathname)}`
+      : "/login";
 
   return (
     <header className="site-nav fixed top-0 left-0 right-0 z-50">
@@ -178,7 +182,7 @@ export default function SiteNav() {
             ) : (
               <Link
                 ref={(el) => setLinkRef("/login", el)}
-                href="/login"
+                href={loginHref}
                 className="nav-link"
               >
                 Sign in
@@ -285,7 +289,7 @@ export default function SiteNav() {
                 </Link>
               ) : (
                 <Link
-                  href="/login"
+                  href={loginHref}
                   className="text-base font-medium px-3 py-2 rounded-lg text-accent bg-[var(--coral-subtle)] mt-2"
                 >
                   Sign in

@@ -27,6 +27,61 @@
   box-shadow: 0 0 0 3px var(--danger-subtle) !important;
 }
 
+.onboarding-suggestion-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.625rem;
+}
+
+.onboarding-suggestion-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.onboarding-suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line-subtle);
+  border-radius: 10px;
+  background: var(--paper-0);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.onboarding-suggestion:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--paper-100);
+}
+
+.onboarding-suggestion:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.onboarding-suggestion-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.onboarding-suggestion-url {
+  font-size: 0.8125rem;
+  color: var(--signal);
+  font-weight: 500;
+}
+
+.onboarding-suggestion-reason {
+  font-size: 0.75rem;
+  color: var(--ink-400);
+}
+
 /* ===== METRIC FOCUS ONBOARDING ===== */
 .metric-focus-grid {
   display: grid;

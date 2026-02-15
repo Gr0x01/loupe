@@ -2,10 +2,17 @@
 
 import { useState } from "react";
 
+export interface ClaimSuggestion {
+  label: string;
+  url: string;
+  reason?: string;
+}
+
 interface EmptyOnboardingStateProps {
   onAddPage: (url: string, name: string) => Promise<string | void>;
   loading: boolean;
   onMetricFocusDone?: () => void;
+  claimSuggestions?: ClaimSuggestion[];
 }
 
 const METRIC_OPTIONS = [
@@ -15,7 +22,12 @@ const METRIC_OPTIONS = [
   { label: "Custom", value: "__custom__" },
 ];
 
-export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: EmptyOnboardingStateProps) {
+export function EmptyOnboardingState({
+  onAddPage,
+  loading,
+  onMetricFocusDone,
+  claimSuggestions = [],
+}: EmptyOnboardingStateProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -25,25 +37,33 @@ export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: 
   const [customMetric, setCustomMetric] = useState("");
   const [savingMetric, setSavingMetric] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  const normalizeUrl = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
 
-    const trimmed = url.trim();
-    if (!trimmed) {
-      setError("Paste a URL to get started.");
-      return;
-    }
-
-    // Basic URL validation
     let normalized = trimmed;
     if (!/^https?:\/\//i.test(normalized)) {
       normalized = "https://" + normalized;
     }
 
     try {
-      new URL(normalized);
+      return new URL(normalized).toString();
     } catch {
+      return null;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!url.trim()) {
+      setError("Paste a URL to get started.");
+      return;
+    }
+
+    const normalized = normalizeUrl(url);
+    if (!normalized) {
       setError("That doesn't look like a valid URL.");
       return;
     }
@@ -54,6 +74,29 @@ export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: 
       const result = await onAddPage(normalized, "");
       if (typeof result === "string") {
         // Got page ID back — show metric focus step
+        setPageId(result);
+        setStep("metric_focus");
+      }
+    } catch {
+      setError("Something went wrong. Try again.");
+    }
+  };
+
+  const handleSuggestionClick = async (suggestedUrl: string) => {
+    if (loading) return;
+    setError("");
+
+    const normalized = normalizeUrl(suggestedUrl);
+    if (!normalized) {
+      setError("That suggestion looks invalid. Paste your URL instead.");
+      return;
+    }
+
+    setUrl(normalized);
+
+    try {
+      const result = await onAddPage(normalized, "");
+      if (typeof result === "string") {
         setPageId(result);
         setStep("metric_focus");
       }
@@ -186,6 +229,8 @@ export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: 
     );
   }
 
+  const canSubmit = !!normalizeUrl(url);
+
   return (
     <div className="flex items-center justify-center py-8 sm:py-16">
       <div
@@ -215,6 +260,29 @@ export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: 
           tracking changes.
         </p>
 
+        {claimSuggestions.length > 0 && (
+          <div className="mb-5">
+            <p className="onboarding-suggestion-label">Suggested first pages</p>
+            <div className="onboarding-suggestion-grid">
+              {claimSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.url}
+                  type="button"
+                  className="onboarding-suggestion"
+                  onClick={() => handleSuggestionClick(suggestion.url)}
+                  disabled={loading}
+                >
+                  <span className="onboarding-suggestion-title">{suggestion.label}</span>
+                  <span className="onboarding-suggestion-url">{suggestion.url}</span>
+                  {suggestion.reason && (
+                    <span className="onboarding-suggestion-reason">{suggestion.reason}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Input form */}
         <form onSubmit={handleSubmit}>
           <div className="flex flex-col sm:flex-row items-stretch gap-3">
@@ -238,7 +306,7 @@ export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: 
             <button
               type="submit"
               className="btn-primary whitespace-nowrap text-base"
-              disabled={loading || !url.trim()}
+              disabled={loading || !canSubmit}
             >
               {loading ? "Adding..." : "Start watching"}
             </button>
@@ -248,6 +316,11 @@ export function EmptyOnboardingState({ onAddPage, loading, onMetricFocusDone }: 
           {error && (
             <p className="text-sm font-medium mt-3" style={{ color: "var(--danger)" }}>
               {error}
+            </p>
+          )}
+          {!error && !url.trim() && (
+            <p className="text-xs mt-3 text-[var(--ink-400)]">
+              Paste a URL to enable &ldquo;Start watching&rdquo;.
             </p>
           )}
         </form>

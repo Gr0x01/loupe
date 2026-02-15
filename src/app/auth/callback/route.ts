@@ -11,6 +11,63 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PERSONAL_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "pm.me",
+  "hey.com",
+  "yandex.com",
+  "zoho.com",
+]);
+
+function getSafeNextPath(nextPath: string | null): string | null {
+  if (!nextPath) return null;
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return null;
+  if (nextPath.startsWith("/auth/callback")) return null;
+  return nextPath;
+}
+
+function getSuggestedDomainFromEmail(email?: string | null): string | null {
+  if (!email) return null;
+  const parts = email.trim().toLowerCase().split("@");
+  if (parts.length !== 2) return null;
+  const domain = parts[1].replace(/^www\./, "");
+  if (!domain || !domain.includes(".")) return null;
+  if (PERSONAL_EMAIL_DOMAINS.has(domain)) return null;
+  return domain;
+}
+
+function applyDefaultRedirect(
+  redirectTo: URL,
+  nextPath: string | null,
+  email?: string | null
+): void {
+  if (nextPath) {
+    const parsed = new URL(nextPath, redirectTo.origin);
+    redirectTo.pathname = parsed.pathname;
+    redirectTo.search = parsed.search;
+    return;
+  }
+
+  redirectTo.pathname = "/dashboard";
+
+  const suggestedDomain = getSuggestedDomainFromEmail(email);
+  if (suggestedDomain) {
+    redirectTo.searchParams.set("suggest_domain", suggestedDomain);
+  }
+}
 
 async function handleRescan(
   redirectTo: URL,
@@ -190,6 +247,7 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") as EmailOtpType | null;
   const rescanId = searchParams.get("rescan");
   const claimId = searchParams.get("claim");
+  const nextPath = getSafeNextPath(searchParams.get("next"));
 
   const redirectTo = request.nextUrl.clone();
   redirectTo.pathname = "/";
@@ -198,6 +256,7 @@ export async function GET(request: NextRequest) {
   redirectTo.searchParams.delete("type");
   redirectTo.searchParams.delete("rescan");
   redirectTo.searchParams.delete("claim");
+  redirectTo.searchParams.delete("next");
 
   const supabase = await createClient();
 
@@ -252,8 +311,8 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(dest);
         }
 
-        // Default: send new/returning users to the dashboard
-        redirectTo.pathname = "/dashboard";
+        // Default: return to requested path, otherwise dashboard.
+        applyDefaultRedirect(redirectTo, nextPath, user.email);
       }
       return NextResponse.redirect(redirectTo);
     }
@@ -280,8 +339,8 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(dest);
         }
 
-        // Default: send new/returning users to the dashboard
-        redirectTo.pathname = "/dashboard";
+        // Default: return to requested path, otherwise dashboard.
+        applyDefaultRedirect(redirectTo, nextPath, user.email);
       }
       return NextResponse.redirect(redirectTo);
     }

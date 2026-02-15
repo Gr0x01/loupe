@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { track } from "@/lib/analytics/track";
 
 export default function LoginPage() {
@@ -10,8 +11,22 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const searchParams = useSearchParams();
 
   const supabase = useMemo(() => createClient(), []);
+  const redirectPath = useMemo(() => {
+    const raw = searchParams.get("redirect");
+    if (!raw) return null;
+    if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+    if (raw.startsWith("/auth/callback")) return null;
+    return raw;
+  }, [searchParams]);
+
+  const getAuthRedirectUrl = () => {
+    const callback = new URL("/auth/callback", window.location.origin);
+    if (redirectPath) callback.searchParams.set("next", redirectPath);
+    return callback.toString();
+  };
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +41,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getAuthRedirectUrl(),
       },
     });
 
@@ -47,7 +62,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthRedirectUrl(),
       },
     });
 

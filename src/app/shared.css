@@ -54,6 +54,19 @@
   transform: scale(0.98);
 }
 
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 1px 1px 0 rgba(248, 90, 56, 0.12);
+}
+
+.btn-primary:disabled:hover {
+  background: var(--signal);
+  transform: none;
+  box-shadow: 1px 1px 0 rgba(248, 90, 56, 0.12);
+}
+
 .btn-secondary {
   background: #FFFFFF;
   color: var(--ink-700);

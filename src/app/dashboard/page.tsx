@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,6 +23,7 @@ interface UserLimits {
 }
 
 type PageStatus = "stable" | "attention" | "watching" | "scanning";
+type ClaimSuggestion = { label: string; url: string; reason?: string };
 
 // ─── Metric Focus Badge Colors ───────────────────────────────
 
@@ -34,7 +35,67 @@ const FOCUS_COLORS: Record<string, { bg: string; text: string }> = {
   pageviews: { bg: "var(--blue-subtle)", text: "var(--blue)" },
 };
 
+const PERSONAL_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "pm.me",
+  "hey.com",
+  "yandex.com",
+  "zoho.com",
+]);
+
 // ─── Helpers ─────────────────────────────────────────────────
+
+function normalizeDomain(domain: string): string {
+  return domain.trim().toLowerCase().replace(/^www\./, "");
+}
+
+function parseSuggestionUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function parseSuggestionDomain(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const parsed = new URL(withProtocol);
+    const normalized = normalizeDomain(parsed.hostname);
+    if (!normalized || !normalized.includes(".")) return null;
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
+function getBusinessDomainFromEmail(email: string | null): string | null {
+  if (!email) return null;
+  const parts = email.trim().toLowerCase().split("@");
+  if (parts.length !== 2) return null;
+  const domain = normalizeDomain(parts[1]);
+  if (!domain || !domain.includes(".")) return null;
+  if (PERSONAL_EMAIL_DOMAINS.has(domain)) return null;
+  return domain;
+}
 
 function getPageStatus(page: DashboardPageData): PageStatus {
   if (
@@ -761,6 +822,8 @@ function DashboardContent() {
   const { toastError } = useToast();
 
   const [accountDomain, setAccountDomain] = useState<string | null>(null);
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [pendingAuditUrl, setPendingAuditUrl] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [userLimits, setUserLimits] = useState<UserLimits>({
@@ -768,6 +831,8 @@ function DashboardContent() {
     max: 1,
   });
   const highlightWinId = searchParams.get("win") || undefined;
+  const suggestedDomainParam = searchParams.get("suggest_domain");
+  const suggestedUrlParam = searchParams.get("suggest_url");
   const rawHypothesisId = searchParams.get("hypothesis");
   const hypothesisChangeId =
     rawHypothesisId &&
@@ -779,6 +844,55 @@ function DashboardContent() {
   const [hypothesisDismissed, setHypothesisDismissed] = useState(false);
   const autoLinkAttempted = useRef(false);
   const pendingAnalysisRef = useRef<string | null>(null);
+
+  const claimSuggestions = useMemo<ClaimSuggestion[]>(() => {
+    const suggestions: ClaimSuggestion[] = [];
+    const seen = new Set<string>();
+
+    const addSuggestion = (url: string | null, label: string, reason?: string) => {
+      const normalized = parseSuggestionUrl(url);
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      suggestions.push({ url: normalized, label, reason });
+    };
+
+    if (pendingAuditUrl) {
+      addSuggestion(
+        pendingAuditUrl,
+        "Recent audit page",
+        "From the page you analyzed before signing in"
+      );
+    }
+
+    if (suggestedUrlParam) {
+      addSuggestion(
+        suggestedUrlParam,
+        "Picked from your signup flow",
+        "Based on where you came from"
+      );
+    }
+
+    const suggestedDomain = parseSuggestionDomain(suggestedDomainParam);
+    if (suggestedDomain) {
+      addSuggestion(
+        `https://${suggestedDomain}`,
+        `${suggestedDomain} homepage`,
+        "From your signup email domain"
+      );
+      addSuggestion(`https://${suggestedDomain}/pricing`, `${suggestedDomain} pricing`);
+    }
+
+    const emailDomain = getBusinessDomainFromEmail(profileEmail);
+    if (emailDomain && emailDomain !== suggestedDomain) {
+      addSuggestion(
+        `https://${emailDomain}`,
+        `${emailDomain} homepage`,
+        "From your account email"
+      );
+    }
+
+    return suggestions.slice(0, 4);
+  }, [pendingAuditUrl, profileEmail, suggestedDomainParam, suggestedUrlParam]);
 
   // Auto-link a pending anonymous audit from localStorage
   useEffect(() => {
@@ -800,8 +914,10 @@ function DashboardContent() {
       };
       if (!url || (ts && Date.now() - ts > 30 * 60 * 1000)) {
         localStorage.removeItem("loupe_pending_audit");
+        setPendingAuditUrl(null);
         return;
       }
+      setPendingAuditUrl(url);
       localStorage.removeItem("loupe_pending_audit");
       handleAddPage(url, "", pendingId);
     } catch {
@@ -827,6 +943,7 @@ function DashboardContent() {
           profile.subscription_status as SubscriptionStatus | null
         );
         setUserLimits((prev) => ({ ...prev, max: TIER_LIMITS[tier].pages }));
+        if (profile.email) setProfileEmail(profile.email);
         if (profile.account_domain) setAccountDomain(profile.account_domain);
       })
       .catch(() => {});
@@ -961,6 +1078,7 @@ function DashboardContent() {
           <EmptyOnboardingState
             onAddPage={handleAddPage}
             loading={addLoading}
+            claimSuggestions={claimSuggestions}
             onMetricFocusDone={() => {
               if (pendingAnalysisRef.current) {
                 router.push(`/analysis/${pendingAnalysisRef.current}`);
