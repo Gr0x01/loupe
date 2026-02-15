@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { safeEncrypt } from "@/lib/crypto";
 import { canConnectAnalytics, type SubscriptionTier } from "@/lib/permissions";
+import { createSupabaseAdapter } from "@/lib/analytics/supabase-adapter";
 
 /**
  * POST /api/integrations/supabase/connect
@@ -103,90 +103,41 @@ export async function POST(req: NextRequest) {
     const keyToUse = serviceRoleKey || anonKey;
     const keyType = serviceRoleKey ? "service_role" : "anon";
 
-    // Test connection by trying to query the schema
-    const testClient = createSupabaseJsClient(normalizedUrl, keyToUse);
+    // Validate credentials by hitting the OpenAPI endpoint directly
+    const testResponse = await fetch(`${normalizedUrl}/rest/v1/`, {
+      headers: { apikey: keyToUse, Authorization: `Bearer ${keyToUse}` },
+    });
 
-    // Try to introspect schema - this tests if credentials work
-    const { data: tables, error: schemaError } = await testClient.rpc(
-      "get_table_info"
-    ).maybeSingle();
-
-    // If RPC doesn't exist, try a simpler test
-    let schemaInfo: { tables: string[]; row_counts: Record<string, number> } = {
-      tables: [],
-      row_counts: {},
-    };
-    let hasSchemaAccess = false;
-
-    if (schemaError) {
-      // RPC doesn't exist - use OpenAPI endpoint to discover tables
-      // Supabase/PostgREST returns Swagger 2.0 spec with all table paths
-      const openApiResponse = await fetch(`${normalizedUrl}/rest/v1/`, {
-        headers: {
-          apikey: keyToUse,
-          Authorization: `Bearer ${keyToUse}`,
-          Accept: "application/openapi+json",
-        },
-      });
-
-      if (!openApiResponse.ok) {
-        return NextResponse.json(
-          { error: "Could not connect to Supabase project. Please check your credentials." },
-          { status: 400 }
-        );
-      }
-
-      try {
-        const spec = await openApiResponse.json();
-
-        // Extract table names from paths (Swagger 2.0 format)
-        // Paths look like: { "/": {...}, "/tablename": {...}, "/rpc/funcname": {...} }
-        if (spec.paths && typeof spec.paths === "object") {
-          const tableNames = Object.keys(spec.paths)
-            .filter((path) =>
-              path !== "/" && // Skip root introspection endpoint
-              !path.startsWith("/rpc/") // Skip RPC functions
-            )
-            .map((path) => path.replace(/^\//, "")); // Remove leading slash
-
-          schemaInfo.tables = tableNames;
-          hasSchemaAccess = true;
-        } else {
-          // Unexpected response format
-          console.error("Unexpected OpenAPI response format:", Object.keys(spec));
-          hasSchemaAccess = false;
-        }
-      } catch (parseError) {
-        console.error("Failed to parse Supabase OpenAPI response:", parseError);
-        hasSchemaAccess = false;
-      }
-    } else {
-      hasSchemaAccess = true;
-      if (tables && typeof tables === "object") {
-        // Type guard for the expected shape
-        const tablesData = tables as { tables?: string[]; row_counts?: Record<string, number> };
-        if (Array.isArray(tablesData.tables)) {
-          schemaInfo.tables = tablesData.tables;
-        }
-        if (tablesData.row_counts && typeof tablesData.row_counts === "object") {
-          schemaInfo.row_counts = tablesData.row_counts;
-        }
-      }
+    if (!testResponse.ok) {
+      return NextResponse.json(
+        { error: "Could not connect to Supabase project. Please check your credentials." },
+        { status: 400 }
+      );
     }
+
+    // Discover tables via SupabaseAdapter (getSchema returns empty on parse errors, never throws)
+    const adapter = createSupabaseAdapter(normalizedUrl, keyToUse, keyType as "anon" | "service_role");
+    const schema = await adapter.getSchema();
+    const tableNames = schema.tables.map((t) => t.name);
+    const hasSchemaAccess = tableNames.length > 0;
 
     // Extract project ref from URL
     const projectRef = new URL(normalizedUrl).hostname.split(".")[0];
 
+    const metadata: Record<string, unknown> = {
+      project_url: normalizedUrl,
+      key_type: keyType,
+      has_schema_access: hasSchemaAccess,
+      tables: tableNames,
+    };
+    if (!existingSupabase) {
+      metadata.connected_at = new Date().toISOString();
+    }
+
     const integrationData = {
       provider_account_id: projectRef,
       access_token: safeEncrypt(keyToUse),
-      metadata: {
-        project_url: normalizedUrl,
-        key_type: keyType,
-        has_schema_access: hasSchemaAccess,
-        tables: schemaInfo.tables,
-        connected_at: new Date().toISOString(),
-      },
+      metadata,
       updated_at: new Date().toISOString(),
     };
 
@@ -226,7 +177,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       has_schema_access: hasSchemaAccess,
-      tables_found: schemaInfo.tables.length,
+      tables_found: tableNames.length,
       key_type: keyType,
     });
   } catch (err) {

@@ -25,11 +25,15 @@ export function SupabaseSection({
   onConnect,
   onDisconnect,
   disconnecting,
+  onRefresh,
+  refreshing,
 }: {
   supabase: SupabaseIntegration | null;
   onConnect: () => void;
   onDisconnect: () => void;
   disconnecting: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   return (
     <section className="mb-4">
@@ -80,6 +84,18 @@ export function SupabaseSection({
                     ? "Service Role Key"
                     : "Anon Key"}{" "}
                   · {supabase.tables.length} tables found
+                  {onRefresh && (
+                    <>
+                      {" · "}
+                      <button
+                        onClick={onRefresh}
+                        disabled={refreshing}
+                        className="text-accent hover:text-accent-hover transition-colors disabled:opacity-50"
+                      >
+                        {refreshing ? "Refreshing..." : "Refresh"}
+                      </button>
+                    </>
+                  )}
                 </p>
               </div>
             </div>

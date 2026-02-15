@@ -37,6 +37,7 @@ function SettingsContent() {
   const [disconnectingPostHog, setDisconnectingPostHog] = useState(false);
   const [disconnectingGA4, setDisconnectingGA4] = useState(false);
   const [disconnectingSupabase, setDisconnectingSupabase] = useState(false);
+  const [refreshingSupabase, setRefreshingSupabase] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [togglingEmail, setTogglingEmail] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -301,6 +302,22 @@ function SettingsContent() {
     }
   };
 
+  const handleRefreshSupabase = async () => {
+    setRefreshingSupabase(true);
+    try {
+      const res = await fetch("/api/integrations/supabase/refresh", { method: "POST" });
+      if (!res.ok) {
+        setError("Failed to refresh Supabase tables");
+        return;
+      }
+      await fetchIntegrations();
+    } catch {
+      setError("Failed to refresh Supabase tables");
+    } finally {
+      setRefreshingSupabase(false);
+    }
+  };
+
   const handleSignOut = async () => {
     setSigningOut(true);
     await supabase.auth.signOut();
@@ -448,6 +465,8 @@ function SettingsContent() {
             onConnect={() => setShowSupabaseConnect(true)}
             onDisconnect={handleDisconnectSupabase}
             disconnecting={disconnectingSupabase}
+            onRefresh={handleRefreshSupabase}
+            refreshing={refreshingSupabase}
           />
 
           {/* Email Notifications */}
