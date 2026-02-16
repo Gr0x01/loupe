@@ -190,8 +190,30 @@ export async function GET(req: NextRequest) {
           ).toString("base64")
         : undefined;
 
-    // Transform to DetectedChange with domain info
-    const changes: (DetectedChange & { domain?: string; page_name?: string })[] =
+    // Fetch checkpoint data for these changes
+    const changeIds = resultRows.map((r) => r.id);
+    const checkpointsByChange: Record<string, Array<{ horizon_days: number; assessment: string; computed_at: string }>> = {};
+    if (changeIds.length > 0) {
+      const { data: checkpoints } = await supabase
+        .from("change_checkpoints")
+        .select("change_id, horizon_days, assessment, computed_at")
+        .in("change_id", changeIds)
+        .order("horizon_days", { ascending: true });
+
+      if (checkpoints) {
+        for (const cp of checkpoints) {
+          if (!checkpointsByChange[cp.change_id]) checkpointsByChange[cp.change_id] = [];
+          checkpointsByChange[cp.change_id].push({
+            horizon_days: cp.horizon_days,
+            assessment: cp.assessment,
+            computed_at: cp.computed_at,
+          });
+        }
+      }
+    }
+
+    // Transform to DetectedChange with domain info + checkpoints
+    const changes: (DetectedChange & { domain?: string; page_name?: string; checkpoints?: Array<{ horizon_days: number; assessment: string; computed_at: string }> })[] =
       resultRows.map((row) => ({
         id: row.id,
         page_id: row.page_id,
@@ -216,6 +238,7 @@ export async function GET(req: NextRequest) {
         // Add domain for UI
         domain: getDomainSafe(row.pages?.url),
         page_name: row.pages?.name ?? undefined,
+        checkpoints: checkpointsByChange[row.id] || undefined,
       }));
 
     // Optimized stats: Use database COUNT instead of fetching all rows

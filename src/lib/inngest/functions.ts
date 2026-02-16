@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot, pingScreenshotService } from "@/lib/screenshot";
-import { runAnalysisPipeline, runPostAnalysisPipeline, runQuickDiff } from "@/lib/ai/pipeline";
+import { runAnalysisPipeline, runPostAnalysisPipeline, runQuickDiff, formatCheckpointTimeline, runStrategyNarrative } from "@/lib/ai/pipeline";
 import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -425,6 +425,56 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
+        // Gather checkpoint evidence for multi-horizon context
+        let checkpointTimelines: string | null = null;
+        if (pageForFeedback?.id) {
+          try {
+            // Fetch resolved changes too (they have checkpoint evidence)
+            const { data: resolvedChanges } = await supabase
+              .from("detected_changes")
+              .select("id, element, status, first_detected_at")
+              .eq("page_id", pageForFeedback.id)
+              .in("status", ["validated", "regressed", "inconclusive"])
+              .limit(10);
+
+            const allChangeIds = [
+              ...(watchingChanges?.map((c) => c.id) || []),
+              ...(resolvedChanges?.map((c) => c.id) || []),
+            ];
+
+            if (allChangeIds.length > 0) {
+              const { data: checkpoints } = await supabase
+                .from("change_checkpoints")
+                .select("change_id, horizon_days, assessment, metrics_json")
+                .in("change_id", allChangeIds)
+                .order("horizon_days", { ascending: true });
+
+              if (checkpoints?.length) {
+                // Normalize both sources to have a status field
+                const watchingWithStatus = (watchingChanges || []).map((c) => ({ id: c.id, element: c.element, status: "watching", first_detected_at: c.first_detected_at }));
+                const resolvedWithStatus = (resolvedChanges || []).map((c) => ({ id: c.id, element: c.element, status: c.status, first_detected_at: c.first_detected_at }));
+                const allChanges = [...watchingWithStatus, ...resolvedWithStatus];
+                const merged = allChanges.flatMap((c) => {
+                  return (checkpoints || [])
+                    .filter((cp) => cp.change_id === c.id)
+                    .map((cp) => ({
+                      change_id: c.id,
+                      element: c.element,
+                      horizon_days: cp.horizon_days as number,
+                      assessment: cp.assessment as string,
+                      metrics_json: cp.metrics_json as { metrics: Array<{ name: string; change_percent: number; assessment: string }> },
+                      status: c.status,
+                      first_detected_at: c.first_detected_at,
+                    }));
+                });
+                checkpointTimelines = formatCheckpointTimeline(merged);
+              }
+            }
+          } catch (err) {
+            console.warn("[checkpoint-timeline] Failed to gather checkpoint data:", err);
+          }
+        }
+
         // Run post-analysis if we have previous findings OR analytics OR database OR deploy context OR user feedback OR pending changes
         if (previousFindings || analyticsCredentials || databaseCredentials || deployContext || userFeedback?.length || pendingChanges?.length) {
           try {
@@ -450,6 +500,7 @@ export const analyzeUrl = inngest.createFunction(
                 previousScanDate,
                 pageFocus: pageForFeedback?.metric_focus || null,
                 changeHypotheses: changeHypotheses?.length ? changeHypotheses : null,
+                checkpointTimelines,
               },
               {
                 supabase,
@@ -2017,13 +2068,13 @@ export const runCheckpoints = inngest.createFunction(
       });
     }
 
-    // Step 4: Recompose progress on affected pages
+    // Step 4: Recompose progress + generate strategy narrative on affected pages
     const affectedPageIds = [...new Set(eligible.map((e) => e.change.page_id))];
-    if (affectedPageIds.length > 0 && allResults.some((r) => r.transitions > 0)) {
-      await step.run("recompose-progress", async () => {
+    if (affectedPageIds.length > 0 && allResults.some((r) => r.checkpoints > 0 || r.transitions > 0)) {
+      await step.run("recompose-and-narrate", async () => {
         const { data: pageAnalyses } = await supabase
           .from("pages")
-          .select("id, last_scan_id")
+          .select("id, url, last_scan_id, metric_focus")
           .in("id", affectedPageIds)
           .not("last_scan_id", "is", null);
 
@@ -2039,14 +2090,77 @@ export const runCheckpoints = inngest.createFunction(
 
             if (!analysis?.changes_summary) continue;
 
+            // 1. Recompose canonical progress (existing logic)
             const canonical = await composeProgressFromCanonicalState(page.id, supabase);
             if (!canonical) continue;
 
-            const updatedSummary = {
-              ...analysis.changes_summary,
+            // 2. Build checkpoint timeline for strategy narrative
+            const { data: pageChanges } = await supabase
+              .from("detected_changes")
+              .select("id, element, status, first_detected_at, hypothesis")
+              .eq("page_id", page.id)
+              .in("status", ["watching", "validated", "regressed", "inconclusive"])
+              .limit(20);
+
+            let strategyResult: Awaited<ReturnType<typeof runStrategyNarrative>> = null;
+
+            if (pageChanges?.length) {
+              const changeIds = pageChanges.map((c) => c.id);
+              const { data: checkpoints } = await supabase
+                .from("change_checkpoints")
+                .select("change_id, horizon_days, assessment, metrics_json")
+                .in("change_id", changeIds)
+                .order("horizon_days", { ascending: true });
+
+              if (checkpoints?.length) {
+                const merged = pageChanges.flatMap((c) => {
+                  return (checkpoints || [])
+                    .filter((cp) => cp.change_id === c.id)
+                    .map((cp) => ({
+                      change_id: c.id,
+                      element: c.element,
+                      horizon_days: cp.horizon_days as number,
+                      assessment: cp.assessment as string,
+                      metrics_json: cp.metrics_json as { metrics: Array<{ name: string; change_percent: number; assessment: string }> },
+                      status: c.status,
+                      first_detected_at: c.first_detected_at,
+                    }));
+                });
+
+                const timeline = formatCheckpointTimeline(merged);
+
+                // 3. Run strategy LLM (non-fatal)
+                if (timeline) {
+                  try {
+                    const hypotheses = pageChanges
+                      .filter((c) => c.hypothesis)
+                      .map((c) => ({ changeId: c.id, element: c.element, hypothesis: c.hypothesis! }));
+
+                    const currentSummary = analysis.changes_summary as ChangesSummary;
+                    strategyResult = await runStrategyNarrative({
+                      pageUrl: page.url,
+                      pageFocus: page.metric_focus,
+                      checkpointTimeline: timeline,
+                      currentRunningSummary: currentSummary.running_summary,
+                      changeHypotheses: hypotheses.length ? hypotheses : null,
+                    });
+                  } catch (narrativeErr) {
+                    console.warn(`[strategy] LLM narrative failed for page ${page.id}:`, narrativeErr);
+                    Sentry.captureMessage("Strategy narrative failed in checkpoint job", {
+                      level: "warning",
+                      tags: { function: "runCheckpoints", pageId: page.id },
+                    });
+                  }
+                }
+              }
+            }
+
+            // 4. Build updated summary
+            const currentSummary = analysis.changes_summary as ChangesSummary;
+            const updatedSummary: ChangesSummary = {
+              ...currentSummary,
               progress: {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ...(analysis.changes_summary as any).progress,
+                ...currentSummary.progress,
                 validated: canonical.validated,
                 watching: canonical.watching,
                 validatedItems: canonical.validatedItems,
@@ -2054,12 +2168,35 @@ export const runCheckpoints = inngest.createFunction(
               },
             };
 
+            // Merge strategy narrative if available (only overwrite with non-empty values)
+            if (strategyResult) {
+              if (strategyResult.strategy_narrative) {
+                updatedSummary.strategy_narrative = strategyResult.strategy_narrative;
+              }
+              if (strategyResult.running_summary) {
+                updatedSummary.running_summary = strategyResult.running_summary;
+              }
+
+              // Update observation_text on individual changes (validate changeIds)
+              if (strategyResult.observations?.length && pageChanges?.length) {
+                const validIds = new Set(pageChanges.map((c) => c.id));
+                for (const obs of strategyResult.observations) {
+                  if (obs.changeId && validIds.has(obs.changeId) && obs.text) {
+                    await supabase
+                      .from("detected_changes")
+                      .update({ observation_text: obs.text.slice(0, 2000), updated_at: new Date().toISOString() })
+                      .eq("id", obs.changeId);
+                  }
+                }
+              }
+            }
+
             await supabase
               .from("analyses")
               .update({ changes_summary: updatedSummary })
               .eq("id", page.last_scan_id);
           } catch (err) {
-            console.error(`[progress-recompose] Failed for page ${page.id}:`, err);
+            console.error(`[recompose-narrate] Failed for page ${page.id}:`, err);
           }
         }
       });

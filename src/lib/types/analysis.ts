@@ -234,6 +234,8 @@ export interface ChangesSummary {
   revertedChangeIds?: string[];
   /** LLM-generated observations for resolved correlations */
   observations?: Array<{ changeId: string; text: string }>;
+  /** LLM-generated strategy narrative from checkpoint evidence */
+  strategy_narrative?: string;
   /** Internal: set when post-analysis pipeline failed */
   _error?: string;
 }
@@ -364,8 +366,14 @@ export interface DashboardPageData {
 // API Response types
 // ============================================
 
+export interface ChangeCheckpointSummary {
+  horizon_days: number;
+  assessment: string;
+  computed_at: string;
+}
+
 export interface ChangesApiResponse {
-  changes: (DetectedChange & { domain?: string; page_name?: string })[];
+  changes: (DetectedChange & { domain?: string; page_name?: string; checkpoints?: ChangeCheckpointSummary[] })[];
   stats: {
     totalValidated: number;
     totalRegressed: number;

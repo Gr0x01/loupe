@@ -411,15 +411,18 @@ Exit criteria:
 - Every `validated/regressed` row has checkpoint evidence.
 - For a representative cohort, checkpoint coverage exists at all five horizons (no missing 14/60/90 runs).
 
-## Phase 3: Strategy Integration
+## Phase 3: Strategy Integration ✓
 
-Deliverables:
+Deliverables (all shipped):
 - LLM writes narrative only (no canonical status writes).
-- Prompt context includes compressed multi-horizon timeline.
-- Strategy generation runs inline in Scan Job and Checkpoint Job (no separate strategy cron).
+- Prompt context includes compressed multi-horizon timeline via `formatCheckpointTimeline()`.
+- Strategy generation runs inline in Scan Job (checkpoint evidence in prompt) and Checkpoint Job (`runStrategyNarrative()` — lightweight text-only LLM, non-fatal with deterministic fallback).
+- POST_ANALYSIS_PROMPT trimmed: progress output removed (saves tokens), checkpoint evidence instructions added, progress enforcement logic deleted.
+- `strategy_narrative` field added to `ChangesSummary` type.
+- `GET /api/changes` returns checkpoint data (horizon_days, assessment, computed_at) per change.
 
-Exit criteria:
-- LLM failure cannot corrupt lifecycle state.
+Exit criteria (met):
+- LLM failure cannot corrupt lifecycle state — strategy narrative runs after all canonical mutations, wrapped in try/catch, deterministic `formatCheckpointObservation()` stays as fallback.
 
 ## Phase 4: Suggestions as Persistent State
 
@@ -455,22 +458,22 @@ Use this as the implementation tracker. Workstreams can run in parallel; all box
 
 ## Workstream A: Architecture Lock
 
-- [ ] Approve `Integrity vs Intelligence` policy.
+- [x] Approve `Integrity vs Intelligence` policy.
 - [ ] Approve fingerprint policy (`LLM proposes`, orchestrator validates, threshold `0.70`).
-- [ ] Approve checkpoint transition policy (`D+7/14 signal`, `D+30 decision`, `D+60/90 confirm/override`).
-- [ ] Approve recomposition policy (inline at write time).
-- [ ] Approve replacement of `checkCorrelations` with the multi-horizon Checkpoint Job.
+- [x] Approve checkpoint transition policy (`D+7/14 signal`, `D+30 decision`, `D+60/90 confirm/override`).
+- [x] Approve recomposition policy (inline at write time).
+- [x] Approve replacement of `checkCorrelations` with the multi-horizon Checkpoint Job.
 
 Done when:
 - [ ] No open architecture decisions block implementation.
 
 ## Workstream B: Data Contracts + Migrations
 
-- [ ] Add `change_checkpoints` table with unique `(change_id, horizon_days)`.
-- [ ] Add `tracked_suggestions` table.
-- [ ] Add lifecycle event log table for immutable transitions.
+- [x] Add `change_checkpoints` table with unique `(change_id, horizon_days)`.
+- [x] Add `tracked_suggestions` table.
+- [x] Add lifecycle event log table for immutable transitions.
 - [ ] Add model proposal/provenance fields (proposal ID, confidence, rationale, model/prompt version).
-- [ ] Add indexes/idempotency keys for scan, upsert, checkpoint, and recomposition paths.
+- [x] Add indexes/idempotency keys for scan, upsert, checkpoint, and recomposition paths.
 
 Done when:
 - [ ] Schema supports full v1 behavior without placeholder/TODO columns.
@@ -488,22 +491,22 @@ Done when:
 
 ## Workstream D: Checkpoint Engine (5 Horizons)
 
-- [ ] Build daily checkpoint scheduler for `7/14/30/60/90`.
-- [ ] Enforce UTC window semantics consistently.
-- [ ] Compute deterministic metric deltas and write `change_checkpoints`.
-- [ ] Apply transition rules and write immutable lifecycle events.
-- [ ] Ensure every status mutation references checkpoint evidence.
+- [x] Build daily checkpoint scheduler for `7/14/30/60/90`.
+- [x] Enforce UTC window semantics consistently.
+- [x] Compute deterministic metric deltas and write `change_checkpoints`.
+- [x] Apply transition rules and write immutable lifecycle events.
+- [x] Ensure every status mutation references checkpoint evidence.
 
 Done when:
-- [ ] All five horizons execute and persist for eligible changes.
+- [x] All five horizons execute and persist for eligible changes.
 
 ## Workstream E: Read Model + Narrative Integration
 
-- [ ] Compose `changes_summary.progress` from canonical DB state + suggestions.
-- [ ] Run recomposition inline after scan mutations and checkpoint mutations.
-- [ ] Run strategy LLM inline in Scan Job and Checkpoint Job.
-- [ ] Enforce narrative-only writes from strategy LLM (no canonical status writes).
-- [ ] Update APIs to serve composed canonical view consistently.
+- [x] Compose `changes_summary.progress` from canonical DB state + suggestions.
+- [x] Run recomposition inline after scan mutations and checkpoint mutations.
+- [x] Run strategy LLM inline in Scan Job and Checkpoint Job.
+- [x] Enforce narrative-only writes from strategy LLM (no canonical status writes).
+- [x] Update APIs to serve composed canonical view consistently.
 
 Done when:
 - [ ] UI counts and statuses match canonical DB state after each mutation path.
@@ -520,10 +523,10 @@ Done when:
 
 ## Workstream G: Reliability + Launch Gates
 
-- [ ] Add parity monitor (`read model` vs canonical counts).
+- [x] Add parity monitor (`read model` vs canonical counts).
 - [ ] Add replay and idempotency tests for core mutation paths.
 - [ ] Add SLO dashboards and alerts.
-- [ ] Execute forward-only cutover.
+- [x] Execute forward-only cutover.
 - [ ] Validate all v1 launch gates.
 
 Done when:
@@ -613,8 +616,8 @@ These decisions should be made in v1 architecture, because they are expensive or
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 1: Canonical Progress Composer | **Done** | Fail-closed composer, fallback chain, parity monitor, polarity-aware UI, 30-day prompt alignment. See phase details above. |
-| Phase 2: Checkpoint Outcome Engine | **Done** | `change_checkpoints` table + `runCheckpoints` daily cron + `change_lifecycle_events` audit trail. `resolveStatusTransition()` in `src/lib/analytics/checkpoints.ts`. Vercel Cron backup with event trigger. Idempotent upserts. |
-| Phase 3: Strategy Integration | Not started | |
+| Phase 2: Checkpoint Outcome Engine | **Done** | `change_checkpoints` table + `runCheckpoints` daily cron (10:30 UTC) + `change_lifecycle_events` audit trail. `resolveStatusTransition()` in `src/lib/analytics/checkpoints.ts`. Vercel Cron backup at 10:45 UTC with dual event trigger. Idempotent upserts via `ON CONFLICT DO NOTHING`. Lifecycle event failure → status revert (maintains invariant). Paginated queries (500/batch), batched `.in()` (300/batch). Provider init try/catch (analytics failure doesn't abort run). `checkCorrelations` fully replaced and deleted. |
+| Phase 3: Strategy Integration | **Done** | LLM writes narrative only — progress output removed from prompt. `formatCheckpointTimeline()` compresses multi-horizon evidence into prompt context. `runStrategyNarrative()` runs inline in checkpoint job (non-fatal, deterministic fallback). Scan job passes checkpoint timelines to post-analysis. `GET /api/changes` includes checkpoint data per change. `strategy_narrative` field added to `ChangesSummary`. |
 | Phase 4: Suggestions as Persistent State | Not started | `tracked_suggestions` migration exists but no endpoints/integration yet. |
 | Phase 5: Reliability and Backfill | Not started | |
 
@@ -624,12 +627,14 @@ These decisions should be made in v1 architecture, because they are expensive or
 |------|---------|
 | `src/lib/analysis/progress.ts` | `composeProgressFromCanonicalState`, `getLastCanonicalProgress`, `formatMetricFriendlyText`, `friendlyMetricNames` |
 | `src/lib/analytics/checkpoints.ts` | `getEligibleHorizons`, `computeWindows`, `assessCheckpoint`, `resolveStatusTransition`, `formatCheckpointObservation`, `DECISION_HORIZON` |
-| `src/lib/inngest/functions.ts` | `runCheckpoints` cron, fail-closed composer integration in `analyzeUrl`, recompose-after-reverts |
+| `src/lib/ai/pipeline.ts` | `formatCheckpointTimeline` (Phase 3), `runStrategyNarrative` (Phase 3), `runPostAnalysisPipeline`, POST_ANALYSIS_PROMPT |
+| `src/lib/inngest/functions.ts` | `runCheckpoints` cron (+ strategy narrative in recompose step), fail-closed composer in `analyzeUrl` (+ checkpoint timeline gathering), recompose-after-reverts |
 | `src/app/api/cron/checkpoints/route.ts` | Vercel Cron backup for checkpoint engine |
-| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `ChangeCheckpoint`, `StatusTransition`, `ValidatedItem.status` |
+| `src/app/api/changes/route.ts` | `GET /api/changes` — returns checkpoint data per change (Phase 3) |
+| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `ChangeCheckpoint`, `StatusTransition`, `ValidatedItem.status`, `ChangesSummary.strategy_narrative` |
 
 ## Immediate Next Steps
 
-1. Begin Phase 3: Strategy Integration (narrative-only LLM with multi-horizon context).
-2. Build suggestion endpoints for Phase 4.
-3. Add integration/unit tests for integrity paths (deferred from Phase 1).
+1. Begin Phase 4: Suggestions as Persistent State (`tracked_suggestions` endpoints + composer integration).
+2. Add integration/unit tests for integrity paths (deferred from Phase 1).
+3. UI work: checkpoint chips + evidence panel (Workstream F).

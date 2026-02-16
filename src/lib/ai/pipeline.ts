@@ -9,7 +9,6 @@ import type { AnalyticsCredentials, GA4Credentials } from "@/lib/analytics/types
 import { createProvider } from "@/lib/analytics/provider";
 import { createAnalyticsTools, createDatabaseTools } from "@/lib/analytics/tools";
 import { createSupabaseAdapter } from "@/lib/analytics/supabase-adapter";
-import { DECISION_HORIZON } from "@/lib/analytics/checkpoints";
 
 // Re-export types from canonical source
 export type {
@@ -378,7 +377,14 @@ Use these phrases when describing metric impacts:
 | form_completion up | "More people finish the form" |
 | form_completion down | "People abandon your form" |
 
-## Your Three Tasks
+## Checkpoint Evidence (if provided)
+You may receive a "Checkpoint Evidence" section with real metric data at multiple horizons (7/14/30/60/90 days).
+- Use this evidence in your verdict, running_summary, strategy_narrative, and observations
+- Reference specific metrics and horizons when relevant
+- If a change shows D+7 improvement but D+30 regression, note the trend reversal
+- Do NOT output progress counts — those are computed deterministically from the database
+
+## Your Two Tasks
 
 ### 1. Detect What Changed (Smart Aggregation)
 Compare current vs. previous audit. Your goal is **honest, useful tracking** — not fake granularity.
@@ -411,18 +417,7 @@ For each change detected, output to the "changes" array:
 - Scope: "element", "section", or "page"
 - Whether the change addresses a previous finding
 
-### 2. Categorize Progress
-Map each previous finding to one of three states:
-- **validated**: Fixed AND all three conditions met: (1) analytics tools were called in THIS session, (2) tools returned real metric data, (3) the change is 30+ days old (check Temporal Context)
-- **watching**: Fixed but waiting for enough data to confirm impact (change < 30 days old, or no analytics tools available)
-- **open**: Not yet addressed
-
-**HARD RULES for "validated":**
-- If no analytics/database tools were called in this session → ZERO validated items. Every fixed item goes to "watching".
-- If a change is less than 30 days old (check Temporal Context) → it MUST be "watching", never "validated", regardless of tools.
-- You need REAL tool-returned evidence, not estimates or projections.
-
-### 3. Provide Next Suggestions
+### 2. Provide Next Suggestions
 Based on the current state, what should they focus on next? Output to "suggestions" array.
 - Prioritize by impact
 - Include predictions using FriendlyText
@@ -502,48 +497,11 @@ Return JSON matching this schema:
       }
     ]
   } | null,
-  "progress": {
-    "validated": <count>,
-    "watching": <count>,
-    "open": <count>,
-    "validatedItems": [
-      {
-        "id": "<finding id that was validated>",
-        "element": "<display label: 'Your Headline'>",
-        "title": "<what was fixed: 'Headline made specific'>",
-        "metric": "bounce_rate",
-        "friendlyText": "<e.g., 'Visitors actually stick around'>",
-        "change": "<+8%>"
-      }
-    ],
-    "watchingItems": [
-      {
-        "id": "<finding id being watched>",
-        "element": "<display label>",
-        "title": "<what was changed>",
-        "daysOfData": <1-29>,
-        "daysNeeded": 30
-      }
-    ],
-    "openItems": [
-      {
-        "id": "<finding id still open>",
-        "element": "<display label>",
-        "title": "<issue title>",
-        "impact": "high" | "medium" | "low"
-      }
-    ]
-  },
+  "strategy_narrative": "<2-4 sentences: what checkpoint evidence shows, recommended action>",
   "running_summary": "<2-3 sentence narrative carried forward>",
   "revertedChangeIds": ["<IDs of pending changes that were reverted>"],
   "observations": [{ "changeId": "<detected_change ID>", "text": "<dated observation>" }]
 }
-
-## Progress Item Rules
-- validatedItems: ONLY if ALL THREE: (1) analytics/database tools were called in this session, (2) tools returned real metric data, (3) change is 30+ days old per Temporal Context. If ANY condition fails → item goes to watchingItems instead.
-- watchingItems: Fixed items awaiting enough data. Set daysOfData from the Temporal Context section (do NOT guess). Set daysNeeded to 30.
-- openItems: Previous findings not yet addressed
-- For first scans, openItems should list current findings with their ids
 
 ## Correlation Rules
 - If no analytics/database tools were called → correlation MUST be null
@@ -574,7 +532,6 @@ If this is the first scan, return:
 - changes: []
 - suggestions: from current findings
 - correlation: null (no comparison period)
-- progress: { validated: 0, watching: 0, open: <count>, validatedItems: [], watchingItems: [], openItems: [...] }
 
 ## Pending Changes (Revert Detection)
 You may receive a list of "pending changes" that were detected in previous deploys and are being watched for correlation. For each pending change, check if it's still visible on the current page:
@@ -648,6 +605,7 @@ export interface PostAnalysisContext {
   previousScanDate?: string | null; // created_at of the parent analysis (for temporal context)
   pageFocus?: string | null; // User's key metric (e.g. "signups")
   changeHypotheses?: Array<{ element: string; hypothesis: string }> | null;
+  checkpointTimelines?: string | null; // Pre-formatted checkpoint evidence text
 }
 
 export type AnalyticsCredentialsWithType =
@@ -1003,6 +961,137 @@ function getTimeAgo(date: Date): string {
   return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 }
 
+// ============================================
+// Checkpoint timeline + strategy narrative
+// ============================================
+
+interface CheckpointTimelineEntry {
+  change_id: string;
+  element: string;
+  horizon_days: number;
+  assessment: string;
+  metrics_json: {
+    metrics: Array<{ name: string; change_percent: number; assessment: string }>;
+  };
+  status: string;
+  first_detected_at: string;
+}
+
+/**
+ * Compress checkpoint data into token-efficient prompt text.
+ * Groups by change, shows horizons inline with top metric per horizon.
+ */
+export function formatCheckpointTimeline(entries: CheckpointTimelineEntry[]): string {
+  if (!entries || entries.length === 0) return "";
+
+  // Group by change_id
+  const byChange = new Map<string, { element: string; status: string; first_detected_at: string; horizons: CheckpointTimelineEntry[] }>();
+  for (const e of entries) {
+    if (!byChange.has(e.change_id)) {
+      byChange.set(e.change_id, { element: e.element, status: e.status, first_detected_at: e.first_detected_at, horizons: [] });
+    }
+    byChange.get(e.change_id)!.horizons.push(e);
+  }
+
+  const lines: string[] = ["## Checkpoint Evidence (from analytics)"];
+
+  for (const [, change] of byChange) {
+    const detectedDate = new Date(change.first_detected_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const horizonParts: string[] = [];
+
+    for (const h of change.horizons) {
+      // Pick top metric (highest abs change_percent)
+      const topMetric = h.metrics_json?.metrics?.reduce((best, m) =>
+        Math.abs(m.change_percent) > Math.abs(best.change_percent) ? m : best
+      , h.metrics_json.metrics[0]);
+
+      if (topMetric) {
+        const sign = topMetric.change_percent > 0 ? "+" : "";
+        const decision = h.horizon_days === 30 ? " [DECISION]" : "";
+        horizonParts.push(`D+${h.horizon_days}: ${topMetric.name} ${sign}${Math.round(topMetric.change_percent * 10) / 10}% (${h.assessment})${decision}`);
+      } else {
+        horizonParts.push(`D+${h.horizon_days}: ${h.assessment}`);
+      }
+    }
+
+    lines.push(`- "${change.element}" (${change.status}, detected ${detectedDate}):`);
+    lines.push(`  ${horizonParts.join(" | ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+// Strategy narrative prompt — lightweight, text-only, no tool calls
+const STRATEGY_NARRATIVE_PROMPT = `You are an analyst writing a strategy update after new checkpoint evidence arrived.
+
+## Voice
+- Direct and specific. Reference actual metrics and horizons.
+- One insight per change. No hedging.
+- If a hypothesis was provided, evaluate it against the evidence.
+
+## Output
+Return JSON:
+{
+  "observations": [{ "changeId": "<id>", "text": "<dated, specific observation>" }],
+  "strategy_narrative": "<2-4 sentences: page trajectory, evidence, recommended action>",
+  "running_summary": "<1-2 sentence running summary update>"
+}`;
+
+export interface StrategyNarrativeContext {
+  pageUrl: string;
+  pageFocus?: string | null;
+  checkpointTimeline: string;
+  currentRunningSummary?: string | null;
+  changeHypotheses?: Array<{ changeId: string; element: string; hypothesis: string }> | null;
+}
+
+/**
+ * Lightweight text-only LLM call for richer checkpoint observations.
+ * No images, no tool calls. Returns null on any failure.
+ */
+export async function runStrategyNarrative(
+  context: StrategyNarrativeContext
+): Promise<{ observations: Array<{ changeId: string; text: string }>; strategy_narrative: string; running_summary: string } | null> {
+  try {
+    const promptParts: string[] = [
+      `Page: ${context.pageUrl}`,
+      context.checkpointTimeline,
+    ];
+
+    if (context.pageFocus) {
+      promptParts.push(`Page focus metric: ${sanitizeUserInput(context.pageFocus, 200)}`);
+    }
+    if (context.currentRunningSummary) {
+      promptParts.push(`Current running summary: ${context.currentRunningSummary}`);
+    }
+    if (context.changeHypotheses?.length) {
+      promptParts.push(formatChangeHypotheses(context.changeHypotheses.map(h => ({
+        element: h.element,
+        hypothesis: h.hypothesis,
+      }))));
+    }
+
+    const result = await generateText({
+      model: google("gemini-3-pro-preview"),
+      system: STRATEGY_NARRATIVE_PROMPT,
+      prompt: promptParts.join("\n\n"),
+      maxOutputTokens: 2048,
+    });
+
+    const jsonStr = extractJson(result.text);
+    const parsed = JSON.parse(jsonStr);
+
+    return {
+      observations: Array.isArray(parsed.observations) ? parsed.observations : [],
+      strategy_narrative: parsed.strategy_narrative || "",
+      running_summary: parsed.running_summary || "",
+    };
+  } catch (err) {
+    console.warn("[strategy-narrative] LLM call failed:", err);
+    return null;
+  }
+}
+
 /**
  * Unified post-analysis pipeline that handles both comparison and correlation.
  * Uses Gemini 3 Pro for nuanced evaluation.
@@ -1149,8 +1238,12 @@ export async function runPostAnalysisPipeline(
       temporalLines.push(`- ${pc.element}: ${daysSince} days (detected ${detectedDate.toISOString().split("T")[0]})`);
     }
   }
-  temporalLines.push(`\nReminder: Changes < 30 days old CANNOT be "validated". They MUST be "watching".`);
   promptParts.push(temporalLines.join("\n"));
+
+  // Inject checkpoint evidence (multi-horizon timeline)
+  if (context.checkpointTimelines) {
+    promptParts.push(context.checkpointTimelines);
+  }
 
   const hasTools = Object.keys(tools).length > 0;
 
@@ -1203,69 +1296,21 @@ export async function runPostAnalysisPipeline(
   if (!parsed.suggestions) {
     parsed.suggestions = [];
   }
-  if (!parsed.progress) {
-    parsed.progress = { validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [] };
-  } else {
-    // Ensure item arrays exist even if counts are provided
-    parsed.progress.validatedItems = parsed.progress.validatedItems ?? [];
-    parsed.progress.watchingItems = parsed.progress.watchingItems ?? [];
-    parsed.progress.openItems = parsed.progress.openItems ?? [];
-  }
+  // Progress no longer expected from LLM — set empty defaults for canonical overwrite
+  parsed.progress = {
+    validated: 0, watching: 0, open: 0,
+    validatedItems: [], watchingItems: [], openItems: []
+  };
   if (!parsed.running_summary) {
     parsed.running_summary = parsed.verdict;
   }
-
-  // Server-side enforcement: if no tools were called, force correlation=null and demote validated→watching
-  if (toolCallsMade.length === 0) {
-    parsed.correlation = null;
-
-    // Demote any hallucinated validatedItems to watchingItems
-    if (parsed.progress.validatedItems && parsed.progress.validatedItems.length > 0) {
-      for (const v of parsed.progress.validatedItems) {
-        parsed.progress.watchingItems!.push({
-          id: v.id,
-          element: v.element,
-          title: v.title,
-          daysOfData: 0,
-          daysNeeded: 30,
-        });
-      }
-      parsed.progress.validatedItems = [];
-      parsed.progress.validated = 0;
-      parsed.progress.watching = parsed.progress.watchingItems!.length;
-    }
+  if (!parsed.strategy_narrative) {
+    parsed.strategy_narrative = parsed.running_summary || parsed.verdict || "";
   }
 
-  // Also enforce: any watching item with < DECISION_HORIZON days cannot be validated (even with tools)
-  if (pendingChanges && parsed.progress.validatedItems) {
-    const pendingMap = new Map(pendingChanges.map((pc) => [pc.id, pc]));
-    const demoted: typeof parsed.progress.validatedItems = [];
-    const kept: typeof parsed.progress.validatedItems = [];
-
-    for (const v of parsed.progress.validatedItems) {
-      const pc = pendingMap.get(v.id);
-      if (pc) {
-        const daysSince = Math.floor((Date.now() - new Date(pc.first_detected_at).getTime()) / 86400000);
-        if (daysSince < DECISION_HORIZON) {
-          demoted.push(v);
-          parsed.progress.watchingItems!.push({
-            id: v.id,
-            element: v.element,
-            title: v.title,
-            daysOfData: daysSince,
-            daysNeeded: 30,
-          });
-          continue;
-        }
-      }
-      kept.push(v);
-    }
-
-    if (demoted.length > 0) {
-      parsed.progress.validatedItems = kept;
-      parsed.progress.validated = kept.length;
-      parsed.progress.watching = parsed.progress.watchingItems!.length;
-    }
+  // Server-side enforcement: if no tools were called, force correlation=null
+  if (toolCallsMade.length === 0) {
+    parsed.correlation = null;
   }
 
   return parsed;
