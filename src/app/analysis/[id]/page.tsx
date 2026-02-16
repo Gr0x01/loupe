@@ -1695,11 +1695,11 @@ export default function AnalysisPage() {
                       : "Something on this page will change. You should know when it does."}
                   </h2>
                   <p className="claim-bottom-sub">
-                    Loupe watches your page after you make changes. A week later, you&apos;ll see whether it helped or hurt your numbers. No more guessing.
+                    Loupe re-scans after every deploy and connects changes to your metrics.
                   </p>
                   <div className="claim-bottom-badges">
-                    <span className="claim-bottom-badge claim-bottom-badge-blue">Before/after on every change</span>
-                    <span className="claim-bottom-badge claim-bottom-badge-emerald">See what helped your numbers</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-blue">Change detection</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-emerald">Metric correlation</span>
                     <span className="claim-bottom-badge claim-bottom-badge-violet">Free for one page</span>
                   </div>
                 </div>
