@@ -4,6 +4,7 @@ import type {
   AttentionStatus,
   ChangesSummary,
   AnalysisResult,
+  DashboardPageData,
 } from "@/lib/types/analysis";
 import { checkRateLimit, rateLimitKey, RATE_LIMITS } from "@/lib/rate-limit";
 import { validateUrl, isBlockedDomain } from "@/lib/url-validation";
@@ -166,6 +167,20 @@ export async function GET() {
 
     const supabase = createServiceClient();
 
+    // Fetch user profile for tier enforcement
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_tier, subscription_status, trial_ends_at")
+      .eq("id", user.id)
+      .single();
+
+    const tier = getEffectiveTier(
+      (profile?.subscription_tier as SubscriptionTier) || "free",
+      profile?.subscription_status as SubscriptionStatus | null,
+      profile?.trial_ends_at
+    );
+    const pageLimit = getPageLimit(tier);
+
     // Get pages with their latest scan info including changes_summary for attention status
     const { data: pages, error } = await supabase
       .from("pages")
@@ -207,8 +222,16 @@ export async function GET() {
       parent_analysis_id: string | null;
     } | null;
 
-    // Transform pages with attention status
-    const pagesFormatted = (pages || []).map((page) => {
+    // Sort by created_at ascending to determine which pages are within the limit
+    const sortedByCreation = [...(pages || [])].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const activePageIds = new Set(
+      sortedByCreation.slice(0, pageLimit).map((p) => p.id)
+    );
+
+    // Transform pages with attention status and over_limit flag
+    const pagesFormatted: DashboardPageData[] = (pages || []).map((page) => {
       const lastScan = page.analyses as unknown as AnalysisJoin;
 
       return {
@@ -226,6 +249,7 @@ export async function GET() {
             }
           : null,
         attention_status: computeAttentionStatus(lastScan),
+        over_limit: !activePageIds.has(page.id),
       };
     });
 

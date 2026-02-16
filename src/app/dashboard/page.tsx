@@ -8,6 +8,7 @@ import { PageLoader } from "@/components/PageLoader";
 import type { DashboardPageData, DetectedChange, ChangeCheckpointSummary } from "@/lib/types/analysis";
 import { TIER_LIMITS, getEffectiveTier, type SubscriptionTier, type SubscriptionStatus } from "@/lib/permissions";
 import { getPath, timeAgo } from "@/lib/utils/url";
+import { formatOutcomeText } from "@/lib/utils/attribution";
 import { usePages, useChanges, isUnauthorizedError } from "@/lib/hooks/use-data";
 import { ToastProvider, useToast } from "@/components/Toast";
 import {
@@ -502,6 +503,21 @@ function WinCard({
     ? `/analysis/${change.first_detected_analysis_id}?highlight=correlation`
     : "/dashboard";
 
+  // Build confidence-banded attribution from checkpoint data
+  const latestCp = change.checkpoints?.filter((cp) => cp.reasoning).pop();
+  const cpMetrics = latestCp?.metrics_json?.metrics;
+  const topCpMetric = cpMetrics?.length
+    ? cpMetrics.reduce((best, m) => (Math.abs(m.change_percent) > Math.abs(best.change_percent) ? m : best), cpMetrics[0])
+    : undefined;
+  const attributionText = latestCp ? formatOutcomeText({
+    status: change.status === "regressed" ? "regressed" : "validated",
+    confidence: latestCp.confidence,
+    metricKey: topCpMetric?.name ?? null,
+    direction: topCpMetric ? (topCpMetric.change_percent > 0 ? "up" : "down") : null,
+    changePercent: topCpMetric ? Math.abs(topCpMetric.change_percent) : null,
+  }) : null;
+  const descriptionText = attributionText || change.observation_text || null;
+
   return (
     <Link
       href={linkHref}
@@ -554,9 +570,9 @@ function WinCard({
         </p>
       )}
 
-      {change.observation_text && (
+      {descriptionText && (
         <p className="mt-1.5 text-sm text-[var(--ink-700)] leading-relaxed line-clamp-2">
-          {change.observation_text}
+          {descriptionText}
         </p>
       )}
     </Link>
@@ -693,8 +709,9 @@ function PageRow({
   onMetricFocusChange?: (pageId: string, value: string | null) => void;
 }) {
   const [showFocusPopover, setShowFocusPopover] = useState(false);
-  const status = getPageStatus(page);
-  const statusText = getStatusText(page, status);
+  const isOverLimit = page.over_limit;
+  const status = isOverLimit ? "stable" as PageStatus : getPageStatus(page);
+  const statusText = isOverLimit ? "Paused" : getStatusText(page, status);
   const displayName = page.name || getPath(page.url);
   const focusColor = page.metric_focus
     ? FOCUS_COLORS[page.metric_focus] || {
@@ -703,9 +720,11 @@ function PageRow({
       }
     : null;
 
-  const href = page.last_scan?.id
-    ? `/analysis/${page.last_scan.id}`
-    : `/pages/${page.id}`;
+  const href = isOverLimit
+    ? "/pricing"
+    : page.last_scan?.id
+      ? `/analysis/${page.last_scan.id}`
+      : `/pages/${page.id}`;
 
   const statusColorClass: Record<PageStatus, string> = {
     stable: "v2-row-status-stable",
@@ -714,11 +733,10 @@ function PageRow({
     scanning: "v2-row-status-scanning",
   };
 
-  return (
-    <Link
-      href={href}
-      className={`v2-page-row group ${status === "attention" ? "v2-page-row-attention" : ""}`}
-    >
+  const rowClass = `v2-page-row group ${status === "attention" ? "v2-page-row-attention" : ""} ${isOverLimit ? "opacity-50 cursor-default" : ""}`;
+
+  const rowContent = (
+    <>
       <StatusDot status={status} />
 
       <div className="min-w-0 flex-1">
@@ -726,56 +744,76 @@ function PageRow({
           <span className="text-sm font-semibold text-[var(--ink-900)] truncate">
             {displayName}
           </span>
-          <span className="relative hidden sm:inline">
-            {focusColor ? (
-              <button
-                className="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 hover:opacity-80 transition-opacity"
-                style={{ background: focusColor.bg, color: focusColor.text }}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFocusPopover(!showFocusPopover); }}
-              >
-                {page.metric_focus}
-              </button>
-            ) : (
-              <button
-                className="text-[0.625rem] font-medium px-1.5 py-0.5 rounded flex-shrink-0 text-[var(--ink-300)] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[var(--signal)] hover:bg-[var(--signal-subtle)]"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFocusPopover(!showFocusPopover); }}
-              >
-                + focus
-              </button>
-            )}
-            {showFocusPopover && onMetricFocusChange && (
-              <MetricFocusPopover
-                currentFocus={page.metric_focus || null}
-                onSelect={(value) => {
-                  onMetricFocusChange(page.id, value);
-                  setShowFocusPopover(false);
-                }}
-                onClose={() => setShowFocusPopover(false)}
-              />
-            )}
-          </span>
+          {!isOverLimit && (
+            <span className="relative hidden sm:inline">
+              {focusColor ? (
+                <button
+                  className="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 hover:opacity-80 transition-opacity"
+                  style={{ background: focusColor.bg, color: focusColor.text }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFocusPopover(!showFocusPopover); }}
+                >
+                  {page.metric_focus}
+                </button>
+              ) : (
+                <button
+                  className="text-[0.625rem] font-medium px-1.5 py-0.5 rounded flex-shrink-0 text-[var(--ink-300)] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[var(--signal)] hover:bg-[var(--signal-subtle)]"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFocusPopover(!showFocusPopover); }}
+                >
+                  + focus
+                </button>
+              )}
+              {showFocusPopover && onMetricFocusChange && (
+                <MetricFocusPopover
+                  currentFocus={page.metric_focus || null}
+                  onSelect={(value) => {
+                    onMetricFocusChange(page.id, value);
+                    setShowFocusPopover(false);
+                  }}
+                  onClose={() => setShowFocusPopover(false)}
+                />
+              )}
+            </span>
+          )}
         </div>
       </div>
 
-      <span className={`v2-row-status ${statusColorClass[status]}`}>
-        {statusText}
-      </span>
+      {isOverLimit ? (
+        <Link
+          href="/pricing"
+          className="text-xs font-semibold text-[var(--signal)] hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Upgrade
+        </Link>
+      ) : (
+        <>
+          <span className={`v2-row-status ${statusColorClass[status]}`}>
+            {statusText}
+          </span>
 
-      <svg
-        className="w-4 h-4 text-[var(--ink-300)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M9 5l7 7-7 7"
-        />
-      </svg>
-    </Link>
+          <svg
+            className="w-4 h-4 text-[var(--ink-300)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </>
+      )}
+    </>
   );
+
+  if (isOverLimit) {
+    return <div className={rowClass} title="This page exceeds your plan's limit. Upgrade to resume scanning.">{rowContent}</div>;
+  }
+
+  return <Link href={href} className={rowClass}>{rowContent}</Link>;
 }
 
 function PageList({
@@ -796,9 +834,11 @@ function PageList({
     scanning: 2,
     stable: 3,
   };
-  const sorted = [...pages].sort(
-    (a, b) => sortOrder[getPageStatus(a)] - sortOrder[getPageStatus(b)]
-  );
+  const sorted = [...pages].sort((a, b) => {
+    // Over-limit pages always sort to the bottom
+    if (a.over_limit !== b.over_limit) return a.over_limit ? 1 : -1;
+    return sortOrder[getPageStatus(a)] - sortOrder[getPageStatus(b)];
+  });
 
   return (
     <section>

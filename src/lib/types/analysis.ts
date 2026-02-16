@@ -372,6 +372,7 @@ export interface DashboardPageData {
     created_at: string;
   } | null;
   attention_status: AttentionStatus;
+  over_limit: boolean;
 }
 
 // ============================================

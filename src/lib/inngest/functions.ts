@@ -28,7 +28,7 @@ import {
   formatCheckpointObservation,
 } from "@/lib/analytics/checkpoints";
 import type { CheckpointAssessment, HorizonDays } from "@/lib/types/analysis";
-import { canUseDeployScans, canAccessMobile, getEffectiveTier, type SubscriptionTier } from "@/lib/permissions";
+import { canUseDeployScans, canAccessMobile, getEffectiveTier, getAllowedScanFrequency, getPageLimit, type SubscriptionTier, type SubscriptionStatus } from "@/lib/permissions";
 import { captureEvent, flushEvents } from "@/lib/posthog-server";
 
 /**
@@ -1200,6 +1200,12 @@ export const analyzeUrl = inngest.createFunction(
 /**
  * Shared logic for scheduled scans (daily/weekly).
  * Creates analyses and triggers Inngest events for each page.
+ *
+ * Runtime tier enforcement:
+ * - Fetches all non-manual pages (ignores stored scan_frequency column)
+ * - Checks each user's effective tier to determine allowed frequency
+ * - Daily cron → only Pro/Scale users; Weekly cron → only Free users
+ * - Enforces page limits per user: oldest N pages by created_at
  */
 async function runScheduledScans(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1209,18 +1215,77 @@ async function runScheduledScans(
   try {
     const supabase = createServiceClient();
 
-    // Get all pages due for scan
-    const { data: pages, error } = await supabase
+    // Get all non-manual pages (we enforce frequency by tier, not stored column)
+    const { data: allPages, error } = await supabase
       .from("pages")
-      .select("id, user_id, url, last_scan_id")
-      .eq("scan_frequency", frequency);
+      .select("id, user_id, url, last_scan_id, created_at")
+      .neq("scan_frequency", "manual");
 
     if (error) {
       console.error(`Failed to fetch pages for ${frequency} scan:`, error);
       throw error;
     }
 
-    if (!pages || pages.length === 0) {
+    if (!allPages || allPages.length === 0) {
+      return { scanned: 0 };
+    }
+
+    // Batch-fetch profiles for all distinct user IDs (chunked to avoid Supabase URL-length limits)
+    const userIds = [...new Set(allPages.map((p) => p.user_id))];
+    const CHUNK_SIZE = 200;
+    const tierMap = new Map<string, SubscriptionTier>();
+
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, subscription_tier, subscription_status, trial_ends_at")
+        .in("id", chunk);
+
+      if (profilesError) {
+        console.error("Failed to fetch profiles for scheduled scans:", profilesError);
+        throw profilesError;
+      }
+
+      for (const profile of profiles || []) {
+        tierMap.set(
+          profile.id,
+          getEffectiveTier(
+            (profile.subscription_tier as SubscriptionTier) || "free",
+            profile.subscription_status as SubscriptionStatus | null,
+            profile.trial_ends_at
+          )
+        );
+      }
+    }
+
+    // Log users with pages but no profile row (shouldn't happen, but observable)
+    const missingProfileUsers = userIds.filter((id) => !tierMap.has(id));
+    if (missingProfileUsers.length > 0) {
+      console.warn(`${frequency} cron: ${missingProfileUsers.length} user(s) have pages but no profile row — skipping their scans`);
+    }
+
+    // Filter pages: only include users whose allowed frequency matches this cron
+    const frequencyFiltered = allPages.filter((page) => {
+      const tier = tierMap.get(page.user_id);
+      if (!tier) return false;
+      return getAllowedScanFrequency(tier) === frequency;
+    });
+
+    // Enforce page limits per user: sort by created_at asc, take first N
+    const userPageCounts = new Map<string, number>();
+    const pages = frequencyFiltered
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .filter((page) => {
+        const tier = tierMap.get(page.user_id)!; // guaranteed by frequencyFiltered
+        const limit = getPageLimit(tier);
+        const current = userPageCounts.get(page.user_id) || 0;
+        if (current >= limit) return false;
+        userPageCounts.set(page.user_id, current + 1);
+        return true;
+      });
+
+    if (pages.length === 0) {
       return { scanned: 0 };
     }
 
@@ -1360,15 +1425,19 @@ export const deployDetected = inngest.createFunction(
 
     const supabase = createServiceClient();
 
-    // Check user's tier - skip deploy scans for free tier
+    // Check user's effective tier (considering trial + subscription status)
     const userTier = await step.run("check-tier", async () => {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("subscription_tier")
+        .select("subscription_tier, subscription_status, trial_ends_at")
         .eq("id", userId)
         .single();
 
-      return (profile?.subscription_tier as SubscriptionTier) || "free";
+      return getEffectiveTier(
+        (profile?.subscription_tier as SubscriptionTier) || "free",
+        profile?.subscription_status as SubscriptionStatus | null,
+        profile?.trial_ends_at
+      );
     });
 
     if (!canUseDeployScans(userTier)) {
@@ -1395,14 +1464,17 @@ export const deployDetected = inngest.createFunction(
         .eq("id", deployId);
     });
 
-    // Find all pages for this user
+    // Find pages for this user, enforcing page limit (oldest N by created_at)
     const pages = await step.run("find-pages", async () => {
       const { data } = await supabase
         .from("pages")
-        .select("id, url, last_scan_id, stable_baseline_id")
-        .eq("user_id", userId);
+        .select("id, url, last_scan_id, stable_baseline_id, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true });
 
-      return data || [];
+      const allPages = data || [];
+      const limit = getPageLimit(userTier);
+      return allPages.slice(0, limit);
     });
 
     // Fetch deploy's changed_files to filter pages
