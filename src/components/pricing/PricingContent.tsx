@@ -233,7 +233,7 @@ function PricingContent() {
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-ink-900 mb-6 pricing-hero-headline"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Conversions dropped. What changed?
+            Conversions dropped. What&nbsp;changed?
           </h1>
           <p className="text-lg text-ink-500 mb-6 max-w-xl mx-auto pricing-hero-sub">
             Loupe tracks what changed on your pages and connects it to your PostHog, GA4, or Supabase numbers — so you stop guessing and start knowing.
