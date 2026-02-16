@@ -546,3 +546,60 @@
   color: var(--signal);
   font-weight: 600;
 }
+
+/* ===== CHECKPOINT CHIPS (dashboard) ===== */
+.v2-checkpoint-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.v2-checkpoint-chip {
+  font-family: var(--font-geist-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.v2-checkpoint-chip-improved {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--emerald);
+}
+
+.v2-checkpoint-chip-regressed {
+  background: rgba(255, 107, 74, 0.12);
+  color: var(--coral);
+}
+
+.v2-checkpoint-chip-neutral {
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--ink-500);
+}
+
+.v2-checkpoint-chip-inconclusive {
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--ink-400);
+}
+
+.v2-checkpoint-chip-pending {
+  background: transparent;
+  color: var(--ink-300);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+}
+
+.v2-win-metric {
+  color: var(--ink-900);
+}
+
+.v2-win-metric-arrow-good {
+  color: var(--emerald);
+}
+
+.v2-win-metric-arrow-bad {
+  color: var(--coral);
+}

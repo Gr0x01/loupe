@@ -348,12 +348,14 @@ Output:
 
 ### Pipeline functions (`lib/ai/pipeline.ts`)
 - `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available. SYSTEM_PROMPT includes "Mobile Screenshot Artifacts" guardrail warning.
-- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?)` — Haiku vision diff (maxOutputTokens: 2048). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory. QUICK_DIFF_PROMPT includes mobile artifact + cookie banner ignore rules.
-- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 4096). Has analytics/database tool access. POST_ANALYSIS_PROMPT includes mobile artifact guardrail.
+- `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?, watchingCandidates?)` — Haiku vision diff (maxOutputTokens: 2048). Sends 2 or 4 images depending on baseline. All images capped at 7500px height via `sharp` (Anthropic limit: 8000px). Baseline URLs are fetched and resized; current base64 is resized in-memory. QUICK_DIFF_PROMPT includes mobile artifact + cookie banner ignore rules + change linkage instructions. Optional `watchingCandidates` provides existing watching changes for fingerprint matching.
+- `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 4096). Has analytics/database tool access. POST_ANALYSIS_PROMPT includes mobile artifact guardrail + change linkage instructions. Injects `formatWatchingCandidates()` alongside `formatPendingChanges()` when pending changes exist.
 - `extractJson(text)` — Robust JSON extraction from LLM responses. 3-tier: regex code block → `extractMatchingBraces()` (finds matching `}` ignoring postamble) → `closeJson()` (auto-close truncated JSON).
 - `formatUserFeedback(feedback)` — Formats user feedback for LLM context (with prompt injection protection)
 - `formatPageFocus(focus)` — Formats user's metric focus for LLM context (with prompt injection protection)
 - `formatChangeHypotheses(hypotheses)` — Formats change hypotheses for LLM context (with prompt injection protection)
+- `formatWatchingCandidates(candidates)` — Formats active watching changes for LLM linkage proposals (with `<watching_candidates_data>` boundary tags, prompt injection protection, max 20 candidates)
+- `validateMatchProposal(change, candidateIds, candidateScopes)` — Deterministic 3-gate validation of LLM-proposed change matches: (1) candidate set membership, (2) confidence >= 0.70, (3) scope compatibility. Returns `MatchProposal` with `accepted` boolean and optional `rejection_reason`.
 
 Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 
@@ -813,7 +815,7 @@ Inngest cron registrations go stale after Vercel deploys, causing cron functions
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts), concurrency: 4 (prevents screenshot service 429s when daily scans fire simultaneously). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
 - `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. Backed up by Vercel Cron at 9:15 UTC. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
-- `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
+- `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), fetches watching candidates for fingerprint matching, runs quick Haiku diff against stable baseline with candidates. If stale/missing baseline → full analysis. If changes detected → fingerprint-aware upsert (matched changes update existing rows, unmatched create new rows with proposal metadata), sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
 - `screenshot-health-check` — cron (every 30 min), pings screenshot service, reports to Sentry if unreachable. Sentry alert rule "Screenshot Service Down" (ID: 16691420) triggers on `service:screenshot` tag.
@@ -984,14 +986,17 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 - Compares baseline screenshot URL vs current screenshot base64
 - Sends 2 images (desktop only) or 4 images (desktop + mobile) when baseline has mobile
 - Mobile capture skipped if baseline lacks `mobile_screenshot_url` (avoids wasted work)
-- Returns `QuickDiffResult` with changes array (element, scope, before, after)
+- Returns `QuickDiffResult` with changes array (element, scope, before, after, fingerprint fields)
 - Aggregates changes appropriately (element/section/page scope)
+- Accepts optional `watchingCandidates` for fingerprint matching — LLM proposes `matched_change_id` with confidence and rationale
 
 **Detected Changes (`detected_changes` table):**
 - Persistent registry with `first_detected_at` timestamps (correlation anchor)
 - Status state machine: `watching` → `validated` | `regressed` | `inconclusive` | `reverted`
 - Dedup via unique index on `(page_id, element, first_detected_date)`
 - `correlation_metrics` stores analytics comparison results when correlation completes
+- Fingerprint matching: LLM proposes `matched_change_id` → `validateMatchProposal()` validates with 3 gates → accepted matches update existing row, rejected create new row with proposal metadata
+- Both deploy scans and scheduled scans create/update `detected_changes` rows (scheduled scans only for N+1 scans with `parentAnalysisId`)
 
 **Correlation (`src/lib/analytics/correlation.ts: correlateChange`):**
 - Uses `comparePeriodsAbsolute()` on analytics providers (not relative "last 7 days")
@@ -1005,6 +1010,15 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 - Returns `revertedChangeIds: string[]` with IDs of reverted changes
 - Changes marked as status `"reverted"` in database
 - Security: IDs validated against sent IDs set, ownership check, status check before update
+
+**LLM-Based Fingerprint Matching (Phase 3):**
+- Both quick diff and post-analysis prompts include "Change Linkage" instructions
+- Active watching changes formatted as candidates via `formatWatchingCandidates()` (max 20, sanitized, `<watching_candidates_data>` boundary tags)
+- LLM proposes `matched_change_id`, `match_confidence` (0.0-1.0), `match_rationale` per detected change
+- `validateMatchProposal()` applies 3 deterministic gates before accepting: (1) proposed ID in candidate set, (2) confidence >= 0.70, (3) scope compatibility (page matches anything; element/section cross-compatible)
+- Accepted matches → update existing `detected_changes` row (after_value, description, match fields)
+- Rejected/no match → insert new row with proposal metadata
+- TOCTOU guard: `.eq("status", "watching")` on all update queries prevents overwriting resolved changes
 
 ### Inngest Functions
 
@@ -1226,35 +1240,43 @@ User-provided text is sanitized before injection into LLM prompts:
 
 ### Subscription Tiers
 
-| Tier | Price | Pages | Scans | Analytics | Mobile View |
-|------|-------|-------|-------|-----------|-------------|
-| Free | $0 | 1 | Weekly | 0 | No |
-| Starter | $12/mo ($120/yr) | 3 | Daily + Deploy | 1 | No |
-| Pro | $29/mo ($290/yr) | 10 | Daily + Deploy | Unlimited | Yes |
+| Tier | Price | Pages | Scans | Analytics | Mobile | Impact Follow-up |
+|------|-------|-------|-------|-----------|--------|------------------|
+| Free | $0 | 1 | Weekly | 0 | No | — |
+| Pro | $39/mo ($390/yr) | 5 | Daily + Deploy | Unlimited | Yes | 30 days |
+| Scale | $99/mo ($990/yr) | 15 | Daily + Deploy | Unlimited | Yes | 90 days |
 
-Note: "Mobile View" refers to viewport-based access gate (`MobileUpgradeGate`). Mobile screenshots are captured and analyzed for ALL tiers — the LLM always sees both viewports. The Pro gate controls whether users can view mobile-specific UI, not whether mobile analysis happens.
+**14-day Pro trial**: New signups get Pro features for 14 days (no credit card). After expiry, drops to Free. Controlled by `trial_ends_at` on profiles table.
+
+**Impact follow-up** = checkpoint horizon (D+7/14/30 for Pro, D+7/14/30/60/90 for Scale). Gated by `maxHorizonDays` in permissions.
+
+Note: "Mobile" refers to viewport-based access gate (`MobileUpgradeGate`). Mobile screenshots are captured and analyzed for ALL tiers — the LLM always sees both viewports. The gate controls whether users can view mobile-specific UI, not whether mobile analysis happens.
 
 ### Database Fields (profiles table)
 ```sql
-subscription_tier text NOT NULL DEFAULT 'free',  -- 'free' | 'starter' | 'pro'
+subscription_tier text NOT NULL DEFAULT 'free',  -- 'free' | 'pro' | 'scale'
 stripe_customer_id text,
 stripe_subscription_id text,
 subscription_status text DEFAULT 'active',  -- 'active' | 'past_due' | 'canceled'
-billing_period text  -- 'monthly' | 'annual'
+billing_period text,  -- 'monthly' | 'annual'
+trial_ends_at timestamptz  -- 14-day Pro trial expiry
 ```
 
 ### Permissions Module (`src/lib/permissions.ts`)
-- `getPageLimit(tier)` — Returns max pages for tier
+- `getEffectiveTier(tier, status, trialEndsAt?)` — Returns effective tier (past_due/canceled → free; active trial → pro)
+- `getPageLimit(tier)` — Returns max pages for tier (1/5/15)
+- `getMaxHorizonDays(tier)` — Returns max checkpoint horizon (0/30/90)
 - `canConnectAnalytics(tier, currentCount)` — Checks analytics integration limit
-- `canUseDeployScans(tier)` — Returns true for Starter/Pro
-- `canAccessMobile(tier)` — Returns true for Pro only
+- `canUseDeployScans(tier)` — Returns true for Pro/Scale
+- `canAccessMobile(tier)` — Returns true for Pro/Scale
 - `validateScanFrequency(tier, requested)` — Coerces scan frequency based on tier
+- `TRIAL_DURATION_DAYS = 14`
 
 ### API Routes
 
 | Route | Method | Purpose |
 |-------|--------|---------|
-| `/api/billing/checkout` | POST | Create Stripe Checkout session |
+| `/api/billing/checkout` | POST | Create Stripe Checkout session (pro/scale) |
 | `/api/billing/portal` | POST | Create Customer Portal session |
 | `/api/billing/webhook` | POST | Handle Stripe webhook events |
 
@@ -1271,15 +1293,15 @@ billing_period text  -- 'monthly' | 'annual'
 ```
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_STARTER_MONTHLY=price_...
-STRIPE_PRICE_STARTER_ANNUAL=price_...
 STRIPE_PRICE_PRO_MONTHLY=price_...
 STRIPE_PRICE_PRO_ANNUAL=price_...
+STRIPE_PRICE_SCALE_MONTHLY=price_...
+STRIPE_PRICE_SCALE_ANNUAL=price_...
 ```
 
 ### Key Files
 - `src/lib/stripe.ts` — Stripe client, price ID mapping, checkout/portal helpers
-- `src/lib/permissions.ts` — Tier limits and permission checks
+- `src/lib/permissions.ts` — Tier limits, trial logic, permission checks
 - `src/app/api/billing/` — Checkout, portal, webhook routes
 - `src/app/pricing/page.tsx` — Public pricing comparison
 - `src/app/settings/billing/page.tsx` — Subscription management
@@ -1308,8 +1330,8 @@ Three new tables + provenance fields on `detected_changes`:
 - `src/lib/types/analysis.ts` — `ChangeCheckpoint`, `CheckpointMetrics`, `TrackedSuggestion`, `ChangeLifecycleEvent`, `HorizonDays`, `CheckpointAssessment`
 
 ### Phase Plan
-- Phase 2: Data contracts + migrations (this phase) — schema only, no behavior changes
-- Phase 3: Detection + Orchestrator — fingerprint matching, prompt changes
+- Phase 2: Data contracts + migrations — schema only, no behavior changes — **DONE**
+- Phase 3: Detection + Orchestrator — fingerprint matching, prompt changes — **DONE**
 - Phase 4: Checkpoint engine — multi-horizon evaluation logic
 - Phase 5: Read model composer — unified view across horizons
 - Phase 6: UI — Chronicle updates, dashboard integration

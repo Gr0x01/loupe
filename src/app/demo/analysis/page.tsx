@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type {
   ChangesSummary,
+  ChangeCheckpointSummary,
   DeployContextAPI,
   Change,
   WatchingItem,
@@ -57,6 +58,57 @@ const mockWatchingItems: WatchingItem[] = [
   },
 ];
 
+const mockCheckpointsCTA: ChangeCheckpointSummary[] = [
+  {
+    id: "cp-1a",
+    horizon_days: 7,
+    assessment: "improved",
+    confidence: 0.88,
+    reasoning: "Conversion rate up 14% in first week. Strong early signal — CTA copy resonated immediately with returning visitors.",
+    data_sources: ["posthog"],
+    computed_at: new Date(Date.now() - 23 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "cp-1b",
+    horizon_days: 14,
+    assessment: "improved",
+    confidence: 0.93,
+    reasoning: "Lift held at +17% through week two. New visitors converting at similar rate to returning — not a novelty effect.",
+    data_sources: ["posthog"],
+    computed_at: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "cp-1c",
+    horizon_days: 30,
+    assessment: "improved",
+    confidence: 0.87,
+    reasoning: "Sustained +18.4% after 30 days. Slight regression in mobile but desktop holds strong. Durable improvement.",
+    data_sources: ["posthog"],
+    computed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
+const mockCheckpointsHeadline: ChangeCheckpointSummary[] = [
+  {
+    id: "cp-2a",
+    horizon_days: 7,
+    assessment: "improved",
+    confidence: 0.76,
+    reasoning: "Bounce rate dropped 4% in week one. Promising but sample size limited.",
+    data_sources: ["posthog"],
+    computed_at: new Date(Date.now() - 23 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "cp-2b",
+    horizon_days: 14,
+    assessment: "inconclusive",
+    confidence: 0.52,
+    reasoning: "Bounce rate fluctuated between -3% and -8% — traffic mix shifted mid-period. Need more data.",
+    data_sources: ["posthog"],
+    computed_at: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 const mockValidatedItems: ValidatedItem[] = [
   {
     id: "val-1",
@@ -65,6 +117,7 @@ const mockValidatedItems: ValidatedItem[] = [
     metric: "conversion_rate",
     change: "+18.4%",
     friendlyText: "More visitors clicking your CTA",
+    checkpoints: mockCheckpointsCTA,
   },
   {
     id: "val-2",
@@ -73,6 +126,7 @@ const mockValidatedItems: ValidatedItem[] = [
     metric: "bounce_rate",
     change: "-6.2%",
     friendlyText: "Fewer visitors leaving immediately",
+    checkpoints: mockCheckpointsHeadline,
   },
 ];
 
@@ -183,6 +237,16 @@ const mockChangesSummary: ChangesSummary = {
   observations: mockObservations,
 };
 
+const mockHypothesisMap: Record<string, string> = {
+  "val-1": "Testing action-oriented CTA with lower commitment",
+  "val-2": "Testing outcome-focused language instead of generic growth copy",
+};
+
+const mockCheckpointMap: Record<string, { checkpoint_id: string; horizon_days: number }> = {
+  "val-1": { checkpoint_id: "cp-1c", horizon_days: 30 },
+  "val-2": { checkpoint_id: "cp-2b", horizon_days: 14 },
+};
+
 // ============================================
 // Demo Page
 // ============================================
@@ -217,6 +281,8 @@ export default function DemoAnalysisPage() {
           pageId="demo"
           currentAnalysisId="demo"
           metricFocus="conversions"
+          hypothesisMap={mockHypothesisMap}
+          checkpointMap={mockCheckpointMap}
         />
 
         {/* CTA Section */}

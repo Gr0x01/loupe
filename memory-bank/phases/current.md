@@ -27,6 +27,53 @@ Inngest Cloud cron functions intermittently don't fire. Event-triggered function
 
 ---
 
+## RFC-0001 Phase 3 — Detection + Orchestrator (DONE)
+
+Fingerprint matching: LLM proposes whether a detected change matches an existing watching change, and a deterministic orchestrator validates before linking or creating. Both deploy scans and scheduled scans now produce canonical `detected_changes` rows.
+
+### Summary
+
+| Step | What | Status |
+|------|------|--------|
+| 1 | Type updates (fingerprint fields on `Change` + `QuickDiffChange`) | **DONE** |
+| 2 | `formatWatchingCandidates()` formatter | **DONE** |
+| 3 | `validateMatchProposal()` with 3 deterministic gates | **DONE** |
+| 4 | Prompt updates (Change Linkage in QUICK_DIFF_PROMPT + POST_ANALYSIS_PROMPT) | **DONE** |
+| 5 | `runQuickDiff` accepts + injects watching candidates | **DONE** |
+| 6 | `runPostAnalysisPipeline` injects watching candidates | **DONE** |
+| 7 | Deploy path: fingerprint-aware upsert | **DONE** |
+| 8 | Scheduled path: row creation for N+1 scans | **DONE** |
+| 9 | Code review fixes | **DONE** |
+
+### Key Changes
+
+**Types (`src/lib/types/analysis.ts`):**
+- `Change` + `QuickDiffChange` gained `matched_change_id`, `match_confidence`, `match_rationale`
+
+**Pipeline (`src/lib/ai/pipeline.ts`):**
+- `formatWatchingCandidates(candidates)` — Formats up to 20 watching changes as LLM candidates, with `<watching_candidates_data>` boundary tags + prompt injection protection
+- `validateMatchProposal(change, candidateIds, candidateScopes)` — 3 deterministic gates: (1) proposed ID in candidate set, (2) confidence >= 0.70, (3) scope compatibility. Returns `MatchProposal` with `accepted` + optional `rejection_reason`
+- `QUICK_DIFF_PROMPT` + `POST_ANALYSIS_PROMPT` — Added "Change Linkage" section + fingerprint fields in output schema
+- `runQuickDiff` — New 5th param `watchingCandidates?`, prepended to prompt text
+- `runPostAnalysisPipeline` — Injects `formatWatchingCandidates(pendingChanges)` alongside existing `formatPendingChanges`
+
+**Inngest (`src/lib/inngest/functions.ts`):**
+- **Deploy path**: Fetches watching candidates before `runQuickDiff`, passes as 5th arg. Insert loop replaced with `validateMatchProposal`-based upsert (accepted → update existing row, rejected → insert new with metadata)
+- **Scheduled path**: New block after observation storage creates `detected_changes` rows from `changesSummary.changes` for N+1 scans (guarded by `parentAnalysisId`). Same fingerprint matching logic.
+
+### Code Review Fixes Applied
+- `match_confidence: 0` preserved via `??` instead of `||` (prevents `0` → `null` coercion)
+- `.eq("status", "watching")` added to all update queries (TOCTOU guard)
+- `<watching_candidates_data>` boundary tags + injection warning (consistent with other formatters)
+- Tightened `validateMatchProposal` scope type to `"element" | "section" | "page"` union
+
+### Design Decisions
+- Scope gate intentionally permissive: page matches anything, element/section cross-compatible. MVP behavior.
+- Deploy path has no `first_detected_analysis_id` (no analysis row exists for quick-diff path)
+- Upsert logic intentionally duplicated between deploy/scheduled paths (different field sets: `deploy_id` vs `first_detected_analysis_id`)
+
+---
+
 ## Phase 2A — Vision Pivot: Predictions Not Grades (IN PROGRESS)
 
 Major repositioning from "website grader with scores" to "correlation layer with predictions."
@@ -342,7 +389,7 @@ Added 390px mobile viewport screenshot to the full pipeline: capture → store �
 
 **Backward compatible:** Old analyses with `NULL` mobile_screenshot_url render exactly as before.
 
-**Note:** Mobile screenshots are captured for ALL tiers (not gated). The "Mobile" Pro feature in pricing refers to viewport-based access gate (`MobileUpgradeGate`), not screenshot capture. Consider gating LLM mobile image sending by tier to save ~$0.01/analysis for Free/Starter.
+**Note:** Mobile screenshots are captured for ALL tiers (not gated). The "Mobile" feature in pricing refers to viewport-based access gate (`MobileUpgradeGate`), not screenshot capture. Mobile access is available on Pro and Scale tiers.
 
 ### Daily Scan Pipeline Fix (Feb 12, 2026)
 
@@ -643,7 +690,7 @@ Foundation for integrations. Users can track pages over time.
 
 ## Phase 1C-2 — Launch Prep (DONE → SUPERSEDED)
 
-> **Superseded (Feb 14, 2026):** Founding 50, share-to-unlock, and waitlist systems fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Starter/Pro) in Phase 1D. Page limits now enforced via `getPageLimit(tier)` from `src/lib/permissions.ts`. When users hit their page limit, they're redirected to `/pricing`.
+> **Superseded (Feb 14, 2026):** Founding 50, share-to-unlock, and waitlist systems fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Pro/Scale) in Phase 1D. Page limits now enforced via `getPageLimit(tier)` from `src/lib/permissions.ts`. When users hit their page limit, they're redirected to `/pricing`.
 >
 > **Deleted:** ShareModal, FoundingCounter, constants.ts, founding-status API, share-credit API, waitlist page + API, waitlist email template. DB artifacts dropped: `waitlist` table, `claim_founding_50` RPC, `increment_bonus_pages` RPC, `profiles.bonus_pages`, `profiles.is_founding_50`.
 
@@ -726,9 +773,9 @@ Strengthen LLM analysis quality and redesign the "What changed" UI.
 
 ## Phase 1D — Billing (DONE)
 
-- [x] Stripe integration (Free/Starter $12/Pro $29)
+- [x] Stripe integration (Free/Pro $39/Scale $99 + 14-day Pro trial)
 - [x] Checkout, portal, webhook routes (`/api/billing/*`)
-- [x] Tier-based page limits via `getPageLimit(tier)` — Free: 1, Starter: 3, Pro: 10
+- [x] Tier-based page limits via `getPageLimit(tier)` — Free: 1, Pro: 5, Scale: 15
 - [x] Settings page (integrations, email preferences, billing) — `/settings/integrations`, `/settings/billing`
 - [x] Pricing page (`/pricing`)
 

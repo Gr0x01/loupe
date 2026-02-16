@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { CorrelationMetrics, ValidatedItem, WatchingItem } from "@/lib/types/analysis";
+import type { CorrelationMetrics, ValidatedItem, WatchingItem, ChangeCheckpointSummary } from "@/lib/types/analysis";
 import { DECISION_HORIZON } from "@/lib/analytics/checkpoints";
 
 export interface ComposedProgress {
@@ -78,10 +78,38 @@ export async function composeProgressFromCanonicalState(
     return { validated: 0, watching: 0, validatedItems: [], watchingItems: [] };
   }
 
+  // Batch-fetch checkpoints for all changes
+  const changeIds = changes.map((c) => c.id);
+  const checkpointsByChange = new Map<string, ChangeCheckpointSummary[]>();
+  const { data: checkpoints } = await supabase
+    .from("change_checkpoints")
+    .select("id, change_id, horizon_days, assessment, confidence, reasoning, data_sources, computed_at, metrics_json")
+    .in("change_id", changeIds)
+    .order("horizon_days", { ascending: true });
+
+  if (checkpoints) {
+    for (const cp of checkpoints) {
+      const arr = checkpointsByChange.get(cp.change_id) || [];
+      arr.push({
+        id: cp.id,
+        horizon_days: cp.horizon_days,
+        assessment: cp.assessment,
+        confidence: cp.confidence,
+        reasoning: cp.reasoning,
+        data_sources: cp.data_sources,
+        computed_at: cp.computed_at,
+        metrics_json: cp.metrics_json,
+      });
+      checkpointsByChange.set(cp.change_id, arr);
+    }
+  }
+
   const validatedItems: ValidatedItem[] = [];
   const watchingItems: WatchingItem[] = [];
 
   for (const row of changes) {
+    const rowCheckpoints = checkpointsByChange.get(row.id);
+
     if (row.status === "validated" || row.status === "regressed") {
       const { metric, change, friendlyText } = formatMetricFriendlyText(
         row.correlation_metrics as CorrelationMetrics | null,
@@ -95,6 +123,7 @@ export async function composeProgressFromCanonicalState(
         change,
         friendlyText,
         status: row.status as "validated" | "regressed",
+        checkpoints: rowCheckpoints,
       });
     } else if (row.status === "watching") {
       const firstDetectedMs = new Date(row.first_detected_at).getTime();
@@ -109,6 +138,7 @@ export async function composeProgressFromCanonicalState(
         daysOfData,
         daysNeeded: DECISION_HORIZON,
         firstDetectedAt: row.first_detected_at,
+        checkpoints: rowCheckpoints,
       });
     }
   }

@@ -1,6 +1,6 @@
 # Project: Loupe Canonical Change Intelligence (RFC-0001)
 
-**Status:** DRAFT (proposed)
+**Status:** IN PROGRESS (Phases 1-5 shipped, Phase 6-7 remaining)
 **Created:** Feb 16, 2026
 **Owner:** TBD
 
@@ -359,14 +359,17 @@ Extends the existing `finding_feedback` pattern to change outcomes. This is the 
 - Pattern: "Previously, we said X helped signups. The user disagreed because Y. Factor this into your assessment."
 - Feedback is contextual (per-user, per-page), not global model fine-tuning.
 
-### Schema: `outcome_feedback`
+### Schema: `outcome_feedback` (Shipped)
 - `id uuid pk`
-- `checkpoint_id uuid not null references change_checkpoints(id)`
-- `change_id uuid not null references detected_changes(id)`
+- `checkpoint_id uuid not null references change_checkpoints(id) on delete cascade`
+- `change_id uuid not null references detected_changes(id) on delete cascade`
 - `user_id uuid not null`
-- `feedback_type text not null` (`accurate | inaccurate`)
-- `feedback_text text null` (free-form correction)
+- `feedback_type text not null check (in ('accurate', 'inaccurate'))`
+- `feedback_text text null check (char_length <= 500)` (free-form correction)
 - `created_at timestamptz not null default now()`
+- Unique index on `(checkpoint_id, user_id)` — one feedback per checkpoint per user.
+- Trigger `check_outcome_feedback_integrity()` enforces checkpoint belongs to change (DB-level).
+- RLS: SELECT only (`user_id = auth.uid()`). No INSERT/UPDATE/DELETE policy — writes via service client only.
 
 ---
 
@@ -461,17 +464,21 @@ Exit criteria:
 - Every resolved status has LLM reasoning stored alongside.
 - No regression in PostHog/GA4 outcome quality.
 
-## Phase 5: Outcome Feedback Loop
+## Phase 5: Outcome Feedback Loop ✓
 
-Deliverables:
-- `outcome_feedback` table (checkpoint_id, change_id, user_id, feedback_type, feedback_text).
-- Thumbs up/down UI on resolved change outcomes in Chronicle/dashboard.
-- Optional "What did we get wrong?" free-text on thumbs down.
-- Feedback injected into future LLM assessment prompts for same page/user.
+Deliverables (all shipped):
+- `outcome_feedback` table with trigger-enforced checkpoint↔change integrity (`check_outcome_feedback_integrity()`), DB-level `feedback_text` length constraint, API-only writes (no client INSERT RLS policy — only SELECT policy for reads).
+- `POST /api/feedback/outcome` with 3-hop ownership chain (user → change → checkpoint), resolved-only guard (rejects feedback on watching/inconclusive changes), rate limiting, UUID validation, unique constraint handling (409 on duplicate).
+- `OutcomeFeedbackUI` inline component in `UnifiedTimelineCard.tsx`: idle → thumbs up/down → optional text input on thumbs down → submitted states. Reuses hypothesis animation pattern.
+- `feedback_map` (keyed by checkpoint_id) + `checkpoint_map` (change_id → latest checkpoint) added to `PageContext`, built via 2-round parallel queries in analysis API (round 1: context + changes, round 2: feedback + checkpoints scoped by change IDs).
+- `priorFeedback` array injected into `runCheckpointAssessment()` prompt with "User Feedback Calibration" system prompt section. Inngest reads scoped by `user_id` (prevents cross-tenant poisoning).
+- `outcome_feedback_submitted` analytics event with `feedback_type` + `horizon_days`.
+- Account deletion cleanup (leaf-first before `detected_changes`).
 
-Exit criteria:
-- Users can provide feedback on any resolved outcome.
-- Feedback appears in next checkpoint assessment prompt for that page.
+Exit criteria (met):
+- Users can provide feedback on any resolved (validated/regressed) outcome.
+- Feedback appears in next checkpoint assessment prompt for that change.
+- Cross-tenant poisoning mitigated at both write (API ownership chain) and read (user_id scoping) layers.
 
 ## Phase 6: Suggestions as Persistent State
 
@@ -525,6 +532,7 @@ Done when:
 - [x] Add lifecycle event log table for immutable transitions.
 - [ ] Add model proposal/provenance fields (proposal ID, confidence, rationale, model/prompt version).
 - [x] Add indexes/idempotency keys for scan, upsert, checkpoint, and recomposition paths.
+- [x] Add `outcome_feedback` table with trigger integrity enforcement + API-only writes.
 
 Done when:
 - [ ] Schema supports full v1 behavior without placeholder/TODO columns.
@@ -563,13 +571,14 @@ Done: Canonical composition and narrative integration shipped.
 
 ## Workstream F: UI + Product Surface
 
-- [ ] Add checkpoint chips (`7d/14d/30d/60d/90d`).
-- [ ] Add evidence panel for resolved outcomes (LLM reasoning + data sources).
-- [ ] Add outcome feedback UI (thumbs up/down on resolved changes).
-- [ ] Keep existing Chronicle shell (no full redesign).
+- [x] Add checkpoint chips (`7d/14d/30d/60d/90d`) — watching cards show all-future dashed chips; resolved cards show color-coded by assessment (emerald/coral/gray).
+- [x] Add evidence panel for resolved outcomes (LLM reasoning, metric deltas with before→after±%, data sources, confidence, computed date, preview text).
+- [x] Add outcome feedback UI (thumbs up/down on resolved changes). 409 duplicate handled as submitted state.
+- [x] Keep existing Chronicle shell (no full redesign).
+- [x] Batch-fetch checkpoints in `composeProgressFromCanonicalState()` and attach to `ValidatedItem`/`WatchingItem`.
 
 Done when:
-- [ ] A user can see outcome reasoning and provide feedback directly in Chronicle.
+- [x] A user can see outcome reasoning and provide feedback directly in Chronicle.
 
 ## Workstream G: Reliability + Launch Gates
 
@@ -682,24 +691,27 @@ These decisions should be made in v1 architecture, because they are expensive or
 | Phase 2: Checkpoint Outcome Engine | **Done** | `change_checkpoints` table + `runCheckpoints` daily cron (10:30 UTC) + `change_lifecycle_events` audit trail. `resolveStatusTransition()` in `src/lib/analytics/checkpoints.ts`. Vercel Cron backup at 10:45 UTC with dual event trigger. Idempotent upserts via `ON CONFLICT DO NOTHING`. Lifecycle event failure → status revert (maintains invariant). Paginated queries (500/batch), batched `.in()` (300/batch). Provider init try/catch (analytics failure doesn't abort run). `checkCorrelations` fully replaced and deleted. |
 | Phase 3: Strategy Integration | **Done** | LLM writes narrative only — progress output removed from prompt. `formatCheckpointTimeline()` compresses multi-horizon evidence into prompt context. `runStrategyNarrative()` runs inline in checkpoint job (non-fatal, deterministic fallback). Scan job passes checkpoint timelines to post-analysis. `GET /api/changes` includes checkpoint data per change. `strategy_narrative` field added to `ChangesSummary`. |
 | Phase 4: LLM-as-Analyst Migration | **Done** | LLM assessment replaces deterministic threshold. `runCheckpointAssessment()` in pipeline.ts (Gemini 3 Pro, 3 attempts with backoff). `gatherSupabaseMetrics()` in correlation.ts queries historical snapshots + current table counts. Checkpoint upsert writes `reasoning`, `confidence`, `data_sources`. Deterministic `assessCheckpoint()` kept as fallback (now sees all metrics including Supabase). `GET /api/changes` returns new fields per checkpoint. Migration: `20260217_checkpoint_llm_assessment.sql`. |
-| Phase 5: Outcome Feedback Loop | **Done** | `outcome_feedback` table (trigger-enforced checkpoint↔change integrity, API-only writes, no client INSERT policy). `POST /api/feedback/outcome` with ownership chain validation + resolved-only guard. Thumbs up/down UI on validated/regressed cards in Chronicle (`OutcomeFeedbackUI` in `UnifiedTimelineCard.tsx`). `feedback_map` (keyed by checkpoint_id) + `checkpoint_map` in page_context via 2-round parallel queries. `priorFeedback` injected into `runCheckpointAssessment()` prompt with calibration instructions. Inngest reads scoped by `user_id`. Account deletion cleanup. |
+| Phase 5: Outcome Feedback Loop | **Done** | `outcome_feedback` table (trigger-enforced checkpoint↔change integrity, API-only writes, no client INSERT policy). `POST /api/feedback/outcome` with ownership chain validation + resolved-only guard. Thumbs up/down UI on validated/regressed cards in Chronicle (`OutcomeFeedbackUI` in `UnifiedTimelineCard.tsx`). `feedback_map` (keyed by checkpoint_id) + `checkpoint_map` in page_context via 2-round parallel queries — `checkpoint_map` uses assessment-match logic (checkpoint.assessment matches change status, e.g. improved↔validated) with highest-horizon fallback. `priorFeedback` injected into `runCheckpointAssessment()` prompt with calibration instructions. Inngest reads scoped by `user_id`. Account deletion cleanup. 409 duplicate handled as success in UI. |
 | Phase 6: Suggestions as Persistent State | Not started | `tracked_suggestions` migration exists but no endpoints/integration yet. |
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `src/lib/analysis/progress.ts` | `composeProgressFromCanonicalState`, `getLastCanonicalProgress`, `formatMetricFriendlyText`, `friendlyMetricNames` |
+| `src/lib/analysis/progress.ts` | `composeProgressFromCanonicalState` (+ batch checkpoint fetch → attach to items), `getLastCanonicalProgress`, `formatMetricFriendlyText`, `friendlyMetricNames` |
 | `src/lib/analytics/checkpoints.ts` | `getEligibleHorizons`, `computeWindows`, `assessCheckpoint` (deterministic fallback), `resolveStatusTransition`, `formatCheckpointObservation`, `DECISION_HORIZON` |
 | `src/lib/ai/pipeline.ts` | `formatCheckpointTimeline` (Phase 3), `runStrategyNarrative` (Phase 3), `runCheckpointAssessment` (Phase 4), `runPostAnalysisPipeline`, POST_ANALYSIS_PROMPT |
 | `src/lib/analytics/correlation.ts` | `correlateChange` (PostHog/GA4 metrics), `gatherSupabaseMetrics` (Phase 4 — Supabase DB metrics for checkpoints) |
 | `src/lib/inngest/functions.ts` | `runCheckpoints` cron (+ strategy narrative in recompose step), fail-closed composer in `analyzeUrl` (+ checkpoint timeline gathering), recompose-after-reverts |
 | `src/app/api/cron/checkpoints/route.ts` | Vercel Cron backup for checkpoint engine |
 | `src/app/api/changes/route.ts` | `GET /api/changes` — returns checkpoint data per change (Phase 3) |
-| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `CheckpointAssessmentResult`, `ChangeCheckpoint` (+ `reasoning`, `data_sources`), `ChangeCheckpointSummary` (+ `confidence`, `reasoning`, `data_sources`), `CheckpointMetrics` (+ `source?`), `StatusTransition`, `ValidatedItem.status`, `ChangesSummary.strategy_narrative` |
+| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `CheckpointAssessmentResult`, `ChangeCheckpoint` (+ `reasoning`, `data_sources`), `ChangeCheckpointSummary` (+ `id`, `confidence`, `reasoning`, `data_sources`, `metrics_json`), `CheckpointMetrics` (+ `source?`), `StatusTransition`, `ValidatedItem.status`/`checkpoints`, `WatchingItem.checkpoints`, `ChangesSummary.strategy_narrative`, `OutcomeFeedback`, `PageContext.feedback_map` (keyed by checkpoint_id)/`checkpoint_map` |
+| `src/app/api/feedback/outcome/route.ts` | `POST /api/feedback/outcome` — ownership chain validation, resolved-only guard, unique constraint handling |
+| `src/app/api/analysis/[id]/route.ts` | `checkpoint_map` builder with assessment-match logic (prefers checkpoint whose assessment matches displayed status), `feedback_map` keyed by checkpoint_id |
+| `src/components/chronicle/UnifiedTimelineCard.tsx` | `OutcomeFeedbackUI`, `CheckpointChips` (color-coded + future dashed), `EvidencePanel` (reasoning, metric deltas, data sources, preview text) — all inline components on resolved + watching cards |
 
 ## Immediate Next Steps
 
-1. **Phase 5: Outcome Feedback Loop** — `outcome_feedback` table + thumbs up/down UI on resolved changes + inject feedback into future assessment prompts.
-2. **Workstream F: UI** — Checkpoint chips, evidence panel (showing LLM reasoning + data sources), outcome feedback buttons.
-3. **Phase 6: Suggestions as Persistent State** — `tracked_suggestions` endpoints + composer integration.
+1. **Phase 6: Suggestions as Persistent State** — `tracked_suggestions` endpoints + composer integration.
+2. **Phase 7: Reliability** — Replay/idempotency tests, monitoring/alerting for drift and job failures.
+3. **Workstream G: Launch Gates** — Validate all v1 launch gates, long-window proof (D+30+).

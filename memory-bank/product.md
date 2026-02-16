@@ -167,24 +167,28 @@ Most users won't connect PostHog/GA4. The product must be valuable anyway.
 
 ## Pricing
 
-| | Free | Starter | Pro |
+| | Free | Pro | Scale |
 |---|:---:|:---:|:---:|
-| Price | $0 | $12/mo | $29/mo |
-| Pages | 1 | 3 | 10 |
+| Price | $0 | $39/mo ($390/yr) | $99/mo ($990/yr) |
+| Pages | 1 | 5 | 15 |
 | Scans | Weekly | Daily+Deploy | Daily+Deploy |
-| Analytics | 0 | 1 | Unlimited |
-| Mobile | No | No | Yes |
+| Analytics | 0 | Unlimited | Unlimited |
+| Mobile | No | Yes | Yes |
+| Impact follow-up | — | 30 days | 90 days |
+
+**14-day Pro trial**: All new signups get Pro features for 14 days, no credit card required. After trial, drops to Free tier (1 page, weekly scans).
 
 **Domain locking**: All pages must be on the same domain. First page sets the account domain automatically. No domain management UI — just works.
 
 ## Conversion Flywheel
 
-Free → Paid is driven by demonstrated value, not trial expiration:
+Free → Paid is driven by demonstrated value during the 14-day Pro trial:
 
 1. **Free audit** shows the analysis is good (30 seconds to value)
-2. **Track this page** enters them into the value loop
-3. **First correlation** proves the product works ("Your change helped!")
-4. **Upgrade prompts** at moments of demonstrated value
+2. **Signup** triggers 14-day Pro trial (5 pages, daily scans, mobile)
+3. **Track pages** enters them into the value loop with daily monitoring
+4. **First correlation** proves the product works ("Your change helped!")
+5. **Trial ending** prompts upgrade at a moment of demonstrated value
 
 ## Target Audience
 

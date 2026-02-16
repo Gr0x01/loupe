@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageLoader } from "@/components/PageLoader";
-import type { DashboardPageData, DetectedChange } from "@/lib/types/analysis";
+import type { DashboardPageData, DetectedChange, ChangeCheckpointSummary } from "@/lib/types/analysis";
 import { TIER_LIMITS, getEffectiveTier, type SubscriptionTier, type SubscriptionStatus } from "@/lib/permissions";
 import { getPath, timeAgo } from "@/lib/utils/url";
 import { usePages, useChanges, isUnauthorizedError } from "@/lib/hooks/use-data";
@@ -448,11 +448,38 @@ function ProofBanner({
   );
 }
 
+const V2_ALL_HORIZONS = [7, 14, 30, 60, 90] as const;
+
+function V2CheckpointChips({ checkpoints }: { checkpoints: ChangeCheckpointSummary[] }) {
+  const byHorizon = new Map(checkpoints.map((cp) => [cp.horizon_days, cp]));
+  return (
+    <div className="v2-checkpoint-chips">
+      {V2_ALL_HORIZONS.map((h) => {
+        const cp = byHorizon.get(h);
+        const suffix = !cp ? "pending"
+          : cp.assessment === "improved" ? "improved"
+          : cp.assessment === "regressed" ? "regressed"
+          : cp.assessment === "inconclusive" ? "inconclusive"
+          : "neutral";
+        return (
+          <span
+            key={h}
+            className={`v2-checkpoint-chip v2-checkpoint-chip-${suffix}`}
+            title={cp?.reasoning || `${cp?.assessment || "pending"} at ${h}d`}
+          >
+            {h}d
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function WinCard({
   change,
   highlight,
 }: {
-  change: DetectedChange & { domain?: string };
+  change: DetectedChange & { domain?: string; checkpoints?: ChangeCheckpointSummary[] };
   highlight?: boolean;
 }) {
   const metric = getPrimaryMetric(change);
@@ -504,6 +531,10 @@ function WinCard({
           </span>
           <span className="text-sm text-[var(--ink-500)]">{metric.name}</span>
         </div>
+      )}
+
+      {change.checkpoints && change.checkpoints.length > 0 && (
+        <V2CheckpointChips checkpoints={change.checkpoints} />
       )}
 
       {change.observation_text && (

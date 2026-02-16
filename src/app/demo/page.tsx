@@ -1,11 +1,26 @@
 import Link from "next/link";
-import type { DetectedChange } from "@/lib/types/analysis";
+import type { DetectedChange, ChangeCheckpointSummary } from "@/lib/types/analysis";
 
 // ============================================
 // Mock Data for xyz.io Demo
 // ============================================
 
-const mockChanges: (DetectedChange & { domain?: string })[] = [
+const demoCheckpoints1: ChangeCheckpointSummary[] = [
+  { id: "dcp-1a", horizon_days: 7, assessment: "improved", confidence: 0.82, reasoning: "Conversions up 18% in first week.", data_sources: ["posthog"], computed_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: "dcp-1b", horizon_days: 14, assessment: "improved", confidence: 0.91, reasoning: "Lift sustained at +23% through week two.", data_sources: ["posthog"], computed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+const demoCheckpoints2: ChangeCheckpointSummary[] = [
+  { id: "dcp-2a", horizon_days: 7, assessment: "improved", confidence: 0.79, reasoning: "Bounce rate down 8% in first week.", data_sources: ["posthog"], computed_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: "dcp-2b", horizon_days: 14, assessment: "improved", confidence: 0.85, reasoning: "Sustained -12% bounce rate.", data_sources: ["posthog"], computed_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: "dcp-2c", horizon_days: 30, assessment: "improved", confidence: 0.88, reasoning: "Durable improvement at 30 days.", data_sources: ["posthog"], computed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+const demoCheckpoints3: ChangeCheckpointSummary[] = [
+  { id: "dcp-3a", horizon_days: 7, assessment: "improved", confidence: 0.74, reasoning: "Time on page up 25% in first week.", data_sources: ["posthog"], computed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+const mockChanges: (DetectedChange & { domain?: string; checkpoints?: ChangeCheckpointSummary[] })[] = [
   {
     id: "demo-1",
     page_id: "demo-page-1",
@@ -28,6 +43,7 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     hypothesis: "Testing outcome-focused language instead of generic growth copy",
     observation_text: "The new headline directly addresses curiosity about impact, which aligns with your signups focus.",
+    checkpoints: demoCheckpoints1,
   },
   {
     id: "demo-2",
@@ -51,6 +67,7 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     hypothesis: "Testing action-oriented CTA with lower commitment",
     observation_text: "Lower commitment CTA reduced friction for first-time visitors.",
+    checkpoints: demoCheckpoints2,
   },
   {
     id: "demo-3",
@@ -73,6 +90,7 @@ const mockChanges: (DetectedChange & { domain?: string })[] = [
     created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     observation_text: "Adding social proof increased trust signals, keeping visitors engaged longer.",
+    checkpoints: demoCheckpoints3,
   },
 ];
 
@@ -147,6 +165,7 @@ function truncate(text: string, max: number): string {
 
 function getPrimaryMetric(change: DetectedChange): {
   change: string;
+  direction: "up" | "down";
   name: string;
   isPositive: boolean;
 } | null {
@@ -159,8 +178,8 @@ function getPrimaryMetric(change: DetectedChange): {
   const primary = sorted[0];
   if (!primary) return null;
 
-  const sign = primary.change_percent > 0 ? "+" : "";
-  const pct = `${sign}${Math.round(primary.change_percent)}%`;
+  const pct = `${Math.round(Math.abs(primary.change_percent))}%`;
+  const direction: "up" | "down" = primary.change_percent >= 0 ? "up" : "down";
 
   const nameMap: Record<string, string> = {
     bounce_rate: "bounce rate",
@@ -176,7 +195,7 @@ function getPrimaryMetric(change: DetectedChange): {
       ? primary.change_percent < 0
       : primary.change_percent > 0;
 
-  return { change: pct, name, isPositive };
+  return { change: pct, direction, name, isPositive };
 }
 
 // ─── Components ──────────────────────────────────────────────
@@ -210,9 +229,9 @@ function StatsBar() {
           bg="var(--emerald-subtle)"
           color="var(--emerald)"
         />
-        <a href="/" className="btn-primary text-sm px-4 py-2 ml-1">
+        <Link href="/" className="btn-primary text-sm px-4 py-2 ml-1">
           Try it free
-        </a>
+        </Link>
       </div>
     </div>
   );
@@ -259,7 +278,30 @@ function ProofBanner() {
   );
 }
 
-function WinCard({ change }: { change: DetectedChange & { domain?: string } }) {
+const DEMO_HORIZONS = [7, 14, 30, 60, 90] as const;
+
+function DemoChips({ checkpoints }: { checkpoints: ChangeCheckpointSummary[] }) {
+  const byH = new Map(checkpoints.map((cp) => [cp.horizon_days, cp]));
+  const chipColor = (a: string) =>
+    a === "improved" ? "v2-checkpoint-chip-improved"
+    : a === "regressed" ? "v2-checkpoint-chip-regressed"
+    : a === "inconclusive" ? "v2-checkpoint-chip-inconclusive"
+    : "v2-checkpoint-chip-neutral";
+  return (
+    <div className="v2-checkpoint-chips">
+      {DEMO_HORIZONS.map((h) => {
+        const cp = byH.get(h);
+        return (
+          <span key={h} className={`v2-checkpoint-chip ${cp ? chipColor(cp.assessment) : "v2-checkpoint-chip-pending"}`}>
+            {h}d
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function WinCard({ change }: { change: DetectedChange & { domain?: string; checkpoints?: ChangeCheckpointSummary[] } }) {
   const metric = getPrimaryMetric(change);
 
   return (
@@ -293,16 +335,20 @@ function WinCard({ change }: { change: DetectedChange & { domain?: string } }) {
       {metric && (
         <div className="mt-3 flex items-baseline gap-2">
           <span
-            className="text-xl sm:text-2xl font-bold"
-            style={{
-              fontFamily: "var(--font-display)",
-              color: metric.isPositive ? "var(--emerald)" : "var(--danger)",
-            }}
+            className="v2-win-metric text-xl sm:text-2xl font-bold"
+            style={{ fontFamily: "var(--font-display)" }}
           >
-            {metric.isPositive ? "▲" : "▼"} {metric.change}
+            <span className={`v2-win-metric-arrow ${metric.isPositive ? "v2-win-metric-arrow-good" : "v2-win-metric-arrow-bad"}`}>
+              {metric.direction === "up" ? "▲" : "▼"}
+            </span>{" "}
+            {metric.change}
           </span>
           <span className="text-sm text-[var(--ink-500)]">{metric.name}</span>
         </div>
+      )}
+
+      {change.checkpoints && change.checkpoints.length > 0 && (
+        <DemoChips checkpoints={change.checkpoints} />
       )}
 
       {change.observation_text && (

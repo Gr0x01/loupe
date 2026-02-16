@@ -629,11 +629,11 @@
 }
 
 .dossier-verdict-positive {
-  color: #059669;
+  color: var(--ink-900);
 }
 
 .dossier-verdict-concerning {
-  color: var(--coral);
+  color: var(--ink-900);
 }
 
 .dossier-verdict-deploy {

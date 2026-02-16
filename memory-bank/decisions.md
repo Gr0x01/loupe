@@ -147,7 +147,7 @@
 
 ## D15: Launch strategy — Founding 50, skip billing (Feb 3, 2026) — DEPRECATED
 
-> **Deprecated (Feb 14, 2026):** Founding 50 system, share-to-unlock, and waitlist fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Starter/Pro). See D29. All DB artifacts dropped: `waitlist` table, `claim_founding_50` RPC, `increment_bonus_pages` RPC, `profiles.bonus_pages`, `profiles.is_founding_50`.
+> **Deprecated (Feb 14, 2026):** Founding 50 system, share-to-unlock, and waitlist fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Pro/Scale). See D29. All DB artifacts dropped: `waitlist` table, `claim_founding_50` RPC, `increment_bonus_pages` RPC, `profiles.bonus_pages`, `profiles.is_founding_50`.
 
 **Decision**: Skip Stripe/billing for launch. Ship free for first 50 users ("Founding 50"), then waitlist. Use constraints to force conversations and learn pricing.
 
@@ -453,63 +453,47 @@ See `homepage-story.md` for copy rules and language guidelines.
 - `.claude/agents/*.md` (ui-designer, frontend-developer, brand-guardian)
 - `.claude/skills/frontend-design/SKILL.md`
 
-## D29: Pricing tiers — 4-tier structure (Feb 2026)
+## D29: Pricing tiers — restructured to Free/Pro/Scale (Feb 2026)
 
-**Decision**: Four pricing tiers based on competitor research and margin analysis. Supersedes D6 and D16.
+**Decision**: Three pricing tiers. Supersedes D6 and D16. Restructured Feb 16 from Free/Starter($12)/Pro($29) to Free/Pro($39)/Scale($99).
 
 **Tiers**:
 
-| | **Free** | **Starter** | **Pro** | **Business** |
-|---|:---:|:---:|:---:|:---:|
-| **Price** | $0 | $12/mo | $29/mo | $79/mo |
-| **Pages** | 1 | 3 | 10 | 25 |
-| **Scans** | Weekly | Daily + Deploy | Daily + Deploy | Daily + Deploy |
-| **Integrations** | — | 1 analytics + GitHub | All | All |
-| **Alerts** | Email | Email | Email + Slack | Email + Slack |
-| **Mobile** | — | — | ✓ | ✓ |
-| **Support** | Community | Community | Email | Priority |
-| **Team seats** | — | — | — | 3 |
+| | **Free** | **Pro** | **Scale** |
+|---|:---:|:---:|:---:|
+| **Price** | $0 | $39/mo ($390/yr) | $99/mo ($990/yr) |
+| **Pages** | 1 | 5 | 15 |
+| **Scans** | Weekly | Daily + Deploy | Daily + Deploy |
+| **Integrations** | — | All | All |
+| **Mobile** | — | ✓ | ✓ |
+| **Impact follow-up** | — | 30 days | 90 days |
 
-**Page limits**: Total pages across any domains (not per-domain). User with 3-page limit can track 3 pages on one domain, or 1 page each on 3 domains — their choice.
+**14-day Pro trial**: All new signups get Pro features for 14 days, no credit card required. `trial_ends_at` set on profiles at signup. `getEffectiveTier()` returns "pro" during active trial.
 
-**Competitor research** (Feb 2026):
-- VisualPing: Free (5 pages) → $10/mo (25 pages) → $50/mo → $100+/mo
-- ChangeTower: Free → $9/mo (500 URLs) → $299/mo enterprise
-- Hexometer: $12/mo starting
-- UptimeRobot: $10-14/mo
+**Why restructured**:
+- Original $12/$29 was underpriced 2-3x vs market for change intelligence (unique value: visual monitoring + metric correlation + AI impact analysis)
+- Killed Starter tier — too similar to Pro, created decision paralysis
+- $99 Scale serves as price anchor (Goldilocks/compromise effect) making $39 Pro feel reasonable
+- Impact follow-up horizon (30 vs 90 days) is the natural differentiator between Pro and Scale
 
-**Margin analysis**:
+**Margin analysis** (updated):
 
-| Tier | Price | Est. Monthly Cost | Margin |
-|------|-------|-------------------|--------|
-| Starter | $12 | ~$1.30 | 89% |
-| Pro | $29 | ~$5.40 | 81% |
-| Business | $79 | ~$18.50 | 77% |
+| Tier | Price | Est. Monthly Cost/page | Margin (5 pages) |
+|------|-------|----------------------|-------------------|
+| Pro | $39 | ~$3-5 | ~62-85% |
+| Scale | $99 | ~$3-5 | ~75-92% |
 
-Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 deploys/month.
+Cost: ~$3-5/page/month for daily scans. Checkpoint engine adds ~$0.10/change lifetime (negligible).
 
-**Value ladder**:
-- Free → Starter: "I want daily scans" or "more pages"
-- Starter → Pro: "I need Supabase integration" or "mobile access"
-- Pro → Business: "I need my team on this"
+**Trial economics**: ~$5/non-converting trial user (14 days × 5 pages × daily scans). Break-even at ~18% conversion with 50 signups/month. Conservative estimate: 10% conversion early on.
 
-**Why these prices**:
-- $12 entry: Validated by market (VisualPing $10, ChangeTower $9, Hexometer $12)
-- $29 mid-tier: Sweet spot for solo founders ($1-10k MRR)
-- $79 business: Room for team features without enterprise complexity
-- Mobile as paid differentiator: Low effort, natural upgrade path
-
-**Open for later**:
-- Deploy scan caps on Starter (currently unlimited)
-- Overage pricing vs hard limits
-
-**Implemented (Feb 11, 2026)**:
+**Implemented (Feb 16, 2026)**:
 - Stripe integration with checkout, portal, webhooks
-- Annual discount: 17% off ($120/yr Starter, $290/yr Pro)
-- Business tier deferred — launching with Free/Starter/Pro only
-- Slack alerts marked as "Coming soon" on Pro tier
-- Mobile access gated by viewport check + tier
-- ~~Founding 50 users migrated to Starter tier (grandfathered)~~ — Founding 50 system fully removed (Feb 14, 2026)
+- Annual discount: ~17% ("2 months free") — $390/yr Pro, $990/yr Scale
+- 14-day Pro trial on signup (no credit card)
+- Mobile access on all paid tiers
+- Impact follow-up gated by `maxHorizonDays` in permissions
+- ~~Founding 50 system~~ fully removed (Feb 14, 2026)
 
 ## D30: Robust LLM JSON extraction + cron idempotency (Feb 12, 2026)
 
@@ -571,7 +555,7 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - The correlation engine already compounds knowledge internally, but the user-facing experience doesn't show it
 - Metric focus lets the LLM evaluate changes through the right lens ("signups" vs "bounce rate")
 - Hypotheses give correlations context ("Testing outcome-focused language" vs just "headline changed")
-- Observations prove $29/mo value: "Look at what Loupe has learned about your page"
+- Observations prove paid tier value: "Look at what Loupe has learned about your page"
 - Prepares data layer for Phase 2 (Page Record view) where observations populate a sidebar
 
 **Design choices**:
@@ -678,3 +662,29 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - `networkidle2` adds ~0-3s latency vs `domcontentloaded` for sites with persistent background connections, but timeout increased to 25s to compensate
 - `deviceScaleFactor: 1` means LLM sees 1280px-wide (not 2560px) desktop images — fine for layout/copy analysis, might miss fine visual details
 - Prompt guardrails are a safety net, not a fix — they tell the LLM to ignore artifacts but can't guarantee it will
+
+## D37: Fingerprint matching — LLM-proposed, deterministically validated (Feb 16, 2026)
+
+**Decision**: LLM proposes change matches (which newly detected change corresponds to an existing watching change), but a deterministic orchestrator validates proposals before accepting. Both deploy scans and scheduled scans now create `detected_changes` rows.
+
+**Why**:
+- Deploy scans previously created separate `detected_changes` rows every time — dedup was only temporal (same-day unique index). Same headline change detected across multiple scans created separate rows, fragmenting the canonical timeline.
+- Scheduled scans previously never created `detected_changes` rows, leaving changes first detected by daily/weekly scans invisible to the correlation engine.
+- Pure LLM matching is unreliable (can hallucinate IDs, claim high confidence on wrong matches). Deterministic gates catch these.
+
+**Architecture: LLM proposes, orchestrator decides**:
+1. `formatWatchingCandidates()` sends up to 20 active watching changes to LLM as candidates
+2. LLM outputs `matched_change_id`, `match_confidence` (0.0-1.0), `match_rationale` per change
+3. `validateMatchProposal()` applies 3 gates:
+   - **Gate 1**: Proposed ID must exist in candidate set (blocks hallucinated IDs)
+   - **Gate 2**: Confidence must be >= 0.70 (rejects low-confidence guesses)
+   - **Gate 3**: Scope compatibility — page matches anything; element/section cross-compatible
+4. Accepted → update existing row. Rejected → insert new row with proposal metadata.
+
+**Both paths unified**: Deploy path (quick diff) and scheduled path (post-analysis) use the same `validateMatchProposal()` function and upsert pattern. Deploy path uses `deploy_id`, scheduled path uses `first_detected_analysis_id`.
+
+**Trade-offs**:
+- Scope gate is permissive (all combinations pass) — acceptable for MVP, can tighten later if false matches emerge
+- Upsert logic duplicated between paths (different field sets make extraction awkward) — tech debt, not a bug
+- TOCTOU race between candidate fetch and update mitigated by `.eq("status", "watching")` filter
+- `match_confidence: 0` preserved via `??` (not `||`) — important for rejected proposals that carry proposal metadata
