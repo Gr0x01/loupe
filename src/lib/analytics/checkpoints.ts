@@ -79,7 +79,10 @@ export function computeWindows(
 }
 
 /**
- * Assess a checkpoint from metric results.
+ * Assess a checkpoint from metric results (deterministic fallback).
+ *
+ * Primary assessment is now handled by `runCheckpointAssessment()` (LLM-based, Phase 4).
+ * This function serves as the fallback when the LLM call fails.
  * Same priority as correlateChange: any regression > any improvement > neutral.
  */
 export function assessCheckpoint(
@@ -116,7 +119,10 @@ export function resolveStatusTransition(
   // Terminal status — no more transitions
   if (currentStatus === "reverted") return null;
 
-  // Early horizons — signal only, no status change
+  // Early horizons — signal only, no status change.
+  // NOTE: RFC revision (Feb 2026) allows D+7/D+14 resolution with strong evidence,
+  // but this is intentionally deferred. Enabling it requires confidence-gated logic
+  // (e.g., only resolve if LLM confidence > 0.8). Tracked as future work.
   if (horizonDays < DECISION_HORIZON) return null;
 
   // D+30: Decision horizon — first canonical resolution

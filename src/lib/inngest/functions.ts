@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import { inngest } from "./client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot, pingScreenshotService } from "@/lib/screenshot";
-import { runAnalysisPipeline, runPostAnalysisPipeline, runQuickDiff, formatCheckpointTimeline, runStrategyNarrative } from "@/lib/ai/pipeline";
+import { runAnalysisPipeline, runPostAnalysisPipeline, runQuickDiff, formatCheckpointTimeline, runStrategyNarrative, runCheckpointAssessment, validateMatchProposal } from "@/lib/ai/pipeline";
 import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -17,7 +17,8 @@ import { couldAffectPage } from "@/lib/utils/deploy-filter";
 import { safeDecrypt } from "@/lib/crypto";
 import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
 import { composeProgressFromCanonicalState, getLastCanonicalProgress, friendlyMetricNames } from "@/lib/analysis/progress";
-import { correlateChange } from "@/lib/analytics/correlation";
+import { correlateChange, gatherSupabaseMetrics } from "@/lib/analytics/correlation";
+import { createSupabaseAdapter, SupabaseAdapter } from "@/lib/analytics/supabase-adapter";
 import { createProvider } from "@/lib/analytics/provider";
 import {
   getEligibleHorizons,
@@ -102,13 +103,14 @@ export const analyzeUrl = inngest.createFunction(
       if (!analysis?.user_id) return false;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("subscription_tier, subscription_status")
+        .select("subscription_tier, subscription_status, trial_ends_at")
         .eq("id", analysis.user_id)
         .single();
       if (!profile) return false;
       const tier = getEffectiveTier(
         (profile.subscription_tier as SubscriptionTier) || "free",
-        profile.subscription_status
+        profile.subscription_status,
+        profile.trial_ends_at
       );
       return canAccessMobile(tier);
     });
@@ -616,6 +618,55 @@ export const analyzeUrl = inngest.createFunction(
                     })
                     .eq("id", obs.changeId)
                     .eq("user_id", analysis.user_id);
+                }
+              }
+            }
+
+            // Create detected_changes rows from scheduled scan changes (N+1 scans only)
+            if (parentAnalysisId && changesSummary.changes?.length > 0 && pageForFeedback?.id) {
+              const candidateIds = new Set((pendingChanges ?? []).map((c) => c.id));
+              const candidateScopes = new Map((pendingChanges ?? []).map((c) => [c.id, c.scope]));
+
+              for (const change of changesSummary.changes) {
+                try {
+                  const proposal = validateMatchProposal(change, candidateIds, candidateScopes);
+
+                  if (proposal.accepted && proposal.matched_change_id) {
+                    // Update existing watching row
+                    await supabase
+                      .from("detected_changes")
+                      .update({
+                        after_value: change.after,
+                        description: change.description || null,
+                        match_confidence: proposal.match_confidence,
+                        match_rationale: proposal.match_rationale,
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq("id", proposal.matched_change_id)
+                      .eq("user_id", analysis.user_id)
+                      .eq("status", "watching");
+                  } else {
+                    // Insert new row
+                    await supabase.from("detected_changes").insert({
+                      page_id: pageForFeedback.id,
+                      user_id: analysis.user_id,
+                      element: change.element,
+                      scope: change.scope || "element",
+                      before_value: change.before,
+                      after_value: change.after,
+                      description: change.description || null,
+                      first_detected_analysis_id: analysisId,
+                      status: "watching",
+                      first_detected_at: new Date().toISOString(),
+                      match_confidence: proposal.match_confidence ?? null,
+                      match_rationale: proposal.match_rationale || null,
+                    });
+                  }
+                } catch (insertErr) {
+                  // Unique constraint violation = already recorded today, skip
+                  if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
+                    console.error("Failed to upsert detected_change from scheduled scan:", insertErr);
+                  }
                 }
               }
             }
@@ -1322,12 +1373,21 @@ export const deployDetected = inngest.createFunction(
           const currentScreenshot = desktopResult.base64;
           const currentMobileScreenshot = mobileResult?.base64 ?? null;
 
-          // 4. Quick Haiku diff against baseline (with mobile if both exist)
+          // 4. Fetch watching candidates for fingerprint matching
+          const { data: watchingForPage } = await supabase
+            .from("detected_changes")
+            .select("id, element, before_value, after_value, scope, first_detected_at")
+            .eq("page_id", page.id)
+            .eq("status", "watching")
+            .limit(20);
+
+          // 5. Quick Haiku diff against baseline (with mobile if both exist)
           const diffResult = await runQuickDiff(
             baseline.screenshot_url,
             currentScreenshot,
             baseline.mobile_screenshot_url,
-            currentMobileScreenshot
+            currentMobileScreenshot,
+            watchingForPage as import("@/lib/ai/pipeline").PendingChange[] | null
           );
 
           if (!diffResult.hasChanges || diffResult.changes.length === 0) {
@@ -1336,25 +1396,49 @@ export const deployDetected = inngest.createFunction(
             continue;
           }
 
-          // 5. Record detected changes (with dedup via unique index)
+          // 6. Record detected changes with fingerprint-aware upsert
+          const candidateIds = new Set((watchingForPage ?? []).map((c) => c.id));
+          const candidateScopes = new Map((watchingForPage ?? []).map((c) => [c.id, c.scope as "element" | "section" | "page"]));
+
           for (const change of diffResult.changes) {
             try {
-              await supabase.from("detected_changes").insert({
-                page_id: page.id,
-                user_id: userId,
-                element: change.element,
-                scope: change.scope,
-                before_value: change.before,
-                after_value: change.after,
-                description: change.description || null,
-                deploy_id: deployId,
-                status: "watching",
-                first_detected_at: new Date().toISOString(),
-              });
+              const proposal = validateMatchProposal(change, candidateIds, candidateScopes);
+
+              if (proposal.accepted && proposal.matched_change_id) {
+                // Update existing watching row
+                await supabase
+                  .from("detected_changes")
+                  .update({
+                    after_value: change.after,
+                    description: change.description || null,
+                    match_confidence: proposal.match_confidence,
+                    match_rationale: proposal.match_rationale,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", proposal.matched_change_id)
+                  .eq("user_id", userId)
+                  .eq("status", "watching");
+              } else {
+                // Insert new row with proposal metadata
+                await supabase.from("detected_changes").insert({
+                  page_id: page.id,
+                  user_id: userId,
+                  element: change.element,
+                  scope: change.scope,
+                  before_value: change.before,
+                  after_value: change.after,
+                  description: change.description || null,
+                  deploy_id: deployId,
+                  status: "watching",
+                  first_detected_at: new Date().toISOString(),
+                  match_confidence: proposal.match_confidence ?? null,
+                  match_rationale: proposal.match_rationale || null,
+                });
+              }
             } catch (insertErr) {
               // Unique constraint violation = already recorded today, skip
               if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
-                console.error("Failed to insert detected_change:", insertErr);
+                console.error("Failed to upsert detected_change:", insertErr);
               }
             }
           }
@@ -1605,7 +1689,8 @@ export const runCheckpoints = inngest.createFunction(
         element_type: string; scope: string; before_value: string; after_value: string;
         description: string; first_detected_at: string; first_detected_analysis_id: string;
         status: string; correlation_metrics: unknown; observation_text: string;
-        pages: { url: string };
+        hypothesis: string | null;
+        pages: { url: string; metric_focus: string | null };
       };
       const allChanges: ChangeRow[] = [];
       const PAGE_SIZE = 500;
@@ -1618,8 +1703,8 @@ export const runCheckpoints = inngest.createFunction(
             id, page_id, user_id, element, element_type, scope,
             before_value, after_value, description, first_detected_at,
             first_detected_analysis_id, status, correlation_metrics,
-            observation_text,
-            pages!inner(url)
+            observation_text, hypothesis,
+            pages!inner(url, metric_focus)
           `)
           .in("status", ["watching", "validated", "regressed", "inconclusive"])
           .range(offset, offset + PAGE_SIZE - 1);
@@ -1662,6 +1747,7 @@ export const runCheckpoints = inngest.createFunction(
       const result: Array<{
         change: ChangeRow;
         pageUrl: string;
+        pageFocus: string | null;
         dueHorizons: HorizonDays[];
       }> = [];
 
@@ -1671,8 +1757,8 @@ export const runCheckpoints = inngest.createFunction(
         const dueHorizons = getEligibleHorizons(changeDate, now, existing);
 
         if (dueHorizons.length > 0) {
-          const pageUrl = (change.pages as unknown as { url: string }).url;
-          result.push({ change, pageUrl, dueHorizons });
+          const page = change.pages as unknown as { url: string; metric_focus: string | null };
+          result.push({ change, pageUrl: page.url, pageFocus: page.metric_focus, dueHorizons });
         }
       }
 
@@ -1762,16 +1848,37 @@ export const runCheckpoints = inngest.createFunction(
           providerName = "none";
         }
 
+        // Fetch Supabase integration for DB-based metrics
+        let supabaseAdapter: SupabaseAdapter | null = null;
+        try {
+          const { data: supabaseIntegration } = await supabase
+            .from("integrations")
+            .select("access_token, metadata")
+            .eq("user_id", userId)
+            .eq("provider", "supabase")
+            .maybeSingle();
+
+          if (supabaseIntegration) {
+            supabaseAdapter = createSupabaseAdapter(
+              supabaseIntegration.metadata.project_url,
+              safeDecrypt(supabaseIntegration.access_token),
+              supabaseIntegration.metadata.key_type || "anon"
+            );
+          }
+        } catch (adapterErr) {
+          console.warn(`Failed to init Supabase adapter for user ${userId}:`, adapterErr);
+        }
+
         // Map by changeId to only notify on final status (avoids sending "validated"
         // email for a change that later regresses in a higher horizon within the same run)
         const validatedByChange = new Map<string, typeof newlyValidated[0]>();
 
-        for (const { change, pageUrl, dueHorizons } of userItems) {
+        for (const { change, pageUrl, pageFocus, dueHorizons } of userItems) {
           try {
-            // Get existing checkpoints for transition logic
+            // Get existing checkpoints for transition logic + LLM context
             const { data: existingCps, error: existingCpsError } = await supabase
               .from("change_checkpoints")
-              .select("horizon_days, assessment")
+              .select("horizon_days, assessment, reasoning")
               .eq("change_id", change.id);
 
             if (existingCpsError) {
@@ -1783,6 +1890,7 @@ export const runCheckpoints = inngest.createFunction(
             const existingCheckpoints = (existingCps || []).map((cp) => ({
               horizon_days: cp.horizon_days,
               assessment: cp.assessment as CheckpointAssessment,
+              reasoning: cp.reasoning as string | undefined,
             }));
 
             for (const horizonDays of dueHorizons) {
@@ -1790,18 +1898,16 @@ export const runCheckpoints = inngest.createFunction(
               const windows = computeWindows(changeDate, horizonDays);
 
               let assessment: CheckpointAssessment = "inconclusive";
-              let metricsJson: { metrics: Array<{ name: string; before: number; after: number; change_percent: number; assessment: string }>; overall_assessment: string; reason?: string } = {
+              let reasoning: string | null = null;
+              let confidence: number | null = null;
+              let metricsJson: { metrics: Array<{ name: string; source?: string; before: number; after: number; change_percent: number; assessment: "improved" | "regressed" | "neutral" }>; overall_assessment: string; reason?: string } = {
                 metrics: [],
                 overall_assessment: "inconclusive",
               };
 
-              if (!provider) {
-                metricsJson = {
-                  metrics: [],
-                  overall_assessment: "inconclusive",
-                  reason: "analytics_disconnected",
-                };
-              } else {
+              // 1. Gather PostHog/GA4 metrics
+              let analyticsMetrics: Array<{ name: string; source: string; before: number; after: number; change_percent: number }> = [];
+              if (provider) {
                 const detectedChange: DetectedChange = {
                   id: change.id,
                   page_id: change.page_id,
@@ -1826,9 +1932,93 @@ export const runCheckpoints = inngest.createFunction(
                 });
 
                 metricsJson = result.metrics;
-                const assessed = assessCheckpoint(result.metrics.metrics);
-                assessment = assessed.assessment;
+                analyticsMetrics = result.metrics.metrics.map(m => ({ ...m, source: providerName }));
               }
+
+              // 2. Gather Supabase DB metrics
+              let supabaseMetrics: Array<{ name: string; source: string; before: number; after: number; change_percent: number }> = [];
+              if (supabaseAdapter) {
+                supabaseMetrics = await gatherSupabaseMetrics(supabaseAdapter, supabase, userId, windows);
+              }
+
+              // 3. Enrich metricsJson with Supabase data (before assessment so fallback sees all data)
+              const SIGNIFICANCE_THRESHOLD = 5;
+              if (supabaseMetrics.length > 0) {
+                metricsJson.metrics = [
+                  ...(metricsJson.metrics || []),
+                  ...supabaseMetrics.map(m => ({
+                    name: m.name,
+                    source: "supabase",
+                    before: m.before,
+                    after: m.after,
+                    change_percent: m.change_percent,
+                    assessment: (Math.abs(m.change_percent) <= SIGNIFICANCE_THRESHOLD
+                      ? "neutral"
+                      : m.change_percent > 0 ? "improved" : "regressed") as "improved" | "regressed" | "neutral",
+                  })),
+                ];
+              }
+
+              // If no provider and no supabase data, mark reason
+              if (!provider && supabaseMetrics.length === 0) {
+                metricsJson = {
+                  metrics: [],
+                  overall_assessment: "inconclusive",
+                  reason: "analytics_disconnected",
+                };
+              }
+
+              // 4. Combine all metrics for LLM context
+              const allMetrics = [...analyticsMetrics, ...supabaseMetrics];
+              const dataSources = [
+                ...(provider ? [providerName] : []),
+                ...(supabaseMetrics.length > 0 ? ["supabase"] : []),
+              ];
+
+              // 5. LLM assessment (3 attempts, then deterministic fallback)
+              const llmResult = await runCheckpointAssessment({
+                change: {
+                  element: change.element,
+                  before_value: change.before_value,
+                  after_value: change.after_value,
+                  description: change.description,
+                },
+                horizonDays,
+                metrics: allMetrics,
+                priorCheckpoints: existingCheckpoints.map(cp => ({
+                  ...cp,
+                  reasoning: undefined,
+                })),
+                hypothesis: change.hypothesis,
+                pageFocus: pageFocus,
+                pageUrl,
+              });
+
+              if (llmResult) {
+                assessment = llmResult.assessment;
+                confidence = llmResult.confidence;
+                reasoning = llmResult.reasoning;
+              } else {
+                // Deterministic fallback — uses all metrics (PostHog/GA4 + Supabase)
+                const assessed = assessCheckpoint(metricsJson.metrics || []);
+                assessment = assessed.assessment;
+                // Synthesize reasoning so every checkpoint has an explanation
+                const metricCount = metricsJson.metrics?.length ?? 0;
+                const improved = metricsJson.metrics?.filter(m => m.assessment === "improved").length ?? 0;
+                const regressed = metricsJson.metrics?.filter(m => m.assessment === "regressed").length ?? 0;
+                reasoning = metricCount === 0
+                  ? `Deterministic fallback: no metric data available. Assessment: ${assessment}.`
+                  : `Deterministic fallback (LLM unavailable): ${metricCount} metrics assessed — ${improved} improved, ${regressed} regressed. Assessment: ${assessment}.`;
+                confidence = metricCount === 0 ? 0 : 0.3; // Low confidence for deterministic
+              }
+
+              // Sync overall_assessment with final assessment (P3 fix: avoid internal inconsistency)
+              metricsJson.overall_assessment = assessment;
+
+              // Determine effective provider — reflect Supabase when it's the only data source
+              const effectiveProvider = provider ? providerName
+                : supabaseMetrics.length > 0 ? "supabase"
+                : "none";
 
               // INSERT checkpoint (upsert with ON CONFLICT DO NOTHING for idempotency)
               const { data: upsertedRows, error: insertError } = await supabase
@@ -1843,7 +2033,10 @@ export const runCheckpoints = inngest.createFunction(
                     window_after_end: windows.afterEnd.toISOString(),
                     metrics_json: metricsJson,
                     assessment,
-                    provider: providerName,
+                    confidence,
+                    reasoning,
+                    data_sources: dataSources,
+                    provider: effectiveProvider,
                     computed_at: now.toISOString(),
                   },
                   { onConflict: "change_id,horizon_days", ignoreDuplicates: true }
@@ -1858,7 +2051,7 @@ export const runCheckpoints = inngest.createFunction(
 
               // ignoreDuplicates returns empty array when row already existed — skip transition logic
               if (!upsertedRows?.length) {
-                existingCheckpoints.push({ horizon_days: horizonDays, assessment });
+                existingCheckpoints.push({ horizon_days: horizonDays, assessment, reasoning: reasoning ?? undefined });
                 continue;
               }
 
@@ -1999,7 +2192,7 @@ export const runCheckpoints = inngest.createFunction(
               }
 
               // Track for subsequent horizon logic within same run
-              existingCheckpoints.push({ horizon_days: horizonDays, assessment });
+              existingCheckpoints.push({ horizon_days: horizonDays, assessment, reasoning: reasoning ?? undefined });
             }
           } catch (err) {
             Sentry.withScope((scope) => {

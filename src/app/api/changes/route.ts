@@ -192,11 +192,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch checkpoint data for these changes
     const changeIds = resultRows.map((r) => r.id);
-    const checkpointsByChange: Record<string, Array<{ horizon_days: number; assessment: string; computed_at: string }>> = {};
+    const checkpointsByChange: Record<string, Array<{ horizon_days: number; assessment: string; confidence: number | null; reasoning: string | null; data_sources: string[]; computed_at: string }>> = {};
     if (changeIds.length > 0) {
       const { data: checkpoints } = await supabase
         .from("change_checkpoints")
-        .select("change_id, horizon_days, assessment, computed_at")
+        .select("change_id, horizon_days, assessment, confidence, reasoning, data_sources, computed_at")
         .in("change_id", changeIds)
         .order("horizon_days", { ascending: true });
 
@@ -206,6 +206,9 @@ export async function GET(req: NextRequest) {
           checkpointsByChange[cp.change_id].push({
             horizon_days: cp.horizon_days,
             assessment: cp.assessment,
+            confidence: cp.confidence ?? null,
+            reasoning: cp.reasoning ?? null,
+            data_sources: cp.data_sources ?? [],
             computed_at: cp.computed_at,
           });
         }
@@ -213,7 +216,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Transform to DetectedChange with domain info + checkpoints
-    const changes: (DetectedChange & { domain?: string; page_name?: string; checkpoints?: Array<{ horizon_days: number; assessment: string; computed_at: string }> })[] =
+    const changes: ChangesApiResponse["changes"] =
       resultRows.map((row) => ({
         id: row.id,
         page_id: row.page_id,

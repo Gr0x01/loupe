@@ -83,6 +83,9 @@ export interface Change {
   detectedAt: string; // ISO timestamp
   /** Scope of the change - for smart aggregation */
   scope?: "element" | "section" | "page";
+  matched_change_id?: string | null;
+  match_confidence?: number;
+  match_rationale?: string;
 }
 
 export interface ChronicleCorrelationMetric {
@@ -321,6 +324,9 @@ export interface QuickDiffChange {
   before: string;
   after: string;
   description?: string;
+  matched_change_id?: string | null;
+  match_confidence?: number;
+  match_rationale?: string;
 }
 
 export interface QuickDiffResult {
@@ -369,6 +375,9 @@ export interface DashboardPageData {
 export interface ChangeCheckpointSummary {
   horizon_days: number;
   assessment: string;
+  confidence: number | null;
+  reasoning: string | null;
+  data_sources: string[];
   computed_at: string;
 }
 
@@ -402,6 +411,7 @@ export type AnalyticsProvider = "posthog" | "ga4" | "supabase" | "none";
 export interface CheckpointMetrics {
   metrics: Array<{
     name: string;
+    source?: string; // "posthog" | "ga4" | "supabase"
     before: number;
     after: number;
     change_percent: number;
@@ -422,8 +432,16 @@ export interface ChangeCheckpoint {
   metrics_json: CheckpointMetrics;
   assessment: CheckpointAssessment;
   confidence: number | null;
+  reasoning: string | null;
+  data_sources: string[];
   provider: AnalyticsProvider;
   computed_at: string;
+}
+
+export interface CheckpointAssessmentResult {
+  assessment: CheckpointAssessment;
+  confidence: number;
+  reasoning: string;
 }
 
 export type SuggestionStatus = "open" | "addressed" | "dismissed";

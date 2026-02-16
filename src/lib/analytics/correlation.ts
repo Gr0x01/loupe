@@ -6,7 +6,10 @@
  */
 
 import type { AnalyticsProvider } from "./provider";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DetectedChange, CorrelationMetrics } from "@/lib/types/analysis";
+import type { SupabaseAdapter } from "./supabase-adapter";
+import type { CheckpointWindows } from "./checkpoints";
 
 export interface CorrelationResult {
   metrics: CorrelationMetrics;
@@ -120,4 +123,120 @@ export async function correlateChange(
       overall_assessment,
     },
   };
+}
+
+/**
+ * Gather Supabase DB metrics for checkpoint assessment.
+ *
+ * Compares historical snapshots (from analytics_snapshots) with current table counts
+ * to produce metric deltas for conversion-relevant tables.
+ *
+ * Snapshot writers persist three tool_names:
+ *   - `discover_tables` → { tables: [{ name, row_count, columns }], cached_at }
+ *   - `get_table_count` → { count: number } (single table, table_name in tool_input)
+ *   - `identify_conversion_tables` → { tables: string[] }
+ *
+ * We use `discover_tables` snapshots (contain row counts for all tables) as the
+ * "before" baseline, and query current counts via the adapter for "after".
+ *
+ * For "after", we prefer the closest `discover_tables` snapshot within the after-window
+ * to maintain horizon-bounded semantics. Falls back to live counts only when no
+ * after-window snapshot exists (e.g., the horizon just became due).
+ */
+export async function gatherSupabaseMetrics(
+  adapter: SupabaseAdapter,
+  supabase: SupabaseClient,
+  userId: string,
+  windows: CheckpointWindows
+): Promise<Array<{ name: string; source: string; before: number; after: number; change_percent: number }>> {
+  try {
+    // Find conversion-relevant tables
+    const conversionTables = await adapter.identifyConversionTables();
+    if (conversionTables.length === 0) return [];
+
+    // Get "before" snapshot: closest discover_tables snapshot before the change
+    const { data: beforeSnapshot } = await supabase
+      .from("analytics_snapshots")
+      .select("tool_output")
+      .eq("user_id", userId)
+      .eq("tool_name", "discover_tables")
+      .lte("created_at", windows.beforeEnd.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!beforeSnapshot?.tool_output) return [];
+
+    // Parse historical counts from discover_tables shape:
+    // { tables: [{ name, row_count, columns }], cached_at }
+    const beforeOutput = beforeSnapshot.tool_output as { tables?: Array<{ name: string; row_count: number }> };
+    if (!beforeOutput?.tables || !Array.isArray(beforeOutput.tables)) return [];
+
+    const beforeCounts = new Map<string, number>();
+    for (const table of beforeOutput.tables) {
+      if (conversionTables.includes(table.name)) {
+        beforeCounts.set(table.name, table.row_count);
+      }
+    }
+
+    if (beforeCounts.size === 0) return [];
+
+    // Get "after" counts: prefer snapshot within after-window for reproducibility,
+    // fall back to live counts if no snapshot exists yet
+    let afterCounts = new Map<string, number>();
+
+    const { data: afterSnapshot } = await supabase
+      .from("analytics_snapshots")
+      .select("tool_output")
+      .eq("user_id", userId)
+      .eq("tool_name", "discover_tables")
+      .gte("created_at", windows.afterStart.toISOString())
+      .lte("created_at", windows.afterEnd.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (afterSnapshot?.tool_output) {
+      const afterOutput = afterSnapshot.tool_output as { tables?: Array<{ name: string; row_count: number }> };
+      if (afterOutput?.tables && Array.isArray(afterOutput.tables)) {
+        for (const table of afterOutput.tables) {
+          if (beforeCounts.has(table.name)) {
+            afterCounts.set(table.name, table.row_count);
+          }
+        }
+      }
+    }
+
+    // Fallback: live counts (when after-window snapshot doesn't exist yet)
+    if (afterCounts.size === 0) {
+      const liveStats = await adapter.getTableStats([...beforeCounts.keys()]);
+      for (const stat of liveStats) {
+        afterCounts.set(stat.table_name, stat.row_count);
+      }
+    }
+
+    const metrics: Array<{ name: string; source: string; before: number; after: number; change_percent: number }> = [];
+
+    for (const [tableName, before] of beforeCounts) {
+      const after = afterCounts.get(tableName);
+      if (after === undefined) continue;
+
+      const change_percent = before === 0
+        ? (after > 0 ? 100 : 0)
+        : Math.round(((after - before) / before) * 1000) / 10;
+
+      metrics.push({
+        name: `${tableName}_count`,
+        source: "supabase",
+        before,
+        after,
+        change_percent,
+      });
+    }
+
+    return metrics;
+  } catch (err) {
+    console.warn("[gatherSupabaseMetrics] Failed:", err);
+    return [];
+  }
 }

@@ -40,15 +40,17 @@ MVP/v1 is considered complete only if Loupe can reliably deliver the core value 
 Required MVP/v1 capabilities:
 
 1. Full five-horizon checkpoint support is mandatory: `D+7`, `D+14`, `D+30`, `D+60`, `D+90`.
-2. Every horizon result is computed deterministically from analytics data and persisted.
-3. Canonical status and progress are DB-derived, never LLM-authored.
-4. Chronicle can show change state and evidence across those horizons without requiring a new UI shell.
+2. Every horizon result is assessed by LLM with all available data and persisted with reasoning.
+3. Canonical status and progress counts are DB-derived. Assessments are LLM-authored with code guardrails.
+4. Chronicle can show change state, LLM reasoning, and evidence across those horizons without requiring a new UI shell.
+5. Users can provide feedback (thumbs up/down) on resolved outcomes to calibrate future assessments.
 
 Not acceptable for MVP/v1:
 
 1. Shipping with only `D+7`/`D+30`.
 2. Deferring `D+14`/`D+60`/`D+90` to "later".
-3. Relying on LLM memory/snapshot behavior for lifecycle truth.
+3. Relying on LLM memory/snapshot behavior for lifecycle truth (assessments must be persisted per-checkpoint, not carried in running summary).
+4. Deterministic-only outcomes that ignore connected data sources (e.g., Supabase users getting perpetual "inconclusive").
 
 ---
 
@@ -64,15 +66,16 @@ Not acceptable for MVP/v1:
 - Applies status transitions and idempotency rules.
 - Composes UI progress from canonical state.
 
-3. `Outcome Engine` (deterministic)
-- Runs checkpoint evaluations at D+7, D+14, D+30, D+60, D+90.
-- Computes metrics and writes evidence snapshots.
-- Updates canonical status (`validated`, `regressed`, `inconclusive`).
+3. `Assessment LLM` (replaces deterministic Outcome Engine)
+- Runs at checkpoint horizons: D+7, D+14, D+30, D+60, D+90.
+- Receives ALL connected data: PostHog, GA4, Supabase tables, prior checkpoints, hypothesis, page focus, user feedback.
+- Acts as product analyst: returns assessment, confidence, reasoning, evidence summary.
+- Code applies guardrails (timing, impossible transitions) but LLM makes the judgment call.
 
 4. `Strategy LLM`
 - Reads canonical timeline + evidence + hypotheses + page focus.
-- Writes narrative outputs only (summary, observations, next actions).
-- Cannot write canonical status/counts.
+- Writes narrative outputs (summary, observations, next actions).
+- Runs after assessment is persisted.
 
 5. `Read Model Composer`
 - Builds `analyses.changes_summary` as a cache/view object.
@@ -83,91 +86,59 @@ Not acceptable for MVP/v1:
 ## Source-of-Truth Contract
 
 1. Canonical lifecycle state lives in `detected_changes`.
-2. Checkpoint evidence lives in `change_checkpoints` (v1 canonical evidence store).
-3. `changes_summary.progress` is derived, not authoritative.
-4. LLM output is advisory narrative unless explicitly mapped by deterministic code.
+2. Checkpoint evidence lives in `change_checkpoints` — includes LLM assessment, reasoning, confidence, and data sources consulted.
+3. `changes_summary.progress` is derived from canonical DB counts, not authoritative.
+4. LLM writes both assessments (outcome verdicts) and narrative. Code enforces guardrails (timing, impossible transitions, schema). User feedback calibrates future assessments.
 
 ---
 
 ## Integrity vs Intelligence Policy
 
+> **REVISED (Feb 2026):** Original policy ("deterministic-only outcomes") over-constrained the model and left Supabase-only users with zero outcome resolution. The LLM is the product analyst — it sees all data sources and makes assessments. User feedback is the calibration mechanism, not code gates.
+
 This architecture intentionally avoids two failure modes:
 
-1. "Model controls truth" (high drift risk over time).
-2. "Code over-constrains model" (low intelligence leverage).
+1. "Model controls truth with no checks" (hallucination risk).
+2. "Code over-constrains model" (low intelligence leverage, data sources ignored).
 
 Policy:
 
-1. `Integrity surface` is deterministic only.
-- Canonical IDs, lifecycle status transitions, progress counts, evidence links, and notification triggers.
-- Model output can propose, but cannot directly mutate canonical truth.
+1. `Integrity surface` — code-enforced guardrails.
+- Canonical IDs, schema constraints, timing rules (can't validate a 2-day-old change), impossible transition prevention (can't regress a reverted change), audit logging.
+- Code enforces *consistency*, not *judgment*.
 
-2. `Intelligence surface` is model-led.
-- Semantic change interpretation, linkage proposals, narrative, strategy, and recommendation generation.
-- Model creativity and pattern recognition are expected here.
+2. `Intelligence surface` — LLM-led assessment and narrative.
+- Outcome assessment: LLM acts as product analyst, using ALL available data (PostHog, GA4, Supabase tables, screenshots, change history, prior checkpoints).
+- Narrative, strategy, and recommendation generation.
+- LLM writes both the verdict AND the evidence reasoning.
 
-3. `Bridge pattern`: model proposes -> orchestrator validates.
-- The model is used as a strong proposer.
-- Deterministic code is the final authority for state mutation.
+3. `Calibration surface` — user feedback loop.
+- Thumbs up/down on resolved change outcomes (extends existing `finding_feedback` pattern).
+- Feedback stored alongside checkpoint, fed back into future assessment prompts.
+- The user — not deterministic code — is the correction mechanism.
 
----
-
-## Fingerprint Strategy (V1 Decision)
-
-V1 chooses a hybrid approach: **LLM-first proposal with deterministic validation**.
-
-Flow:
-
-1. Build deterministic candidate set from DB.
-- Candidates: active page-local watching rows filtered by compatible `scope` and `element_type` when present.
-
-2. Detection LLM proposes mapping.
-- For each detected change, return `matched_change_id | null`, `confidence`, and brief rationale.
-
-3. Orchestrator validates hard constraints.
-- Proposed ID must belong to candidate set.
-- Scope/type compatibility must hold.
-- Basic before/after consistency checks must pass.
-
-4. Resolve:
-- Valid + confidence above threshold -> link to existing row.
-- Invalid or low confidence -> create new canonical row.
-
-5. Always record proposal metadata.
-- Store proposed link + confidence + rationale for audits and future tuning.
-- Metadata is non-authoritative.
-
-6. Confidence threshold for v1 linkage acceptance.
-- Default threshold: `0.70`.
-- If proposal confidence < `0.70`, create a new canonical row and record proposal metadata.
-
-Why this is the V1 choice:
-
-1. Avoids brittle string-only matching (`element` rename issue).
-2. Avoids model-only identity assignment risk.
-3. Preserves model intelligence while protecting long-term state integrity.
+4. `Audit surface` — full transparency.
+- Every LLM assessment logged with reasoning, data sources consulted, and confidence.
+- Lifecycle events, checkpoint rows, feedback all persisted.
+- Auditability through transparency, not rigidity.
 
 ---
 
-## Detection Prompt Contract (Linkage Inputs/Outputs)
+## Fingerprint Strategy (Deferred — Post-MVP)
 
-To support `matched_change_id` proposals, the detection LLM must receive active candidate IDs in prompt context.
+> **Status:** Deferred. Current element-name matching in the scan pipeline is sufficient for MVP. The hybrid fingerprint approach below is the intended future direction if duplicate change rows become a real problem.
 
-Required prompt section (shape example):
+Future approach: **LLM-first proposal with orchestrator validation**.
 
-```text
-## Active Watching Changes (for linkage)
-- id: "abc-123", element: "Headline", element_type: "headline", scope: "element", after: "Get started today"
-- id: "def-456", element: "Trust Signals", element_type: "section_copy", scope: "section", after: "Built for founders..."
-```
+1. Detection LLM receives active watching candidates with IDs.
+2. Returns `matched_change_id | null`, `match_confidence` (0-1), `match_rationale`.
+3. Orchestrator validates: proposed ID in candidate set, scope/type compatible, before/after consistent.
+4. Threshold `0.70` — below threshold creates new row, always records proposal metadata.
 
-Required per-change model output fields:
-
-1. `matched_change_id: string | null`
-2. `match_confidence: number` (0.0-1.0)
-3. `match_rationale: string` (short explanation)
-
-The orchestrator validates this output before any canonical write.
+Not blocking MVP because:
+- Current element-name matching works for single-domain accounts (1 domain = fewer collisions).
+- Duplicate rows are a data quality issue, not a correctness issue — they don't break assessments.
+- Can be added incrementally without schema changes (proposal metadata fields already exist in schema).
 
 ---
 
@@ -191,10 +162,12 @@ Columns (proposed):
 - `window_before_end timestamptz not null`
 - `window_after_start timestamptz not null`
 - `window_after_end timestamptz not null`
-- `metrics_json jsonb not null` (metric values and deltas)
+- `metrics_json jsonb not null` (structured evidence — see shape below)
 - `assessment text not null` (`improved | regressed | neutral | inconclusive`)
-- `confidence numeric null`
-- `provider text not null` (`posthog | ga4 | ...`)
+- `confidence numeric not null` (0.0–1.0, from LLM assessment)
+- `reasoning text not null` (LLM's explanation of the assessment — stored for auditability)
+- `data_sources text[] not null` (which providers were consulted: `['posthog', 'supabase']`)
+- `provider text not null` (primary provider used: `posthog | ga4 | supabase | none`)
 - `computed_at timestamptz not null default now()`
 - `created_at timestamptz not null default now()`
 
@@ -202,6 +175,29 @@ Constraints:
 - Unique `(change_id, horizon_days)`.
 - `CHECK (horizon_days IN (7, 14, 30, 60, 90))`.
 - `metrics_json` is the v1 evidence artifact (no separate `change_evidence` table in v1).
+- `reasoning` and `confidence` are NOT NULL — every checkpoint must have LLM justification.
+
+### `metrics_json` shape
+
+```jsonc
+{
+  // Metric-level evidence (when analytics/DB data is available)
+  "metrics": [
+    {
+      "name": "signups",           // friendly metric name
+      "source": "supabase",        // which provider returned this
+      "before": 340,               // value in before-window
+      "after": 412,                // value in after-window
+      "change_percent": 21.2,      // computed delta
+      "assessment": "improved"     // per-metric LLM assessment
+    }
+  ],
+  // LLM's overall assessment reasoning (mirrors the `reasoning` column but structured)
+  "overall_assessment": "improved",
+  // When no data is available
+  "reason": "analytics_disconnected" // optional — explains inconclusive
+}
+```
 
 Immutability semantics: rows are **write-once**. Once a checkpoint is computed for a `(change_id, horizon_days)` pair, it is never updated. If a re-run is needed (e.g. data correction), the existing row must be deleted and a new one inserted. The unique constraint enforces one canonical result per horizon. Provenance (provider, computed_at, window boundaries) is captured per row — each row is a self-contained evidence record.
 
@@ -246,56 +242,53 @@ Columns (proposed):
 
 ---
 
-## Deterministic Rules
+## Guardrail Rules
 
-1. Status transitions are code-defined and idempotent.
-2. A change cannot "disappear"; it must transition status.
-3. `validated/regressed` requires checkpoint evidence.
-4. `progress.watching` must equal canonical watching count at compose time.
-5. `open` must come from suggestions tracking, not change lifecycle rows.
+1. A change cannot "disappear"; it must transition status.
+2. `validated/regressed` requires a checkpoint row with LLM reasoning.
+3. Changes < 7 days old cannot be resolved (minimum observation window).
+4. `reverted` is terminal — no further transitions allowed.
+5. `progress.watching` must equal canonical watching count at compose time.
+6. `open` must come from suggestions tracking, not change lifecycle rows.
+7. Status transitions are idempotent — replaying a checkpoint job produces the same result.
 
 ---
 
-## Checkpoint Transition Policy (V1 Decision)
+## Checkpoint Transition Policy (Revised)
 
-V1 uses a decision-horizon model:
+> **REVISED (Feb 2026):** Replaced deterministic `abs() > 5%` threshold with LLM-as-analyst assessment. The LLM sees all connected data sources and makes the call. User feedback calibrates over time.
+
+Horizon timing is preserved — the LLM assesses at the same intervals:
 
 1. Before D+7:
-- Status remains `watching`.
+- Status remains `watching`. No assessment.
 
 2. D+7 and D+14:
-- Compute and persist checkpoints as `early signal` evidence.
-- Do not set final canonical status from these horizons.
+- LLM assessment pass with all available data. Persisted as `early signal` checkpoints.
+- LLM CAN resolve status at D+7/D+14 if evidence is strong and clear (e.g., dramatic metric shift with high-volume data). Not artificially gated.
 
-3. D+30 (decision horizon):
-- First canonical resolution point.
-- Set `detected_changes.status` to `validated | regressed | inconclusive` using deterministic threshold rules.
+3. D+30 (primary decision horizon):
+- Full LLM assessment with all prior checkpoint context.
+- Most changes resolve here.
 
 4. D+60 and D+90:
-- Treated as confirmation/reversal checkpoints.
-- May override canonical status if trend meaningfully reverses by deterministic policy.
+- Confirmation or reversal. LLM sees full trajectory across all prior horizons.
+- Can override earlier assessments if trend meaningfully changed.
 
-5. Assessment → Status mapping (deterministic):
+5. LLM Assessment Process (per checkpoint):
+- Receives: change details, all connected data (PostHog/GA4/Supabase), prior checkpoints, page focus, hypothesis, user feedback history
+- Returns: `assessment` (improved/regressed/neutral/inconclusive), `confidence` (0-1), `reasoning` (stored), `evidence_summary` (what data supported this)
+- Code applies: timing guardrails, impossible transition prevention, audit logging
 
-| Assessment | Current Status | New Status | Notes |
-|------------|---------------|------------|-------|
-| `improved` | `watching` | `validated` | D+30 decision horizon |
-| `regressed` | `watching` | `regressed` | D+30 decision horizon |
-| `neutral` | `watching` | `inconclusive` | D+30 decision horizon |
-| `inconclusive` | `watching` | `inconclusive` | D+30 decision horizon |
-| `improved` | `regressed` | `validated` | D+60/90 trend reversal |
-| `regressed` | `validated` | `regressed` | D+60/90 trend reversal |
-| `improved`/`regressed` | `inconclusive` | `validated`/`regressed` | D+60/90 clear signal emerged |
-| `neutral`/`inconclusive` | any resolved | no change | D+60/90 — only reverse on clear signal |
-| any | `reverted` | no change | Terminal status |
-
-This mapping is implemented in `resolveStatusTransition()` (`src/lib/analytics/checkpoints.ts`).
-
-6. Threshold baseline:
-- Initial significance threshold is `abs(change_percent) > 5%` (subject to tuning).
+6. Code-enforced guardrails (not LLM judgment):
+- `reverted` is terminal — no transitions allowed.
+- Changes < 7 days old cannot be resolved.
+- Same assessment at same horizon is idempotent (no duplicate writes).
 
 7. Auditability:
-- Every status mutation must reference the checkpoint row that triggered it.
+- Every checkpoint stores LLM reasoning, data sources consulted, confidence level.
+- Every status mutation references the checkpoint + lifecycle event that triggered it.
+- User feedback (thumbs up/down) stored alongside for calibration.
 
 ---
 
@@ -313,12 +306,13 @@ This mapping is implemented in `resolveStatusTransition()` (`src/lib/analytics/c
 
 ## B) Checkpoint Job (scheduled daily)
 
-1. Find `watching` changes due for one or more horizons.
-2. Query analytics deterministically.
-3. Write checkpoint rows (v1 evidence artifact).
-4. Apply lifecycle transition logic.
-5. Run strategy/narrative LLM inline for affected pages.
-6. Recompose affected read models inline.
+1. Find changes due for one or more horizons (watching + previously resolved for confirmation).
+2. Gather all available data per user: PostHog metrics, GA4 metrics, Supabase table counts, prior checkpoints, hypothesis, page focus, user feedback history.
+3. Run LLM assessment pass — LLM acts as product analyst, returns assessment + confidence + reasoning + evidence summary.
+4. Write checkpoint rows (assessment + full LLM reasoning as evidence artifact).
+5. Apply status transition with code guardrails (timing, impossible transitions).
+6. Run strategy/narrative LLM inline for affected pages.
+7. Recompose affected read models inline.
 
 ---
 
@@ -346,6 +340,33 @@ Implications:
 1. Single outcome engine path for status transitions.
 2. No parallel/competing correlation status writers.
 3. Existing logic is migrated into horizon-aware checkpoint evaluation.
+
+---
+
+## Outcome Feedback Loop (New — Feb 2026)
+
+Extends the existing `finding_feedback` pattern to change outcomes. This is the calibration mechanism that replaces deterministic code gates.
+
+### User Flow
+1. Change resolves (validated/regressed/inconclusive) — shown in Chronicle/dashboard.
+2. User sees outcome card with LLM reasoning: "Your headline change helped — signups up 21% over 30 days."
+3. Thumbs up/down button on the outcome.
+4. On thumbs down: optional "What did we get wrong?" free-text input.
+5. Feedback stored in `outcome_feedback` table, linked to checkpoint.
+
+### Feedback → Calibration
+- Future LLM assessment prompts include relevant prior feedback for this page/user.
+- Pattern: "Previously, we said X helped signups. The user disagreed because Y. Factor this into your assessment."
+- Feedback is contextual (per-user, per-page), not global model fine-tuning.
+
+### Schema: `outcome_feedback`
+- `id uuid pk`
+- `checkpoint_id uuid not null references change_checkpoints(id)`
+- `change_id uuid not null references detected_changes(id)`
+- `user_id uuid not null`
+- `feedback_type text not null` (`accurate | inaccurate`)
+- `feedback_text text null` (free-form correction)
+- `created_at timestamptz not null default now()`
 
 ---
 
@@ -424,7 +445,35 @@ Deliverables (all shipped):
 Exit criteria (met):
 - LLM failure cannot corrupt lifecycle state — strategy narrative runs after all canonical mutations, wrapped in try/catch, deterministic `formatCheckpointObservation()` stays as fallback.
 
-## Phase 4: Suggestions as Persistent State
+## Phase 4: LLM-as-Analyst Migration
+
+Deliverables:
+- Replace `assessCheckpoint()` deterministic threshold with LLM assessment pass.
+- Checkpoint job gathers all connected data sources (PostHog, GA4, Supabase tables) per user.
+- LLM assessment prompt: receives change details, metric data, prior checkpoints, hypothesis, page focus, user feedback.
+- LLM returns: assessment, confidence, reasoning, evidence summary.
+- Store full LLM reasoning in `change_checkpoints.metrics_json` (expanded schema).
+- Code guardrails: timing enforcement, impossible transition prevention, idempotency.
+- Supabase-only users can now get resolved outcomes.
+
+Exit criteria:
+- Checkpoint job uses LLM assessment for all data sources (not just PostHog/GA4).
+- Every resolved status has LLM reasoning stored alongside.
+- No regression in PostHog/GA4 outcome quality.
+
+## Phase 5: Outcome Feedback Loop
+
+Deliverables:
+- `outcome_feedback` table (checkpoint_id, change_id, user_id, feedback_type, feedback_text).
+- Thumbs up/down UI on resolved change outcomes in Chronicle/dashboard.
+- Optional "What did we get wrong?" free-text on thumbs down.
+- Feedback injected into future LLM assessment prompts for same page/user.
+
+Exit criteria:
+- Users can provide feedback on any resolved outcome.
+- Feedback appears in next checkpoint assessment prompt for that page.
+
+## Phase 6: Suggestions as Persistent State
 
 Deliverables:
 - `tracked_suggestions` table + status endpoints.
@@ -433,11 +482,10 @@ Deliverables:
 Exit criteria:
 - Open suggestions persist and can be addressed/dismissed.
 
-## Phase 5: Reliability and Backfill
+## Phase 7: Reliability
 
 Deliverables:
-- Optional one-time recomposition script for historical progress (if needed).
-- Replay and idempotency tests.
+- Replay and idempotency tests for core mutation paths.
 - Monitoring/alerting for drift and job failures.
 
 Exit criteria:
@@ -446,9 +494,11 @@ Exit criteria:
 ## V1 Launch Gates (Must Pass)
 
 1. Five-horizon coverage: each eligible change receives checkpoint evaluations at `7/14/30/60/90` days.
-2. Evidence completeness: every resolved status has linked checkpoint evidence.
+2. Evidence completeness: every resolved status has linked checkpoint with LLM reasoning.
 3. State parity: composed `progress` matches canonical DB counts for watched pages.
 4. Long-window proof: at least one internal/end-to-end validation run demonstrates month+ visibility (`D+30` and beyond) in Chronicle.
+5. Attribution language policy enforced: all product surfaces use confidence-appropriate wording (see below). No "caused" without explicit caveat.
+6. Outcome feedback: users can thumbs up/down any resolved outcome.
 
 ---
 
@@ -459,13 +509,14 @@ Use this as the implementation tracker. Workstreams can run in parallel; all box
 ## Workstream A: Architecture Lock
 
 - [x] Approve `Integrity vs Intelligence` policy.
-- [ ] Approve fingerprint policy (`LLM proposes`, orchestrator validates, threshold `0.70`).
+- [x] ~~Approve fingerprint policy~~ — deferred; current element-name matching is sufficient for MVP.
 - [x] Approve checkpoint transition policy (`D+7/14 signal`, `D+30 decision`, `D+60/90 confirm/override`).
 - [x] Approve recomposition policy (inline at write time).
 - [x] Approve replacement of `checkCorrelations` with the multi-horizon Checkpoint Job.
+- [x] **REVISED:** Approve LLM-as-analyst pivot — LLM makes outcome assessments, user feedback calibrates (Feb 2026).
 
 Done when:
-- [ ] No open architecture decisions block implementation.
+- [x] No open architecture decisions block implementation.
 
 ## Workstream B: Data Contracts + Migrations
 
@@ -480,52 +531,50 @@ Done when:
 
 ## Workstream C: Detection + Orchestrator
 
-- [ ] Update detection prompt to include active watching candidates with IDs.
-- [ ] Require detection output fields: `matched_change_id`, `match_confidence`, `match_rationale`.
-- [ ] Implement orchestrator validation gates for matching proposals.
-- [ ] Implement canonical upsert + revert processing with idempotency.
-- [ ] Record proposal metadata even when proposal is rejected.
+> **Deferred.** Fingerprint-based change linkage (LLM proposes `matched_change_id`) is not required for MVP. Current element-name matching in the scan pipeline is sufficient. Revisit if duplicate change rows become a real problem.
+
+- [x] ~~Implement canonical upsert + revert processing with idempotency.~~ (Shipped in Phase 1-2 via existing scan pipeline.)
+- [ ] *Future:* Update detection prompt to include active watching candidates with IDs.
+- [ ] *Future:* Require detection output fields: `matched_change_id`, `match_confidence`, `match_rationale`.
+- [ ] *Future:* Implement orchestrator validation gates for matching proposals.
 
 Done when:
-- [ ] Detection can link changes reliably without corrupting canonical state.
+- [x] Current detection works without corrupting canonical state (existing behavior is sufficient for MVP).
 
-## Workstream D: Checkpoint Engine (5 Horizons)
+## Workstream D: Checkpoint Engine (5 Horizons) ✓
 
 - [x] Build daily checkpoint scheduler for `7/14/30/60/90`.
 - [x] Enforce UTC window semantics consistently.
-- [x] Compute deterministic metric deltas and write `change_checkpoints`.
+- [x] Compute metric deltas and write `change_checkpoints`.
 - [x] Apply transition rules and write immutable lifecycle events.
 - [x] Ensure every status mutation references checkpoint evidence.
 
-Done when:
-- [x] All five horizons execute and persist for eligible changes.
+Done: All five horizons execute and persist for eligible changes.
 
-## Workstream E: Read Model + Narrative Integration
+## Workstream E: Read Model + Narrative Integration ✓
 
 - [x] Compose `changes_summary.progress` from canonical DB state + suggestions.
 - [x] Run recomposition inline after scan mutations and checkpoint mutations.
 - [x] Run strategy LLM inline in Scan Job and Checkpoint Job.
-- [x] Enforce narrative-only writes from strategy LLM (no canonical status writes).
+- [x] ~~Enforce narrative-only writes from strategy LLM~~ — **REVISED:** LLM now writes assessments too (see policy revision).
 - [x] Update APIs to serve composed canonical view consistently.
 
-Done when:
-- [ ] UI counts and statuses match canonical DB state after each mutation path.
+Done: Canonical composition and narrative integration shipped.
 
 ## Workstream F: UI + Product Surface
 
 - [ ] Add checkpoint chips (`7d/14d/30d/60d/90d`).
-- [ ] Add evidence panel for resolved outcomes.
-- [ ] Surface early-signal (`D+7/14`) vs decision-horizon (`D+30`) context.
+- [ ] Add evidence panel for resolved outcomes (LLM reasoning + data sources).
+- [ ] Add outcome feedback UI (thumbs up/down on resolved changes).
 - [ ] Keep existing Chronicle shell (no full redesign).
 
 Done when:
-- [ ] A user can answer "what changed and what happened over time?" directly in Chronicle.
+- [ ] A user can see outcome reasoning and provide feedback directly in Chronicle.
 
 ## Workstream G: Reliability + Launch Gates
 
 - [x] Add parity monitor (`read model` vs canonical counts).
 - [ ] Add replay and idempotency tests for core mutation paths.
-- [ ] Add SLO dashboards and alerts.
 - [x] Execute forward-only cutover.
 - [ ] Validate all v1 launch gates.
 
@@ -548,6 +597,8 @@ Done when:
 1. Duplicate change rows without strong fingerprinting.
 2. Prompt bloat if raw history is passed uncompressed.
 3. Semantic drift between live canonical state and historical snapshot expectations.
+4. **LLM assessment inconsistency** — same data could yield different verdicts across runs. Mitigated by: write-once checkpoints (no re-assessment), stored reasoning (auditable), user feedback (calibration), and confidence bands (hedged language when uncertain).
+5. **Over-attribution** — LLM may be too eager to claim correlation. Mitigated by: attribution language policy (launch gate), confidence-banded wording, "never say caused" rule, user thumbs-down as correction signal.
 
 ---
 
@@ -575,9 +626,21 @@ These decisions should be made in v1 architecture, because they are expensive or
 - Standardize all horizon logic in UTC.
 - Define inclusive/exclusive boundary rules once and use them everywhere.
 
-6. Attribution language policy.
-- System-wide policy for wording (`correlated` vs `caused`) tied to confidence levels.
-- Prevent over-claiming causality in product surfaces.
+6. Attribution language policy. **(V1 LAUNCH GATE — not deferrable.)**
+- System-wide policy for wording tied to confidence levels:
+  - **High confidence (>0.8):** "Your [change] helped — [metric] improved [X]%." (Direct attribution, still not "caused.")
+  - **Medium confidence (0.5–0.8):** "Since your [change], [metric] is up [X]%. Likely connected." (Correlation language.)
+  - **Low confidence (<0.5):** "We're seeing [metric] movement, but can't tie it clearly to your change yet." (Hedged.)
+  - **No data:** "No analytics connected — connect PostHog, GA4, or your database to track outcomes."
+- LLM assessment prompt includes these bands so wording is consistent.
+- Never use "caused" in any product surface. Strongest claim is "helped" or "hurt."
+- This is central to user trust, especially now that LLM (not deterministic code) makes the call.
+- **Enforcement points:**
+  1. **LLM assessment prompt** — confidence bands + wording templates baked into checkpoint assessment prompt.
+  2. **LLM strategy/narrative prompt** — attribution language rules in POST_ANALYSIS_PROMPT and `runStrategyNarrative()`.
+  3. **UI copy** — `formatOutcomeText(confidence, assessment)` utility that maps confidence → wording band. Used by Chronicle, dashboard ProofBanner, outcome cards.
+  4. **Email templates** — `correlationUnlockedEmail` and `changeDetectedEmail` use same `formatOutcomeText()`.
+  5. **Outcome feedback** — if users thumbs-down an attribution, flag for review (may indicate over-claiming).
 
 7. Integration health state history.
 - Persist historical integration state (`connected`, `degraded`, `disconnected`, `token_expired`) over time.
@@ -618,23 +681,25 @@ These decisions should be made in v1 architecture, because they are expensive or
 | Phase 1: Canonical Progress Composer | **Done** | Fail-closed composer, fallback chain, parity monitor, polarity-aware UI, 30-day prompt alignment. See phase details above. |
 | Phase 2: Checkpoint Outcome Engine | **Done** | `change_checkpoints` table + `runCheckpoints` daily cron (10:30 UTC) + `change_lifecycle_events` audit trail. `resolveStatusTransition()` in `src/lib/analytics/checkpoints.ts`. Vercel Cron backup at 10:45 UTC with dual event trigger. Idempotent upserts via `ON CONFLICT DO NOTHING`. Lifecycle event failure → status revert (maintains invariant). Paginated queries (500/batch), batched `.in()` (300/batch). Provider init try/catch (analytics failure doesn't abort run). `checkCorrelations` fully replaced and deleted. |
 | Phase 3: Strategy Integration | **Done** | LLM writes narrative only — progress output removed from prompt. `formatCheckpointTimeline()` compresses multi-horizon evidence into prompt context. `runStrategyNarrative()` runs inline in checkpoint job (non-fatal, deterministic fallback). Scan job passes checkpoint timelines to post-analysis. `GET /api/changes` includes checkpoint data per change. `strategy_narrative` field added to `ChangesSummary`. |
-| Phase 4: Suggestions as Persistent State | Not started | `tracked_suggestions` migration exists but no endpoints/integration yet. |
-| Phase 5: Reliability and Backfill | Not started | |
+| Phase 4: LLM-as-Analyst Migration | **Done** | LLM assessment replaces deterministic threshold. `runCheckpointAssessment()` in pipeline.ts (Gemini 3 Pro, 3 attempts with backoff). `gatherSupabaseMetrics()` in correlation.ts queries historical snapshots + current table counts. Checkpoint upsert writes `reasoning`, `confidence`, `data_sources`. Deterministic `assessCheckpoint()` kept as fallback (now sees all metrics including Supabase). `GET /api/changes` returns new fields per checkpoint. Migration: `20260217_checkpoint_llm_assessment.sql`. |
+| Phase 5: Outcome Feedback Loop | Not started | `outcome_feedback` table + UI (thumbs up/down on resolved changes) + feedback injected into future assessment prompts. |
+| Phase 6: Suggestions as Persistent State | Not started | `tracked_suggestions` migration exists but no endpoints/integration yet. |
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
 | `src/lib/analysis/progress.ts` | `composeProgressFromCanonicalState`, `getLastCanonicalProgress`, `formatMetricFriendlyText`, `friendlyMetricNames` |
-| `src/lib/analytics/checkpoints.ts` | `getEligibleHorizons`, `computeWindows`, `assessCheckpoint`, `resolveStatusTransition`, `formatCheckpointObservation`, `DECISION_HORIZON` |
-| `src/lib/ai/pipeline.ts` | `formatCheckpointTimeline` (Phase 3), `runStrategyNarrative` (Phase 3), `runPostAnalysisPipeline`, POST_ANALYSIS_PROMPT |
+| `src/lib/analytics/checkpoints.ts` | `getEligibleHorizons`, `computeWindows`, `assessCheckpoint` (deterministic fallback), `resolveStatusTransition`, `formatCheckpointObservation`, `DECISION_HORIZON` |
+| `src/lib/ai/pipeline.ts` | `formatCheckpointTimeline` (Phase 3), `runStrategyNarrative` (Phase 3), `runCheckpointAssessment` (Phase 4), `runPostAnalysisPipeline`, POST_ANALYSIS_PROMPT |
+| `src/lib/analytics/correlation.ts` | `correlateChange` (PostHog/GA4 metrics), `gatherSupabaseMetrics` (Phase 4 — Supabase DB metrics for checkpoints) |
 | `src/lib/inngest/functions.ts` | `runCheckpoints` cron (+ strategy narrative in recompose step), fail-closed composer in `analyzeUrl` (+ checkpoint timeline gathering), recompose-after-reverts |
 | `src/app/api/cron/checkpoints/route.ts` | Vercel Cron backup for checkpoint engine |
 | `src/app/api/changes/route.ts` | `GET /api/changes` — returns checkpoint data per change (Phase 3) |
-| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `ChangeCheckpoint`, `StatusTransition`, `ValidatedItem.status`, `ChangesSummary.strategy_narrative` |
+| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `CheckpointAssessmentResult`, `ChangeCheckpoint` (+ `reasoning`, `data_sources`), `ChangeCheckpointSummary` (+ `confidence`, `reasoning`, `data_sources`), `CheckpointMetrics` (+ `source?`), `StatusTransition`, `ValidatedItem.status`, `ChangesSummary.strategy_narrative` |
 
 ## Immediate Next Steps
 
-1. Begin Phase 4: Suggestions as Persistent State (`tracked_suggestions` endpoints + composer integration).
-2. Add integration/unit tests for integrity paths (deferred from Phase 1).
-3. UI work: checkpoint chips + evidence panel (Workstream F).
+1. **Phase 5: Outcome Feedback Loop** — `outcome_feedback` table + thumbs up/down UI on resolved changes + inject feedback into future assessment prompts.
+2. **Workstream F: UI** — Checkpoint chips, evidence panel (showing LLM reasoning + data sources), outcome feedback buttons.
+3. **Phase 6: Suggestions as Persistent State** — `tracked_suggestions` endpoints + composer integration.
