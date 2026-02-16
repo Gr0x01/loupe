@@ -11,6 +11,15 @@ interface FindingsCounts {
   low: number;
 }
 
+interface ClaimCTAProps {
+  email: string;
+  onEmailChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  loading: boolean;
+  sent: boolean;
+  error: string;
+}
+
 interface DossierSidebarProps {
   screenshotUrl?: string | null;
   mobileScreenshotUrl?: string | null;
@@ -34,6 +43,8 @@ interface DossierSidebarProps {
   auditSummary?: string;
   /** Show cached-result nudge with relative time + track CTA */
   cachedAt?: string | null;
+  /** Claim CTA for unclaimed audits */
+  claimCTA?: ClaimCTAProps;
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -91,6 +102,7 @@ export function DossierSidebar({
   findingsCounts,
   auditSummary,
   cachedAt,
+  claimCTA,
 }: DossierSidebarProps) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -164,6 +176,23 @@ export function DossierSidebar({
             </div>
           ))}
         </div>
+
+        {/* Claim CTA for unclaimed audits (mobile) */}
+        {claimCTA && !claimCTA.sent && (
+          <div className="dossier-mobile-claim">
+            <a
+              href="#claim-cta"
+              className="btn-primary w-full text-sm text-center block"
+              style={{ boxShadow: "none", textDecoration: "none" }}
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              Claim this page — free
+            </a>
+          </div>
+        )}
 
         {/* Running summary — truncated with expand (N+1 only) */}
         {!isScan1 && (
@@ -299,6 +328,52 @@ export function DossierSidebar({
           </div>
         ))}
       </div>
+
+      {/* Claim CTA for unclaimed audits */}
+      {claimCTA && (
+        <div className="dossier-sidebar-claim">
+          {claimCTA.sent ? (
+            <div className="dossier-sidebar-claim-sent">
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+              </svg>
+              <span>Check your inbox</span>
+            </div>
+          ) : (
+            <>
+              <p className="dossier-sidebar-claim-headline">
+                Know when this changes.
+              </p>
+              <p className="dossier-sidebar-claim-sub">
+                Get weekly scans + alerts. Free.
+              </p>
+              <form onSubmit={claimCTA.onSubmit} className="dossier-sidebar-claim-form">
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  value={claimCTA.email}
+                  onChange={(e) => claimCTA.onEmailChange(e.target.value)}
+                  className="input-glass w-full text-sm py-2"
+                  aria-label="Email address"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={claimCTA.loading}
+                  className="btn-primary w-full text-sm py-2"
+                  style={{ boxShadow: "none" }}
+                >
+                  {claimCTA.loading ? "..." : "Claim this page"}
+                </button>
+              </form>
+              {claimCTA.error && (
+                <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>{claimCTA.error}</p>
+              )}
+              <p className="dossier-sidebar-claim-trust">No credit card required</p>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Running summary (N+1 only — scan 1 shows bottom-line in feed) */}
       {!isScan1 && (

@@ -390,6 +390,61 @@
   text-decoration: underline;
 }
 
+/* Sidebar claim CTA */
+.dossier-sidebar-claim {
+  border-top: 1px solid var(--line-subtle);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.dossier-sidebar-claim > :not(:first-child):not(form):not(p:last-child) {
+  /* spacing handled by children */
+}
+
+.dossier-sidebar-claim-headline {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-900);
+  margin: 0 0 0.25rem;
+}
+
+.dossier-sidebar-claim-sub {
+  font-size: 0.8125rem;
+  color: var(--ink-500);
+  margin: 0 0 0.75rem;
+  line-height: 1.4;
+}
+
+.dossier-sidebar-claim-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dossier-sidebar-claim-trust {
+  font-size: 0.6875rem;
+  color: var(--ink-300);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.dossier-sidebar-claim-sent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--success);
+  padding: 0.25rem 0;
+}
+
+/* Mobile claim CTA (just a scroll-to button) */
+.dossier-mobile-claim {
+  margin-top: 0.75rem;
+}
+
 /* Scorecard */
 .dossier-scorecard {
   display: flex;

@@ -586,10 +586,82 @@ function ExpandedFindingCard({
   );
 }
 
+// Sticky bottom claim bar — appears after scrolling past hero (mobile only)
+function StickyClaimBar({
+  domain,
+  findingsCount,
+  impactRange,
+  email,
+  onEmailChange,
+  onSubmit,
+  loading,
+  sent,
+}: {
+  domain: string;
+  findingsCount: number;
+  impactRange: string;
+  email: string;
+  onEmailChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  loading: boolean;
+  sent: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const claimSection = document.getElementById("claim-cta");
+      let claimInView = false;
+      if (claimSection) {
+        const rect = claimSection.getBoundingClientRect();
+        claimInView = rect.top < window.innerHeight && rect.bottom > 0;
+      }
+      setVisible(scrollY > 600 && !claimInView && !sent);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [sent]);
+
+  return (
+    <div className={`claim-sticky-bar ${visible ? "claim-sticky-visible" : ""}`}>
+      <div className="claim-sticky-inner">
+        <div className="claim-sticky-info">
+          <div className="claim-sticky-dot" />
+          <p className="claim-sticky-text">
+            {findingsCount} opportunit{findingsCount !== 1 ? "ies" : "y"} found
+            <span>·</span>
+            +{impactRange} potential
+          </p>
+        </div>
+        <form onSubmit={onSubmit} className="claim-sticky-form">
+          <input
+            type="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(e) => onEmailChange(e.target.value)}
+            className="input-glass"
+            aria-label="Email address"
+            required
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary"
+          >
+            {loading ? "..." : "Email me when this changes"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Findings Section for new format - 2-column grid layout
 function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]; analysisId: string; domain: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(findings[0]?.id ?? null);
-  // Lift feedback state so it persists across card collapse/expand
   const [feedbackMap, setFeedbackMap] = useState<Record<string, FindingFeedbackType>>({});
 
   const toggleFinding = (id: string) => {
@@ -1374,6 +1446,7 @@ export default function AnalysisPage() {
   const s = analysis.structured_output;
   const isChronicle = analysis.parent_analysis_id && analysis.changes_summary && isChronicleFormat(analysis.changes_summary);
   const pageCtx = analysis.page_context;
+  const showClaimCTAs = !analysis.claim_status?.claimed_by_current_user && !analysis.claim_status?.is_claimed;
 
   // Findings counts for scan-1 dossier sidebar
   const findingsCounts = s.findings ? {
@@ -1432,6 +1505,14 @@ export default function AnalysisPage() {
                 findingsCounts={findingsCounts}
                 auditSummary={s.summary}
                 cachedAt={isCachedResult && !analysis.claim_status?.is_claimed ? analysis.created_at : null}
+                claimCTA={showClaimCTAs ? {
+                  email: claimEmail,
+                  onEmailChange: setClaimEmail,
+                  onSubmit: handleClaimEmail,
+                  loading: claimLoading,
+                  sent: claimEmailSent,
+                  error: claimError,
+                } : undefined}
                 mobile
               />
             </div>
@@ -1451,6 +1532,14 @@ export default function AnalysisPage() {
                 findingsCounts={findingsCounts}
                 auditSummary={s.summary}
                 cachedAt={isCachedResult && !analysis.claim_status?.is_claimed ? analysis.created_at : null}
+                claimCTA={showClaimCTAs ? {
+                  email: claimEmail,
+                  onEmailChange: setClaimEmail,
+                  onSubmit: handleClaimEmail,
+                  loading: claimLoading,
+                  sent: claimEmailSent,
+                  error: claimError,
+                } : undefined}
               />
             </aside>
 
@@ -1514,75 +1603,73 @@ export default function AnalysisPage() {
 
       {/* Zone 6: Claim CTA — not shown when current user owns this page */}
       {!analysis.claim_status?.claimed_by_current_user && (
-        <section id="claim-cta" className="section-dark mt-20">
-          <div className="max-w-4xl mx-auto px-6 lg:px-10 py-12 md:py-16">
+        <section id="claim-cta" className="claim-bottom-section">
+          <div className="claim-bottom-inner">
             {analysis.claim_status?.is_claimed ? (
               /* Domain already claimed by another user */
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,255,255,0.08)] mb-4">
-                  <svg className="w-6 h-6 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="claim-bottom-claimed">
+                <div className="claim-bottom-claimed-icon">
+                  <svg className="w-6 h-6 text-ink-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                 </div>
                 <p
-                  className="text-2xl font-bold text-text-primary"
+                  className="text-2xl font-bold text-ink-900"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   Already being monitored
                 </p>
-                <p className="text-base text-text-secondary mt-2">
+                <p className="text-base text-ink-500 mt-2">
                   Someone else is watching {getDomain(analysis.url)}. You can still view this audit and share it.
                 </p>
               </div>
             ) : claimEmailSent ? (
               /* Post-submit state */
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(255,90,54,0.15)] mb-4">
-                  <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <div className="claim-bottom-sent">
+                <div className="claim-bottom-sent-icon">
+                  <svg className="w-6 h-6" style={{ color: "var(--coral)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
                 <p
-                  className="text-2xl font-bold text-text-primary"
+                  className="text-2xl font-bold text-ink-900"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   You&apos;re tracking this page
                 </p>
-                <p className="text-base text-text-secondary mt-2">
+                <p className="text-base text-ink-500 mt-2">
                   Check your inbox for the magic link. Make your changes, then we&apos;ll show you what moved.
                 </p>
               </div>
             ) : (
               /* Claim form — two-column on desktop */
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+              <div className="claim-bottom-grid">
                 {/* Left: headline + subhead */}
                 <div>
+                  <p className="claim-bottom-label">Your next move</p>
                   <h2
-                    className="text-2xl md:text-3xl font-bold text-text-primary"
+                    className="claim-bottom-headline"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
-                    {analysis.changes_summary
-                      ? "Want to know if your changes helped?"
-                      : "Fix something. See if it\u00a0worked."}
+                    {s.findings && s.findings.length > 0
+                      ? `Ready to test "${s.findings[0].title}"?`
+                      : "This audit has a shelf life."}
                   </h2>
-                  <p className="text-base text-text-secondary mt-2">
-                    {analysis.changes_summary
-                      ? "We re-scan after you make changes and show you what improved."
-                      : "We re-scan automatically and show you what changed \u2014 and whether it helped or hurt."}
+                  <p className="claim-bottom-sub">
+                    We scan {getDomain(analysis.url)} weekly and email you what changed — and whether it helped or hurt. 14-day Pro trial, no credit card.
                   </p>
                 </div>
 
                 {/* Right: form */}
                 <div>
-                  <form onSubmit={handleClaimEmail} className="flex flex-col gap-3">
+                  <form onSubmit={handleClaimEmail} className="claim-bottom-form">
                     <input
                       type="email"
                       placeholder="you@company.com"
                       value={claimEmail}
                       onChange={(e) => setClaimEmail(e.target.value)}
-                      className="claim-cta-input w-full"
                       aria-label="Email address"
                       required
                     />
@@ -1591,7 +1678,7 @@ export default function AnalysisPage() {
                       disabled={claimLoading}
                       className="btn-primary w-full"
                     >
-                      {claimLoading ? "Sending..." : "Start tracking"}
+                      {claimLoading ? "Sending..." : "Email me when this changes"}
                     </button>
                   </form>
 
@@ -1600,8 +1687,8 @@ export default function AnalysisPage() {
                   )}
 
                   {!claimError && (
-                    <p className="text-sm text-text-muted mt-3">
-                      Free for one page · No credit card · First scan Monday
+                    <p className="claim-bottom-trust">
+                      Free for one page · We scan weekly · First scan runs Monday
                     </p>
                   )}
                 </div>
@@ -1609,25 +1696,21 @@ export default function AnalysisPage() {
             )}
 
             {/* Share actions */}
-            <div className="flex items-center justify-center gap-3 text-sm text-text-muted mt-10 pt-8 border-t border-[rgba(255,255,255,0.08)]">
-              <button
-                onClick={handleShareLink}
-                className="hover:text-accent transition-colors"
-              >
+            <div className="claim-bottom-actions">
+              <button onClick={handleShareLink}>
                 {linkCopied ? "Copied!" : "Copy link"}
               </button>
-              <span className="opacity-30">·</span>
+              <span className="claim-bottom-sep">·</span>
               <a
                 href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
                   `"${s.verdict}"\n\nGot this from my @getloupe audit:`
                 )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : `https://getloupe.io/analysis/${id}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-accent transition-colors"
               >
                 Post on X
               </a>
-              <span className="opacity-30">·</span>
+              <span className="claim-bottom-sep">·</span>
               <PdfDownloadButton
                 analysis={{
                   id: analysis.id,
@@ -1636,13 +1719,25 @@ export default function AnalysisPage() {
                   structured_output: s,
                 }}
               />
-              <span className="opacity-30">·</span>
-              <Link href="/" className="hover:text-accent transition-colors">
-                New audit
-              </Link>
+              <span className="claim-bottom-sep">·</span>
+              <Link href="/">New audit</Link>
             </div>
           </div>
         </section>
+      )}
+
+      {/* Sticky claim bar — persistent bottom reminder */}
+      {showClaimCTAs && !isChronicle && (
+        <StickyClaimBar
+          domain={getDomain(analysis.url)}
+          findingsCount={s.findingsCount ?? 0}
+          impactRange={s.projectedImpactRange || "0%"}
+          email={claimEmail}
+          onEmailChange={setClaimEmail}
+          onSubmit={handleClaimEmail}
+          loading={claimLoading}
+          sent={claimEmailSent}
+        />
       )}
 
       {/* Screenshot modal */}
