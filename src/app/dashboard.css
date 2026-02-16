@@ -354,38 +354,49 @@
 /* Proof Banner — the hero moment */
 .v2-proof-banner {
   background: #FFFFFF;
-  border: 2px solid var(--line);
-  border-left: 4px solid var(--emerald);
+  border: 1.5px solid var(--line);
+  border-left: 3px solid var(--emerald);
   border-radius: 12px;
-  box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.16);
-  padding: 1.5rem 1.75rem 1.75rem;
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.12);
+  padding: 1.25rem 1.4rem 1.4rem;
 }
 
 @media (min-width: 640px) {
   .v2-proof-banner {
-    padding: 2rem 2.25rem 2.25rem;
+    padding: 1.6rem 1.85rem 1.85rem;
   }
 }
 
 /* Win Cards inside the banner */
 .v2-win-card {
   background: var(--paper-0);
-  border: 2px solid var(--line);
+  border: 1.5px solid var(--line);
   border-radius: 10px;
-  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14);
-  padding: 1.25rem;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  box-shadow: 1px 1px 0 rgba(51, 65, 85, 0.1);
+  padding: 1rem 1rem 0.95rem;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
   color: inherit;
   text-decoration: none;
 }
 
+.v2-win-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.v2-win-card-header > p {
+  min-width: 0;
+}
+
 .v2-win-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 3px 3px 0 rgba(51, 65, 85, 0.18);
+  border-color: rgba(51, 65, 85, 0.28);
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14);
 }
 
 .v2-win-card:active {
-  transform: scale(0.98);
+  transform: none;
 }
 
 /* Compact Page List */
@@ -551,18 +562,33 @@
 .v2-checkpoint-chips {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  margin-top: 0.35rem;
+  gap: 0.25rem;
+  margin-top: 0;
   flex-wrap: wrap;
+}
+
+.v2-checkpoint-chips-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.v2-checkpoint-chips-wrap-compact {
+  margin-top: 0;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  max-width: 58%;
 }
 
 .v2-checkpoint-chip {
   font-family: var(--font-geist-mono);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  line-height: 1.3;
+  padding: 0.12rem 0.34rem;
+  border-radius: 999px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -592,6 +618,41 @@
   border: 1px dashed rgba(245, 158, 11, 0.4);
 }
 
+.v2-checkpoint-upcoming {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+.v2-win-change {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.v2-win-change-old {
+  color: var(--ink-300);
+  text-decoration: line-through;
+}
+
+.v2-win-change-arrow {
+  color: var(--ink-300);
+}
+
+.v2-win-change-new {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+.v2-win-metric-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
 .v2-win-metric {
   color: var(--ink-900);
 }
@@ -602,4 +663,10 @@
 
 .v2-win-metric-arrow-bad {
   color: var(--coral);
+}
+
+@media (max-width: 640px) {
+  .v2-checkpoint-chips-wrap-compact {
+    max-width: 100%;
+  }
 }

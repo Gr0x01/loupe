@@ -429,7 +429,7 @@ function ProofBanner({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {changes.slice(0, 4).map((change) => (
           <WinCard
             key={change.id}
@@ -450,27 +450,42 @@ function ProofBanner({
 
 const V2_ALL_HORIZONS = [7, 14, 30, 60, 90] as const;
 
-function V2CheckpointChips({ checkpoints }: { checkpoints: ChangeCheckpointSummary[] }) {
-  const byHorizon = new Map(checkpoints.map((cp) => [cp.horizon_days, cp]));
+function V2CheckpointChips({
+  checkpoints,
+  compact = false,
+}: {
+  checkpoints: ChangeCheckpointSummary[];
+  compact?: boolean;
+}) {
+  const sortedCheckpoints = [...checkpoints].sort(
+    (a, b) => a.horizon_days - b.horizon_days
+  );
+  const completedHorizons = new Set(sortedCheckpoints.map((cp) => cp.horizon_days));
+  const upcomingCount = V2_ALL_HORIZONS.filter((h) => !completedHorizons.has(h)).length;
   return (
-    <div className="v2-checkpoint-chips">
-      {V2_ALL_HORIZONS.map((h) => {
-        const cp = byHorizon.get(h);
-        const suffix = !cp ? "pending"
-          : cp.assessment === "improved" ? "improved"
+    <div className={`v2-checkpoint-chips-wrap ${compact ? "v2-checkpoint-chips-wrap-compact" : ""}`}>
+      <div className="v2-checkpoint-chips">
+        {sortedCheckpoints.map((cp) => {
+          const suffix = cp.assessment === "improved" ? "improved"
           : cp.assessment === "regressed" ? "regressed"
           : cp.assessment === "inconclusive" ? "inconclusive"
           : "neutral";
-        return (
-          <span
-            key={h}
-            className={`v2-checkpoint-chip v2-checkpoint-chip-${suffix}`}
-            title={cp?.reasoning || `${cp?.assessment || "pending"} at ${h}d`}
-          >
-            {h}d
-          </span>
-        );
-      })}
+          return (
+            <span
+              key={`${cp.id}-${cp.horizon_days}`}
+              className={`v2-checkpoint-chip v2-checkpoint-chip-${suffix}`}
+              title={cp.reasoning || `${cp.assessment} at ${cp.horizon_days}d`}
+            >
+              {cp.horizon_days}d
+            </span>
+          );
+        })}
+      </div>
+      {upcomingCount > 0 && (
+        <span className="v2-checkpoint-upcoming" title={`${upcomingCount} upcoming checkpoints`}>
+          +{upcomingCount}
+        </span>
+      )}
     </div>
   );
 }
@@ -492,34 +507,33 @@ function WinCard({
       href={linkHref}
       className={`v2-win-card block ${highlight ? "result-card-highlight" : ""}`}
     >
-      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)]">
-        {change.element}
-      </p>
+      <div className="v2-win-card-header">
+        <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          {change.element}
+        </p>
+        {change.checkpoints && change.checkpoints.length > 0 && (
+          <V2CheckpointChips checkpoints={change.checkpoints} compact />
+        )}
+      </div>
 
-      <div className="mt-3 text-sm sm:text-base leading-relaxed">
+      <div className="v2-win-change mt-2.5 text-sm sm:text-base leading-snug">
         <span
-          className="text-[var(--ink-300)] line-through"
+          className="v2-win-change-old"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {truncate(change.before_value, 40)}
         </span>
-        <span className="mx-2 text-[var(--ink-300)]">→</span>
+        <span className="v2-win-change-arrow">→</span>
         <span
-          className="text-[var(--ink-900)] font-medium"
+          className="v2-win-change-new"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {truncate(change.after_value, 40)}
         </span>
       </div>
 
-      {change.hypothesis && (
-        <p className="mt-2 text-xs text-[var(--ink-400)] italic">
-          Your test: &ldquo;{truncate(change.hypothesis, 80)}&rdquo;
-        </p>
-      )}
-
       {metric && (
-        <div className="mt-3 flex items-baseline gap-2">
+        <div className="v2-win-metric-row mt-3">
           <span
             className="text-xl sm:text-2xl font-bold"
             style={{
@@ -529,16 +543,19 @@ function WinCard({
           >
             {metric.isPositive ? "▲" : "▼"} {metric.change}
           </span>
-          <span className="text-sm text-[var(--ink-500)]">{metric.name}</span>
+          <span className="text-xs sm:text-sm text-[var(--ink-500)]">{metric.name}</span>
         </div>
       )}
 
-      {change.checkpoints && change.checkpoints.length > 0 && (
-        <V2CheckpointChips checkpoints={change.checkpoints} />
+      {change.hypothesis && (
+        <p className="mt-2 text-xs text-[var(--ink-500)] line-clamp-1">
+          <span className="font-semibold text-[var(--ink-400)]">Test:</span>{" "}
+          &ldquo;{truncate(change.hypothesis, 72)}&rdquo;
+        </p>
       )}
 
       {change.observation_text && (
-        <p className="mt-2 text-sm text-[var(--ink-700)] italic leading-relaxed line-clamp-2">
+        <p className="mt-1.5 text-sm text-[var(--ink-700)] leading-relaxed line-clamp-2">
           {change.observation_text}
         </p>
       )}

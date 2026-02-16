@@ -269,7 +269,7 @@ function ProofBanner() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {mockChanges.map((change) => (
           <WinCard key={change.id} change={change} />
         ))}
@@ -280,23 +280,41 @@ function ProofBanner() {
 
 const DEMO_HORIZONS = [7, 14, 30, 60, 90] as const;
 
-function DemoChips({ checkpoints }: { checkpoints: ChangeCheckpointSummary[] }) {
-  const byH = new Map(checkpoints.map((cp) => [cp.horizon_days, cp]));
+function DemoChips({
+  checkpoints,
+  compact = false,
+}: {
+  checkpoints: ChangeCheckpointSummary[];
+  compact?: boolean;
+}) {
+  const sortedCheckpoints = [...checkpoints].sort(
+    (a, b) => a.horizon_days - b.horizon_days
+  );
+  const completedHorizons = new Set(sortedCheckpoints.map((cp) => cp.horizon_days));
+  const upcomingCount = DEMO_HORIZONS.filter((h) => !completedHorizons.has(h)).length;
   const chipColor = (a: string) =>
     a === "improved" ? "v2-checkpoint-chip-improved"
     : a === "regressed" ? "v2-checkpoint-chip-regressed"
     : a === "inconclusive" ? "v2-checkpoint-chip-inconclusive"
     : "v2-checkpoint-chip-neutral";
   return (
-    <div className="v2-checkpoint-chips">
-      {DEMO_HORIZONS.map((h) => {
-        const cp = byH.get(h);
-        return (
-          <span key={h} className={`v2-checkpoint-chip ${cp ? chipColor(cp.assessment) : "v2-checkpoint-chip-pending"}`}>
-            {h}d
+    <div className={`v2-checkpoint-chips-wrap ${compact ? "v2-checkpoint-chips-wrap-compact" : ""}`}>
+      <div className="v2-checkpoint-chips">
+        {sortedCheckpoints.map((cp) => (
+          <span
+            key={`${cp.id}-${cp.horizon_days}`}
+            className={`v2-checkpoint-chip ${chipColor(cp.assessment)}`}
+            title={cp.reasoning || `${cp.assessment} at ${cp.horizon_days}d`}
+          >
+            {cp.horizon_days}d
           </span>
-        );
-      })}
+        ))}
+      </div>
+      {upcomingCount > 0 && (
+        <span className="v2-checkpoint-upcoming" title={`${upcomingCount} upcoming checkpoints`}>
+          +{upcomingCount}
+        </span>
+      )}
     </div>
   );
 }
@@ -306,34 +324,33 @@ function WinCard({ change }: { change: DetectedChange & { domain?: string; check
 
   return (
     <div className="v2-win-card">
-      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)]">
-        {change.element}
-      </p>
+      <div className="v2-win-card-header">
+        <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          {change.element}
+        </p>
+        {change.checkpoints && change.checkpoints.length > 0 && (
+          <DemoChips checkpoints={change.checkpoints} compact />
+        )}
+      </div>
 
-      <div className="mt-3 text-sm sm:text-base leading-relaxed">
+      <div className="v2-win-change mt-2.5 text-sm sm:text-base leading-snug">
         <span
-          className="text-[var(--ink-300)] line-through"
+          className="v2-win-change-old"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {truncate(change.before_value, 40)}
         </span>
-        <span className="mx-2 text-[var(--ink-300)]">&rarr;</span>
+        <span className="v2-win-change-arrow">&rarr;</span>
         <span
-          className="text-[var(--ink-900)] font-medium"
+          className="v2-win-change-new"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {truncate(change.after_value, 40)}
         </span>
       </div>
 
-      {change.hypothesis && (
-        <p className="mt-2 text-xs text-[var(--ink-400)] italic">
-          Your test: &ldquo;{truncate(change.hypothesis, 80)}&rdquo;
-        </p>
-      )}
-
       {metric && (
-        <div className="mt-3 flex items-baseline gap-2">
+        <div className="v2-win-metric-row mt-3">
           <span
             className="v2-win-metric text-xl sm:text-2xl font-bold"
             style={{ fontFamily: "var(--font-display)" }}
@@ -343,16 +360,19 @@ function WinCard({ change }: { change: DetectedChange & { domain?: string; check
             </span>{" "}
             {metric.change}
           </span>
-          <span className="text-sm text-[var(--ink-500)]">{metric.name}</span>
+          <span className="text-xs sm:text-sm text-[var(--ink-500)]">{metric.name}</span>
         </div>
       )}
 
-      {change.checkpoints && change.checkpoints.length > 0 && (
-        <DemoChips checkpoints={change.checkpoints} />
+      {change.hypothesis && (
+        <p className="mt-2 text-xs text-[var(--ink-500)] line-clamp-1">
+          <span className="font-semibold text-[var(--ink-400)]">Test:</span>{" "}
+          &ldquo;{truncate(change.hypothesis, 72)}&rdquo;
+        </p>
       )}
 
       {change.observation_text && (
-        <p className="mt-2 text-sm text-[var(--ink-700)] italic leading-relaxed line-clamp-2">
+        <p className="mt-1.5 text-sm text-[var(--ink-700)] leading-relaxed line-clamp-2">
           {change.observation_text}
         </p>
       )}
