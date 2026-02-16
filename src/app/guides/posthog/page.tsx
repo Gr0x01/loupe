@@ -323,7 +323,7 @@ export default function PostHogGuidePage() {
       </section>
 
       {/* FAQ */}
-      <section className="px-4 py-16">
+      <section className="section-dark px-4 py-16">
         <div className="w-full max-w-3xl mx-auto">
           <div className="text-center mb-14">
             <h2
@@ -350,7 +350,10 @@ export default function PostHogGuidePage() {
 
           <div className="space-y-4">
             {COMMON_QUESTIONS.map((item, i) => (
-              <div key={i} className="glass-card p-4 sm:p-6">
+              <div
+                key={i}
+                className="rounded-[10px] border border-white/10 bg-white/5 p-4 sm:p-6"
+              >
                 <h3
                   className="text-lg font-bold text-text-primary mb-3"
                   style={{ fontFamily: "var(--font-display)" }}
