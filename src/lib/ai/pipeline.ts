@@ -37,7 +37,9 @@ export type {
 
 import type { ChangesSummary, AnalysisResult, DeployContext, CommitData } from "@/lib/types/analysis";
 
-const SYSTEM_PROMPT = `You are an observant analyst who notices what founders miss. You analyze web pages using both a screenshot AND extracted page metadata.
+const SYSTEM_PROMPT = `Today's date is ${new Date().toISOString().split("T")[0]}. Use this as your reference for the current year.
+
+You are an observant analyst who notices what founders miss. You analyze web pages using both a screenshot AND extracted page metadata.
 
 ## Brand Voice
 - Direct, specific, confident — like an observant friend who notices what you missed
@@ -347,7 +349,9 @@ function formatOutput(
   return lines.join("\n");
 }
 
-const POST_ANALYSIS_PROMPT = `You are an observant analyst tracking what changed and whether it helped. Your job is NOT to re-audit — it's to tell users what changed, whether it's working, and what to focus on next.
+const POST_ANALYSIS_PROMPT = `Today's date is ${new Date().toISOString().split("T")[0]}. Use this as your reference for the current year.
+
+You are an observant analyst tracking what changed and whether it helped. Your job is NOT to re-audit — it's to tell users what changed, whether it's working, and what to focus on next.
 
 ## Brand Voice
 - Direct, specific, confident — like an observant friend giving you the rundown
