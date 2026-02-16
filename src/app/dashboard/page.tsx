@@ -940,7 +940,8 @@ function DashboardContent() {
         if (!profile) return;
         const tier = getEffectiveTier(
           (profile.subscription_tier as SubscriptionTier) || "free",
-          profile.subscription_status as SubscriptionStatus | null
+          profile.subscription_status as SubscriptionStatus | null,
+          profile.trial_ends_at
         );
         setUserLimits((prev) => ({ ...prev, max: TIER_LIMITS[tier].pages }));
         if (profile.email) setProfileEmail(profile.email);

@@ -131,7 +131,7 @@ const COMMON_QUESTIONS: { question: string; answer: string }[] = [
   {
     question: "What does it cost?",
     answer:
-      "GitHub can be connected on any plan, while deploy-triggered scanning requires Starter ($12/month) or Pro ($29/month).",
+      "GitHub can be connected on any paid plan, while deploy-triggered scanning requires Pro ($39/month) or Scale ($99/month).",
   },
 ];
 

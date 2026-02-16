@@ -305,13 +305,13 @@ export async function POST(req: NextRequest) {
     // Get user profile to check page limit and tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("subscription_tier, subscription_status, account_domain")
+      .select("subscription_tier, subscription_status, account_domain, trial_ends_at")
       .eq("id", user.id)
       .single();
 
     const rawTier = (profile?.subscription_tier as SubscriptionTier) || "free";
     const status = profile?.subscription_status as SubscriptionStatus | null;
-    const tier = getEffectiveTier(rawTier, status);
+    const tier = getEffectiveTier(rawTier, status, profile?.trial_ends_at);
 
     // Enforce single-domain-per-account (normalize www)
     const normalizeDomain = (h: string) => h.replace(/^www\./, "");
@@ -401,7 +401,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine scan frequency based on tier
-    // Free tier can only use weekly; Starter/Pro can use daily
+    // Free tier can only use weekly; Pro/Scale can use daily
     const frequency = validateScanFrequency(
       tier,
       scan_frequency || (tier === "free" ? "weekly" : "daily")

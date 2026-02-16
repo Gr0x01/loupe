@@ -11,8 +11,8 @@ interface MobileUpgradeGateProps {
 
 /**
  * Viewport-based tier gate for mobile access.
- * Shows upgrade prompt on mobile for Free/Starter users.
- * Pro users and desktop users see children normally.
+ * Shows upgrade prompt on mobile for Free users.
+ * Pro/Scale users and desktop users see children normally.
  */
 export function MobileUpgradeGate({ tier, children }: MobileUpgradeGateProps) {
   const [isMobile, setIsMobile] = useState(false);

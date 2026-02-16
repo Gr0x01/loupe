@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
     const { tier, period } = await req.json();
 
     // Validate tier
-    if (!tier || !["starter", "pro"].includes(tier)) {
+    if (!tier || !["pro", "scale"].includes(tier)) {
       return NextResponse.json(
-        { error: "Invalid tier. Must be 'starter' or 'pro'." },
+        { error: "Invalid tier. Must be 'pro' or 'scale'." },
         { status: 400 }
       );
     }
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const session = await createCheckoutSession({
       userId: user.id,
       email: user.email || "",
-      tier: tier as "starter" | "pro",
+      tier: tier as "pro" | "scale",
       period: period as BillingPeriod,
       successUrl: `${origin}/settings/billing?success=true`,
       cancelUrl: `${origin}/pricing?canceled=true`,

@@ -115,7 +115,7 @@ const COMMON_QUESTIONS: { question: string; answer: string }[] = [
   {
     question: "What does it cost?",
     answer:
-      "PostHog can be connected on any plan. Analytics correlation requires Starter ($12/month) or Pro ($29/month).",
+      "PostHog can be connected on any paid plan. Analytics correlation requires Pro ($39/month) or Scale ($99/month).",
   },
 ];
 

@@ -4,6 +4,7 @@ import { inngest } from "@/lib/inngest/client";
 import {
   getPageLimit,
   getEffectiveTier,
+  TRIAL_DURATION_DAYS,
   type SubscriptionTier,
   type SubscriptionStatus,
 } from "@/lib/permissions";
@@ -184,13 +185,13 @@ async function handleClaim(
   // Check page limit using tier-based limits
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_tier, subscription_status")
+    .select("subscription_tier, subscription_status, trial_ends_at")
     .eq("id", userId)
     .single();
 
   const rawTier = (profile?.subscription_tier as SubscriptionTier) || "free";
   const status = profile?.subscription_status as SubscriptionStatus | null;
-  const tier = getEffectiveTier(rawTier, status);
+  const tier = getEffectiveTier(rawTier, status, profile?.trial_ends_at);
 
   const { count: pageCount } = await supabase
     .from("pages")
@@ -268,9 +269,19 @@ export async function GET(request: NextRequest) {
     const serviceClient = createServiceClient();
     const { data: profile } = await serviceClient
       .from("profiles")
-      .select("subscription_tier, subscription_status")
+      .select("subscription_tier, subscription_status, trial_ends_at")
       .eq("id", user.id)
       .single();
+
+    // Set 14-day Pro trial for new users
+    if (isNewUser && profile && !profile.trial_ends_at) {
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + TRIAL_DURATION_DAYS);
+      await serviceClient
+        .from("profiles")
+        .update({ trial_ends_at: trialEnd.toISOString() })
+        .eq("id", user.id);
+    }
 
     identifyUser(user.id, {
       email: user.email,

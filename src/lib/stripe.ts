@@ -27,27 +27,28 @@ export const ALLOWED_ORIGINS = [
 ];
 
 // Valid subscription tiers (for metadata validation)
-export const VALID_PAID_TIERS = ["starter", "pro"] as const;
+export const VALID_PAID_TIERS = ["pro", "scale"] as const;
 
 /**
  * Price IDs from Stripe Dashboard.
- * Set these in environment variables after creating products in Stripe.
+ * Set via env vars: STRIPE_PRICE_PRO_MONTHLY, STRIPE_PRICE_PRO_ANNUAL,
+ * STRIPE_PRICE_SCALE_MONTHLY, STRIPE_PRICE_SCALE_ANNUAL
  */
 export const PRICE_IDS = {
-  starter: {
-    monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || "",
-    annual: process.env.STRIPE_PRICE_STARTER_ANNUAL || "",
-  },
   pro: {
     monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || "",
     annual: process.env.STRIPE_PRICE_PRO_ANNUAL || "",
+  },
+  scale: {
+    monthly: process.env.STRIPE_PRICE_SCALE_MONTHLY || "",
+    annual: process.env.STRIPE_PRICE_SCALE_ANNUAL || "",
   },
 } as const;
 
 /**
  * Get the Stripe price ID for a tier and billing period.
  */
-export function getPriceId(tier: "starter" | "pro", period: BillingPeriod): string {
+export function getPriceId(tier: "pro" | "scale", period: BillingPeriod): string {
   const priceId = PRICE_IDS[tier][period];
   if (!priceId) {
     throw new Error(`Missing price ID for ${tier} ${period}`);
@@ -59,21 +60,12 @@ export function getPriceId(tier: "starter" | "pro", period: BillingPeriod): stri
  * Map a Stripe price ID back to tier and period.
  */
 export function getTierFromPriceId(priceId: string): { tier: SubscriptionTier; period: BillingPeriod } | null {
-  // Guard against empty strings (env vars not set)
   if (!priceId) return null;
 
-  if (PRICE_IDS.starter.monthly && priceId === PRICE_IDS.starter.monthly) {
-    return { tier: "starter", period: "monthly" };
-  }
-  if (PRICE_IDS.starter.annual && priceId === PRICE_IDS.starter.annual) {
-    return { tier: "starter", period: "annual" };
-  }
-  if (PRICE_IDS.pro.monthly && priceId === PRICE_IDS.pro.monthly) {
-    return { tier: "pro", period: "monthly" };
-  }
-  if (PRICE_IDS.pro.annual && priceId === PRICE_IDS.pro.annual) {
-    return { tier: "pro", period: "annual" };
-  }
+  if (priceId === PRICE_IDS.pro.monthly) return { tier: "pro", period: "monthly" };
+  if (priceId === PRICE_IDS.pro.annual) return { tier: "pro", period: "annual" };
+  if (priceId === PRICE_IDS.scale.monthly) return { tier: "scale", period: "monthly" };
+  if (priceId === PRICE_IDS.scale.annual) return { tier: "scale", period: "annual" };
   return null;
 }
 
@@ -90,7 +82,7 @@ export async function createCheckoutSession({
 }: {
   userId: string;
   email: string;
-  tier: "starter" | "pro";
+  tier: "pro" | "scale";
   period: BillingPeriod;
   successUrl: string;
   cancelUrl: string;

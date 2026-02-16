@@ -4,7 +4,7 @@ import PricingContent from "@/components/pricing/PricingContent";
 export const metadata: Metadata = {
   title: "Pricing — Loupe",
   description:
-    "Free, Starter, and Pro plans for founders who ship fast. Track pages, catch risky changes after deploy, and correlate commits to outcomes.",
+    "Free, Pro, and Scale plans for founders who ship fast. Track pages, catch risky changes after deploy, and correlate changes to outcomes.",
 };
 
 export const dynamic = "force-static";

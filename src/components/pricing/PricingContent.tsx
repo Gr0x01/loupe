@@ -7,7 +7,7 @@ import { TIER_INFO, type SubscriptionTier } from "@/lib/permissions";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 
-const tiers: SubscriptionTier[] = ["free", "starter", "pro"];
+const tiers: SubscriptionTier[] = ["free", "pro", "scale"];
 
 function CheckIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -23,30 +23,31 @@ function CheckIcon({ className = "w-5 h-5" }: { className?: string }) {
 
 const TIER_TAGLINE: Record<SubscriptionTier, string> = {
   free: "1 page, weekly scans.",
-  starter: "3 pages, daily scans.",
-  pro: "10 pages, daily scans.",
+  pro: "5 pages, daily scans.",
+  scale: "15 pages, daily scans.",
 };
 
 const TIER_CTA: Record<SubscriptionTier, string> = {
   free: "Start free",
-  starter: "Track my 3 pages",
-  pro: "Upgrade to Pro",
+  pro: "Start 14-day free trial",
+  scale: "Start 14-day free trial",
 };
 
 const TIER_BENEFIT: Record<SubscriptionTier, string> = {
   free: "Weekly baseline checks.",
-  starter: "Desktop screenshots + deploy tracking.",
-  pro: "Mobile + desktop screenshots.",
+  pro: "Desktop + mobile screenshots. 30-day impact follow-up.",
+  scale: "Everything in Pro. 90-day impact follow-up.",
 };
 
-/** Comparison table rows: [label, free, starter, pro] — ✓ = included, — = not */
-const COMPARE_ROWS: { label: string; free: string; starter: string; pro: string }[] = [
-  { label: "Pages tracked", free: "1", starter: "3", pro: "10" },
-  { label: "Scan frequency", free: "Weekly", starter: "Daily", pro: "Daily" },
-  { label: "Mobile screenshots", free: "—", starter: "—", pro: "✓" },
-  { label: "GitHub deploy tracking", free: "—", starter: "✓", pro: "✓" },
-  { label: "Analytics sources", free: "—", starter: "1", pro: "All" },
-  { label: "Email alerts", free: "✓", starter: "✓", pro: "✓" },
+/** Comparison table rows: [label, free, pro, scale] — ✓ = included, — = not */
+const COMPARE_ROWS: { label: string; free: string; pro: string; scale: string }[] = [
+  { label: "Pages tracked", free: "1", pro: "5", scale: "15" },
+  { label: "Scan frequency", free: "Weekly", pro: "Daily", scale: "Daily" },
+  { label: "Mobile screenshots", free: "—", pro: "✓", scale: "✓" },
+  { label: "GitHub deploy tracking", free: "—", pro: "✓", scale: "✓" },
+  { label: "Analytics sources", free: "—", pro: "All", scale: "All" },
+  { label: "Impact follow-up", free: "—", pro: "30 days", scale: "90 days" },
+  { label: "Email alerts", free: "✓", pro: "✓", scale: "✓" },
 ];
 
 function PricingSkeleton() {
@@ -211,11 +212,11 @@ function PricingContent() {
                 Keep using Free
               </Link>
               <button
-                onClick={() => handleSelect("starter")}
+                onClick={() => handleSelect("pro")}
                 disabled={loading !== null}
                 className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading === "starter" ? "Loading..." : "Resume upgrade"}
+                {loading === "pro" ? "Loading..." : "Try Pro free"}
               </button>
             </div>
           </div>
@@ -226,7 +227,7 @@ function PricingContent() {
       <section className="pt-12 pb-2 sm:pt-16 sm:pb-3 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <p className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-line bg-white text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-700 mb-4">
-            Pricing for fast-shipping founders
+            14-day free trial on all paid plans
           </p>
           <h1
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-ink-900 mb-6 pricing-hero-headline"
@@ -284,8 +285,8 @@ function PricingContent() {
             {tiers.map((tier) => {
               const info = TIER_INFO[tier];
               const price = isAnnual ? info.annualPrice / 12 : info.monthlyPrice;
-              const isStarter = tier === "starter";
               const isPro = tier === "pro";
+              const isScale = tier === "scale";
               const isCurrent = currentTier === tier;
               const savings = isAnnual && tier !== "free" ? Math.round((1 - info.annualPrice / (info.monthlyPrice * 12)) * 100) : 0;
 
@@ -293,9 +294,9 @@ function PricingContent() {
                 <div
                   key={tier}
                   className={`rounded-xl border-2 bg-white p-5 transition-all duration-200 flex flex-col ${
-                    isStarter
+                    isPro
                       ? "border-signal shadow-[2px_2px_0_rgba(248,90,56,0.16)] order-first sm:order-none"
-                    : isPro
+                    : isScale
                         ? "border-line shadow-[2px_2px_0_rgba(51,65,85,0.14)]"
                         : "border-line-subtle border-dashed shadow-none order-last sm:order-none"
                   }`}
@@ -307,14 +308,14 @@ function PricingContent() {
                         Current plan
                       </span>
                     )}
-                    {!isCurrent && isStarter && (
+                    {!isCurrent && isPro && (
                       <span className="text-[11px] font-semibold text-signal uppercase tracking-wider">
                         Most popular
                       </span>
                     )}
-                    {!isCurrent && isPro && (
+                    {!isCurrent && isScale && (
                       <span className="text-[11px] font-semibold text-emerald uppercase tracking-wider">
-                        Mobile included
+                        90-day impact follow-up
                       </span>
                     )}
                   </div>
@@ -352,7 +353,7 @@ function PricingContent() {
 
                   <p
                     className={`mt-3 text-sm min-h-[52px] ${
-                      isPro ? "text-ink-900 font-semibold" : "text-ink-600"
+                      isScale ? "text-ink-900 font-semibold" : "text-ink-600"
                     }`}
                   >
                     {TIER_BENEFIT[tier]}
@@ -365,7 +366,7 @@ function PricingContent() {
                         href="/settings/billing"
                         className="btn-secondary w-full h-12 inline-flex items-center justify-center text-sm"
                       >
-                        {isPro ? "Manage Pro plan" : "Manage plan"}
+                        Manage plan
                       </Link>
                     ) : tier === "free" ? (
                       isLoggedIn ? (
@@ -397,7 +398,7 @@ function PricingContent() {
                         onClick={() => handleSelect(tier)}
                         disabled={loading === tier}
                         className={`w-full h-12 inline-flex items-center justify-center text-sm font-semibold rounded-[10px] px-4 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isStarter
+                          isPro
                             ? "btn-primary"
                             : "bg-ink-900 text-white border-2 border-ink-900 hover:bg-ink-700 hover:border-ink-700"
                         }`}
@@ -427,7 +428,7 @@ function PricingContent() {
                   <div
                     key={tier}
                     className={`px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider ${
-                      tier === "starter"
+                      tier === "pro"
                         ? "text-signal bg-signal/5 border-x-2 border-signal/20"
                         : "text-ink-500"
                     }`}
@@ -446,7 +447,7 @@ function PricingContent() {
                   <div className="px-4 py-3 text-sm text-ink-700 font-medium">
                     {row.label}
                   </div>
-                  {(["free", "starter", "pro"] as const).map((tier) => {
+                  {(["free", "pro", "scale"] as const).map((tier) => {
                     const val = row[tier];
                     const isCheck = val === "✓";
                     const isDash = val === "—";
@@ -454,7 +455,7 @@ function PricingContent() {
                       <div
                         key={tier}
                         className={`px-3 py-3 text-center text-sm ${
-                          tier === "starter"
+                          tier === "pro"
                             ? "bg-signal/5 border-x-2 border-signal/20 text-ink-900 font-medium"
                             : isDash
                               ? "text-ink-300"
@@ -462,7 +463,7 @@ function PricingContent() {
                         }`}
                       >
                         {isCheck ? (
-                          <CheckIcon className={`w-5 h-5 mx-auto ${tier === "starter" ? "text-signal" : "text-emerald"}`} />
+                          <CheckIcon className={`w-5 h-5 mx-auto ${tier === "pro" ? "text-signal" : "text-emerald"}`} />
                         ) : (
                           val
                         )}
@@ -536,6 +537,18 @@ function PricingContent() {
 
             <div className="glass-card p-4 sm:p-6">
               <h3 className="font-semibold text-ink-900 mb-2">
+                How does the 14-day trial work?
+              </h3>
+              <p className="text-ink-700">
+                When you sign up, you get 14 days of Pro features — 5 pages,
+                daily scans, mobile screenshots, and 30-day impact follow-up.
+                No credit card required. After 14 days, you keep your free page
+                and can upgrade anytime.
+              </p>
+            </div>
+
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="font-semibold text-ink-900 mb-2">
                 I use Cursor/Lovable/Bolt — do I need this?
               </h3>
               <p className="text-ink-700">
@@ -548,33 +561,23 @@ function PricingContent() {
 
             <div className="glass-card p-4 sm:p-6">
               <h3 className="font-semibold text-ink-900 mb-2">
+                What&apos;s the difference between Pro and Scale?
+              </h3>
+              <p className="text-ink-700">
+                Pro tracks 5 pages with 30-day impact follow-up — enough for most
+                solo founders and small teams. Scale gives you 15 pages and 90-day
+                impact follow-up, so you can track longer experiments and more of your site.
+              </p>
+            </div>
+
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="font-semibold text-ink-900 mb-2">
                 Can I switch plans later?
               </h3>
               <p className="text-ink-700">
                 Yes. Upgrade anytime — you&apos;ll only pay the difference for
                 the rest of your billing period. Downgrade at renewal if you
                 need fewer pages.
-              </p>
-            </div>
-
-            <div className="glass-card p-4 sm:p-6">
-              <h3 className="font-semibold text-ink-900 mb-2">
-                What happens if I hit my page limit?
-              </h3>
-              <p className="text-ink-700">
-                You can&apos;t add more pages until you remove one or upgrade.
-                Everything you&apos;re already tracking keeps working.
-              </p>
-            </div>
-
-            <div className="glass-card p-4 sm:p-6">
-              <h3 className="font-semibold text-ink-900 mb-2">
-                What counts as a metrics tool?
-              </h3>
-              <p className="text-ink-700">
-                Each tool counts as one: PostHog, Google Analytics 4, or Supabase.
-                Connect one on Starter, all of them on Pro. You can disconnect
-                and switch anytime.
               </p>
             </div>
 

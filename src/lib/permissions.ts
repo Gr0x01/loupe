@@ -3,11 +3,11 @@
  *
  * Tier limits:
  * - Free: 1 page, weekly scans, no integrations, no mobile
- * - Starter: 3 pages, daily + deploy scans, 1 analytics integration, no mobile
- * - Pro: 10 pages, daily + deploy scans, unlimited integrations, mobile access
+ * - Pro: 5 pages, daily + deploy scans, all integrations, mobile, 30-day impact follow-up
+ * - Scale: 15 pages, daily + deploy scans, all integrations, mobile, 90-day impact follow-up
  */
 
-export type SubscriptionTier = "free" | "starter" | "pro";
+export type SubscriptionTier = "free" | "pro" | "scale";
 export type BillingPeriod = "monthly" | "annual";
 export type SubscriptionStatus = "active" | "past_due" | "canceled";
 
@@ -17,6 +17,7 @@ export interface TierLimits {
   deployScans: boolean;
   mobile: boolean;
   scanFrequency: "weekly" | "daily";
+  maxHorizonDays: number; // Max checkpoint horizon: 30 (Pro) or 90 (Scale)
 }
 
 export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
@@ -26,35 +27,57 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     deployScans: false,
     mobile: false,
     scanFrequency: "weekly",
-  },
-  starter: {
-    pages: 3,
-    analyticsIntegrations: 1,
-    deployScans: true,
-    mobile: false,
-    scanFrequency: "daily",
+    maxHorizonDays: 0,
   },
   pro: {
-    pages: 10,
+    pages: 5,
     analyticsIntegrations: Infinity,
     deployScans: true,
     mobile: true,
     scanFrequency: "daily",
+    maxHorizonDays: 30,
+  },
+  scale: {
+    pages: 15,
+    analyticsIntegrations: Infinity,
+    deployScans: true,
+    mobile: true,
+    scanFrequency: "daily",
+    maxHorizonDays: 90,
   },
 } as const;
 
+/** Duration of Pro trial for new signups (in days) */
+export const TRIAL_DURATION_DAYS = 14;
+
 /**
- * Get the effective tier considering subscription status.
+ * Get the effective tier considering subscription status and trial.
  * Users with past_due or canceled status are treated as free tier.
+ * Users within their trial period get Pro.
  */
 export function getEffectiveTier(
   tier: SubscriptionTier,
-  status: SubscriptionStatus | null | undefined
+  status: SubscriptionStatus | null | undefined,
+  trialEndsAt?: string | Date | null
 ): SubscriptionTier {
   if (status === "past_due" || status === "canceled") {
     return "free";
   }
-  return tier;
+
+  // If user has a paid tier, use it
+  if (tier !== "free") {
+    return tier;
+  }
+
+  // Check trial: free tier users with active trial get Pro
+  if (trialEndsAt) {
+    const trialEnd = typeof trialEndsAt === "string" ? new Date(trialEndsAt) : trialEndsAt;
+    if (trialEnd > new Date()) {
+      return "pro";
+    }
+  }
+
+  return "free";
 }
 
 /**
@@ -97,6 +120,13 @@ export function getAllowedScanFrequency(tier: SubscriptionTier): "weekly" | "dai
 }
 
 /**
+ * Get max checkpoint horizon days for a tier.
+ */
+export function getMaxHorizonDays(tier: SubscriptionTier): number {
+  return TIER_LIMITS[tier].maxHorizonDays;
+}
+
+/**
  * Validate and coerce scan frequency based on tier.
  * Free tier always gets weekly, regardless of request.
  */
@@ -131,18 +161,18 @@ export const TIER_INFO: Record<SubscriptionTier, {
     name: "Free",
     monthlyPrice: 0,
     annualPrice: 0,
-    description: "Test Loupe on your homepage",
-  },
-  starter: {
-    name: "Starter",
-    monthlyPrice: 12,
-    annualPrice: 120,
-    description: "Watch your core pages",
+    description: "See what Loupe finds.",
   },
   pro: {
     name: "Pro",
-    monthlyPrice: 29,
-    annualPrice: 290,
-    description: "Track every page that drives revenue",
+    monthlyPrice: 39,
+    annualPrice: 390,
+    description: "Know what your changes did.",
+  },
+  scale: {
+    name: "Scale",
+    monthlyPrice: 99,
+    annualPrice: 990,
+    description: "Intelligence that compounds.",
   },
 } as const;
