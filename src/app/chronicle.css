@@ -392,18 +392,14 @@
 
 /* Sidebar claim CTA */
 .dossier-sidebar-claim {
-  border-top: 1px solid var(--line-subtle);
-  margin-top: 1rem;
-  padding-top: 1rem;
-}
-
-.dossier-sidebar-claim > :not(:first-child):not(form):not(p:last-child) {
-  /* spacing handled by children */
+  border-top: 2px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
 }
 
 .dossier-sidebar-claim-headline {
   font-family: var(--font-display);
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink-900);
@@ -413,21 +409,25 @@
 .dossier-sidebar-claim-sub {
   font-size: 0.8125rem;
   color: var(--ink-500);
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.875rem;
   line-height: 1.4;
 }
 
 .dossier-sidebar-claim-form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.625rem;
+}
+
+.dossier-sidebar-claim-form .btn-primary {
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.14);
 }
 
 .dossier-sidebar-claim-trust {
   font-size: 0.6875rem;
   color: var(--ink-300);
-  text-align: center;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  line-height: 1.5;
 }
 
 .dossier-sidebar-claim-sent {

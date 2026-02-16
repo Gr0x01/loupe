@@ -1113,6 +1113,37 @@
   margin: 0;
 }
 
+.claim-bottom-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.claim-bottom-badge {
+  font-family: var(--font-geist-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  letter-spacing: 0.01em;
+}
+
+.claim-bottom-badge-blue {
+  background: var(--blue-subtle);
+  color: var(--blue);
+}
+
+.claim-bottom-badge-emerald {
+  background: var(--emerald-subtle);
+  color: var(--emerald);
+}
+
+.claim-bottom-badge-violet {
+  background: var(--violet-subtle);
+  color: var(--violet);
+}
+
 .claim-bottom-form {
   display: flex;
   flex-direction: column;
@@ -1138,9 +1169,17 @@
   border-color: var(--coral);
 }
 
+.claim-bottom-form .btn-primary {
+  padding-top: 0.875rem;
+  padding-bottom: 0.875rem;
+  box-shadow: 4px 4px 0 rgba(255, 107, 74, 0.2);
+}
+
 .claim-bottom-trust {
   font-size: 0.8125rem;
   color: var(--ink-300);
+  margin-top: 0.75rem;
+  text-align: center;
 }
 
 .claim-bottom-actions {

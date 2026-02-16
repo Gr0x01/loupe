@@ -189,7 +189,7 @@ export function DossierSidebar({
                 document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
               }}
             >
-              Claim this page — free
+              Claim this page
             </a>
           </div>
         )}
@@ -342,10 +342,12 @@ export function DossierSidebar({
           ) : (
             <>
               <p className="dossier-sidebar-claim-headline">
-                Know when this changes.
+                {findingsCounts
+                  ? `${findingsCounts.high + findingsCounts.medium + findingsCounts.low} findings on this page.`
+                  : "This page will change."}
               </p>
               <p className="dossier-sidebar-claim-sub">
-                Get weekly scans + alerts. Free.
+                Your next deploy could change that number.
               </p>
               <form onSubmit={claimCTA.onSubmit} className="dossier-sidebar-claim-form">
                 <input
@@ -361,15 +363,18 @@ export function DossierSidebar({
                   type="submit"
                   disabled={claimCTA.loading}
                   className="btn-primary w-full text-sm py-2"
-                  style={{ boxShadow: "none" }}
                 >
-                  {claimCTA.loading ? "..." : "Claim this page"}
+                  {claimCTA.loading ? "..." : "Track this page \u2014 free"}
                 </button>
               </form>
               {claimCTA.error && (
                 <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>{claimCTA.error}</p>
               )}
-              <p className="dossier-sidebar-claim-trust">No credit card required</p>
+              <p className="dossier-sidebar-claim-trust">
+                14-day Pro: daily scans + deploy alerts.
+                <br />
+                <strong>No credit card.</strong>
+              </p>
             </>
           )}
         </div>

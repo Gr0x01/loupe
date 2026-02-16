@@ -652,7 +652,7 @@ function StickyClaimBar({
             disabled={loading}
             className="btn-primary"
           >
-            {loading ? "..." : "Email me when this changes"}
+            {loading ? "..." : "Claim this page"}
           </button>
         </form>
       </div>
@@ -1691,12 +1691,17 @@ export default function AnalysisPage() {
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {s.findings && s.findings.length > 0
-                      ? `Ready to test "${s.findings[0].title}"?`
-                      : "This audit has a shelf life."}
+                      ? <>Next time &ldquo;{s.findings[0].title}&rdquo; breaks, will you&nbsp;know?</>
+                      : "These findings expire the moment something changes."}
                   </h2>
                   <p className="claim-bottom-sub">
-                    We scan {getDomain(analysis.url)} weekly and email you what changed — and whether it helped or hurt. 14-day Pro trial, no credit card.
+                    Claim this page and we&apos;ll track every change — then show you what it did to your metrics. Free to start, no credit card.
                   </p>
+                  <div className="claim-bottom-badges">
+                    <span className="claim-bottom-badge claim-bottom-badge-blue">Daily scans</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-emerald">Deploy alerts</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-violet">14-day Pro trial</span>
+                  </div>
                 </div>
 
                 {/* Right: form */}
@@ -1715,7 +1720,7 @@ export default function AnalysisPage() {
                       disabled={claimLoading}
                       className="btn-primary w-full"
                     >
-                      {claimLoading ? "Sending..." : "Email me when this changes"}
+                      {claimLoading ? "Sending..." : "Claim this page"}
                     </button>
                   </form>
 
@@ -1725,7 +1730,7 @@ export default function AnalysisPage() {
 
                   {!claimError && (
                     <p className="claim-bottom-trust">
-                      Free for one page · We scan weekly · First scan runs Monday
+                      Free forever on one page · No credit card
                     </p>
                   )}
                 </div>
