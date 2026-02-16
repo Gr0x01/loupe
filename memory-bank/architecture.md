@@ -428,7 +428,7 @@ finding_feedback (
 - `src/app/analysis/[id]/page.tsx` — ExpandedFindingCard feedback UI
 - `src/app/api/feedback/route.ts` — POST endpoint
 - `src/lib/ai/pipeline-utils.ts` — FindingFeedback interface; `src/lib/ai/post-analysis.ts` — formatUserFeedback()
-- `src/lib/inngest/functions.ts` — Fetches feedback, passes to pipeline
+- `src/lib/inngest/functions/analyze.ts` — Fetches feedback, passes to pipeline
 
 ### Brand Voice (in prompts)
 - **Identity:** "Observant analyst" — like a friend who notices what you missed
@@ -813,7 +813,7 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 ### Key Files
 - `src/lib/email/resend.ts` — Resend client wrapper, `sendEmail()` helper
 - `src/lib/email/templates.ts` — HTML email templates (brand-consistent, ui-designer reviewed)
-- `src/lib/inngest/functions.ts` — Email selection logic, correlation unlock, weekly digest
+- `src/lib/inngest/functions/` — Email selection logic, correlation unlock, weekly digest
 - `src/app/api/profile/route.ts` — GET/PATCH profile preferences
 - `src/app/api/dev/email-preview/route.ts` — Dev-only template preview (all variations)
 
@@ -930,7 +930,12 @@ src/
 │   │   └── __tests__/attribution.test.ts  # 15 attribution tests
 │   └── inngest/
 │       ├── client.ts               # Inngest client
-│       └── functions.ts            # analysis/created handler + email notifications
+│       └── functions/
+│           ├── index.ts            # Barrel re-export (all 7 Inngest functions)
+│           ├── analyze.ts          # analyzeUrl — full screenshot + LLM analysis pipeline
+│           ├── deploy.ts           # deployDetected — lightweight Haiku diff on deploy
+│           ├── checkpoints.ts      # runCheckpoints — multi-horizon checkpoint engine
+│           └── scheduled.ts        # scheduledScan, scheduledScanDaily, dailyScanDigest, screenshotHealthCheck
 ```
 
 ## Dev Setup
@@ -1092,7 +1097,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 
 | File | Purpose |
 |------|---------|
-| `src/lib/inngest/functions.ts` | `deployDetected`, `checkCorrelations`, `analyzeUrl` mods |
+| `src/lib/inngest/functions/deploy.ts` | `deployDetected` |
 | `src/lib/utils/deploy-filter.ts` | `couldAffectPage()` — filters pages by deploy's changed files |
 | `src/lib/ai/quick-diff.ts` | `runQuickDiff` (Haiku visual diff) |
 | `src/lib/ai/post-analysis.ts` | `runPostAnalysisPipeline`, `formatPendingChanges`, revertedChangeIds |
@@ -1403,7 +1408,8 @@ New tables (see schema section above for full column definitions):
 | `src/lib/ai/pipeline-utils.ts` | `formatCheckpointTimeline()`, shared utilities |
 | `src/lib/ai/checkpoint-assessment.ts` | `runCheckpointAssessment()`, `runStrategyNarrative()` |
 | `src/lib/analytics/correlation.ts` | `correlateChange()`, `gatherSupabaseMetrics()` |
-| `src/lib/inngest/functions.ts` | `runCheckpoints` cron (10:30 UTC), checkpoint timeline in `analyzeUrl` |
+| `src/lib/inngest/functions/checkpoints.ts` | `runCheckpoints` cron (10:30 UTC) |
+| `src/lib/inngest/functions/analyze.ts` | `analyzeUrl` with checkpoint timeline context |
 | `src/app/api/cron/checkpoints/route.ts` | Vercel Cron backup (10:45 UTC) |
 | `src/app/api/feedback/outcome/route.ts` | Outcome feedback endpoint (3-hop ownership chain) |
 | `src/components/chronicle/UnifiedTimelineCard.tsx` | Checkpoint chips, evidence panel, outcome feedback UI |
