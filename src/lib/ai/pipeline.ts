@@ -152,6 +152,9 @@ Respond with JSON matching this exact schema:
   "summary": "<2-3 sentence executive summary focusing on biggest opportunities>"
 }
 
+## CRITICAL: Knowledge Cutoff
+Your training data has a cutoff date. NEVER claim that specific products, companies, AI models, technologies, or services are "fictional", "don't exist", or "haven't been released yet." You do not know what exists today — only what existed in your training data. Focus on analyzing the PAGE (messaging, design, conversion), not fact-checking whether external entities mentioned on the page are real.
+
 ## Rules for Findings
 - Each finding MUST have a unique id (f1, f2, f3, etc.)
 - Element labels should be human-friendly: "Your Headline" not "hero headline"
@@ -511,6 +514,9 @@ Return JSON matching this schema:
   "revertedChangeIds": ["<IDs of pending changes that were reverted>"],
   "observations": [{ "changeId": "<detected_change ID>", "text": "<dated observation>" }]
 }
+
+## CRITICAL: Knowledge Cutoff
+Your training data has a cutoff date. NEVER claim that specific products, companies, AI models, technologies, or services are "fictional", "don't exist", or "haven't been released yet." You do not know what exists today — only what existed in your training data. Focus on analyzing changes and metrics, not fact-checking whether external entities mentioned on the page are real.
 
 ## Correlation Rules
 - If no analytics/database tools were called → correlation MUST be null
