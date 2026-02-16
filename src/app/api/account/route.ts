@@ -73,6 +73,7 @@ export async function DELETE() {
     };
 
     await del("analytics_snapshots", "user_id", userId);
+    await del("outcome_feedback", "user_id", userId);
     await del("finding_feedback", "user_id", userId);
     await del("detected_changes", "user_id", userId);
 

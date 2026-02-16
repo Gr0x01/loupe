@@ -192,11 +192,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch checkpoint data for these changes
     const changeIds = resultRows.map((r) => r.id);
-    const checkpointsByChange: Record<string, Array<{ horizon_days: number; assessment: string; confidence: number | null; reasoning: string | null; data_sources: string[]; computed_at: string }>> = {};
+    const checkpointsByChange: Record<string, Array<{ id: string; horizon_days: number; assessment: string; confidence: number | null; reasoning: string | null; data_sources: string[]; computed_at: string }>> = {};
     if (changeIds.length > 0) {
       const { data: checkpoints } = await supabase
         .from("change_checkpoints")
-        .select("change_id, horizon_days, assessment, confidence, reasoning, data_sources, computed_at")
+        .select("id, change_id, horizon_days, assessment, confidence, reasoning, data_sources, computed_at")
         .in("change_id", changeIds)
         .order("horizon_days", { ascending: true });
 
@@ -204,6 +204,7 @@ export async function GET(req: NextRequest) {
         for (const cp of checkpoints) {
           if (!checkpointsByChange[cp.change_id]) checkpointsByChange[cp.change_id] = [];
           checkpointsByChange[cp.change_id].push({
+            id: cp.id,
             horizon_days: cp.horizon_days,
             assessment: cp.assessment,
             confidence: cp.confidence ?? null,

@@ -1486,6 +1486,8 @@ export default function AnalysisPage() {
             pageId={pageCtx?.page_id}
             currentAnalysisId={analysis.id}
             hypothesisMap={pageCtx?.hypothesis_map}
+            feedbackMap={pageCtx?.feedback_map}
+            checkpointMap={pageCtx?.checkpoint_map}
           />
         ) : (
           /* Scan 1 (claimed or unclaimed) — dossier layout */

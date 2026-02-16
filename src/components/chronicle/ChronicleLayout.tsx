@@ -30,6 +30,8 @@ interface ChronicleLayoutProps {
   currentAnalysisId?: string;
   metricFocus?: string | null;
   hypothesisMap?: Record<string, string>;
+  feedbackMap?: Record<string, { feedback_type: string; checkpoint_id: string }>;
+  checkpointMap?: Record<string, { checkpoint_id: string; horizon_days: number }>;
 }
 
 /* ---- Win detection helpers ---- */
@@ -101,6 +103,8 @@ export function ChronicleLayout({
   currentAnalysisId,
   metricFocus,
   hypothesisMap,
+  feedbackMap,
+  checkpointMap,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -226,6 +230,11 @@ export function ChronicleLayout({
                       change={item.change}
                       friendlyText={item.friendlyText}
                       hypothesis={hypothesisMap?.[item.id]}
+                      changeId={item.id}
+                      checkpoints={item.checkpoints}
+                      checkpointId={checkpointMap?.[item.id]?.checkpoint_id}
+                      horizonDays={checkpointMap?.[item.id]?.horizon_days}
+                      existingFeedback={checkpointMap?.[item.id]?.checkpoint_id ? feedbackMap?.[checkpointMap[item.id].checkpoint_id] : null}
                     />
                   ))}
                 </div>
@@ -250,6 +259,11 @@ export function ChronicleLayout({
                       change={item.change}
                       friendlyText={item.friendlyText}
                       hypothesis={hypothesisMap?.[item.id]}
+                      changeId={item.id}
+                      checkpoints={item.checkpoints}
+                      checkpointId={checkpointMap?.[item.id]?.checkpoint_id}
+                      horizonDays={checkpointMap?.[item.id]?.horizon_days}
+                      existingFeedback={checkpointMap?.[item.id]?.checkpoint_id ? feedbackMap?.[checkpointMap[item.id].checkpoint_id] : null}
                     />
                   ))}
                 </div>
@@ -277,6 +291,7 @@ export function ChronicleLayout({
                         detectedAt={item.firstDetectedAt}
                         hypothesis={hypothesisMap?.[item.id]}
                         changeId={item.id}
+                        checkpoints={item.checkpoints}
                       />
                     );
                   })}

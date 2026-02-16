@@ -1875,11 +1875,18 @@ export const runCheckpoints = inngest.createFunction(
 
         for (const { change, pageUrl, pageFocus, dueHorizons } of userItems) {
           try {
-            // Get existing checkpoints for transition logic + LLM context
-            const { data: existingCps, error: existingCpsError } = await supabase
-              .from("change_checkpoints")
-              .select("horizon_days, assessment, reasoning")
-              .eq("change_id", change.id);
+            // Get existing checkpoints + user feedback for transition logic + LLM context
+            const [{ data: existingCps, error: existingCpsError }, { data: feedbackRows }] = await Promise.all([
+              supabase
+                .from("change_checkpoints")
+                .select("id, horizon_days, assessment, reasoning")
+                .eq("change_id", change.id),
+              supabase
+                .from("outcome_feedback")
+                .select("feedback_type, feedback_text, checkpoint_id")
+                .eq("change_id", change.id)
+                .eq("user_id", change.user_id),
+            ]);
 
             if (existingCpsError) {
               console.error(`Failed to fetch existing checkpoints for change ${change.id}:`, existingCpsError);
@@ -1888,10 +1895,22 @@ export const runCheckpoints = inngest.createFunction(
             }
 
             const existingCheckpoints = (existingCps || []).map((cp) => ({
+              id: cp.id,
               horizon_days: cp.horizon_days,
               assessment: cp.assessment as CheckpointAssessment,
               reasoning: cp.reasoning as string | undefined,
             }));
+
+            // Build prior feedback context for LLM
+            const priorFeedback = (feedbackRows || []).map(f => {
+              const cp = existingCheckpoints.find(c => c.id === f.checkpoint_id);
+              return cp ? {
+                horizon_days: cp.horizon_days,
+                feedback_type: f.feedback_type as "accurate" | "inaccurate",
+                feedback_text: f.feedback_text,
+                assessment: cp.assessment,
+              } : null;
+            }).filter((f): f is NonNullable<typeof f> => f !== null);
 
             for (const horizonDays of dueHorizons) {
               const changeDate = new Date(change.first_detected_at);
@@ -1986,12 +2005,13 @@ export const runCheckpoints = inngest.createFunction(
                 horizonDays,
                 metrics: allMetrics,
                 priorCheckpoints: existingCheckpoints.map(cp => ({
-                  ...cp,
-                  reasoning: undefined,
+                  horizon_days: cp.horizon_days,
+                  assessment: cp.assessment,
                 })),
                 hypothesis: change.hypothesis,
                 pageFocus: pageFocus,
                 pageUrl,
+                priorFeedback: priorFeedback.length > 0 ? priorFeedback : undefined,
               });
 
               if (llmResult) {
@@ -2051,7 +2071,7 @@ export const runCheckpoints = inngest.createFunction(
 
               // ignoreDuplicates returns empty array when row already existed — skip transition logic
               if (!upsertedRows?.length) {
-                existingCheckpoints.push({ horizon_days: horizonDays, assessment, reasoning: reasoning ?? undefined });
+                existingCheckpoints.push({ id: "", horizon_days: horizonDays, assessment, reasoning: reasoning ?? undefined });
                 continue;
               }
 
@@ -2192,7 +2212,7 @@ export const runCheckpoints = inngest.createFunction(
               }
 
               // Track for subsequent horizon logic within same run
-              existingCheckpoints.push({ horizon_days: horizonDays, assessment, reasoning: reasoning ?? undefined });
+              existingCheckpoints.push({ id: upsertedRows[0].id, horizon_days: horizonDays, assessment, reasoning: reasoning ?? undefined });
             }
           } catch (err) {
             Sentry.withScope((scope) => {

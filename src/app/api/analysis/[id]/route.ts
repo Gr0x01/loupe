@@ -129,7 +129,7 @@ export async function GET(
         .single();
 
       if (page) {
-        // Parallel: analysis context + hypotheses
+        // Round 1: analysis context + changes (independent)
         const [ctxResult, changeResult] = await Promise.all([
           supabase.rpc("get_analysis_context", {
             p_user_id: data.user_id,
@@ -138,9 +138,8 @@ export async function GET(
           }).single(),
           supabase
             .from("detected_changes")
-            .select("id, hypothesis")
-            .eq("page_id", page.id)
-            .not("hypothesis", "is", null),
+            .select("id, hypothesis, status")
+            .eq("page_id", page.id),
         ]);
         const ctx = ctxResult.data as {
           scan_number: number;
@@ -150,15 +149,84 @@ export async function GET(
           baseline_date: string;
         } | null;
         const changeRows = changeResult.data;
+        const changeIds = (changeRows || []).map(r => r.id);
 
         // Build hypothesis map from detected_changes
         let hypothesis_map: Record<string, string> | undefined;
         if (changeRows && changeRows.length > 0) {
-          hypothesis_map = {};
-          for (const row of changeRows) {
-            if (row.hypothesis) hypothesis_map[row.id] = row.hypothesis;
+          const withHypothesis = changeRows.filter(r => r.hypothesis);
+          if (withHypothesis.length > 0) {
+            hypothesis_map = {};
+            for (const row of withHypothesis) {
+              hypothesis_map[row.id] = row.hypothesis!;
+            }
           }
-          if (Object.keys(hypothesis_map).length === 0) hypothesis_map = undefined;
+        }
+
+        // Round 2: feedback + checkpoints (scoped to this page's changes)
+        const resolvedIds = (changeRows || [])
+          .filter(r => r.status === "validated" || r.status === "regressed")
+          .map(r => r.id);
+
+        const [feedbackResult, checkpointResult] = changeIds.length > 0
+          ? await Promise.all([
+              supabase
+                .from("outcome_feedback")
+                .select("change_id, checkpoint_id, feedback_type")
+                .eq("user_id", currentUserId!)
+                .in("change_id", changeIds),
+              resolvedIds.length > 0
+                ? supabase
+                    .from("change_checkpoints")
+                    .select("change_id, id, horizon_days, assessment")
+                    .in("change_id", resolvedIds)
+                    .order("horizon_days", { ascending: false })
+                : Promise.resolve({ data: [] as { change_id: string; id: string; horizon_days: number; assessment: string }[] }),
+            ])
+          : [
+              { data: [] as { change_id: string; checkpoint_id: string; feedback_type: string }[] },
+              { data: [] as { change_id: string; id: string; horizon_days: number; assessment: string }[] },
+            ];
+
+        // Build feedback map keyed by checkpoint_id (supports multiple feedbacks per change)
+        let feedback_map: Record<string, { feedback_type: string; checkpoint_id: string }> | undefined;
+        if (feedbackResult.data?.length) {
+          feedback_map = {};
+          for (const f of feedbackResult.data) {
+            feedback_map[f.checkpoint_id] = { feedback_type: f.feedback_type, checkpoint_id: f.checkpoint_id };
+          }
+        }
+
+        // Build checkpoint map (change_id → checkpoint that matches displayed outcome)
+        // The card shows correlation_metrics from the transition that set validated/regressed,
+        // so feedback must target the checkpoint whose assessment matches that status.
+        let checkpoint_map: Record<string, { checkpoint_id: string; horizon_days: number }> | undefined;
+        if (checkpointResult.data?.length) {
+          // Build status lookup from changeRows
+          const statusByChangeId = new Map<string, string>();
+          for (const r of changeRows || []) {
+            statusByChangeId.set(r.id, r.status);
+          }
+          // Map status → matching checkpoint assessment
+          const statusToAssessment: Record<string, string> = { validated: "improved", regressed: "regressed" };
+
+          checkpoint_map = {};
+          for (const cp of checkpointResult.data) {
+            if (checkpoint_map[cp.change_id]) continue; // already found best match
+            const changeStatus = statusByChangeId.get(cp.change_id);
+            const expectedAssessment = changeStatus ? statusToAssessment[changeStatus] : null;
+            // Prefer checkpoint whose assessment matches the displayed outcome
+            if (cp.assessment === expectedAssessment) {
+              checkpoint_map[cp.change_id] = { checkpoint_id: cp.id, horizon_days: cp.horizon_days };
+            }
+          }
+          // Fallback: if no assessment-matched checkpoint found, use highest horizon
+          for (const cp of checkpointResult.data) {
+            if (!checkpoint_map[cp.change_id]) {
+              checkpoint_map[cp.change_id] = { checkpoint_id: cp.id, horizon_days: cp.horizon_days };
+            }
+          }
+          if (Object.keys(checkpoint_map).length === 0) checkpoint_map = undefined;
         }
 
         page_context = {
@@ -170,6 +238,8 @@ export async function GET(
           next_analysis_id: ctx?.next_analysis_id ?? null,
           baseline_date: ctx?.baseline_date ?? data.created_at,
           hypothesis_map,
+          feedback_map,
+          checkpoint_map,
         };
       }
     }

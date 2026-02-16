@@ -121,6 +121,7 @@ export interface ValidatedItem {
   friendlyText: string; // "More people sticking around"
   change: string; // "+8%"
   status?: "validated" | "regressed"; // Canonical DB status (polarity-aware)
+  checkpoints?: ChangeCheckpointSummary[];
 }
 
 export interface WatchingItem {
@@ -130,6 +131,7 @@ export interface WatchingItem {
   daysOfData: number; // How many days collected
   daysNeeded: number; // Typically 7-14
   firstDetectedAt?: string; // ISO timestamp - when change was first detected
+  checkpoints?: ChangeCheckpointSummary[];
 }
 
 // ============================================
@@ -281,6 +283,10 @@ export interface PageContext {
   baseline_date: string;
   /** Map of detected_change ID → hypothesis text (only present when hypotheses exist) */
   hypothesis_map?: Record<string, string>;
+  /** Map of checkpoint_id → existing outcome feedback */
+  feedback_map?: Record<string, { feedback_type: string; checkpoint_id: string }>;
+  /** Map of detected_change ID → latest checkpoint info (for feedback UI) */
+  checkpoint_map?: Record<string, { checkpoint_id: string; horizon_days: number }>;
 }
 
 /**
@@ -373,12 +379,14 @@ export interface DashboardPageData {
 // ============================================
 
 export interface ChangeCheckpointSummary {
+  id: string;
   horizon_days: number;
   assessment: string;
   confidence: number | null;
   reasoning: string | null;
   data_sources: string[];
   computed_at: string;
+  metrics_json?: CheckpointMetrics;
 }
 
 export interface ChangesApiResponse {
@@ -442,6 +450,15 @@ export interface CheckpointAssessmentResult {
   assessment: CheckpointAssessment;
   confidence: number;
   reasoning: string;
+}
+
+export interface OutcomeFeedback {
+  id: string;
+  checkpoint_id: string;
+  change_id: string;
+  feedback_type: 'accurate' | 'inaccurate';
+  feedback_text: string | null;
+  created_at: string;
 }
 
 export type SuggestionStatus = "open" | "addressed" | "dismissed";

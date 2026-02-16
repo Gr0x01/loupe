@@ -1139,6 +1139,12 @@ Given a page change and metric data from one or more sources, determine the over
 - If prior checkpoints exist, note the trajectory (improving, worsening, stable)
 - If a hypothesis was provided, evaluate whether the evidence supports it
 
+## User Feedback Calibration
+If the user provided feedback on prior assessments for this change, factor it in:
+- "agreed" = your prior reasoning was sound, continue the pattern
+- "disagreed" = reconsider what external factors you may have missed
+Do NOT blindly flip your assessment — use feedback as additional context.
+
 ## Output
 Return JSON only:
 {
@@ -1155,6 +1161,12 @@ export interface CheckpointAssessmentContext {
   hypothesis?: string | null;
   pageFocus?: string | null;
   pageUrl: string;
+  priorFeedback?: Array<{
+    horizon_days: number;
+    feedback_type: 'accurate' | 'inaccurate';
+    feedback_text: string | null;
+    assessment: string;
+  }>;
 }
 
 /**
@@ -1207,6 +1219,15 @@ export async function runCheckpointAssessment(
   if (context.pageFocus) {
     promptParts.push("");
     promptParts.push(`## Page Focus Metric\n${sanitizeUserInput(context.pageFocus, 200)}`);
+  }
+
+  if (context.priorFeedback?.length) {
+    promptParts.push("");
+    promptParts.push("## User Feedback on Prior Assessments");
+    for (const f of context.priorFeedback) {
+      const text = f.feedback_text ? ` — "${sanitizeUserInput(f.feedback_text, 500)}"` : "";
+      promptParts.push(`- D+${f.horizon_days}: We said "${f.assessment}", user ${f.feedback_type === 'accurate' ? 'agreed' : 'disagreed'}${text}`);
+    }
   }
 
   const prompt = promptParts.join("\n");

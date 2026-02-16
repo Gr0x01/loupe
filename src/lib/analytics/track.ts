@@ -26,6 +26,7 @@ type TrackEvents = {
   correlation_viewed: { domain: string; status: "validated" | "regressed" };
   suggestion_copied: { element_type: string; domain: string };
   finding_feedback_submitted: { feedback_type: "accurate" | "inaccurate"; domain: string };
+  outcome_feedback_submitted: { feedback_type: "accurate" | "inaccurate"; horizon_days: number };
 
   // Feature Adoption
   integration_connected: { type: "github" | "posthog" | "ga4" | "supabase" };
