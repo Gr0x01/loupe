@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractJson, extractMatchingBraces, closeJson } from "../pipeline";
+import { extractJson, extractMatchingBraces, closeJson } from "../pipeline-utils";
 
 describe("extractJson", () => {
   it("extracts JSON from markdown code block", () => {
