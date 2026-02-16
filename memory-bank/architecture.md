@@ -332,7 +332,7 @@ change_lifecycle_events (
 
 **Philosophy:** One smart LLM call per scan. Value at every touch. No penny-pinching at MVP scale.
 
-**Model:** Gemini 3 Pro (or Sonnet 4) with vision. Smart model every time — the product being great matters more than saving $0.02 per scan.
+**Model:** `gemini-3-pro-preview` with vision. Smart model every time — the product being great matters more than saving $0.02 per scan.
 
 ### Pipeline: One Call Per Scan
 
@@ -371,18 +371,18 @@ Split into focused modules, each owning one LLM conversation pattern. `pipeline.
 
 | Module | Responsibility | LLM |
 |--------|---------------|-----|
-| `pipeline.ts` | `runAnalysisPipeline()` — initial audit with vision | Gemini 3 Pro |
-| `post-analysis.ts` | `runPostAnalysisPipeline()` — change tracking + correlation with tool use | Gemini 3 Pro |
-| `checkpoint-assessment.ts` | `runCheckpointAssessment()` + `runStrategyNarrative()` — per-change metric assessment | Gemini 3 Pro |
-| `quick-diff.ts` | `runQuickDiff()` — lightweight visual change detection | Claude Haiku |
+| `pipeline.ts` | `runAnalysisPipeline()` — initial audit with vision | `gemini-3-pro-preview` |
+| `post-analysis.ts` | `runPostAnalysisPipeline()` — change tracking + correlation with tool use | `gemini-3-pro-preview` |
+| `checkpoint-assessment.ts` | `runCheckpointAssessment()` (maxOutputTokens: 1024) + `runStrategyNarrative()` (maxOutputTokens: 2048) | `gemini-3-pro-preview` |
+| `quick-diff.ts` | `runQuickDiff()` — lightweight visual change detection | `claude-haiku-4-5-20251001` |
 | `pipeline-utils.ts` | Shared: `extractJson`, `sanitizeUserInput`, `formatCheckpointTimeline`, `validateMatchProposal`, prompt formatters, types | None (pure) |
 
 **Key functions:**
 - `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available.
 - `runQuickDiff(baselineUrl, currentBase64, baselineMobileUrl?, currentMobileBase64?, watchingCandidates?)` — Haiku vision diff (maxOutputTokens: 2048). All images capped at 7500px height via `sharp`. Optional `watchingCandidates` for fingerprint matching.
 - `runPostAnalysisPipeline(context, options)` — Scheduled scan with comparison + correlation (maxOutputTokens: 8192). Has analytics/database tool access.
-- `runCheckpointAssessment(context)` — LLM acts as product analyst for checkpoint evaluation. 3 attempts with backoff.
-- `runStrategyNarrative(context)` — Lightweight text-only LLM call for narrative generation. Non-fatal.
+- `runCheckpointAssessment(context)` — LLM acts as product analyst for checkpoint evaluation (maxOutputTokens: 1024). 3 attempts with backoff.
+- `runStrategyNarrative(context)` — Lightweight text-only LLM call for narrative generation (maxOutputTokens: 2048). Non-fatal.
 - `extractJson(text)` — Robust JSON extraction. 3-tier: regex code block → `extractMatchingBraces()` → `closeJson()`.
 - `validateMatchProposal(change, candidateIds, candidateScopes)` — Deterministic 3-gate validation of LLM-proposed change matches.
 
@@ -437,7 +437,6 @@ finding_feedback (
 - **FriendlyText:** Predictions use emotional stakes ("Your button is invisible", "You're losing signups")
 
 ### Marketing Frameworks (in prompts)
-- **PAS** (Problem-Agitate-Solve) — messaging structure
 - **Fogg Behavior Model** — CTA evaluation (motivation + ability + trigger)
 - **Cialdini's Principles** — trust signals (social proof, authority, scarcity)
 - **Gestalt Principles** — visual design (proximity, contrast, alignment)
@@ -537,7 +536,7 @@ The codebase now has canonical types with legacy types for backward compatibilit
 The post-analysis pipeline has 3-layer protection against LLM fabricating correlation data:
 1. **Temporal context** — Injects computed `days_since_detected` for each pending change + current date + previous scan date. LLM sees exact ages.
 2. **Hardened prompt rules** — "validated" requires: tools called + tools returned data + change 7+ days old. No tools = null correlation.
-3. **Server-side enforcement** — After parsing: if `toolCallsMade.length === 0`, forces `correlation = null` and demotes `validatedItems` → `watchingItems`. Also enforces 7-day minimum even with tools.
+3. **Server-side enforcement** — After parsing: if `toolCallsMade.length === 0`, forces `correlation = null`. (7-day and validation rules are prompt-level, not code-enforced.)
 
 `previousScanDate` is passed from the parent analysis `created_at` via `PostAnalysisContext`.
 
@@ -796,6 +795,7 @@ When correlating changes with database metrics, be specific:
    - Changed pages show primary change before/after detail
    - Stable pages shown as compact one-liners
    - Only sent if at least 1 page changed; all-quiet = no email
+5. **Claim page** (`claimPageEmail`) — Sent when unclaimed audit results are linked to a new account
 Manual re-scans do NOT trigger emails.
 
 ### Email Selection Logic
@@ -847,7 +847,7 @@ Inngest cron registrations go stale after Vercel deploys, causing cron functions
 - `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
 - `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. Backed up by Vercel Cron at 9:15 UTC. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
 - `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), fetches watching candidates for fingerprint matching, runs quick Haiku diff against stable baseline with candidates. If stale/missing baseline → full analysis. If changes detected → fingerprint-aware upsert (matched changes update existing rows, unmatched create new rows with proposal metadata), sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
-- `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
+- `daily-scan-digest` — daily cron (11am UTC), retries: 1, sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `run-checkpoints` — daily cron (10:30 UTC), replaces `check-correlations`. Evaluates watching changes at 5 horizons (D+7/14/30/60/90). Gathers all connected data (PostHog, GA4, Supabase), runs LLM assessment pass per checkpoint, writes immutable `change_checkpoints` rows, applies status transitions via `resolveStatusTransition()`, writes lifecycle events, recomposes affected read models + strategy narrative. Batched queries (500 changes/batch, 300 IDs per `.in()`). Provider init try/catch (analytics failure doesn't abort run). Vercel Cron backup at `/api/cron/checkpoints` (10:45 UTC) with dual event trigger.
 - `screenshot-health-check` — cron (every 30 min), pings screenshot service, reports to Sentry if unreachable. Sentry alert rule "Screenshot Service Down" (ID: 16691420) triggers on `service:screenshot` tag.
 
@@ -920,7 +920,7 @@ src/
 │   │   ├── checkpoint-assessment.ts # runCheckpointAssessment + runStrategyNarrative
 │   │   └── quick-diff.ts           # runQuickDiff (Haiku visual diff)
 │   ├── analysis/
-│   │   ├── baseline.ts             # getStableBaseline (3-tier fallback)
+│   │   ├── baseline.ts             # getStableBaseline (4-tier fallback)
 │   │   └── progress.ts             # composeProgressFromCanonicalState, getLastCanonicalProgress, formatMetricFriendlyText
 │   ├── analytics/
 │   │   ├── checkpoints.ts          # getEligibleHorizons, computeWindows, assessCheckpoint (fallback), resolveStatusTransition
@@ -970,9 +970,10 @@ Note: Post-analysis only runs on re-scans or when analytics connected. First ano
 | Tier | Monthly cost to serve |
 |------|---------------------|
 | Free (1 page, weekly) | ~$0.15-0.30 |
-| Pro (10 pages, weekly + on-demand) | ~$3-5 |
+| Pro (5 pages, daily + deploy) | ~$3-5 |
+| Scale (15 pages, daily + deploy) | ~$10-15 |
 
-Pro at $19/mo = healthy margins.
+All paid tiers have healthy margins ($39-99/mo vs $3-15 cost).
 
 ---
 
@@ -1003,11 +1004,12 @@ Pro at $19/mo = healthy margins.
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   CORRELATION CRON (Deferred)                       │
+│                CHECKPOINT CRON (Deferred, Daily 10:30 UTC)          │
 │                                                                     │
-│  Every 6h → Find watching changes with 7+ days data:                │
-│    ├─ Query analytics with absolute date windows (7d before/after)  │
-│    ├─ Update status: validated / regressed / inconclusive          │
+│  runCheckpoints → Evaluate watching changes at D+7/14/30/60/90:     │
+│    ├─ Gather all connected data (PostHog, GA4, Supabase)           │
+│    ├─ LLM assessment per checkpoint horizon                        │
+│    ├─ Update status via resolveStatusTransition()                  │
 │    └─ Send correlationUnlockedEmail if improved                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -1024,7 +1026,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 
 ### Key Components
 
-**Stable Baseline (`src/lib/analysis/baseline.ts`):**
+**Stable Baseline (`src/lib/analysis/baseline.ts`) — 4-tier fallback:**
 - Interface includes `mobile_screenshot_url: string | null` (backward compatible with old baselines)
 - Priority 1: `pages.stable_baseline_id` (explicit baseline from daily/weekly scan)
 - Priority 2: Last daily/weekly scan that completed
@@ -1101,7 +1103,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 | `src/lib/utils/deploy-filter.ts` | `couldAffectPage()` — filters pages by deploy's changed files |
 | `src/lib/ai/quick-diff.ts` | `runQuickDiff` (Haiku visual diff) |
 | `src/lib/ai/post-analysis.ts` | `runPostAnalysisPipeline`, `formatPendingChanges`, revertedChangeIds |
-| `src/lib/analysis/baseline.ts` | `getStableBaseline` (3-tier fallback), `isBaselineStale` |
+| `src/lib/analysis/baseline.ts` | `getStableBaseline` (4-tier fallback), `isBaselineStale` |
 | `src/lib/analytics/correlation.ts` | `correlateChange` (absolute date windows) |
 | `src/lib/analytics/provider.ts` | `comparePeriodsAbsolute()` interface |
 | `src/lib/analytics/posthog-adapter.ts` | HogQL absolute date queries |
@@ -1110,9 +1112,9 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 
 ---
 
-## Dashboard Results Zone
+## Dashboard Proof Banner (was Results Zone)
 
-**Purpose:** Surface correlation wins/losses at the top of the dashboard. Completes the value flywheel:
+**Purpose:** Surface correlation wins at the top of the dashboard. Completes the value flywheel:
 ```
 Free audit → Track page → First correlation proves it works → Upgrade
 ```
@@ -1120,19 +1122,13 @@ Free audit → Track page → First correlation proves it works → Upgrade
 ### Architecture
 
 ```
-/api/changes (GET)
+Dashboard page (src/app/dashboard/page.tsx — all components inline)
     │
-    ├─ Query detected_changes WHERE status IN ('validated', 'regressed')
-    ├─ Include correlation_metrics, page info
-    └─ Return sorted by correlation_unlocked_at DESC
-
-Dashboard page
-    │
-    ├─ ResultsZone (top, before AttentionZone)
-    │   └─ ResultCard[] (max 4, grid layout)
-    │       ├─ Big percentage (hero moment)
-    │       ├─ Element name + before/after
-    │       └─ Metric name + direction
+    ├─ ProofBanner (top, only when validated wins exist)
+    │   └─ WinCard[] (max 4, grid layout)
+    │       ├─ Before/after values
+    │       ├─ Metric % with direction
+    │       └─ LLM observation text
     │
     └─ Deep link support: ?win=<changeId> highlights specific card
 ```
@@ -1140,19 +1136,15 @@ Dashboard page
 ### Design Decisions
 - **Results at TOP** — Wins ARE the proof, not buried below attention items
 - **Emerald for validated** — Positive, growth, success
-- **Coral for regressed** — Attention needed, but not scary red
-- **Max 4 cards** — Prevents overwhelming; "See all X results" link if more
-- **Hidden when empty** — Zone appears organically on first correlation
+- **Max 4 cards** — Prevents overwhelming
+- **Hidden when empty** — ProofBanner appears organically on first validated win
 
 ### Key Files
 | File | Purpose |
 |------|---------|
 | `src/app/api/changes/route.ts` | GET endpoint for detected_changes with stats |
-| `src/components/dashboard/ResultsZone.tsx` | Zone header + grid container |
-| `src/components/dashboard/ResultCard.tsx` | Individual result with percentage hero |
-| `src/app/dashboard/page.tsx` | Integrates ResultsZone at top |
+| `src/app/dashboard/page.tsx` | ProofBanner + WinCard (inline components) |
 | `src/lib/email/templates.ts` | Deep links with `?win=` param |
-| `src/lib/utils/date.ts` | `formatDistanceToNow()` utility |
 
 ---
 
@@ -1269,6 +1261,11 @@ Sensitive metadata is NOT exposed in API responses:
   - `/api/pages POST` — 20/hour
   - `/api/rescan POST` — 30/hour
   - `/api/feedback POST` — 60/hour
+  - `/api/changes GET` — 120/hour
+  - `/api/claim-link` — 5/hour
+  - `/api/share-credit` — 5/hour
+  - `/api/leads` — 10/hour
+  - Magic link — 5/hour
 - **Note:** In-memory limiter is per-instance; not persistent across serverless cold starts
 
 ### Prompt Injection Protection
@@ -1323,6 +1320,7 @@ trial_ends_at timestamptz  -- 14-day Pro trial expiry
 - `canUseDeployScans(tier)` — Returns true for Pro/Scale
 - `canAccessMobile(tier)` — Returns true for Pro/Scale
 - `validateScanFrequency(tier, requested)` — Coerces scan frequency based on tier
+- `getAllowedScanFrequency(tier)` — Returns allowed frequencies for tier
 - `TRIAL_DURATION_DAYS = 14`
 
 ### API Routes
