@@ -117,6 +117,7 @@ export interface ValidatedItem {
   metric: string; // "bounce_rate"
   friendlyText: string; // "More people sticking around"
   change: string; // "+8%"
+  status?: "validated" | "regressed"; // Canonical DB status (polarity-aware)
 }
 
 export interface WatchingItem {
@@ -171,6 +172,12 @@ export interface DetectedChange {
   hypothesis_at?: string;
   observation_text?: string;
 
+  // Provenance (fingerprint matching, Phase 3)
+  matched_change_id?: string;
+  match_confidence?: number;
+  match_rationale?: string;
+  fingerprint_version?: number;
+
   created_at: string;
   updated_at: string;
 }
@@ -183,7 +190,7 @@ export interface CorrelationMetrics {
     change_percent: number;
     assessment: "improved" | "regressed" | "neutral";
   }>;
-  overall_assessment: "improved" | "regressed" | "neutral";
+  overall_assessment: "improved" | "regressed" | "neutral" | "inconclusive";
   reason?: string; // e.g., "analytics_disconnected"
 }
 
@@ -375,3 +382,76 @@ export interface ChangesApiResponse {
 // ============================================
 
 export type TimelineItemType = "validated" | "regressed" | "watching" | "change";
+
+// ============================================
+// Canonical Change Intelligence (RFC-0001)
+// ============================================
+
+export type HorizonDays = 7 | 14 | 30 | 60 | 90;
+export type CheckpointAssessment = "improved" | "regressed" | "neutral" | "inconclusive";
+export type AnalyticsProvider = "posthog" | "ga4" | "supabase" | "none";
+
+export interface CheckpointMetrics {
+  metrics: Array<{
+    name: string;
+    before: number;
+    after: number;
+    change_percent: number;
+    assessment: "improved" | "regressed" | "neutral";
+  }>;
+  overall_assessment: CheckpointAssessment;
+  reason?: string;
+}
+
+export interface ChangeCheckpoint {
+  id: string;
+  change_id: string;
+  horizon_days: HorizonDays;
+  window_before_start: string;
+  window_before_end: string;
+  window_after_start: string;
+  window_after_end: string;
+  metrics_json: CheckpointMetrics;
+  assessment: CheckpointAssessment;
+  confidence: number | null;
+  provider: AnalyticsProvider;
+  computed_at: string;
+}
+
+export type SuggestionStatus = "open" | "addressed" | "dismissed";
+
+export interface TrackedSuggestion {
+  id: string;
+  page_id: string;
+  user_id: string;
+  title: string;
+  element: string;
+  suggested_fix: string;
+  impact: "high" | "medium" | "low";
+  status: SuggestionStatus;
+  times_suggested: number;
+  first_suggested_at: string;
+  addressed_at: string | null;
+  dismissed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StatusTransition {
+  newStatus: DetectedChangeStatus;
+  reason: string;
+}
+
+export type LifecycleActorType = "system" | "user" | "llm";
+
+export interface ChangeLifecycleEvent {
+  id: string;
+  change_id: string;
+  from_status: DetectedChangeStatus;
+  to_status: DetectedChangeStatus;
+  reason: string;
+  actor_type: LifecycleActorType;
+  actor_id: string | null;
+  checkpoint_id: string | null;
+  created_at: string;
+}

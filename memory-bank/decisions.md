@@ -624,6 +624,32 @@ Cost assumptions: $0.06/full scan, $0.01/deploy scan, 4 weekly scans, 20-50 depl
 - Subdomain support (e.g., `app.example.com` vs `example.com` treated as different domains)
 - Client-side enforcement (server is the source of truth)
 
+## D36: Canonical Change Intelligence — Multi-horizon checkpoints (Feb 16, 2026)
+
+**Decision**: Replace single 7-day correlation model with multi-horizon checkpoint system (7/14/30/60/90 days). Phase 2 creates schema only — no behavior changes, 100% backward compatible.
+
+**Why**:
+- Single 7-day window is too short for many changes (especially for low-traffic sites)
+- Changes need multiple evaluation points to determine true impact
+- Deterministic state transitions (via lifecycle events) make the system auditable and debuggable
+- Persistent suggestions with `times_suggested` counter shows the LLM consistently identifies the same issue (credibility signal)
+- Fingerprint matching (provenance fields) enables the LLM to link related changes across deploys
+
+**What we built (Phase 2)**:
+1. `change_checkpoints` — Immutable horizon outcomes, UNIQUE per (change_id, horizon_days)
+2. `tracked_suggestions` — Persistent suggestions with status lifecycle, RLS enabled
+3. `change_lifecycle_events` — Audit log for status transitions, system-only
+4. Provenance fields on `detected_changes` — `matched_change_id`, `match_confidence`, `match_rationale`, `fingerprint_version`
+5. TypeScript interfaces for all new tables
+
+**What existing `checkCorrelations` cron does**: Continues running untouched. It evaluates 7-day watching changes via analytics APIs. The new checkpoint system will eventually subsume it (Phase 4) but for now they coexist safely — different tables, no conflicts.
+
+**Trade-offs**:
+- `metrics_json` uses same shape as existing `CorrelationMetrics.metrics` — reuses proven structure
+- Lifecycle events are append-only (no updates/deletes) — storage grows but provides full audit trail
+- Provenance fields are nullable and unused until Phase 3 — no dead code, just schema readiness
+- `tracked_suggestions` RLS uses `auth.uid() = user_id` pattern — service role needed for LLM writes
+
 ## D35: Fix false mobile findings from broken screenshots (Feb 16, 2026)
 
 **Decision**: Multi-layered fix for mobile screenshots producing incomplete captures that the LLM then flags as real mobile UX issues.

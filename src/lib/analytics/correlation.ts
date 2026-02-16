@@ -7,7 +7,6 @@
 
 import type { AnalyticsProvider } from "./provider";
 import type { DetectedChange, CorrelationMetrics } from "@/lib/types/analysis";
-import type { PeriodComparison } from "./types";
 
 export interface CorrelationResult {
   metrics: CorrelationMetrics;
@@ -24,26 +23,29 @@ const CORRELATION_METRICS = [
 /**
  * Correlate a detected change with analytics data.
  *
- * Compares 7 days before the change vs 7 days after to determine impact.
+ * By default compares 7 days before/after the change. Pass `windows` to override
+ * with custom date ranges (used by the checkpoint engine for longer horizons).
  *
  * @param change - The detected change to correlate
  * @param provider - Analytics provider (PostHog or GA4)
  * @param pageUrl - The page URL to query metrics for
+ * @param windows - Optional custom date windows (overrides default 7-day calculation)
  * @returns CorrelationResult with assessment
  */
 export async function correlateChange(
   change: DetectedChange,
   provider: AnalyticsProvider,
-  pageUrl: string
+  pageUrl: string,
+  windows?: { beforeStart: Date; beforeEnd: Date; afterStart: Date; afterEnd: Date }
 ): Promise<CorrelationResult> {
   const changeDate = new Date(change.first_detected_at);
 
-  // Define 7-day windows around the change
-  const beforeStart = new Date(changeDate);
-  beforeStart.setDate(beforeStart.getDate() - 7);
-
-  const afterEnd = new Date(changeDate);
-  afterEnd.setDate(afterEnd.getDate() + 7);
+  // Use provided windows or default to 7-day windows
+  const DAY_MS = 86400000;
+  const beforeStart = windows?.beforeStart ?? new Date(changeDate.getTime() - 7 * DAY_MS);
+  const beforeEnd = windows?.beforeEnd ?? changeDate;
+  const afterStart = windows?.afterStart ?? changeDate;
+  const afterEnd = windows?.afterEnd ?? new Date(changeDate.getTime() + 7 * DAY_MS);
 
   // Query all metrics in parallel
   const comparisons = await Promise.all(
@@ -53,8 +55,8 @@ export async function correlateChange(
           metric as "pageviews" | "unique_visitors" | "bounce_rate" | "conversions",
           pageUrl,
           beforeStart,
-          changeDate,
-          changeDate,
+          beforeEnd,
+          afterStart,
           afterEnd
         );
       } catch (err) {
@@ -96,16 +98,20 @@ export async function correlateChange(
   }
 
   // Determine overall assessment
-  // Prioritize: any regression > any improvement > neutral
-  let overall_assessment: "improved" | "regressed" | "neutral" = "neutral";
+  // Prioritize: inconclusive (no metrics) > any regression > any improvement > neutral
+  let overall_assessment: "improved" | "regressed" | "neutral" | "inconclusive" = "inconclusive";
 
-  const hasRegression = metricResults.some((m) => m.assessment === "regressed");
-  const hasImprovement = metricResults.some((m) => m.assessment === "improved");
+  if (metricResults.length > 0) {
+    const hasRegression = metricResults.some((m) => m.assessment === "regressed");
+    const hasImprovement = metricResults.some((m) => m.assessment === "improved");
 
-  if (hasRegression) {
-    overall_assessment = "regressed";
-  } else if (hasImprovement) {
-    overall_assessment = "improved";
+    if (hasRegression) {
+      overall_assessment = "regressed";
+    } else if (hasImprovement) {
+      overall_assessment = "improved";
+    } else {
+      overall_assessment = "neutral";
+    }
   }
 
   return {
@@ -114,32 +120,4 @@ export async function correlateChange(
       overall_assessment,
     },
   };
-}
-
-/**
- * Check if a detected change has enough data for correlation.
- * Requires 7+ days since the change was first detected.
- *
- * @param change - The detected change
- * @returns true if 7+ days have passed
- */
-export function hasEnoughDataForCorrelation(change: DetectedChange): boolean {
-  const changeDate = new Date(change.first_detected_at);
-  const daysSinceChange = Math.floor(
-    (Date.now() - changeDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return daysSinceChange >= 7;
-}
-
-/**
- * Calculate the number of days of data collected since a change.
- *
- * @param change - The detected change
- * @returns Number of days since first detected
- */
-export function getDaysOfData(change: DetectedChange): number {
-  const changeDate = new Date(change.first_detected_at);
-  return Math.floor(
-    (Date.now() - changeDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
 }

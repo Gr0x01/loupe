@@ -212,6 +212,63 @@ deploys (
 -- No RLS - accessed via service role from webhooks
 ```
 
+change_checkpoints (
+  id uuid PK default gen_random_uuid(),
+  change_id uuid NOT NULL FK detected_changes ON DELETE CASCADE,
+  horizon_days int NOT NULL,              -- CHECK (7, 14, 30, 60, 90)
+  window_before_start timestamptz NOT NULL,
+  window_before_end timestamptz NOT NULL,
+  window_after_start timestamptz NOT NULL,
+  window_after_end timestamptz NOT NULL,
+  metrics_json jsonb NOT NULL DEFAULT '{}',  -- Same shape as CorrelationMetrics.metrics
+  assessment text NOT NULL,               -- improved | regressed | neutral | inconclusive
+  provider text NOT NULL DEFAULT 'none',  -- posthog | ga4 | supabase | none
+  computed_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(change_id, horizon_days)
+)
+-- Indexes: change_id, computed_at, horizon_days
+-- Immutable: one row per change per horizon, computed once
+
+tracked_suggestions (
+  id uuid PK default gen_random_uuid(),
+  page_id uuid NOT NULL FK pages ON DELETE CASCADE,
+  user_id uuid NOT NULL FK auth.users ON DELETE CASCADE,
+  title text NOT NULL,
+  element text NOT NULL,
+  suggested_fix text NOT NULL,
+  impact text NOT NULL,                   -- high | medium | low
+  status text NOT NULL DEFAULT 'open',    -- open | addressed | dismissed
+  times_suggested int NOT NULL DEFAULT 1, -- Incremented when LLM resurfaces
+  first_suggested_at timestamptz NOT NULL DEFAULT now(),
+  addressed_at timestamptz,
+  dismissed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+)
+-- Indexes: (page_id, user_id), status WHERE open, user_id
+-- RLS: user can access own rows, service role can manage
+
+change_lifecycle_events (
+  id uuid PK default gen_random_uuid(),
+  change_id uuid NOT NULL FK detected_changes ON DELETE CASCADE,
+  from_status text NOT NULL,
+  to_status text NOT NULL,
+  reason text NOT NULL,                   -- e.g. "checkpoint_30d_improved"
+  actor_type text NOT NULL,               -- system | user | llm
+  actor_id text,                          -- user_id or job name
+  checkpoint_id uuid FK change_checkpoints ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+)
+-- Index: (change_id, created_at DESC)
+-- No RLS — system-only table (service role access)
+```
+
+**Provenance fields on `detected_changes`** (added Phase 2, used in Phase 3):
+- `matched_change_id uuid FK self` — LLM-proposed link to existing change
+- `match_confidence numeric(3,2)` — 0.0-1.0, threshold 0.70
+- `match_rationale text` — Brief explanation
+- `fingerprint_version int DEFAULT 1` — Algorithm versioning
+
 ### Storage
 - `screenshots` bucket (public) — stores `analyses/{id}.jpg` (desktop) and `analyses/{id}_mobile.jpg` (390px mobile)
 
@@ -738,10 +795,24 @@ Inngest function `dailyScanDigest` runs daily at 11am UTC (2h after scans start 
 **Dev server:** Uses existing Inngest dev server on port 8288 (shared with Boost)
 **Registration:** Sync app URL `http://localhost:3002/api/inngest` in Inngest dashboard
 
+### Known Issue: Inngest Cron Drift (Feb 2026)
+Inngest cron registrations go stale after Vercel deploys, causing cron functions to intermittently not fire. Observed: daily scans missed on Feb 14 + Feb 16, digest email missed on Feb 15 despite successful scans. Event-triggered functions (like `analyzeUrl`) work fine — only cron functions affected.
+
+**Mitigation:** Vercel Cron backup at `/api/cron/daily-scans` (runs 9:15 UTC) checks if Inngest ran today's scans, self-heals if not, and re-syncs Inngest registration on every run. Sentry warning fires when self-healing activates.
+
+### Vercel Cron Backup
+**Config:** `vercel.json` — `GET /api/cron/daily-scans` at `15 9 * * *`
+**Auth:** `CRON_SECRET` env var (Vercel sends `Authorization: Bearer <CRON_SECRET>`)
+**Behavior:**
+1. Checks if any daily analyses exist for today
+2. If yes → re-syncs Inngest (`PUT /api/inngest`) and returns
+3. If no → fires Sentry warning, creates analyses, triggers Inngest events, re-syncs
+4. Per-page idempotency guard prevents duplicates
+
 ### Functions
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts), concurrency: 4 (prevents screenshot service 429s when daily scans fire simultaneously). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
-- `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
+- `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. Backed up by Vercel Cron at 9:15 UTC. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
 - `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), runs quick Haiku diff against stable baseline. If stale/missing baseline → full analysis. If changes detected → creates detected_changes records, sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
@@ -777,6 +848,7 @@ src/
 │   │   │   ├── github/             # GitHub OAuth + repo management
 │   │   │   └── posthog/            # PostHog connect/disconnect
 │   │   ├── webhooks/github/route.ts # GitHub push webhook receiver
+│   │   ├── cron/daily-scans/route.ts  # Vercel Cron backup for daily scans (9:15 UTC)
 │   │   ├── sentry-tunnel/route.ts    # Sentry envelope proxy (ad blocker bypass)
 │   │   ├── dev/email-preview/route.ts # Dev-only email template preview
 │   │   └── inngest/route.ts        # Inngest serve
@@ -1213,3 +1285,31 @@ STRIPE_PRICE_PRO_ANNUAL=price_...
 - `src/app/settings/billing/page.tsx` — Subscription management
 - `src/components/UpgradePrompt.tsx` — Reusable upgrade CTA
 - `src/components/MobileUpgradeGate.tsx` — Viewport-based tier gate
+
+---
+
+## Canonical Change Intelligence (RFC-0001)
+
+Multi-horizon checkpoint system that replaces the single 7-day correlation model. Changes are evaluated at 7/14/30/60/90 day horizons with deterministic state transitions.
+
+### Schema (Phase 2 — Data Contracts)
+
+Three new tables + provenance fields on `detected_changes`:
+
+1. **`change_checkpoints`** — Immutable per-change horizon outcomes. One row per change per horizon day. Stores before/after window boundaries, metrics JSON, and assessment. Idempotent via `UNIQUE(change_id, horizon_days)`.
+
+2. **`tracked_suggestions`** — Persistent suggestions that survive across scans. Tracks `times_suggested` (incremented when LLM resurfaces same suggestion), status lifecycle (open → addressed/dismissed). RLS enabled.
+
+3. **`change_lifecycle_events`** — Immutable audit log of every status transition on `detected_changes`. Links to checkpoint evidence. System-only (no RLS).
+
+4. **Provenance fields on `detected_changes`** — `matched_change_id`, `match_confidence`, `match_rationale`, `fingerprint_version`. Used in Phase 3 for LLM-based change identity matching.
+
+### Types
+- `src/lib/types/analysis.ts` — `ChangeCheckpoint`, `CheckpointMetrics`, `TrackedSuggestion`, `ChangeLifecycleEvent`, `HorizonDays`, `CheckpointAssessment`
+
+### Phase Plan
+- Phase 2: Data contracts + migrations (this phase) — schema only, no behavior changes
+- Phase 3: Detection + Orchestrator — fingerprint matching, prompt changes
+- Phase 4: Checkpoint engine — multi-horizon evaluation logic
+- Phase 5: Read model composer — unified view across horizons
+- Phase 6: UI — Chronicle updates, dashboard integration

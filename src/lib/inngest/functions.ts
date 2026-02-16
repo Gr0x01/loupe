@@ -11,13 +11,22 @@ import {
   correlationUnlockedEmail,
   dailyDigestEmail,
 } from "@/lib/email/templates";
-import type { ChangesSummary, ChronicleSuggestion, DetectedChange, CommitData } from "@/lib/types/analysis";
+import type { ChangesSummary, ChronicleSuggestion, CorrelationMetrics, DetectedChange, CommitData, ValidatedItem, WatchingItem, OpenItem } from "@/lib/types/analysis";
 import { filterRelevantCommits } from "@/lib/utils/commit-filter";
 import { couldAffectPage } from "@/lib/utils/deploy-filter";
 import { safeDecrypt } from "@/lib/crypto";
 import { getStableBaseline, isBaselineStale } from "@/lib/analysis/baseline";
+import { composeProgressFromCanonicalState, getLastCanonicalProgress, friendlyMetricNames } from "@/lib/analysis/progress";
 import { correlateChange } from "@/lib/analytics/correlation";
 import { createProvider } from "@/lib/analytics/provider";
+import {
+  getEligibleHorizons,
+  computeWindows,
+  assessCheckpoint,
+  resolveStatusTransition,
+  formatCheckpointObservation,
+} from "@/lib/analytics/checkpoints";
+import type { CheckpointAssessment, HorizonDays } from "@/lib/types/analysis";
 import { canUseDeployScans, canAccessMobile, getEffectiveTier, type SubscriptionTier } from "@/lib/permissions";
 import { captureEvent, flushEvents } from "@/lib/posthog-server";
 
@@ -449,6 +458,72 @@ export const analyzeUrl = inngest.createFunction(
               }
             );
 
+            // Canonical progress composer: fail-closed — never persist LLM progress
+            let canonicalSucceeded = false;
+            if (pageForFeedback?.id) {
+              const canonical = await composeProgressFromCanonicalState(pageForFeedback.id, supabase);
+
+              if (canonical) {
+                canonicalSucceeded = true;
+
+                // Parity monitor: log + Sentry when LLM counts diverge from canonical
+                if (changesSummary.progress) {
+                  const llmV = changesSummary.progress.validated;
+                  const llmW = changesSummary.progress.watching;
+                  if (llmV !== canonical.validated || llmW !== canonical.watching) {
+                    const msg = `[progress-divergence] page=${pageForFeedback.id} llm=(v:${llmV},w:${llmW}) canonical=(v:${canonical.validated},w:${canonical.watching})`;
+                    console.warn(msg);
+                    Sentry.captureMessage(msg, {
+                      level: "warning",
+                      tags: { monitor: "progress-parity", pageId: pageForFeedback.id },
+                      extra: { llmValidated: llmV, llmWatching: llmW, canonicalValidated: canonical.validated, canonicalWatching: canonical.watching },
+                    });
+                  }
+                }
+
+                // Overwrite with canonical, preserving LLM's open/openItems (not DB-tracked yet)
+                changesSummary.progress = {
+                  ...changesSummary.progress,
+                  validated: canonical.validated,
+                  watching: canonical.watching,
+                  validatedItems: canonical.validatedItems,
+                  watchingItems: canonical.watchingItems,
+                };
+              } else {
+                // Composer failed — use last known canonical snapshot, never LLM progress
+                console.warn(`[integrity] composer-failed page=${pageForFeedback.id} — using last canonical snapshot`);
+                Sentry.captureMessage("Canonical progress composer failed — using fallback", {
+                  level: "warning",
+                  tags: { monitor: "progress-parity", pageId: pageForFeedback.id },
+                });
+                const lastKnown = await getLastCanonicalProgress(pageForFeedback.id, supabase);
+                if (lastKnown) {
+                  console.warn(`[integrity] fallback-used page=${pageForFeedback.id}`);
+                  changesSummary.progress = {
+                    ...changesSummary.progress,
+                    validated: lastKnown.validated,
+                    watching: lastKnown.watching,
+                    validatedItems: lastKnown.validatedItems,
+                    watchingItems: lastKnown.watchingItems,
+                  };
+                } else {
+                  // Double failure: no canonical, no fallback — preserve LLM watching items
+                  // to avoid disappearing items. Validated/regressed are zeroed (can't trust without DB).
+                  console.warn(`[integrity] double-failure page=${pageForFeedback.id} — no canonical or fallback, preserving LLM watching`);
+                  Sentry.captureMessage("Canonical progress double failure — no fallback available", {
+                    level: "error",
+                    tags: { monitor: "progress-parity", pageId: pageForFeedback.id },
+                  });
+                  changesSummary.progress = {
+                    ...changesSummary.progress,
+                    validated: 0,
+                    validatedItems: [],
+                    // Keep LLM watching items as-is — better than disappearing them
+                  };
+                }
+              }
+            }
+
             // Store results - always save changes_summary when post-analysis runs
             const updateData: { changes_summary?: ChangesSummary; analytics_correlation?: ChangesSummary } = {
               changes_summary: changesSummary,
@@ -459,10 +534,18 @@ export const analyzeUrl = inngest.createFunction(
               updateData.analytics_correlation = changesSummary;
             }
 
-            await supabase
+            const { error: progressWriteError } = await supabase
               .from("analyses")
               .update(updateData)
               .eq("id", analysisId);
+
+            if (progressWriteError) {
+              console.error(`[integrity] progress-write-failed analysis=${analysisId}:`, progressWriteError);
+              Sentry.captureMessage("Failed to write canonical progress to analysis", {
+                level: "error",
+                tags: { monitor: "progress-parity", analysisId },
+              });
+            }
 
             // Store LLM-generated observations on detected_changes
             if (changesSummary.observations?.length && pendingChanges?.length) {
@@ -486,28 +569,31 @@ export const analyzeUrl = inngest.createFunction(
               }
             }
 
-            // Check for correlation unlock: watching item became validated
-            if (parentAnalysisId && changesSummary?.progress?.validatedItems?.length) {
-              const { data: parent } = await supabase
-                .from("analyses")
-                .select("changes_summary")
-                .eq("id", parentAnalysisId)
-                .single();
+            // Check for correlation unlock: use canonical DB status (not item bucket membership)
+            // Only send unlock email if canonical compose succeeded (prevents false positives)
+            if (parentAnalysisId && canonicalSucceeded && pageForFeedback?.id) {
+              // Query DB directly for changes that transitioned watching→validated
+              const { data: validatedChanges } = await supabase
+                .from("detected_changes")
+                .select("id, element, before_value, after_value, first_detected_at, status, correlation_metrics")
+                .eq("page_id", pageForFeedback.id)
+                .eq("status", "validated")
+                .order("correlation_unlocked_at", { ascending: false })
+                .limit(1);
 
-              const parentProgress = (parent?.changes_summary as ChangesSummary | null)?.progress;
-              if (parentProgress?.watchingItems?.length) {
-                // Find items that were watching and are now validated
-                const newlyValidated = changesSummary.progress.validatedItems.find((v) =>
-                  parentProgress.watchingItems?.some((w) => w.id === v.id)
-                );
+              const validatedChange = validatedChanges?.[0];
+              if (validatedChange) {
+                // Confirm this was recently watching (check lifecycle events or parent progress)
+                const { data: parent } = await supabase
+                  .from("analyses")
+                  .select("changes_summary")
+                  .eq("id", parentAnalysisId)
+                  .single();
 
-                if (newlyValidated) {
-                  // Find the corresponding change
-                  const relatedChange = changesSummary.changes.find(
-                    (c) => c.element.toLowerCase() === newlyValidated.element.toLowerCase()
-                  );
+                const parentWatching = (parent?.changes_summary as ChangesSummary | null)?.progress?.watchingItems;
+                const wasWatching = parentWatching?.some((w) => w.id === validatedChange.id);
 
-                  // Get user email
+                if (wasWatching) {
                   const { data: profile } = await supabase
                     .from("profiles")
                     .select("email, email_notifications")
@@ -515,26 +601,30 @@ export const analyzeUrl = inngest.createFunction(
                     .single();
 
                   if (profile?.email && profile.email_notifications) {
+                    const metrics = validatedChange.correlation_metrics as CorrelationMetrics | null;
+                    const topMetric = metrics?.metrics?.find(
+                      (m) => m.assessment === "improved"
+                    );
                     const topSuggestion = extractTopSuggestion(changesSummary, null);
                     const { subject, html } = correlationUnlockedEmail({
                       pageUrl: url,
                       analysisId,
-                      changeId: newlyValidated.id, // For dashboard deep link
+                      changeId: validatedChange.id,
                       change: {
-                        element: newlyValidated.element,
-                        before: relatedChange?.before ?? "",
-                        after: relatedChange?.after ?? "",
-                        changedAt: relatedChange?.detectedAt
-                          ? new Date(relatedChange.detectedAt).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "recently",
+                        element: validatedChange.element,
+                        before: validatedChange.before_value ?? "",
+                        after: validatedChange.after_value ?? "",
+                        changedAt: new Date(validatedChange.first_detected_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        }),
                       },
-                      metric: {
-                        friendlyName: newlyValidated.friendlyText,
-                        change: newlyValidated.change,
-                      },
+                      metric: topMetric
+                        ? {
+                            friendlyName: friendlyMetricNames[topMetric.name] || topMetric.name,
+                            change: `${topMetric.change_percent > 0 ? "+" : ""}${topMetric.change_percent}%`,
+                          }
+                        : { friendlyName: "metrics", change: "improved" },
                       topSuggestion: topSuggestion
                         ? {
                             element: topSuggestion.element,
@@ -574,8 +664,21 @@ export const analyzeUrl = inngest.createFunction(
             await Sentry.flush(2000);
             console.error("Post-analysis pipeline failed:", JSON.stringify(errorDetails, null, 2));
 
-            // Store error details so we can diagnose without Vercel logs
-            const errorMsg = postAnalysisErr instanceof Error ? postAnalysisErr.message : String(postAnalysisErr);
+            // Store error details — compose progress from canonical DB state (not hardcoded zeros)
+            let failureProgress: { validated: number; watching: number; open: number; validatedItems: ValidatedItem[]; watchingItems: WatchingItem[]; openItems: OpenItem[] } = {
+              validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [],
+            };
+            if (pageForFeedback?.id) {
+              const canonical = await composeProgressFromCanonicalState(pageForFeedback.id, supabase);
+              if (canonical) {
+                failureProgress = { ...failureProgress, ...canonical };
+              } else {
+                const lastKnown = await getLastCanonicalProgress(pageForFeedback.id, supabase);
+                if (lastKnown) {
+                  failureProgress = { ...failureProgress, ...lastKnown };
+                }
+              }
+            }
             await supabase
               .from("analyses")
               .update({
@@ -584,7 +687,7 @@ export const analyzeUrl = inngest.createFunction(
                   changes: [],
                   suggestions: [],
                   correlation: null,
-                  progress: { validated: 0, watching: 0, open: 0, validatedItems: [], watchingItems: [], openItems: [] },
+                  progress: failureProgress,
                   running_summary: "Post-analysis failed. Primary audit is available.",
                   _error: "post_analysis_failed",
                 },
@@ -666,12 +769,49 @@ export const analyzeUrl = inngest.createFunction(
             }
           }
 
-          if (validRevertedIds.length > 0) {
+          // Recompose canonical progress after revert mutations changed DB state
+          if (validRevertedIds.length > 0 && pageForFeedback?.id) {
             console.log(`Marked ${validRevertedIds.length} changes as reverted for analysis ${analysisId}`);
+            const recomposed = await composeProgressFromCanonicalState(pageForFeedback.id, supabase);
+            if (recomposed) {
+              const currentSummary = analysisChangesSummary || {} as ChangesSummary;
+              const { error: recomposeError } = await supabase
+                .from("analyses")
+                .update({
+                  changes_summary: {
+                    ...currentSummary,
+                    progress: {
+                      ...currentSummary.progress,
+                      validated: recomposed.validated,
+                      watching: recomposed.watching,
+                      validatedItems: recomposed.validatedItems,
+                      watchingItems: recomposed.watchingItems,
+                    },
+                  },
+                })
+                .eq("id", analysisId);
+
+              if (recomposeError) {
+                console.error(`[integrity] recompose-after-revert-failed analysis=${analysisId}:`, recomposeError);
+                Sentry.captureMessage("Failed to recompose progress after revert", {
+                  level: "error",
+                  tags: { monitor: "progress-parity", analysisId },
+                });
+              }
+            }
           }
         }
 
         // 7. Send email notification (for scheduled/deploy scans only)
+        // Re-read analysis if reverts may have updated changes_summary
+        if (analysisChangesSummary?.revertedChangeIds?.length) {
+          const { data: refreshed } = await supabase
+            .from("analyses")
+            .select("trigger_type, deploy_id, changes_summary, structured_output")
+            .eq("id", analysisId)
+            .single();
+          if (refreshed) Object.assign(fullAnalysis!, refreshed);
+        }
 
         if (fullAnalysis?.trigger_type === "deploy") {
           // Get user email + preferences
@@ -1382,67 +1522,145 @@ export const dailyScanDigest = inngest.createFunction(
 );
 
 /**
- * Correlation unlock cron — checks watching changes every 6 hours.
+ * Checkpoint engine — daily 5-horizon correlation (D+7, D+14, D+30, D+60, D+90).
  *
- * For each watching change with 7+ days of data:
- * 1. Get user's analytics provider
- * 2. Query analytics with absolute date windows
- * 3. Update status to validated/regressed/inconclusive
- * 4. Send correlation unlocked email if improved
+ * Replaces the old checkCorrelations (single 7-day, one-shot).
+ * Each horizon produces an immutable change_checkpoints row.
+ * Status transitions follow the decision-horizon model:
+ * - D+7/D+14: early signals only
+ * - D+30: first canonical resolution
+ * - D+60/D+90: confirmation or reversal
  */
-export const checkCorrelations = inngest.createFunction(
+export const runCheckpoints = inngest.createFunction(
   {
-    id: "check-correlations",
-    retries: 1,
+    id: "run-checkpoints",
+    retries: 0, // Cron pattern: no retries to prevent duplicate full runs
   },
-  { cron: "0 */6 * * *" }, // Every 6 hours
+  [
+    { cron: "30 10 * * *" }, // Daily 10:30 UTC — after daily scans, before digest
+    { event: "checkpoints/run" }, // Backup trigger from Vercel Cron self-heal
+  ],
   async ({ step }) => {
     const supabase = createServiceClient();
+    const now = new Date();
 
-    // Find watching changes with 7+ days of data
-    const readyChanges = await step.run("find-ready-changes", async () => {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Step 1: Find all eligible changes with their existing checkpoints.
+    // No date cutoff — getEligibleHorizons returns [] for fully-computed changes,
+    // so older changes with missing horizons still get catch-up processing.
+    // Paginated in batches to bound memory as table grows.
+    const eligible = await step.run("find-eligible", async () => {
+      type ChangeRow = {
+        id: string; page_id: string; user_id: string; element: string;
+        element_type: string; scope: string; before_value: string; after_value: string;
+        description: string; first_detected_at: string; first_detected_analysis_id: string;
+        status: string; correlation_metrics: unknown; observation_text: string;
+        pages: { url: string };
+      };
+      const allChanges: ChangeRow[] = [];
+      const PAGE_SIZE = 500;
+      let offset = 0;
 
-      const { data, error } = await supabase
-        .from("detected_changes")
-        .select(`
-          id, page_id, user_id, element, element_type, scope,
-          before_value, after_value, description, first_detected_at,
-          first_detected_analysis_id,
-          pages!inner(url)
-        `)
-        .eq("status", "watching")
-        .lte("first_detected_at", sevenDaysAgo.toISOString());
+      while (true) {
+        const { data: batch, error } = await supabase
+          .from("detected_changes")
+          .select(`
+            id, page_id, user_id, element, element_type, scope,
+            before_value, after_value, description, first_detected_at,
+            first_detected_analysis_id, status, correlation_metrics,
+            observation_text,
+            pages!inner(url)
+          `)
+          .in("status", ["watching", "validated", "regressed", "inconclusive"])
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (error) {
-        console.error("Failed to fetch ready changes:", error);
-        return [];
+        if (error) {
+          console.error("Failed to fetch changes for checkpoints:", error);
+          throw new Error(`Failed to fetch changes for checkpoints: ${error.message}`);
+        }
+        if (batch?.length) allChanges.push(...(batch as unknown as ChangeRow[]));
+        if ((batch?.length ?? 0) < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
       }
 
-      return data || [];
+      if (!allChanges.length) return [];
+
+      // Get existing checkpoints in batches (Supabase IN has practical limits)
+      const changeIds = allChanges.map((c) => c.id);
+      const existingByChange = new Map<string, number[]>();
+
+      for (let i = 0; i < changeIds.length; i += 300) {
+        const idBatch = changeIds.slice(i, i + 300);
+        const { data: existingCheckpoints, error: existingError } = await supabase
+          .from("change_checkpoints")
+          .select("change_id, horizon_days")
+          .in("change_id", idBatch);
+
+        if (existingError) {
+          console.error("Failed to fetch existing checkpoints:", existingError);
+          throw new Error(`Failed to fetch existing checkpoints: ${existingError.message}`);
+        }
+
+        for (const cp of existingCheckpoints || []) {
+          const arr = existingByChange.get(cp.change_id) || [];
+          arr.push(cp.horizon_days);
+          existingByChange.set(cp.change_id, arr);
+        }
+      }
+
+      // Determine which horizons are due for each change
+      const result: Array<{
+        change: ChangeRow;
+        pageUrl: string;
+        dueHorizons: HorizonDays[];
+      }> = [];
+
+      for (const change of allChanges) {
+        const changeDate = new Date(change.first_detected_at);
+        const existing = existingByChange.get(change.id) || [];
+        const dueHorizons = getEligibleHorizons(changeDate, now, existing);
+
+        if (dueHorizons.length > 0) {
+          const pageUrl = (change.pages as unknown as { url: string }).url;
+          result.push({ change, pageUrl, dueHorizons });
+        }
+      }
+
+      return result;
     });
 
-    if (readyChanges.length === 0) {
-      return { processed: 0, reason: "no changes ready for correlation" };
+    if (eligible.length === 0) {
+      return { processed: 0, reason: "no checkpoints due" };
     }
 
-    // Group changes by user_id to avoid N+1 integration queries
-    const changesByUser = new Map<string, typeof readyChanges>();
-    for (const change of readyChanges) {
-      const existing = changesByUser.get(change.user_id) || [];
-      existing.push(change);
-      changesByUser.set(change.user_id, existing);
+    // Group by user_id
+    const byUser = new Map<string, typeof eligible>();
+    for (const item of eligible) {
+      const arr = byUser.get(item.change.user_id) || [];
+      arr.push(item);
+      byUser.set(item.change.user_id, arr);
     }
 
-    // Process changes grouped by user
-    const results = await step.run("correlate-changes", async () => {
-      let validated = 0;
-      let regressed = 0;
-      let inconclusive = 0;
+    // Step 2: Process each user's changes
+    const allResults: Array<{ userId: string; checkpoints: number; transitions: number; errors: number }> = [];
+    const newlyValidated: Array<{
+      userId: string;
+      changeId: string;
+      element: string;
+      beforeValue: string;
+      afterValue: string;
+      firstDetectedAt: string;
+      analysisId: string;
+      pageUrl: string;
+      topMetric: { name: string; change_percent: number } | null;
+    }> = [];
 
-      for (const [userId, userChanges] of changesByUser) {
-        // Fetch integrations ONCE per user
+    for (const [userId, userItems] of byUser) {
+      const userResult = await step.run(`process-user-${userId}`, async () => {
+        let checkpointsWritten = 0;
+        let transitionsApplied = 0;
+        let errors = 0;
+
+        // Fetch analytics credentials ONCE per user
         const { data: posthogIntegration } = await supabase
           .from("integrations")
           .select("access_token, provider_account_id, metadata")
@@ -1457,201 +1675,406 @@ export const checkCorrelations = inngest.createFunction(
           .eq("provider", "ga4")
           .maybeSingle();
 
-        // If no analytics connected, mark all this user's changes as inconclusive
-        if (!posthogIntegration && !ga4Integration) {
-          for (const change of userChanges) {
-            await supabase
-              .from("detected_changes")
-              .update({
-                status: "inconclusive",
-                correlation_metrics: { reason: "analytics_disconnected" },
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", change.id);
-            inconclusive++;
-          }
-          continue;
-        }
+        let provider: Awaited<ReturnType<typeof createProvider>> | null = null;
+        let providerName = "none";
 
-        // Create provider ONCE per user
-        let provider;
-        if (posthogIntegration) {
-          provider = await createProvider("posthog", {
-            apiKey: safeDecrypt(posthogIntegration.access_token),
-            projectId: posthogIntegration.provider_account_id,
-            host: posthogIntegration.metadata?.host,
+        // Wrap provider init in try/catch — a bad decrypt or stale token shouldn't
+        // abort all checkpoint work for this user (changes still get inconclusive checkpoints)
+        try {
+          if (posthogIntegration) {
+            providerName = "posthog";
+            provider = await createProvider("posthog", {
+              apiKey: safeDecrypt(posthogIntegration.access_token),
+              projectId: posthogIntegration.provider_account_id,
+              host: posthogIntegration.metadata?.host,
+            });
+          } else if (ga4Integration?.metadata?.property_id) {
+            providerName = "ga4";
+            provider = await createProvider("ga4", {
+              accessToken: safeDecrypt(ga4Integration.access_token),
+              refreshToken: safeDecrypt(ga4Integration.metadata.refresh_token),
+              tokenExpiresAt: ga4Integration.metadata.token_expires_at,
+              propertyId: ga4Integration.metadata.property_id,
+              integrationId: ga4Integration.id,
+            }, { supabase });
+          }
+        } catch (providerErr) {
+          console.error(`Failed to init analytics provider for user ${userId}:`, providerErr);
+          Sentry.withScope((scope) => {
+            scope.setUser({ id: userId });
+            scope.setTag("function", "runCheckpoints");
+            scope.setTag("provider", providerName || "unknown");
+            Sentry.captureException(providerErr);
           });
-        } else if (ga4Integration?.metadata?.property_id) {
-          provider = await createProvider("ga4", {
-            accessToken: safeDecrypt(ga4Integration.access_token),
-            refreshToken: safeDecrypt(ga4Integration.metadata.refresh_token),
-            tokenExpiresAt: ga4Integration.metadata.token_expires_at,
-            propertyId: ga4Integration.metadata.property_id,
-            integrationId: ga4Integration.id,
-          }, { supabase });
+          // Reset — don't tag checkpoints with a provider that failed to initialize
+          provider = null;
+          providerName = "none";
         }
 
-        if (!provider) {
-          for (const change of userChanges) {
-            await supabase
-              .from("detected_changes")
-              .update({
-                status: "inconclusive",
-                correlation_metrics: { reason: "provider_creation_failed" },
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", change.id);
-            inconclusive++;
-          }
-          continue;
-        }
+        // Map by changeId to only notify on final status (avoids sending "validated"
+        // email for a change that later regresses in a higher horizon within the same run)
+        const validatedByChange = new Map<string, typeof newlyValidated[0]>();
 
-        // Fetch profile ONCE per user for email notifications
-        const { data: userProfile } = await supabase
-          .from("profiles")
-          .select("email, email_notifications")
-          .eq("id", userId)
-          .single();
-
-        // Process all this user's changes with the same provider
-        for (const change of userChanges) {
+        for (const { change, pageUrl, dueHorizons } of userItems) {
           try {
-            // Build DetectedChange type from database record
-            const detectedChange: DetectedChange = {
-              id: change.id,
-              page_id: change.page_id,
-              user_id: change.user_id,
-              element: change.element,
-              element_type: change.element_type,
-              scope: change.scope as "element" | "section" | "page",
-              before_value: change.before_value,
-              after_value: change.after_value,
-              description: change.description,
-              first_detected_at: change.first_detected_at,
-              status: "watching",
-              created_at: change.first_detected_at,
-              updated_at: change.first_detected_at,
-            };
+            // Get existing checkpoints for transition logic
+            const { data: existingCps, error: existingCpsError } = await supabase
+              .from("change_checkpoints")
+              .select("horizon_days, assessment")
+              .eq("change_id", change.id);
 
-            // Run correlation
-            const pageUrl = (change.pages as unknown as { url: string }).url;
-            const result = await correlateChange(detectedChange, provider, pageUrl);
-
-            // Update status
-            const newStatus = result.metrics.overall_assessment === "improved"
-              ? "validated"
-              : result.metrics.overall_assessment === "regressed"
-              ? "regressed"
-              : "inconclusive";
-
-            // Generate fallback observation if none exists yet
-            let observationUpdate: { observation_text?: string } = {};
-            if (newStatus === "validated" || newStatus === "regressed") {
-              // Check if observation already exists (from post-analysis LLM)
-              const { data: existing } = await supabase
-                .from("detected_changes")
-                .select("observation_text")
-                .eq("id", change.id)
-                .single();
-
-              if (!existing?.observation_text) {
-                const changeDate = new Date(change.first_detected_at).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                });
-                const topMetric = result.metrics.metrics.find(
-                  (m) => m.assessment === "improved" || m.assessment === "regressed"
-                );
-                if (topMetric) {
-                  const direction = topMetric.change_percent > 0 ? "up" : "down";
-                  const daysSince = Math.floor(
-                    (Date.now() - new Date(change.first_detected_at).getTime()) / 86400000
-                  );
-                  const friendlyNames: Record<string, string> = {
-                    bounce_rate: "Bounce rate",
-                    conversion_rate: "Conversion rate",
-                    time_on_page: "Time on page",
-                    ctr: "Click-through rate",
-                    scroll_depth: "Scroll depth",
-                    form_completion: "Form completion",
-                    pageviews: "Pageviews",
-                  };
-                  const metricName = friendlyNames[topMetric.name] || topMetric.name;
-                  observationUpdate.observation_text =
-                    `${change.element} changed on ${changeDate}. ${metricName} ${direction} ${Math.abs(topMetric.change_percent)}% over ${daysSince} days.`;
-                }
-              }
+            if (existingCpsError) {
+              console.error(`Failed to fetch existing checkpoints for change ${change.id}:`, existingCpsError);
+              errors++;
+              continue;
             }
 
-            await supabase
-              .from("detected_changes")
-              .update({
-                status: newStatus,
-                correlation_metrics: result.metrics,
-                correlation_unlocked_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                ...observationUpdate,
-              })
-              .eq("id", change.id);
+            const existingCheckpoints = (existingCps || []).map((cp) => ({
+              horizon_days: cp.horizon_days,
+              assessment: cp.assessment as CheckpointAssessment,
+            }));
 
-            if (newStatus === "validated") validated++;
-            else if (newStatus === "regressed") regressed++;
-            else inconclusive++;
+            for (const horizonDays of dueHorizons) {
+              const changeDate = new Date(change.first_detected_at);
+              const windows = computeWindows(changeDate, horizonDays);
 
-            // Send email if significant improvement
-            if (result.metrics.overall_assessment === "improved") {
-              if (userProfile?.email && userProfile.email_notifications) {
-                // Get the primary improved metric
-                const improvedMetric = result.metrics.metrics.find(
-                  (m) => m.assessment === "improved"
-                );
+              let assessment: CheckpointAssessment = "inconclusive";
+              let metricsJson: { metrics: Array<{ name: string; before: number; after: number; change_percent: number; assessment: string }>; overall_assessment: string; reason?: string } = {
+                metrics: [],
+                overall_assessment: "inconclusive",
+              };
 
-                const { subject, html } = correlationUnlockedEmail({
-                  pageUrl,
-                  analysisId: change.first_detected_analysis_id || change.id,
-                  changeId: change.id, // For dashboard deep link
-                  change: {
-                    element: change.element,
-                    before: change.before_value,
-                    after: change.after_value,
-                    changedAt: new Date(change.first_detected_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    }),
-                  },
-                  metric: improvedMetric
-                    ? {
-                        friendlyName: improvedMetric.name,
-                        change: `${improvedMetric.change_percent > 0 ? "+" : ""}${improvedMetric.change_percent}%`,
-                      }
-                    : {
-                        friendlyName: "metrics",
-                        change: "improved",
-                      },
+              if (!provider) {
+                metricsJson = {
+                  metrics: [],
+                  overall_assessment: "inconclusive",
+                  reason: "analytics_disconnected",
+                };
+              } else {
+                const detectedChange: DetectedChange = {
+                  id: change.id,
+                  page_id: change.page_id,
+                  user_id: change.user_id,
+                  element: change.element,
+                  element_type: change.element_type,
+                  scope: change.scope as "element" | "section" | "page",
+                  before_value: change.before_value,
+                  after_value: change.after_value,
+                  description: change.description,
+                  first_detected_at: change.first_detected_at,
+                  status: change.status as DetectedChange["status"],
+                  created_at: change.first_detected_at,
+                  updated_at: change.first_detected_at,
+                };
+
+                const result = await correlateChange(detectedChange, provider, pageUrl, {
+                  beforeStart: windows.beforeStart,
+                  beforeEnd: windows.beforeEnd,
+                  afterStart: windows.afterStart,
+                  afterEnd: windows.afterEnd,
                 });
 
-                sendEmail({ to: userProfile.email, subject, html }).catch(console.error);
+                metricsJson = result.metrics;
+                const assessed = assessCheckpoint(result.metrics.metrics);
+                assessment = assessed.assessment;
               }
+
+              // INSERT checkpoint (upsert with ON CONFLICT DO NOTHING for idempotency)
+              const { data: upsertedRows, error: insertError } = await supabase
+                .from("change_checkpoints")
+                .upsert(
+                  {
+                    change_id: change.id,
+                    horizon_days: horizonDays,
+                    window_before_start: windows.beforeStart.toISOString(),
+                    window_before_end: windows.beforeEnd.toISOString(),
+                    window_after_start: windows.afterStart.toISOString(),
+                    window_after_end: windows.afterEnd.toISOString(),
+                    metrics_json: metricsJson,
+                    assessment,
+                    provider: providerName,
+                    computed_at: now.toISOString(),
+                  },
+                  { onConflict: "change_id,horizon_days", ignoreDuplicates: true }
+                )
+                .select("id");
+
+              if (insertError) {
+                console.error(`Failed to insert checkpoint for change ${change.id} D+${horizonDays}:`, insertError);
+                errors++;
+                continue;
+              }
+
+              // ignoreDuplicates returns empty array when row already existed — skip transition logic
+              if (!upsertedRows?.length) {
+                existingCheckpoints.push({ horizon_days: horizonDays, assessment });
+                continue;
+              }
+
+              checkpointsWritten++;
+
+              // Check for status transition
+              const { data: currentChange, error: currentChangeError } = await supabase
+                .from("detected_changes")
+                .select("status, correlation_metrics, correlation_unlocked_at")
+                .eq("id", change.id)
+                .maybeSingle();
+
+              if (currentChangeError || !currentChange) {
+                console.error(`Failed to fetch current status for change ${change.id}:`, currentChangeError);
+                errors++;
+                continue;
+              }
+
+              const currentStatus = currentChange.status as DetectedChange["status"];
+              const transition = resolveStatusTransition(
+                currentStatus,
+                horizonDays,
+                assessment,
+                existingCheckpoints
+              );
+
+              if (transition) {
+                const topMetric = metricsJson.metrics.find(
+                  (m) => m.assessment === "improved" || m.assessment === "regressed"
+                ) || null;
+                const transitionAt = new Date().toISOString();
+
+                const { data: updatedRows, error: statusError } = await supabase
+                  .from("detected_changes")
+                  .update({
+                    status: transition.newStatus,
+                    correlation_metrics: metricsJson,
+                    correlation_unlocked_at: transitionAt,
+                    updated_at: transitionAt,
+                  })
+                  .eq("id", change.id)
+                  .eq("status", currentStatus)
+                  .select("id");
+
+                if (statusError) {
+                  console.error(`Failed to update status for change ${change.id}:`, statusError);
+                  errors++;
+                  continue; // Don't record lifecycle event or send notification for failed mutation
+                }
+                if (!updatedRows?.length) {
+                  console.warn(
+                    `[checkpoint-concurrency] Skipped status transition for change ${change.id}: status changed concurrently`
+                  );
+                  continue;
+                }
+
+                // Insert lifecycle event — required audit evidence for the status change.
+                // If this fails, revert the status update to maintain the invariant
+                // that every status mutation has a lifecycle record.
+                const { error: lifecycleError } = await supabase.from("change_lifecycle_events").insert({
+                  change_id: change.id,
+                  from_status: currentStatus,
+                  to_status: transition.newStatus,
+                  reason: transition.reason,
+                  actor_type: "system",
+                  checkpoint_id: upsertedRows[0].id,
+                });
+
+                if (lifecycleError) {
+                  console.error(`Failed to insert lifecycle event for change ${change.id}, reverting status:`, lifecycleError);
+                  // Revert the full status update — restore status, correlation_metrics,
+                  // and correlation_unlocked_at to pre-transition values
+                  const { data: revertedRows, error: rollbackError } = await supabase
+                    .from("detected_changes")
+                    .update({
+                      status: currentStatus,
+                      correlation_metrics: currentChange.correlation_metrics ?? null,
+                      correlation_unlocked_at: currentChange.correlation_unlocked_at ?? null,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", change.id)
+                    .eq("status", transition.newStatus)
+                    .select("id");
+                  if (rollbackError || !revertedRows?.length) {
+                    console.error(`Failed to rollback status for change ${change.id}:`, rollbackError);
+                    Sentry.captureMessage("Checkpoint lifecycle rollback failed", {
+                      level: "error",
+                      tags: { function: "runCheckpoints", changeId: change.id },
+                    });
+                  }
+                  errors++;
+                  continue; // Skip notification — transition didn't complete cleanly
+                }
+
+                // Generate observation if none exists
+                if (!change.observation_text) {
+                  const observation = formatCheckpointObservation(
+                    change.element,
+                    new Date(change.first_detected_at),
+                    horizonDays,
+                    topMetric ? { name: topMetric.name, change_percent: topMetric.change_percent } : null,
+                    assessment
+                  );
+                  const { error: obsError } = await supabase
+                    .from("detected_changes")
+                    .update({ observation_text: observation })
+                    .eq("id", change.id);
+
+                  if (obsError) {
+                    console.error(`Failed to update observation for change ${change.id}:`, obsError);
+                  }
+                }
+
+                transitionsApplied++;
+
+                // Collect for notification
+                // Only keep final status per change (avoids sending "validated"
+                // email for a change that later regresses in a higher horizon)
+                if (transition.newStatus === "validated") {
+                  validatedByChange.set(change.id, {
+                    userId,
+                    changeId: change.id,
+                    element: change.element,
+                    beforeValue: change.before_value,
+                    afterValue: change.after_value,
+                    firstDetectedAt: change.first_detected_at,
+                    analysisId: change.first_detected_analysis_id || change.id,
+                    pageUrl,
+                    topMetric: topMetric ? { name: topMetric.name, change_percent: topMetric.change_percent } : null,
+                  });
+                } else {
+                  // Status changed away from validated — cancel pending notification
+                  validatedByChange.delete(change.id);
+                }
+
+                // Update local status for subsequent horizon processing
+                (change as { status: string }).status = transition.newStatus;
+              }
+
+              // Track for subsequent horizon logic within same run
+              existingCheckpoints.push({ horizon_days: horizonDays, assessment });
             }
           } catch (err) {
             Sentry.withScope((scope) => {
               scope.setUser({ id: userId });
-              scope.setTag("function", "checkCorrelations");
+              scope.setTag("function", "runCheckpoints");
               scope.setTag("changeId", change.id);
               Sentry.captureException(err, { extra: { pageId: change.page_id } });
             });
-            console.error(`Correlation check failed for change ${change.id}:`, err);
-            // Don't update status — will retry next cron run
+            await Sentry.flush(2000);
+            console.error(`Checkpoint failed for change ${change.id}:`, err);
+            errors++;
           }
         }
-      }
 
-      return { validated, regressed, inconclusive };
-    });
+        return { checkpointsWritten, transitionsApplied, errors, validated: [...validatedByChange.values()] };
+      });
+
+      allResults.push({
+        userId,
+        checkpoints: userResult.checkpointsWritten,
+        transitions: userResult.transitionsApplied,
+        errors: userResult.errors,
+      });
+      newlyValidated.push(...userResult.validated);
+    }
+
+    // Step 3: Send notifications for newly validated changes
+    if (newlyValidated.length > 0) {
+      await step.run("send-notifications", async () => {
+        for (const item of newlyValidated) {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("email, email_notifications")
+              .eq("id", item.userId)
+              .single();
+
+            if (!profile?.email || !profile.email_notifications) continue;
+
+            const { subject, html } = correlationUnlockedEmail({
+              pageUrl: item.pageUrl,
+              analysisId: item.analysisId,
+              changeId: item.changeId,
+              change: {
+                element: item.element,
+                before: item.beforeValue,
+                after: item.afterValue,
+                changedAt: new Date(item.firstDetectedAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                }),
+              },
+              metric: item.topMetric
+                ? {
+                    friendlyName: friendlyMetricNames[item.topMetric.name] || item.topMetric.name,
+                    change: `${item.topMetric.change_percent > 0 ? "+" : ""}${item.topMetric.change_percent}%`,
+                  }
+                : { friendlyName: "metrics", change: "improved" },
+            });
+
+            sendEmail({ to: profile.email, subject, html }).catch(console.error);
+          } catch (err) {
+            console.error(`Failed to send notification for change ${item.changeId}:`, err);
+          }
+        }
+      });
+    }
+
+    // Step 4: Recompose progress on affected pages
+    const affectedPageIds = [...new Set(eligible.map((e) => e.change.page_id))];
+    if (affectedPageIds.length > 0 && allResults.some((r) => r.transitions > 0)) {
+      await step.run("recompose-progress", async () => {
+        const { data: pageAnalyses } = await supabase
+          .from("pages")
+          .select("id, last_scan_id")
+          .in("id", affectedPageIds)
+          .not("last_scan_id", "is", null);
+
+        if (!pageAnalyses?.length) return;
+
+        for (const page of pageAnalyses) {
+          try {
+            const { data: analysis } = await supabase
+              .from("analyses")
+              .select("changes_summary")
+              .eq("id", page.last_scan_id)
+              .single();
+
+            if (!analysis?.changes_summary) continue;
+
+            const canonical = await composeProgressFromCanonicalState(page.id, supabase);
+            if (!canonical) continue;
+
+            const updatedSummary = {
+              ...analysis.changes_summary,
+              progress: {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ...(analysis.changes_summary as any).progress,
+                validated: canonical.validated,
+                watching: canonical.watching,
+                validatedItems: canonical.validatedItems,
+                watchingItems: canonical.watchingItems,
+              },
+            };
+
+            await supabase
+              .from("analyses")
+              .update({ changes_summary: updatedSummary })
+              .eq("id", page.last_scan_id);
+          } catch (err) {
+            console.error(`[progress-recompose] Failed for page ${page.id}:`, err);
+          }
+        }
+      });
+    }
+
+    const totalCheckpoints = allResults.reduce((s, r) => s + r.checkpoints, 0);
+    const totalTransitions = allResults.reduce((s, r) => s + r.transitions, 0);
+    const totalErrors = allResults.reduce((s, r) => s + r.errors, 0);
 
     return {
-      processed: readyChanges.length,
-      ...results,
+      processed: eligible.length,
+      checkpoints: totalCheckpoints,
+      transitions: totalTransitions,
+      notifications: newlyValidated.length,
+      errors: totalErrors,
     };
   }
 );

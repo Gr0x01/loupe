@@ -2,6 +2,31 @@
 
 ---
 
+## Inngest Cron Reliability Fix (Feb 16, 2026 — DONE)
+
+Inngest cron registrations go stale after Vercel deploys. Daily scans missed Feb 14 + Feb 16; digest email missed Feb 15 despite successful scans.
+
+### Root Cause
+Inngest Cloud cron functions intermittently don't fire. Event-triggered functions work fine. `PUT /api/inngest` re-sync returned `modified: true`, confirming stale registration.
+
+### Fix: Vercel Cron Backup
+| What | Detail |
+|------|--------|
+| Config | `vercel.json` — `GET /api/cron/daily-scans` at `15 9 * * *` (9:15 UTC) |
+| Auth | `CRON_SECRET` env var in Vercel |
+| Self-healing | If no daily analyses exist today, creates them and triggers Inngest events |
+| Alerting | Sentry warning when self-healing activates |
+| Prevention | Re-syncs Inngest (`PUT /api/inngest`) on every run |
+| Idempotency | Per-page check prevents duplicates if Inngest already ran |
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `vercel.json` | Vercel Cron schedule |
+| `src/app/api/cron/daily-scans/route.ts` | Backup cron handler |
+
+---
+
 ## Phase 2A — Vision Pivot: Predictions Not Grades (IN PROGRESS)
 
 Major repositioning from "website grader with scores" to "correlation layer with predictions."
