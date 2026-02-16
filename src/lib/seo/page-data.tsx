@@ -719,7 +719,7 @@ export const visualpingAlternativeData: CoreSEOPageData & {
 
 // ===== INTEGRATION GUIDES DATA =====
 
-export const INTEGRATIONS = ["posthog", "ga4"] as const;
+export const INTEGRATIONS = ["ga4"] as const;
 export type Integration = (typeof INTEGRATIONS)[number];
 
 export interface IntegrationGuideData {
@@ -733,53 +733,6 @@ export interface IntegrationGuideData {
 }
 
 export const integrationGuideData: Record<Integration, IntegrationGuideData> = {
-  posthog: {
-    name: "PostHog",
-    tagline: "Connect PostHog",
-    headline: "See what your changes did to your metrics",
-    subheadline:
-      "Connect PostHog and Loupe correlates page changes with your analytics. Did that headline change help or hurt?",
-    steps: [
-      {
-        title: "Connect your PostHog project",
-        description:
-          "One-click OAuth. We read pageviews, events, and funnels — nothing else.",
-      },
-      {
-        title: "We track your pages",
-        description:
-          "Loupe monitors your pages and timestamps every change we detect.",
-      },
-      {
-        title: "See the correlation",
-        description:
-          "After each change, we pull your metrics and show what moved.",
-      },
-    ],
-    benefits: [
-      {
-        title: "Change attribution",
-        description:
-          '"Bounce rate dropped 12% after this headline change." Real numbers.',
-      },
-      {
-        title: "Catch regressions early",
-        description:
-          "Conversions down? See which change happened right before the dip.",
-      },
-      {
-        title: "Data-driven iteration",
-        description:
-          "Stop guessing. Know which version of your page actually performs.",
-      },
-    ],
-    metadata: {
-      title: "PostHog Integration — Loupe",
-      description:
-        "Connect PostHog to Loupe. Correlate page changes with your analytics. See which changes helped and which hurt.",
-    },
-  },
-
   ga4: {
     name: "Google Analytics 4",
     tagline: "Connect GA4",

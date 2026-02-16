@@ -39,13 +39,6 @@ function StepNumber({ num }: { num: number }) {
 }
 
 // Integration-specific icons
-const PostHogLogo = () => (
-  <svg className="w-12 h-12" viewBox="0 0 48 48" fill="none">
-    <rect width="48" height="48" rx="8" fill="#1D4AFF" />
-    <path d="M12 36V12h6v24h-6zM21 36V18h6v18h-6zM30 36V24h6v12h-6z" fill="white" />
-  </svg>
-);
-
 const GA4Logo = () => (
   <svg className="w-12 h-12" viewBox="0 0 48 48" fill="none">
     <rect width="48" height="48" rx="8" fill="#F9AB00" />
@@ -56,8 +49,6 @@ const GA4Logo = () => (
 
 function getIntegrationLogo(integration: Integration) {
   switch (integration) {
-    case "posthog":
-      return <PostHogLogo />;
     case "ga4":
       return <GA4Logo />;
   }
