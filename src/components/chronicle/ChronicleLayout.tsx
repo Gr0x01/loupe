@@ -5,6 +5,7 @@ import type {
   ChangesSummary,
   DeployContextAPI,
   ValidatedItem,
+  TrackedSuggestion,
 } from "@/lib/types/analysis";
 import { DossierSidebar } from "./DossierSidebar";
 
@@ -32,6 +33,9 @@ interface ChronicleLayoutProps {
   hypothesisMap?: Record<string, string>;
   feedbackMap?: Record<string, { feedback_type: string; checkpoint_id: string }>;
   checkpointMap?: Record<string, { checkpoint_id: string; horizon_days: number }>;
+  trackedSuggestions?: TrackedSuggestion[];
+  onSuggestionAddress?: (id: string) => Promise<void>;
+  onSuggestionDismiss?: (id: string) => Promise<void>;
 }
 
 /* ---- Win detection helpers ---- */
@@ -105,6 +109,9 @@ export function ChronicleLayout({
   hypothesisMap,
   feedbackMap,
   checkpointMap,
+  trackedSuggestions,
+  onSuggestionAddress,
+  onSuggestionDismiss,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -333,9 +340,14 @@ export function ChronicleLayout({
           />
         )}
 
-        {/* 6. Next Move */}
-        {sortedSuggestions.length > 0 && (
-          <NextMoveSection suggestions={sortedSuggestions} />
+        {/* 6. Next Move — always render when tracked suggestions provided (even if empty = all dismissed) */}
+        {(sortedSuggestions.length > 0 || trackedSuggestions !== undefined) && (
+          <NextMoveSection
+            suggestions={sortedSuggestions}
+            trackedSuggestions={trackedSuggestions}
+            onAddress={onSuggestionAddress}
+            onDismiss={onSuggestionDismiss}
+          />
         )}
 
         {/* 7. Deploy context footer */}
@@ -348,8 +360,8 @@ export function ChronicleLayout({
           </div>
         )}
 
-        {/* 8. Quiet scan empty state */}
-        {isQuietScan && sortedSuggestions.length === 0 && (
+        {/* 8. Quiet scan empty state — only when no suggestions section is rendered */}
+        {isQuietScan && sortedSuggestions.length === 0 && trackedSuggestions === undefined && (
           <section className="chronicle-section">
             <div className="chronicle-empty-card text-center">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(16,185,129,0.1)] mb-4">

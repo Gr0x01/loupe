@@ -1,12 +1,14 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { CorrelationMetrics, ValidatedItem, WatchingItem, ChangeCheckpointSummary } from "@/lib/types/analysis";
+import type { CorrelationMetrics, ValidatedItem, WatchingItem, OpenItem, ChangeCheckpointSummary } from "@/lib/types/analysis";
 import { DECISION_HORIZON } from "@/lib/analytics/checkpoints";
 
 export interface ComposedProgress {
   validated: number;
   watching: number;
+  open: number;
   validatedItems: ValidatedItem[];
   watchingItems: WatchingItem[];
+  openItems: OpenItem[];
 }
 
 /** Metric key → human-friendly name */
@@ -52,6 +54,32 @@ export function formatMetricFriendlyText(
   };
 }
 
+/** Fetch open tracked suggestions for a page. Returns null on DB error (fail-closed). */
+async function fetchOpenSuggestions(
+  pageId: string,
+  supabase: SupabaseClient
+): Promise<OpenItem[] | null> {
+  const { data, error } = await supabase
+    .from("tracked_suggestions")
+    .select("id, title, element, impact")
+    .eq("page_id", pageId)
+    .eq("status", "open")
+    .order("impact", { ascending: true })
+    .order("times_suggested", { ascending: false });
+
+  if (error) {
+    console.error("[progress-composer] Failed to query tracked_suggestions:", error);
+    return null;
+  }
+
+  return (data || []).map((s) => ({
+    id: s.id,
+    element: s.element,
+    title: s.title,
+    impact: s.impact,
+  }));
+}
+
 /**
  * Compose progress counts and items entirely from detected_changes DB state.
  * This is the canonical source of truth — replaces LLM-authored progress.
@@ -75,7 +103,9 @@ export async function composeProgressFromCanonicalState(
   }
 
   if (!changes?.length) {
-    return { validated: 0, watching: 0, validatedItems: [], watchingItems: [] };
+    const openItems = await fetchOpenSuggestions(pageId, supabase);
+    if (openItems === null) return null; // fail-closed: suggestion query failed
+    return { validated: 0, watching: 0, open: openItems.length, validatedItems: [], watchingItems: [], openItems };
   }
 
   // Batch-fetch checkpoints for all changes
@@ -143,11 +173,16 @@ export async function composeProgressFromCanonicalState(
     }
   }
 
+  const openItems = await fetchOpenSuggestions(pageId, supabase);
+  if (openItems === null) return null; // fail-closed: suggestion query failed
+
   return {
     validated: validatedItems.length,
     watching: watchingItems.length,
+    open: openItems.length,
     validatedItems,
     watchingItems,
+    openItems,
   };
 }
 
@@ -181,7 +216,9 @@ export async function getLastCanonicalProgress(
   return {
     validated: progress.validated ?? 0,
     watching: progress.watching ?? 0,
+    open: progress.open ?? 0,
     validatedItems: progress.validatedItems ?? [],
     watchingItems: progress.watchingItems ?? [],
+    openItems: progress.openItems ?? [],
   };
 }

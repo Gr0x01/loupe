@@ -5,11 +5,22 @@ import type { ChronicleSuggestion } from "@/lib/types/analysis";
 
 interface SuggestionCardProps {
   suggestion: ChronicleSuggestion;
+  suggestionId?: string;
+  timesSuggested?: number;
+  onAddress?: (id: string) => Promise<void>;
+  onDismiss?: (id: string) => Promise<void>;
   defaultExpanded?: boolean;
 }
 
-export function SuggestionCard({ suggestion }: SuggestionCardProps) {
+export function SuggestionCard({
+  suggestion,
+  suggestionId,
+  timesSuggested,
+  onAddress,
+  onDismiss,
+}: SuggestionCardProps) {
   const [copied, setCopied] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -21,6 +32,9 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
       // Silently fail - clipboard may not be available
     }
   };
+
+  // Optimistic hide on action
+  if (dismissed) return null;
 
   return (
     <div
@@ -34,9 +48,16 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
 
       <div className="suggestion-card-columns">
         <div className="suggestion-card-details">
-          {/* Zone 1: What — element label + title */}
+          {/* Zone 1: What — element label + title + credibility badge */}
           <div className="suggestion-card-what">
-            <span className="suggestion-card-element">{suggestion.element}</span>
+            <div className="flex items-center gap-2">
+              <span className="suggestion-card-element">{suggestion.element}</span>
+              {timesSuggested && timesSuggested > 1 && (
+                <span className="suggestion-card-times-badge">
+                  Suggested {timesSuggested}x
+                </span>
+              )}
+            </div>
             <p className="suggestion-card-title">{suggestion.title}</p>
           </div>
 
@@ -95,6 +116,45 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
             </div>
             <p className="fix-block-text">{suggestion.suggestedFix}</p>
           </div>
+
+          {/* Action buttons — only when tracked (has ID + callbacks) */}
+          {suggestionId && (onAddress || onDismiss) && (
+            <div className="suggestion-card-actions">
+              {onAddress && (
+                <button
+                  onClick={async () => {
+                    setDismissed(true);
+                    try {
+                      await onAddress(suggestionId);
+                    } catch {
+                      setDismissed(false);
+                    }
+                  }}
+                  className="suggestion-action-btn suggestion-action-done"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                  </svg>
+                  Done
+                </button>
+              )}
+              {onDismiss && (
+                <button
+                  onClick={async () => {
+                    setDismissed(true);
+                    try {
+                      await onDismiss(suggestionId);
+                    } catch {
+                      setDismissed(false);
+                    }
+                  }}
+                  className="suggestion-action-btn suggestion-action-dismiss"
+                >
+                  Dismiss
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

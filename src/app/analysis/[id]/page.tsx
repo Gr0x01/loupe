@@ -16,6 +16,7 @@ import type {
   AnalysisResult,
   ChangesSummary,
   Finding,
+  TrackedSuggestion,
 } from "@/lib/types/analysis";
 import { ChronicleLayout, DossierSidebar } from "@/components/chronicle";
 import { ClaimModal, type ClaimModalType } from "@/components/ClaimModal";
@@ -1081,6 +1082,37 @@ export default function AnalysisPage() {
     ? "already_claimed"
     : null;
 
+  // Tracked suggestions: null = not loaded yet, [] = loaded but empty
+  const [trackedSuggestions, setTrackedSuggestions] = useState<TrackedSuggestion[] | null>(null);
+
+  // Fetch tracked suggestions when analysis loads with a page context
+  useEffect(() => {
+    if (!analysis?.page_context?.page_id || analysis.status !== "complete") return;
+    const pageId = analysis.page_context.page_id;
+    fetch(`/api/suggestions?page_id=${pageId}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.suggestions) {
+          setTrackedSuggestions(data.suggestions);
+        } else {
+          // Fetch failed or returned no data — stay null so ephemeral fallback applies
+        }
+      })
+      .catch(() => {});
+  }, [analysis?.page_context?.page_id, analysis?.status]);
+
+  const handleSuggestionAction = useCallback(async (suggestionId: string, status: "addressed" | "dismissed") => {
+    const res = await fetch(`/api/suggestions/${suggestionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to update suggestion: ${res.status}`);
+    }
+    setTrackedSuggestions((prev) => (prev ?? []).filter((s) => s.id !== suggestionId));
+  }, []);
+
   // Reset tracking refs when navigating between analyses
   useEffect(() => {
     hasTrackedCompletion.current = false;
@@ -1488,6 +1520,9 @@ export default function AnalysisPage() {
             hypothesisMap={pageCtx?.hypothesis_map}
             feedbackMap={pageCtx?.feedback_map}
             checkpointMap={pageCtx?.checkpoint_map}
+            trackedSuggestions={trackedSuggestions ?? undefined}
+            onSuggestionAddress={(id) => handleSuggestionAction(id, "addressed")}
+            onSuggestionDismiss={(id) => handleSuggestionAction(id, "dismissed")}
           />
         ) : (
           /* Scan 1 (claimed or unclaimed) — dossier layout */

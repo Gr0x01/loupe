@@ -534,13 +534,15 @@ export const analyzeUrl = inngest.createFunction(
                   }
                 }
 
-                // Overwrite with canonical, preserving LLM's open/openItems (not DB-tracked yet)
+                // Overwrite with canonical (all fields now DB-tracked)
                 changesSummary.progress = {
                   ...changesSummary.progress,
                   validated: canonical.validated,
                   watching: canonical.watching,
+                  open: canonical.open,
                   validatedItems: canonical.validatedItems,
                   watchingItems: canonical.watchingItems,
+                  openItems: canonical.openItems,
                 };
               } else {
                 // Composer failed — use last known canonical snapshot, never LLM progress
@@ -556,8 +558,10 @@ export const analyzeUrl = inngest.createFunction(
                     ...changesSummary.progress,
                     validated: lastKnown.validated,
                     watching: lastKnown.watching,
+                    open: lastKnown.open,
                     validatedItems: lastKnown.validatedItems,
                     watchingItems: lastKnown.watchingItems,
+                    openItems: lastKnown.openItems,
                   };
                 } else {
                   // Double failure: no canonical, no fallback — preserve LLM watching items
@@ -619,6 +623,124 @@ export const analyzeUrl = inngest.createFunction(
                     .eq("id", obs.changeId)
                     .eq("user_id", analysis.user_id);
                 }
+              }
+            }
+
+            // Upsert LLM suggestions into tracked_suggestions (persistent state)
+            if (changesSummary.suggestions?.length && pageForFeedback?.id) {
+              try {
+                // Fetch all existing suggestions for this page (single query)
+                const { data: existing } = await supabase
+                  .from("tracked_suggestions")
+                  .select("id, title, element, status, times_suggested")
+                  .eq("page_id", pageForFeedback.id);
+
+                const existingMap = new Map(
+                  (existing || []).map((s) => [
+                    `${s.element.trim().toLowerCase()}::${s.title.trim().toLowerCase()}`,
+                    s,
+                  ])
+                );
+
+                const now = new Date().toISOString();
+                const seen = new Set<string>();
+
+                const upsertPromises = changesSummary.suggestions.map((suggestion) => {
+                  const key = `${suggestion.element.trim().toLowerCase()}::${suggestion.title.trim().toLowerCase()}`;
+                  if (seen.has(key)) return null; // deduplicate within scan
+                  seen.add(key);
+                  const match = existingMap.get(key);
+
+                  if (match) {
+                    // Update existing — reopen if addressed/dismissed (LLM re-suggesting = credibility)
+                    return supabase
+                      .from("tracked_suggestions")
+                      .update({
+                        status: "open",
+                        times_suggested: match.times_suggested + 1,
+                        suggested_fix: suggestion.suggestedFix.trim().slice(0, 2000),
+                        impact: suggestion.impact,
+                        updated_at: now,
+                      })
+                      .eq("id", match.id);
+                  } else {
+                    // Insert new
+                    return supabase.from("tracked_suggestions").insert({
+                      page_id: pageForFeedback.id,
+                      user_id: analysis.user_id,
+                      title: suggestion.title.trim().slice(0, 500),
+                      element: suggestion.element.trim().slice(0, 200),
+                      suggested_fix: suggestion.suggestedFix.trim().slice(0, 2000),
+                      impact: suggestion.impact,
+                      status: "open",
+                      times_suggested: 1,
+                      first_suggested_at: now,
+                    });
+                  }
+                });
+
+                const results = await Promise.allSettled(upsertPromises.filter(Boolean));
+                // Check for Supabase-level errors (resolve with { error } rather than throwing)
+                let upsertFailures = 0;
+                for (const result of results) {
+                  if (result.status === "rejected") {
+                    upsertFailures++;
+                  } else if (result.value && typeof result.value === "object" && "error" in result.value && result.value.error) {
+                    upsertFailures++;
+                  }
+                }
+                if (upsertFailures > 0) {
+                  console.warn(`[suggestion-upsert] ${upsertFailures}/${results.length} operations failed for page=${pageForFeedback.id}`);
+                  Sentry.captureMessage("Partial suggestion upsert failure", {
+                    level: "warning",
+                    tags: { phase: "suggestion-upsert", pageId: pageForFeedback.id },
+                    extra: { failed: upsertFailures, total: results.length },
+                  });
+                }
+
+                // Recompose open counts now that upserts are done (fixes stale-on-first-run)
+                const { data: freshOpen, error: freshOpenErr } = await supabase
+                  .from("tracked_suggestions")
+                  .select("id, title, element, impact")
+                  .eq("page_id", pageForFeedback.id)
+                  .eq("status", "open")
+                  .order("impact", { ascending: true })
+                  .order("times_suggested", { ascending: false });
+
+                if (freshOpenErr) {
+                  console.warn(`[suggestion-recompose] Failed to query open suggestions for page=${pageForFeedback.id}:`, freshOpenErr);
+                  Sentry.captureMessage("Failed to recompose open suggestions after upsert", {
+                    level: "warning",
+                    tags: { phase: "suggestion-recompose", pageId: pageForFeedback.id },
+                  });
+                } else if (freshOpen) {
+                  const openItems = freshOpen.map((s) => ({
+                    id: s.id, element: s.element, title: s.title, impact: s.impact,
+                  }));
+                  changesSummary.progress = {
+                    ...changesSummary.progress,
+                    open: openItems.length,
+                    openItems,
+                  };
+                  // Patch the already-written analysis with fresh open counts
+                  const { error: patchErr } = await supabase
+                    .from("analyses")
+                    .update({ changes_summary: changesSummary })
+                    .eq("id", analysisId);
+
+                  if (patchErr) {
+                    console.error(`[suggestion-recompose] Failed to patch analysis=${analysisId}:`, patchErr);
+                    Sentry.captureMessage("Failed to write recomposed open counts to analysis", {
+                      level: "error",
+                      tags: { phase: "suggestion-recompose", analysisId },
+                    });
+                  }
+                }
+              } catch (suggestionErr) {
+                console.error("Failed to upsert tracked_suggestions:", suggestionErr);
+                Sentry.captureException(suggestionErr, {
+                  tags: { phase: "suggestion-upsert", pageId: pageForFeedback.id },
+                });
               }
             }
 
@@ -886,8 +1008,10 @@ export const analyzeUrl = inngest.createFunction(
                       ...currentSummary.progress,
                       validated: recomposed.validated,
                       watching: recomposed.watching,
+                      open: recomposed.open,
                       validatedItems: recomposed.validatedItems,
                       watchingItems: recomposed.watchingItems,
+                      openItems: recomposed.openItems,
                     },
                   },
                 })
@@ -2376,8 +2500,10 @@ export const runCheckpoints = inngest.createFunction(
                 ...currentSummary.progress,
                 validated: canonical.validated,
                 watching: canonical.watching,
+                open: canonical.open,
                 validatedItems: canonical.validatedItems,
                 watchingItems: canonical.watchingItems,
+                openItems: canonical.openItems,
               },
             };
 

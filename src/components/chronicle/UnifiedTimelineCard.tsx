@@ -38,34 +38,6 @@ function formatDate(dateStr?: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function getStatusLabel(type: TimelineItemType, daysRemaining?: number): string {
-  switch (type) {
-    case "validated":
-      return "Impact confirmed";
-    case "regressed":
-      return "Performance dropped";
-    case "watching":
-      return daysRemaining
-        ? `Results in ${daysRemaining}d`
-        : "Measuring impact";
-    default:
-      return "";
-  }
-}
-
-function getTypeLabel(type: TimelineItemType): string {
-  switch (type) {
-    case "validated":
-      return "Confirmed";
-    case "regressed":
-      return "Dropped";
-    case "watching":
-      return "Tracking";
-    default:
-      return "Open";
-  }
-}
-
 function HypothesisInput({
   changeId,
   onSaved,
@@ -292,11 +264,17 @@ function getChipClass(assessment: string): string {
   }
 }
 
-function CheckpointChips({ checkpoints }: { checkpoints: ChangeCheckpointSummary[] }) {
+function CheckpointChips({
+  checkpoints,
+  compact = false,
+}: {
+  checkpoints: ChangeCheckpointSummary[];
+  compact?: boolean;
+}) {
   const byHorizon = new Map(checkpoints.map((cp) => [cp.horizon_days, cp]));
 
   return (
-    <div className="dossier-checkpoint-chips">
+    <div className={`dossier-checkpoint-chips ${compact ? "dossier-checkpoint-chips-compact" : ""}`}>
       {ALL_HORIZONS.map((h) => {
         const cp = byHorizon.get(h);
         if (!cp) {
@@ -320,37 +298,44 @@ function CheckpointChips({ checkpoints }: { checkpoints: ChangeCheckpointSummary
   );
 }
 
-function EvidencePanel({ checkpoints }: { checkpoints: ChangeCheckpointSummary[] }) {
+function EvidencePanel({
+  checkpoints,
+  hypothesis,
+  feedback,
+}: {
+  checkpoints: ChangeCheckpointSummary[];
+  hypothesis?: string;
+  feedback?: {
+    checkpointId: string;
+    changeId: string;
+    horizonDays: number;
+    existingFeedback?: { feedback_type: string } | null;
+  } | null;
+}) {
   const [open, setOpen] = useState(false);
 
   // Only show completed checkpoints (not pending)
   const completed = checkpoints.filter((cp) => cp.reasoning);
   if (completed.length === 0) return null;
-  const latest = [...completed].sort((a, b) => b.horizon_days - a.horizon_days)[0];
-  const previewText = latest?.reasoning
-    ? latest.reasoning.length > 120
-      ? `${latest.reasoning.slice(0, 117)}...`
-      : latest.reasoning
-    : "";
 
   return (
     <div className="dossier-evidence-panel">
-      {previewText && (
-        <p className="dossier-evidence-preview">
-          <strong>{latest?.horizon_days}d signal:</strong> {previewText}
-        </p>
-      )}
       <button
         className={`dossier-evidence-toggle ${open ? "dossier-evidence-toggle-open" : ""}`}
         onClick={() => setOpen(!open)}
       >
-        {open ? "Hide evidence details" : "View full evidence"}
+        {open ? "Hide evidence" : "View evidence"}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
       {open && (
         <div className="dossier-evidence-content">
+          {hypothesis && (
+            <p className="dossier-evidence-hypothesis">
+              Your test: &ldquo;{hypothesis}&rdquo;
+            </p>
+          )}
           {completed.map((cp) => (
             <div key={cp.horizon_days} className="dossier-evidence-checkpoint">
               <div className="dossier-evidence-checkpoint-header">
@@ -388,6 +373,16 @@ function EvidencePanel({ checkpoints }: { checkpoints: ChangeCheckpointSummary[]
               )}
             </div>
           ))}
+          {feedback && (
+            <div className="dossier-evidence-feedback">
+              <OutcomeFeedbackUI
+                checkpointId={feedback.checkpointId}
+                changeId={feedback.changeId}
+                horizonDays={feedback.horizonDays}
+                existingFeedback={feedback.existingFeedback}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -408,7 +403,6 @@ export function UnifiedTimelineCard({
   after,
   change,
   friendlyText,
-  daysRemaining,
   detectedAt,
   hypothesis,
   changeId,
@@ -419,12 +413,24 @@ export function UnifiedTimelineCard({
   existingFeedback,
 }: UnifiedTimelineCardProps) {
   const [localHypothesis, setLocalHypothesis] = useState(hypothesis);
-  const statusLabel = getStatusLabel(type, daysRemaining);
-  const typeLabel = getTypeLabel(type);
   const formattedDate = formatDate(detectedAt);
   const hasDiff = Boolean(before && after);
   const hasOutcome = type === "validated" || type === "regressed";
+  const hasCheckpoints = Boolean(checkpoints && checkpoints.length > 0);
+  const showHeaderMeta =
+    (hasOutcome && hasCheckpoints) ||
+    type === "watching" ||
+    (type === "change" && Boolean(formattedDate));
   const canInputHypothesis = type === "watching" && changeId && !localHypothesis;
+  const feedbackConfig =
+    hasOutcome && checkpointId && changeId && horizonDays != null
+      ? {
+          checkpointId,
+          changeId,
+          horizonDays,
+          existingFeedback,
+        }
+      : null;
 
   return (
     <article
@@ -433,7 +439,7 @@ export function UnifiedTimelineCard({
     >
       <div className={`unified-timeline-card-accent unified-timeline-card-accent-${type}`} />
       <div className="unified-timeline-card-body">
-      {/* Header: element name + state badge */}
+      {/* Header: element name + trajectory chips (or fallback state badge) */}
       <div className="unified-timeline-card-header">
         <div className="unified-timeline-card-heading">
           <span className="unified-timeline-card-element">{element}</span>
@@ -441,17 +447,19 @@ export function UnifiedTimelineCard({
             <p className="unified-timeline-card-title">{title}</p>
           )}
         </div>
-        {hasOutcome && (
+        {showHeaderMeta ? (
           <div className="unified-timeline-card-meta">
-            <span className={`unified-timeline-card-state unified-timeline-card-state-${type}`}>
-              {typeLabel}
-            </span>
+            {type === "change" && formattedDate ? (
+              <span className="unified-timeline-card-date">{formattedDate}</span>
+            ) : (
+              <CheckpointChips checkpoints={checkpoints || []} compact />
+            )}
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* Hypothesis — display saved or show input for watching cards */}
-      {localHypothesis && (
+      {/* Hypothesis — show inline for non-outcome cards only */}
+      {!hasOutcome && localHypothesis && (
         <p className="unified-timeline-card-hypothesis">
           Your test: &ldquo;{localHypothesis}&rdquo;
         </p>
@@ -487,23 +495,12 @@ export function UnifiedTimelineCard({
         </div>
       )}
 
-      {/* Checkpoint chips — outcome cards: show when data exists; watching cards: always show (all-future if no data yet) */}
-      {(hasOutcome ? checkpoints && checkpoints.length > 0 : type === "watching") && (
-        <>
-          <CheckpointChips checkpoints={checkpoints || []} />
-          {checkpoints && checkpoints.length > 0 && (
-            <EvidencePanel checkpoints={checkpoints} />
-          )}
-        </>
-      )}
-
-      {/* Outcome feedback — only on validated/regressed with checkpoint data */}
-      {hasOutcome && checkpointId && changeId && horizonDays != null && (
-        <OutcomeFeedbackUI
-          checkpointId={checkpointId}
-          changeId={changeId}
-          horizonDays={horizonDays}
-          existingFeedback={existingFeedback}
+      {/* Outcome cards: evidence stays in body, chips move to header */}
+      {hasOutcome && hasCheckpoints && checkpoints && (
+        <EvidencePanel
+          checkpoints={checkpoints}
+          hypothesis={localHypothesis}
+          feedback={feedbackConfig}
         />
       )}
 
@@ -521,16 +518,14 @@ export function UnifiedTimelineCard({
         <p className="unified-timeline-card-friendly">{friendlyText}</p>
       )}
 
-      {/* Footer — watching shows days left, others show date */}
-      <div className="unified-timeline-card-footer">
-        {type === "watching" ? (
-          <span className="unified-timeline-card-status">{statusLabel}</span>
-        ) : (
-          formattedDate && (
+      {/* Footer — keep date on outcome cards only */}
+      {hasOutcome && (
+        <div className="unified-timeline-card-footer">
+          {formattedDate && (
             <span className="unified-timeline-card-date">{formattedDate}</span>
-          )
-        )}
-      </div>
+          )}
+        </div>
+      )}
       </div>
     </article>
   );

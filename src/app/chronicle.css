@@ -753,11 +753,34 @@
 }
 
 .dossier-observation {
-  padding: 0.75rem 0.9rem;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   border-radius: 8px;
-  border: 1.5px solid rgba(100, 116, 139, 0.18);
-  border-left: 3px solid var(--violet);
+  border: 1.5px solid rgba(100, 116, 139, 0.28);
   background: #fff;
+  padding: 0.92rem 1rem;
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.1);
+  transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dossier-observation:hover {
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 rgba(51, 65, 85, 0.13);
+}
+
+.dossier-observation-accent {
+  width: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  align-self: stretch;
+  background: var(--violet);
+}
+
+.dossier-observation-body {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0.75rem;
 }
 
 .dossier-observation-element {
@@ -768,13 +791,13 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--violet);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
 }
 
 .dossier-observation-text {
   font-size: 0.84rem;
   line-height: 1.5;
-  color: var(--ink-700);
+  color: var(--ink-600);
 }
 
 /* Deploy footer */
@@ -952,12 +975,13 @@
   display: flex;
   align-items: stretch;
   padding: 0.92rem 1rem;
-  transition: all 160ms ease;
+  box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.1);
+  transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .unified-timeline-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  box-shadow: 3px 3px 0 rgba(51, 65, 85, 0.13);
 }
 
 /* Internal accent bar — matches suggestion card pattern */
@@ -982,6 +1006,7 @@
 .unified-timeline-card-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 0.75rem;
 }
 
@@ -1012,7 +1037,7 @@
 }
 
 .unified-timeline-card-hypothesis-prompt {
-  display: inline-block;
+  display: block;
   margin-top: 0.35rem;
   font-size: 0.78rem;
   font-style: italic;
@@ -1161,37 +1186,7 @@
   align-items: center;
   gap: 0.42rem;
   flex-shrink: 0;
-}
-
-.unified-timeline-card-state {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem 0.45rem;
-  border-radius: 6px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.unified-timeline-card-state-validated {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--emerald);
-}
-
-.unified-timeline-card-state-regressed {
-  background: rgba(255, 107, 74, 0.14);
-  color: var(--coral);
-}
-
-.unified-timeline-card-state-watching {
-  background: rgba(245, 158, 11, 0.14);
-  color: var(--amber);
-}
-
-.unified-timeline-card-state-change {
-  background: rgba(148, 163, 184, 0.2);
-  color: #64748b;
+  align-self: flex-start;
 }
 
 .unified-timeline-card-delta {
@@ -1316,6 +1311,13 @@
   gap: 0.35rem;
   font-size: 0.74rem;
   color: var(--text-muted);
+}
+
+.unified-timeline-card-date {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--ink-300);
+  white-space: nowrap;
 }
 
 .unified-timeline-card-separator {
@@ -1681,6 +1683,60 @@
   flex: 1;
 }
 
+/* Times suggested credibility badge */
+.suggestion-card-times-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--violet);
+  background: rgba(139, 92, 246, 0.12);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+/* Action buttons row */
+.suggestion-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ink-700);
+}
+
+.suggestion-action-btn {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 150ms ease;
+}
+
+.suggestion-action-done {
+  color: var(--emerald);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.suggestion-action-done:hover {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.suggestion-action-dismiss {
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.suggestion-action-dismiss:hover {
+  color: var(--text-secondary);
+  background: rgba(100, 116, 139, 0.08);
+}
+
 /* See all button */
 .next-move-see-all {
   margin-top: 0.82rem;
@@ -1830,6 +1886,11 @@
   flex-wrap: wrap;
 }
 
+.dossier-checkpoint-chips-compact {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
 .dossier-chip {
   font-family: var(--font-geist-mono);
   font-size: 0.65rem;
@@ -1863,18 +1924,6 @@
 
 .dossier-evidence-panel {
   margin-top: 0.5rem;
-}
-
-.dossier-evidence-preview {
-  margin-bottom: 0.2rem;
-  font-size: 0.74rem;
-  line-height: 1.45;
-  color: var(--ink-500);
-}
-
-.dossier-evidence-preview strong {
-  color: var(--ink-700);
-  font-weight: 700;
 }
 
 .dossier-evidence-toggle {
@@ -1913,6 +1962,13 @@
   border-radius: 8px;
   animation: evidencePanelIn 200ms ease-out;
   overflow: hidden;
+}
+
+.dossier-evidence-hypothesis {
+  margin-bottom: 0.4rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--ink-500);
 }
 
 @keyframes evidencePanelIn {
@@ -1991,4 +2047,18 @@
   color: var(--violet);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.dossier-evidence-feedback {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(100, 116, 139, 0.1);
+}
+
+.dossier-evidence-feedback .unified-timeline-card-feedback-row {
+  margin-top: 0;
+}
+
+.dossier-evidence-feedback .unified-timeline-card-feedback-done {
+  margin-top: 0;
 }

@@ -11,9 +11,9 @@ export function ObservationCard({ observations, validatedItems = [] }: Observati
   if (!observations.length) return null;
 
   // Map changeId → element name for richer display
-  const elementMap = new Map<string, string>();
+  const itemMap = new Map<string, ValidatedItem>();
   for (const item of validatedItems) {
-    if (item.id) elementMap.set(item.id, item.element);
+    if (item.id) itemMap.set(item.id, item);
   }
 
   return (
@@ -21,13 +21,17 @@ export function ObservationCard({ observations, validatedItems = [] }: Observati
       <h3 className="dossier-observations-label">Analyst notes</h3>
       <div className="dossier-observations-list">
         {observations.map((obs) => {
-          const elementName = elementMap.get(obs.changeId);
+          const item = itemMap.get(obs.changeId);
+          const elementName = item?.element;
           return (
             <div key={obs.changeId} className="dossier-observation">
-              {elementName && (
-                <span className="dossier-observation-element">{elementName}</span>
-              )}
-              <p className="dossier-observation-text">{obs.text}</p>
+              <div className="dossier-observation-accent" />
+              <div className="dossier-observation-body">
+                {elementName && (
+                  <span className="dossier-observation-element">{elementName}</span>
+                )}
+                <p className="dossier-observation-text">{obs.text}</p>
+              </div>
             </div>
           );
         })}
