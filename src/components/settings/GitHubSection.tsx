@@ -22,6 +22,11 @@ function RepoCard({
       <div className="min-w-0 flex-1">
         <p className="font-medium text-text-primary truncate">{repo.full_name}</p>
         <p className="text-sm text-text-muted">Branch: {repo.default_branch}</p>
+        {repo.webhook_active === false && (
+          <p className="text-xs text-score-low mt-1">
+            Webhook missing — auto-repair runs daily, or remove and re-add now
+          </p>
+        )}
       </div>
       <button
         onClick={() => onDisconnect(repo.id)}

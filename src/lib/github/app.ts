@@ -154,6 +154,36 @@ export async function createRepoWebhook(
 }
 
 /**
+ * Find an existing webhook on a repository matching a given URL.
+ * Returns the webhook ID if found, null otherwise.
+ */
+export async function findExistingWebhook(
+  installationId: number,
+  repoFullName: string,
+  webhookUrl: string
+): Promise<number | null> {
+  const token = await getInstallationToken(installationId);
+
+  const response = await fetch(
+    `https://api.github.com/repos/${repoFullName}/hooks?per_page=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    }
+  );
+
+  if (!response.ok) return null;
+
+  const hooks = await response.json();
+  const existing = hooks.find(
+    (h: { config?: { url?: string } }) => h.config?.url === webhookUrl
+  );
+  return existing?.id ?? null;
+}
+
+/**
  * Delete a webhook from a repository.
  */
 export async function deleteRepoWebhook(

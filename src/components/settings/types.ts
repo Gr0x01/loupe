@@ -12,6 +12,7 @@ export interface GitHubConnectedRepo {
   id: string;
   full_name: string;
   default_branch: string;
+  webhook_active: boolean;
 }
 
 export interface GitHubIntegration {

@@ -63,6 +63,7 @@ function SettingsContent() {
   const successParam = searchParams.get("success");
   const errorParam = searchParams.get("error");
   const pendingParam = searchParams.get("pending");
+  const warningParam = searchParams.get("warning");
 
   const fetchProfile = async () => {
     try {
@@ -400,6 +401,15 @@ function SettingsContent() {
             <p className="text-text-primary font-medium">GitHub connected successfully</p>
             <p className="text-sm text-text-secondary mt-1">
               Now connect a repository to start auto-scanning after deploys.
+            </p>
+          </div>
+        )}
+
+        {warningParam === "webhook_failed" && (
+          <div className="glass-card p-4 mb-6 border-l-4 border-score-mid">
+            <p className="text-text-primary font-medium">GitHub connected, but webhook setup failed</p>
+            <p className="text-sm text-text-secondary mt-1">
+              Deploy detection won&apos;t work until the daily auto-repair runs, or you can remove and re-add the repo.
             </p>
           </div>
         )}

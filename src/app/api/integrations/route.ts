@@ -49,13 +49,18 @@ export async function GET() {
   const [{ data: github }, { data: posthog }, { data: ga4 }, { data: supabaseIntegration }] = results;
 
   // Repos query depends on github result, so stays sequential
-  let repos: { id: string; full_name: string; default_branch: string }[] = [];
+  let repos: { id: string; full_name: string; default_branch: string; webhook_active: boolean }[] = [];
   if (github) {
     const { data: repoData } = await serviceClient
       .from("repos")
-      .select("id, full_name, default_branch")
+      .select("id, full_name, default_branch, webhook_id")
       .eq("user_id", user.id);
-    repos = repoData || [];
+    repos = (repoData || []).map(r => ({
+      id: r.id,
+      full_name: r.full_name,
+      default_branch: r.default_branch,
+      webhook_active: !!r.webhook_id,
+    }));
   }
 
   return NextResponse.json({

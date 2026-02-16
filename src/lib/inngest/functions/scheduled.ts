@@ -2,6 +2,8 @@ import * as Sentry from "@sentry/nextjs";
 import { inngest } from "../client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { pingScreenshotService } from "@/lib/screenshot";
+import { createRepoWebhook, deleteRepoWebhook, findExistingWebhook } from "@/lib/github/app";
+import { safeDecrypt } from "@/lib/crypto";
 import { sendEmail } from "@/lib/email/resend";
 import { dailyDigestEmail } from "@/lib/email/templates";
 import type { ChangesSummary } from "@/lib/types/analysis";
@@ -210,7 +212,85 @@ export const scheduledScanDaily = inngest.createFunction(
   },
   { cron: "0 9 * * *" }, // Daily 9am UTC
   async ({ step }) => {
-    return runScheduledScans(step, "daily");
+    const scanResult = await runScheduledScans(step, "daily");
+
+    // Self-healing: fix repos with missing webhooks (non-fatal — never fails the scan)
+    await step.run("heal-missing-webhooks", async () => {
+      try {
+        const supabase = createServiceClient();
+        const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/github`;
+        if (webhookUrl.includes("localhost")) return { healed: 0 };
+
+        // Find repos with no webhook registered
+        const { data: brokenRepos } = await supabase
+          .from("repos")
+          .select("id, full_name, integration_id, webhook_secret")
+          .is("webhook_id", null);
+
+        if (!brokenRepos?.length) return { healed: 0 };
+
+        let healed = 0;
+        for (const repo of brokenRepos) {
+          try {
+            // Look up the installation ID
+            const { data: integration } = await supabase
+              .from("integrations")
+              .select("metadata")
+              .eq("id", repo.integration_id)
+              .single();
+
+            const installationId = Number(integration?.metadata?.installation_id);
+            if (!installationId || isNaN(installationId)) continue;
+
+            // Decrypt stored secret to reuse for the new webhook
+            const secret = safeDecrypt(repo.webhook_secret);
+            if (!secret) continue;
+
+            // Check if a webhook already exists on GitHub
+            const existingId = await findExistingWebhook(
+              installationId,
+              repo.full_name,
+              webhookUrl
+            );
+
+            // If found, delete it — the secret may not match ours
+            if (existingId) {
+              await deleteRepoWebhook(installationId, repo.full_name, existingId);
+            }
+
+            // Create fresh webhook with our known secret
+            const webhookId = await createRepoWebhook(
+              installationId,
+              repo.full_name,
+              webhookUrl,
+              secret
+            );
+
+            await supabase
+              .from("repos")
+              .update({ webhook_id: webhookId })
+              .eq("id", repo.id);
+
+            healed++;
+            console.log(`Self-healed webhook for ${repo.full_name} (webhook_id: ${webhookId})`);
+          } catch (err) {
+            Sentry.withScope((scope) => {
+              scope.setTag("function", "heal-missing-webhooks");
+              scope.setExtra("repo", repo.full_name);
+              Sentry.captureException(err);
+            });
+            console.error(`Failed to heal webhook for ${repo.full_name}:`, err);
+          }
+        }
+
+        return { healed };
+      } catch (err) {
+        Sentry.captureException(err, { tags: { function: "heal-missing-webhooks" } });
+        return { healed: 0, error: true };
+      }
+    });
+
+    return scanResult;
   }
 );
 

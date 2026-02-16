@@ -152,18 +152,15 @@ export async function GET(request: NextRequest) {
 
             // Only create webhook if not localhost
             if (!isLocalhost) {
-              try {
-                const { createRepoWebhook } = await import("@/lib/github/app");
-                webhookId = await createRepoWebhook(
-                  installationIdNum,
-                  repo.full_name,
-                  webhookUrl,
-                  webhookSecret
-                );
-              } catch (webhookErr) {
-                console.error(`Failed to create webhook for ${repo.full_name}:`, webhookErr);
-                // Continue without webhook - user can retry later
-              }
+              const { createRepoWebhook } = await import("@/lib/github/app");
+              webhookId = await createRepoWebhook(
+                installationIdNum,
+                repo.full_name,
+                webhookUrl,
+                webhookSecret
+              );
+              // If webhook creation fails, the error propagates to catch (repoErr)
+              // which redirects with ?warning=webhook_failed. We never store a repo without a webhook.
             }
 
             // Store repo (encrypt webhook secret)
@@ -180,8 +177,11 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (repoErr) {
-      // Non-fatal - repos can be added manually
+      // GitHub App is connected but repo webhook failed — surface partial success
       console.error("Failed to auto-connect repos:", repoErr);
+      redirectUrl.searchParams.set("success", "github");
+      redirectUrl.searchParams.set("warning", "webhook_failed");
+      return NextResponse.redirect(redirectUrl);
     }
 
     redirectUrl.searchParams.set("success", "github");
