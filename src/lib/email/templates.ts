@@ -1,3 +1,5 @@
+import { formatOutcomeText } from "@/lib/utils/attribution";
+
 /**
  * Escape HTML special characters to prevent XSS
  */
@@ -388,7 +390,15 @@ interface CorrelationUnlockedEmailParams {
   metric: {
     friendlyName: string;
     change: string;
+    /** Raw metric key for attribution lookup */
+    key?: string;
+    /** Absolute change percent for attribution */
+    changePercent?: number;
+    /** "up" or "down" */
+    direction?: "up" | "down";
   };
+  /** LLM assessment confidence (0-1) for attribution language */
+  confidence?: number | null;
   topSuggestion?: {
     element: string;
     friendlyText: string;
@@ -405,6 +415,7 @@ export function correlationUnlockedEmail({
   changeId,
   change,
   metric,
+  confidence,
   topSuggestion,
 }: CorrelationUnlockedEmailParams): { subject: string; html: string } {
   // Deep link to dashboard with win highlighted
@@ -412,13 +423,24 @@ export function correlationUnlockedEmail({
 
   const subject = `Your ${change.element.toLowerCase()} change helped`;
 
+  // Use confidence-banded attribution when available
+  const attributionLine = (metric.key && metric.direction && metric.changePercent != null)
+    ? (formatOutcomeText({
+        status: "validated",
+        confidence: confidence ?? null,
+        metricKey: metric.key,
+        direction: metric.direction,
+        changePercent: metric.changePercent,
+      }) ?? `${metric.friendlyName} ${metric.change}`)
+    : `${metric.friendlyName} ${metric.change}`;
+
   // Hero moment - the win
   const heroHtml = `
     <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 32px; font-weight: 400; color: ${colors.scoreHigh}; line-height: 1.2; letter-spacing: -0.5px;">
       It worked.
     </h1>
     <p style="margin: 0 0 32px 0; font-size: 20px; color: ${colors.textPrimary}; line-height: 1.4;">
-      ${escapeHtml(metric.friendlyName)} <span style="font-weight: 600; color: ${colors.scoreHigh};">${escapeHtml(metric.change)}</span>
+      ${escapeHtml(attributionLine)}
     </p>
   `;
 

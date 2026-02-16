@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TimelineItemType, ChangeCheckpointSummary } from "@/lib/types/analysis";
 import { track } from "@/lib/analytics/track";
+import { formatOutcomeText } from "@/lib/utils/attribution";
 
 const ALL_HORIZONS = [7, 14, 30, 60, 90] as const;
 
@@ -302,6 +303,7 @@ function EvidencePanel({
   checkpoints,
   hypothesis,
   feedback,
+  status,
 }: {
   checkpoints: ChangeCheckpointSummary[];
   hypothesis?: string;
@@ -311,6 +313,7 @@ function EvidencePanel({
     horizonDays: number;
     existingFeedback?: { feedback_type: string } | null;
   } | null;
+  status?: "validated" | "regressed";
 }) {
   const [open, setOpen] = useState(false);
 
@@ -318,8 +321,28 @@ function EvidencePanel({
   const completed = checkpoints.filter((cp) => cp.reasoning);
   if (completed.length === 0) return null;
 
+  // Build attribution line from latest checkpoint
+  const latestCp = completed[completed.length - 1];
+  const cpMetrics = latestCp?.metrics_json?.metrics;
+  // Filter metrics to those aligned with the overall status to avoid contradictions
+  const alignedAssessment = status === "regressed" ? "regressed" : "improved";
+  const aligned = cpMetrics?.filter((m) => m.assessment === alignedAssessment);
+  const topMetric = aligned?.length
+    ? aligned.reduce((best, m) => (Math.abs(m.change_percent) > Math.abs(best.change_percent) ? m : best), aligned[0])
+    : undefined;
+  const attributionText = status ? formatOutcomeText({
+    status,
+    confidence: latestCp?.confidence ?? null,
+    metricKey: topMetric?.name ?? null,
+    direction: topMetric ? (topMetric.change_percent > 0 ? "up" : "down") : null,
+    changePercent: topMetric ? Math.abs(topMetric.change_percent) : null,
+  }) : null;
+
   return (
     <div className="dossier-evidence-panel">
+      {attributionText && (
+        <p className="dossier-evidence-attribution">{attributionText}</p>
+      )}
       <button
         className={`dossier-evidence-toggle ${open ? "dossier-evidence-toggle-open" : ""}`}
         onClick={() => setOpen(!open)}
@@ -501,6 +524,7 @@ export function UnifiedTimelineCard({
           checkpoints={checkpoints}
           hypothesis={localHypothesis}
           feedback={feedbackConfig}
+          status={type as "validated" | "regressed"}
         />
       )}
 

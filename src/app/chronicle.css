@@ -1926,6 +1926,13 @@
   margin-top: 0.5rem;
 }
 
+.dossier-evidence-attribution {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
 .dossier-evidence-toggle {
   display: inline-flex;
   align-items: center;

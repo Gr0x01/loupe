@@ -506,11 +506,15 @@ function WinCard({
   // Build confidence-banded attribution from checkpoint data
   const latestCp = change.checkpoints?.filter((cp) => cp.reasoning).pop();
   const cpMetrics = latestCp?.metrics_json?.metrics;
-  const topCpMetric = cpMetrics?.length
-    ? cpMetrics.reduce((best, m) => (Math.abs(m.change_percent) > Math.abs(best.change_percent) ? m : best), cpMetrics[0])
+  // Filter metrics to those aligned with the overall status to avoid contradictions
+  const winStatus = change.status === "regressed" ? "regressed" : "validated";
+  const alignedAssessment = winStatus === "regressed" ? "regressed" : "improved";
+  const aligned = cpMetrics?.filter((m) => m.assessment === alignedAssessment);
+  const topCpMetric = aligned?.length
+    ? aligned.reduce((best, m) => (Math.abs(m.change_percent) > Math.abs(best.change_percent) ? m : best), aligned[0])
     : undefined;
   const attributionText = latestCp ? formatOutcomeText({
-    status: change.status === "regressed" ? "regressed" : "validated",
+    status: winStatus,
     confidence: latestCp.confidence,
     metricKey: topCpMetric?.name ?? null,
     direction: topCpMetric ? (topCpMetric.change_percent > 0 ? "up" : "down") : null,
