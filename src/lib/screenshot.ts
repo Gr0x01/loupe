@@ -109,10 +109,9 @@ export async function captureScreenshot(
     const text = await response.text();
     lastError = new Error(`Screenshot failed (${response.status}): ${text}`);
 
-    // 429 = rate limiting, expected under load — retry silently, never report to Sentry
-    if (response.status === 429) {
+    // 429 (rate limit) and 500 (transient Puppeteer failure) — retry silently
+    if (response.status === 429 || response.status === 500) {
       if (attempt < MAX_RETRIES) continue;
-      throw lastError;
     }
 
     Sentry.captureException(lastError, {

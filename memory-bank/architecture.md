@@ -45,13 +45,13 @@ User enters URL → POST /api/analyze
 - **Persistent browser pool** — 2 warm Chromium instances (proxy + direct), no cold start per request
 - **Decodo residential proxy** — `gate.decodo.com:7000` with username/password auth. Bypasses Vercel Security Checkpoint, Cloudflare, and similar bot protection
 - **Stealth plugin** — `puppeteer-extra-plugin-stealth` evades basic headless detection
-- **SSRF protection** — blocks private/internal IPs and non-HTTP protocols
-- **Concurrency limit** — max 8 concurrent screenshots. Client (`screenshot.ts`) retries 429s with exponential backoff + jitter (2s/4s/8s + 0-1s random, max 3 retries). Inngest `analyzeUrl` concurrency: 4 (each does 2 screenshots = 8 max)
-- **Page render strategy** — `networkidle2` (waits for ≤2 active connections for 500ms) + 1s settle delay + cookie banner dismissal + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
-- **Cookie banner dismissal** — `dismissCookieBanners(page)` runs after settle, before scroll. Two-pass: (1) text matching on buttons ("Accept", "Agree", "Allow All", etc.), (2) fallback CSS selector matching for common CMPs (OneTrust, CookieConsent, GDPR banners). Non-fatal — silently skips pages without banners.
-- **Mobile device emulation** — When viewport ≤480px: mobile Safari UA, `isMobile: true`, `hasTouch: true`, `deviceScaleFactor: 1`. Desktop: Chrome UA, `deviceScaleFactor: 1`. Ensures sites serve responsive mobile content and CSS media queries like `(pointer: coarse)` fire correctly.
+- **SSRF protection** — blocks private/internal IPs and non-HTTP protocols on both endpoints
+- **Concurrency limit** — max 3 concurrent screenshots (server-side). Client (`screenshot.ts`) retries 429s and 500s with exponential backoff + jitter (5s/10s/20s + 0-1s random, max 3 retries). Inngest `analyzeUrl` concurrency: 4 (each does 2 screenshots = 8 max)
+- **Navigation retry** — `navigateWithRetry()` retries frame detachment errors once with 2s pause (handles SPAs/redirects that destroy the navigation frame). Timeouts fail fast for client-side retry. Navigation timeout: 25s.
+- **Page render strategy** — `domcontentloaded` + 2.5s settle delay + auto-scroll (triggers lazy-loaded content, 400px steps capped at 15000px, scrolls back to top before capture)
+- **Metadata extraction** — 5s timeout via `Promise.race`. If extraction hangs, screenshot still returns with empty metadata fallback.
 - **Request interception** — blocks non-visual resources to save proxy bandwidth: analytics (GA, GTM, Segment, Mixpanel, Amplitude, Heap, Clarity, FullStory, Hotjar), tracking pixels (Facebook), error monitoring (Sentry, Bugsnag), chat widgets (Intercom, Crisp), ads, embedded video, media/websocket/eventsource resource types. Fonts, CSS, images, and documents pass through.
-- **Screenshot optimization** — JPEG quality 70, `deviceScaleFactor: 1` for all viewports. Produces ~1-2MB desktop, ~500KB-800KB mobile screenshots — sufficient for LLM vision analysis.
+- **Screenshot optimization** — JPEG quality 80, `deviceScaleFactor: 1` for all viewports. Sufficient for LLM vision analysis.
 - **Browser crash recovery** — 30s health check interval, auto-relaunches dead browser instances
 
 ### Endpoints
@@ -1182,6 +1182,7 @@ Dashboard page
 ### Screenshot Service Monitoring
 - `captureScreenshot()` tags all failures with `service:screenshot` (HTTP errors, timeouts, network failures)
 - Timeout/network errors caught separately from HTTP errors with `reason: "timeout"` or `reason: "network"` tags
+- Client retries 429s and 500s up to 3 times with exponential backoff before reporting to Sentry (reduces noise from transient Puppeteer failures)
 - `pingScreenshotService()` health check runs every 30 min via Inngest cron
 - Sentry alert rule "Screenshot Service Down" (ID: 16691420) notifies on any new issue tagged `service:screenshot`
 
@@ -1280,7 +1281,7 @@ User-provided text is sanitized before injection into LLM prompts:
 
 ### Other Protections
 - **OAuth CSRF** — State tokens in httpOnly cookies for GA4/GitHub
-- **Webhook verification** — GitHub webhooks validated via HMAC-SHA256 (secret encrypted at rest)
+- **Webhook verification** — GitHub webhooks validated via HMAC-SHA256 (secret encrypted at rest). Self-healing cron recreates missing webhooks daily (`findExistingWebhook()` + delete-and-recreate to ensure secret match).
 - **SQL injection** — Supabase SDK parameterizes; table names validated via regex
 - **XSS** — React escaping; no dangerouslySetInnerHTML with user input
 - **Open redirect** — Magic link validates redirect against allowed origins
