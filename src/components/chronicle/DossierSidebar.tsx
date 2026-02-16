@@ -24,7 +24,7 @@ interface DossierSidebarProps {
     validated: number;
     watching: number;
     open: number;
-    validatedItems?: Array<{ change?: string }>;
+    validatedItems?: Array<{ status?: "validated" | "regressed"; metric?: string; change?: string }>;
   };
   onViewFullScreenshot?: (view?: "desktop" | "mobile") => void;
   mobile?: boolean;
@@ -52,20 +52,26 @@ function formatTrackingSince(dateStr: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function countRegressions(validatedItems?: Array<{ change?: string }>): number {
-  if (!validatedItems) return 0;
-  return validatedItems.filter((item) => {
-    const num = parseFloat((item.change || "").replace(/[^-0-9.]/g, "")) || 0;
-    return num < 0;
-  }).length;
+/** Metrics where a negative change_percent is an improvement */
+const LOWER_IS_BETTER = new Set(["bounce_rate"]);
+
+function inferStatus(item: { status?: "validated" | "regressed"; metric?: string; change?: string }): "validated" | "regressed" {
+  if (item.status) return item.status;
+  // Legacy fallback: infer from metric polarity + change sign
+  const num = parseFloat((item.change || "").replace(/[^-0-9.]/g, "")) || 0;
+  const isLowerBetter = LOWER_IS_BETTER.has(item.metric || "");
+  if (isLowerBetter) return num < 0 ? "validated" : "regressed";
+  return num > 0 ? "validated" : "regressed";
 }
 
-function countWins(validatedItems?: Array<{ change?: string }>): number {
+function countRegressions(validatedItems?: Array<{ status?: "validated" | "regressed"; metric?: string; change?: string }>): number {
   if (!validatedItems) return 0;
-  return validatedItems.filter((item) => {
-    const num = parseFloat((item.change || "").replace(/[^-0-9.]/g, "")) || 0;
-    return num > 0;
-  }).length;
+  return validatedItems.filter((item) => inferStatus(item) === "regressed").length;
+}
+
+function countWins(validatedItems?: Array<{ status?: "validated" | "regressed"; metric?: string; change?: string }>): number {
+  if (!validatedItems) return 0;
+  return validatedItems.filter((item) => inferStatus(item) === "validated").length;
 }
 
 export function DossierSidebar({

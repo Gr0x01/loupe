@@ -9,6 +9,7 @@ import type { AnalyticsCredentials, GA4Credentials } from "@/lib/analytics/types
 import { createProvider } from "@/lib/analytics/provider";
 import { createAnalyticsTools, createDatabaseTools } from "@/lib/analytics/tools";
 import { createSupabaseAdapter } from "@/lib/analytics/supabase-adapter";
+import { DECISION_HORIZON } from "@/lib/analytics/checkpoints";
 
 // Re-export types from canonical source
 export type {
@@ -412,13 +413,13 @@ For each change detected, output to the "changes" array:
 
 ### 2. Categorize Progress
 Map each previous finding to one of three states:
-- **validated**: Fixed AND all three conditions met: (1) analytics tools were called in THIS session, (2) tools returned real metric data, (3) the change is 7+ days old (check Temporal Context)
-- **watching**: Fixed but waiting for enough data to confirm impact (change < 7 days old, or no analytics tools available)
+- **validated**: Fixed AND all three conditions met: (1) analytics tools were called in THIS session, (2) tools returned real metric data, (3) the change is 30+ days old (check Temporal Context)
+- **watching**: Fixed but waiting for enough data to confirm impact (change < 30 days old, or no analytics tools available)
 - **open**: Not yet addressed
 
 **HARD RULES for "validated":**
 - If no analytics/database tools were called in this session → ZERO validated items. Every fixed item goes to "watching".
-- If a change is less than 7 days old (check Temporal Context) → it MUST be "watching", never "validated", regardless of tools.
+- If a change is less than 30 days old (check Temporal Context) → it MUST be "watching", never "validated", regardless of tools.
 - You need REAL tool-returned evidence, not estimates or projections.
 
 ### 3. Provide Next Suggestions
@@ -488,7 +489,7 @@ Return JSON matching this schema:
     }
   ],
   "correlation": {
-    "hasEnoughData": <true if 7+ days of data>,
+    "hasEnoughData": <true if 30+ days of data>,
     "insights": "<2-3 sentences connecting changes to metrics>",
     "metrics": [
       {
@@ -520,8 +521,8 @@ Return JSON matching this schema:
         "id": "<finding id being watched>",
         "element": "<display label>",
         "title": "<what was changed>",
-        "daysOfData": <1-6>,
-        "daysNeeded": 7
+        "daysOfData": <1-29>,
+        "daysNeeded": 30
       }
     ],
     "openItems": [
@@ -539,14 +540,14 @@ Return JSON matching this schema:
 }
 
 ## Progress Item Rules
-- validatedItems: ONLY if ALL THREE: (1) analytics/database tools were called in this session, (2) tools returned real metric data, (3) change is 7+ days old per Temporal Context. If ANY condition fails → item goes to watchingItems instead.
-- watchingItems: Fixed items awaiting enough data. Set daysOfData from the Temporal Context section (do NOT guess). Set daysNeeded to 7.
+- validatedItems: ONLY if ALL THREE: (1) analytics/database tools were called in this session, (2) tools returned real metric data, (3) change is 30+ days old per Temporal Context. If ANY condition fails → item goes to watchingItems instead.
+- watchingItems: Fixed items awaiting enough data. Set daysOfData from the Temporal Context section (do NOT guess). Set daysNeeded to 30.
 - openItems: Previous findings not yet addressed
 - For first scans, openItems should list current findings with their ids
 
 ## Correlation Rules
 - If no analytics/database tools were called → correlation MUST be null
-- If all pending changes are < 7 days old → correlation.hasEnoughData MUST be false, metrics MUST be empty []
+- If all pending changes are < 30 days old → correlation.hasEnoughData MUST be false, metrics MUST be empty []
 - NEVER fabricate metric numbers (before/after/change values). Only use numbers returned by tool calls.
 - If you didn't call a tool that returned a specific number, you cannot put that number in the output.
 
@@ -590,7 +591,7 @@ Example:
 
 ## Observations (for resolved correlations)
 
-When a change has been watching for 7+ days AND analytics/database tools returned clear metric data, write an observation. Observations are short, dated insights that accumulate into a page's knowledge base.
+When a change has been watching for 30+ days AND analytics/database tools returned clear metric data, write an observation. Observations are short, dated insights that accumulate into a page's knowledge base.
 
 **Observation Voice:**
 - Specific and dated: "Feb 12: Outcome-focused headline outperformed feature-focused by 15%"
@@ -600,8 +601,8 @@ When a change has been watching for 7+ days AND analytics/database tools returne
 - If this is the second time a pattern appears, note it: "Second time outcome language won on this page."
 
 **When to write observations:**
-- A watching change has 7+ days AND tool-returned metric data shows a clear signal (improved or regressed)
-- Do NOT write observations for changes < 7 days old or without real metric data
+- A watching change has 30+ days AND tool-returned metric data shows a clear signal (improved or regressed)
+- Do NOT write observations for changes < 30 days old or without real metric data
 
 Output observations in the response:
 \`\`\`
@@ -1148,7 +1149,7 @@ export async function runPostAnalysisPipeline(
       temporalLines.push(`- ${pc.element}: ${daysSince} days (detected ${detectedDate.toISOString().split("T")[0]})`);
     }
   }
-  temporalLines.push(`\nReminder: Changes < 7 days old CANNOT be "validated". They MUST be "watching".`);
+  temporalLines.push(`\nReminder: Changes < 30 days old CANNOT be "validated". They MUST be "watching".`);
   promptParts.push(temporalLines.join("\n"));
 
   const hasTools = Object.keys(tools).length > 0;
@@ -1226,7 +1227,7 @@ export async function runPostAnalysisPipeline(
           element: v.element,
           title: v.title,
           daysOfData: 0,
-          daysNeeded: 7,
+          daysNeeded: 30,
         });
       }
       parsed.progress.validatedItems = [];
@@ -1235,7 +1236,7 @@ export async function runPostAnalysisPipeline(
     }
   }
 
-  // Also enforce: any watching item with < 7 days cannot be validated (even with tools)
+  // Also enforce: any watching item with < DECISION_HORIZON days cannot be validated (even with tools)
   if (pendingChanges && parsed.progress.validatedItems) {
     const pendingMap = new Map(pendingChanges.map((pc) => [pc.id, pc]));
     const demoted: typeof parsed.progress.validatedItems = [];
@@ -1245,14 +1246,14 @@ export async function runPostAnalysisPipeline(
       const pc = pendingMap.get(v.id);
       if (pc) {
         const daysSince = Math.floor((Date.now() - new Date(pc.first_detected_at).getTime()) / 86400000);
-        if (daysSince < 7) {
+        if (daysSince < DECISION_HORIZON) {
           demoted.push(v);
           parsed.progress.watchingItems!.push({
             id: v.id,
             element: v.element,
             title: v.title,
             daysOfData: daysSince,
-            daysNeeded: 7,
+            daysNeeded: 30,
           });
           continue;
         }

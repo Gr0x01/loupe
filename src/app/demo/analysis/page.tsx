@@ -52,7 +52,7 @@ const mockWatchingItems: WatchingItem[] = [
     element: "Timeline Visual",
     title: "Buried 'Aha' Moment",
     daysOfData: 0,
-    daysNeeded: 7,
+    daysNeeded: 30,
     firstDetectedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];

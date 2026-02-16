@@ -50,15 +50,24 @@ function getTimelineItemId(item: Change | ValidatedItem | WatchingItem, type: st
 /**
  * Transform validated items into timeline items
  */
+/** Metrics where a negative change_percent is an improvement */
+const LOWER_IS_BETTER = new Set(["bounce_rate"]);
+
 function mapValidatedItems(items: ValidatedItem[]): TimelineItem[] {
   return items.map((item) => {
-    // Determine if this is a positive or negative correlation
-    const changeNum = parseFloat(item.change.replace(/[^-0-9.]/g, "")) || 0;
-    const isPositive = changeNum > 0;
+    // Use canonical DB status when available; infer from metric polarity for legacy rows
+    let type: "validated" | "regressed";
+    if (item.status) {
+      type = item.status;
+    } else {
+      const changeNum = parseFloat(item.change.replace(/[^-0-9.]/g, "")) || 0;
+      const isLowerBetter = LOWER_IS_BETTER.has(item.metric || "");
+      type = isLowerBetter ? (changeNum < 0 ? "validated" : "regressed") : (changeNum > 0 ? "validated" : "regressed");
+    }
 
     return {
-      id: getTimelineItemId(item, isPositive ? "validated" : "regressed"),
-      type: isPositive ? "validated" : "regressed",
+      id: getTimelineItemId(item, type),
+      type,
       element: item.element,
       title: item.title,
       change: item.change,
