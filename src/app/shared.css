@@ -345,6 +345,19 @@ body.modal-open .site-nav {
   animation: loupeBlink 0.3s ease-out;
 }
 
+/* Beta badge next to logo */
+.beta-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--violet);
+  background: var(--violet-subtle);
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
 /* Nav links */
 .nav-link {
   position: relative;

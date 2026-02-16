@@ -176,3 +176,9 @@ export const TIER_INFO: Record<SubscriptionTier, {
     description: "Intelligence that compounds.",
   },
 } as const;
+
+/** Beta pricing: 50% off, locked for life */
+export const BETA_PRICING = {
+  discount: 0.5,
+  label: "Beta pricing — 50% off, locked for life",
+} as const;

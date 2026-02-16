@@ -1,6 +1,29 @@
-# Current Phase: MVP Build
+# Current Phase: MVP Build — Beta Mode
 
-All major phases shipped. No active work items.
+## Beta Pricing (Active)
+
+Product is in beta. Beta badge in nav, 50% off pricing locked for life.
+
+| | Free | Pro (Beta) | Scale (Beta) |
+|---|:---:|:---:|:---:|
+| Price | $0 | $19/mo (was $39) | $49/mo (was $99) |
+| Lock | — | For life | For life |
+
+- **Monthly billing only** during beta (annual toggle removed)
+- **Stripe coupon**: `BETA_50` (50% off, `duration: "forever"`) auto-applied at checkout
+- **Env var**: `STRIPE_BETA_COUPON_ID=BETA_50` (in `.env.local`, needs adding to Vercel)
+- **14-day trial still active** alongside beta pricing (trial → then discounted monthly)
+- **Nav badge**: "Beta" in violet, next to logo (desktop + mobile)
+- **Pricing page**: strikethrough original price, "$X/mo after beta" subtext
+- **FAQ**: "Will my beta price go up?" → No, locked for life
+- **Script**: `scripts/create-beta-coupon.ts` (already run, coupon exists in Stripe)
+
+### When exiting beta:
+1. Remove `STRIPE_BETA_COUPON_ID` env var (stops applying coupon to new checkouts)
+2. Existing subscribers keep lifetime discount (Stripe handles this)
+3. Remove beta badge from `SiteNav.tsx`, remove `.beta-badge` from `shared.css`
+4. Restore annual billing toggle in `PricingContent.tsx`
+5. Revert pricing display to use `TIER_INFO` prices directly
 
 ---
 

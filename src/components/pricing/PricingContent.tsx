@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { TIER_INFO, type SubscriptionTier } from "@/lib/permissions";
+import { TIER_INFO, BETA_PRICING, type SubscriptionTier } from "@/lib/permissions";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import FreeAuditForm from "@/components/seo/FreeAuditForm";
 
@@ -88,7 +88,6 @@ export default function PricingContentWrapper() {
 function PricingContent() {
   const searchParams = useSearchParams();
   const canceledCheckout = searchParams.get("canceled") === "true";
-  const [isAnnual, setIsAnnual] = useState(true);
   const [loading, setLoading] = useState<SubscriptionTier | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentTier, setCurrentTier] = useState<SubscriptionTier | null>(null);
@@ -153,7 +152,7 @@ function PricingContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tier,
-          period: isAnnual ? "annual" : "monthly",
+          period: "monthly",
         }),
       });
 
@@ -226,8 +225,11 @@ function PricingContent() {
       {/* Hero */}
       <section className="pt-12 pb-2 sm:pt-16 sm:pb-3 px-4">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-line bg-white text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-700 mb-4">
-            14-day free trial on all paid plans
+          <p
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border-2 text-[11px] font-semibold uppercase tracking-[0.12em] mb-4"
+            style={{ borderColor: "var(--violet-border)", background: "var(--violet-subtle)", color: "var(--violet)" }}
+          >
+            {BETA_PRICING.label}
           </p>
           <h1
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-ink-900 mb-6 pricing-hero-headline"
@@ -249,33 +251,6 @@ function PricingContent() {
           backgroundSize: "18px 18px",
         }}
       >
-        {/* Billing toggle */}
-        <div className="flex justify-center mb-8 relative">
-          <div className="pricing-toggle pricing-hero-toggle">
-            <div
-              className="pricing-toggle-slider"
-              style={{ transform: isAnnual ? "translateX(100%)" : "translateX(0)" }}
-            />
-            <button
-              onClick={() => setIsAnnual(false)}
-              aria-pressed={!isAnnual}
-              className={`pricing-toggle-btn ${!isAnnual ? "active" : ""}`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setIsAnnual(true)}
-              aria-pressed={isAnnual}
-              className={`pricing-toggle-btn ${isAnnual ? "active" : ""}`}
-            >
-              Annual
-              <span className="ml-1.5 text-xs text-emerald font-semibold">
-                2 months free
-              </span>
-            </button>
-          </div>
-        </div>
-
         <div className="max-w-3xl mx-auto">
           {/* Compact cards row */}
           <div
@@ -284,11 +259,9 @@ function PricingContent() {
           >
             {tiers.map((tier) => {
               const info = TIER_INFO[tier];
-              const price = isAnnual ? info.annualPrice / 12 : info.monthlyPrice;
               const isPro = tier === "pro";
               const isScale = tier === "scale";
               const isCurrent = currentTier === tier;
-              const savings = isAnnual && tier !== "free" ? Math.round((1 - info.annualPrice / (info.monthlyPrice * 12)) * 100) : 0;
 
               return (
                 <div
@@ -319,19 +292,31 @@ function PricingContent() {
 
                   {/* Price */}
                   <div className="mt-4 mb-1">
-                    <span
-                      className="text-4xl font-bold text-ink-900"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      ${tier === "free" ? 0 : Math.round(price)}
-                    </span>
-                    {tier !== "free" && (
-                      <span className="text-ink-500 ml-1">/mo</span>
+                    {tier !== "free" ? (
+                      <div className="flex items-baseline gap-2">
+                        <span
+                          className="text-4xl font-bold text-ink-900"
+                          style={{ fontFamily: "var(--font-display)" }}
+                        >
+                          ${Math.round(info.monthlyPrice * BETA_PRICING.discount)}
+                        </span>
+                        <span className="text-lg text-ink-400 line-through">
+                          ${info.monthlyPrice}
+                        </span>
+                        <span className="text-ink-500">/mo</span>
+                      </div>
+                    ) : (
+                      <span
+                        className="text-4xl font-bold text-ink-900"
+                        style={{ fontFamily: "var(--font-display)" }}
+                      >
+                        $0
+                      </span>
                     )}
                   </div>
-                  {isAnnual && tier !== "free" ? (
-                    <p className="text-xs text-emerald font-medium">
-                      Save {savings}% — ${info.annualPrice}/yr
+                  {tier !== "free" ? (
+                    <p className="text-xs text-ink-500">
+                      ${info.monthlyPrice}/mo after beta
                     </p>
                   ) : (
                     <div className="h-4" />
@@ -564,6 +549,16 @@ function PricingContent() {
                 Yes. Upgrade anytime — you&apos;ll only pay the difference for
                 the rest of your billing period. Downgrade at renewal if you
                 need fewer pages.
+              </p>
+            </div>
+
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="font-semibold text-ink-900 mb-2">
+                Will my beta price go up?
+              </h3>
+              <p className="text-ink-700">
+                No. If you subscribe during beta, you keep your beta price for
+                life — even as we add features and raise prices for new customers.
               </p>
             </div>
 

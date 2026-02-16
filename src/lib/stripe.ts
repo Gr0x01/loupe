@@ -45,6 +45,9 @@ export const PRICE_IDS = {
   },
 } as const;
 
+/** Beta coupon ID — 50% off for 12 months. Created in Stripe Dashboard. */
+export const BETA_COUPON_ID = process.env.STRIPE_BETA_COUPON_ID || "";
+
 /**
  * Get the Stripe price ID for a tier and billing period.
  */
@@ -104,6 +107,7 @@ export async function createCheckoutSession({
         quantity: 1,
       },
     ],
+    ...(BETA_COUPON_ID ? { discounts: [{ coupon: BETA_COUPON_ID }] } : {}),
     success_url: successUrl,
     cancel_url: cancelUrl,
     subscription_data: {
