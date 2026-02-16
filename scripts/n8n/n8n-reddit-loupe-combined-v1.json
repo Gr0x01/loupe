@@ -1,0 +1,210 @@
+{
+  "name": "Reddit Monitor - Loupe Combined v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 30 }]
+        }
+      },
+      "id": "trigger",
+      "name": "Every 30 Min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  // AI builders & agents\n  'AI_Agents', 'AgentsOfAI', 'AiBuilders', 'AIAssisted',\n  // Vibe coding & AI dev\n  'vibecoding', 'AskVibecoders', 'cursor', 'ClaudeAI', 'ClaudeCode', 'ChatGPTCoding',\n  // Startups & indie\n  'startups', 'startup', 'indiehackers', 'buildinpublic', 'scaleinpublic',\n  // SaaS & micro-SaaS\n  'SaaS', 'saasbuild', 'SaaSDevelopers', 'SaaSMarketing', 'micro_saas', 'microsaas',\n  // No-code & automation\n  'lovable', 'nocode', 'NoCodeSaaS', 'Bubbleio', 'NoCodeAIAutomation', 'n8n',\n  // Product & launches\n  'ProductManagement', 'ProductOwner',\n  // Dev & general\n  'boltnewbuilders', 'v0_', 'replit', 'Entrepreneur', 'SideProject', 'webdev', 'IMadeThis',\n  // Analytics\n  'analytics', 'GoogleAnalytics'\n].map(s => ({ json: { sub: s } }));"
+      },
+      "id": "subs",
+      "name": "Subreddits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const nowUTC = new Date();\nconst jstHour = (nowUTC.getUTCHours() + 9) % 24;\nif (jstHour < 5 || jstHour >= 22) {\n  return [{ json: { _noResults: true, _sleeping: true } }];\n}\nreturn $input.all();"
+      },
+      "id": "timeCheck",
+      "name": "Tokyo Time Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const https = require('https');\nconst http = require('http');\nconst url = require('url');\nfunction httpsGet(rawUrl, headers, _depth) {\n  _depth = _depth || 0;\n  if (_depth > 5) return Promise.reject(new Error('too many redirects'));\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const mod = parsed.protocol === 'http:' ? http : https;\n    const req = mod.get({ hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: headers || {} }, (res) => {\n      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {\n        res.resume();\n        let loc = res.headers.location;\n        if (loc.startsWith('/')) loc = parsed.protocol + '//' + parsed.hostname + loc;\n        return resolve(httpsGet(loc, headers, _depth + 1));\n      }\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(new Error('JSON parse: ' + data.substring(0,200))); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(20000, () => { req.destroy(); reject(new Error('timeout')); });\n  });\n}\n\nconst SCRAPINGDOG_KEY = $env.SCRAPINGDOG_KEY;\nconst subs = $input.all().map(i => i.json.sub);\nconst results = [];\n\nfor (let i = 0; i < subs.length; i++) {\n  if (i > 0) await new Promise(r => setTimeout(r, 1500));\n  try {\n    const redditUrl = encodeURIComponent('https://www.reddit.com/r/' + subs[i] + '/new.json?limit=25');\n    const resp = await httpsGet('https://api.scrapingdog.com/scrape?api_key=' + SCRAPINGDOG_KEY + '&url=' + redditUrl + '&dynamic=false', {});\n    results.push({ json: resp });\n  } catch(e) {\n    console.log('Failed r/' + subs[i] + ':', e.message);\n    results.push({ json: { data: { children: [] } } });\n  }\n}\nreturn results;"
+      },
+      "id": "fetch",
+      "name": "Fetch Reddit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = Math.floor(Date.now() / 1000);\nlet posts = [];\nfunction esc(s, maxLen) {\n  maxLen = maxLen || 500;\n  return s ? String(s).replace(/\\\\/g,'\\\\\\\\').replace(/\"/g,'\\\\\"').replace(/\\n/g,' ').replace(/\\r/g,'').substring(0, maxLen) : '';\n}\nconst subNames = $('Subreddits').all().map(i => i.json.sub);\nconst MAX_AGE = 6 * 3600;\n\nfor (let idx = 0; idx < $input.all().length; idx++) {\n  const item = $input.all()[idx];\n  try {\n    let d = item.json;\n    if (typeof d === 'string') try { d = JSON.parse(d); } catch(e){}\n    const sub = subNames[idx] || 'unknown';\n    const children = d?.data?.children || [];\n    for (const c of children) {\n      const p = c?.data;\n      if (!p || p.stickied || !p.title) continue;\n      const ageSeconds = now - (p.created_utc || 0);\n      if (ageSeconds > MAX_AGE) continue;\n      posts.push({\n        json: {\n          sub,\n          ttl: esc(p.title, 500),\n          txt: esc(p.selftext, 500),\n          fullTxt: esc(p.selftext, 2000),\n          postUrl: p.url || '',\n          auth: p.author || 'anon',\n          link: 'https://reddit.com' + (p.permalink || ''),\n          postId: p.id || p.permalink || p.title,\n          pts: p.score || 0,\n          postedAt: new Date((p.created_utc || 0) * 1000).toISOString(),\n          ageMin: Math.round(ageSeconds / 60)\n        }\n      });\n    }\n  } catch(e){ console.log('Parse error:', e.message); }\n}\nif (!posts.length) return [{ json: { _noResults: true } }];\nreturn posts;"
+      },
+      "id": "parse",
+      "name": "Parse Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const https = require('https');\nconst http = require('http');\nconst url = require('url');\nfunction httpsGet(rawUrl, headers, _depth) {\n  _depth = _depth || 0;\n  if (_depth > 5) return Promise.reject(new Error('too many redirects'));\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const mod = parsed.protocol === 'http:' ? http : https;\n    const req = mod.get({ hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: headers || {} }, (res) => {\n      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {\n        res.resume();\n        let loc = res.headers.location;\n        if (loc.startsWith('/')) loc = parsed.protocol + '//' + parsed.hostname + loc;\n        return resolve(httpsGet(loc, headers, _depth + 1));\n      }\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(new Error('JSON parse: ' + data.substring(0,200))); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(20000, () => { req.destroy(); reject(new Error('timeout')); });\n  });\n}\n\nconst SUPABASE_URL = $env.SUPABASE_URL;\nconst SUPABASE_KEY = $env.SUPABASE_SERVICE_KEY;\n\nconst allItems = $input.all();\nconst postIds = allItems.filter(i => !i.json._noResults && i.json.postId).map(i => i.json.postId);\nif (postIds.length === 0) return [{ json: { _noResults: true } }];\n\nlet existingIds = [];\ntry {\n  const quotedIds = postIds.map(id => '\"' + id + '\"').join(',');\n  const response = await httpsGet(\n    SUPABASE_URL + '/rest/v1/reddit_sent_posts?post_id=in.(' + quotedIds + ')&select=post_id',\n    { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }\n  );\n  existingIds = (response || []).map(r => r.post_id);\n} catch(e) { console.log('Supabase check error:', e.message); }\n\nconst newPosts = allItems.filter(item => {\n  if (item.json._noResults) return true;\n  return !existingIds.includes(item.json.postId);\n});\n\nif (newPosts.length === 0 || (newPosts.length === 1 && newPosts[0].json._noResults)) {\n  return [{ json: { _noResults: true, _deduped: true } }];\n}\nreturn newPosts;"
+      },
+      "id": "dedup",
+      "name": "Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const https = require('https');\nconst url = require('url');\nfunction httpsPost(rawUrl, headers, body) {\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const postData = JSON.stringify(body);\n    const req = https.request({ method: 'POST', hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: { ...headers, 'Content-Length': Buffer.byteLength(postData) } }, (res) => {\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { resolve(data); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(60000, () => { req.destroy(); reject(new Error('timeout')); });\n    req.write(postData);\n    req.end();\n  });\n}\n\nconst ANTHROPIC_KEY = $env.ANTHROPIC_API_KEY;\n\nconst allPosts = $input.all().filter(i => !i.json._noResults && i.json.postId);\nif (allPosts.length === 0) return [{ json: { _noResults: true } }];\n\nconst systemPrompt = `You score Reddit posts for someone who:\n1. Built getloupe.io — audits websites, gives actionable feedback on landing pages, UX, and conversion\n2. Has deep expertise in analytics, conversion tracking, and connecting changes to outcomes\n\nTwo response strategies exist. Score based on fit for EITHER:\nA) SITE AUDIT — person shared their site and would welcome feedback\nB) EXPERT HELP — person has an analytics, conversion, or tracking question\n\nFor each post, extract the site URL if one exists. Look in the post body, title, and postUrl field.\n\nSCORE 9-10 — PERFECT FIT:\n- \"Roast my landing page\" / \"Rate my site\" with URL\n- \"Just launched [product], would love feedback\" with link\n- \"Built this with Lovable/Bolt/etc, what do you think?\" with URL\n- \"0 signups, what am I doing wrong?\" with product link\n- \"My conversions dropped and I don't know why\"\n- \"How do I track if my landing page changes helped?\"\n- \"What analytics should I set up?\"\n- \"Bounce rate spiked after redesign\"\n\nSCORE 7-8 — GOOD FIT:\n- \"Just shipped this\" with URL\n- \"Check out what I built\" with URL\n- \"What analytics tool should I use?\"\n- \"Something broke after Lovable/Bolt updated\"\n- \"How do I improve my landing page?\" (tracking angle)\n- \"Pitch your SaaS\" / \"Share what you're building\" threads\n- Product mentioned with URL even if not asking for feedback\n\nSCORE 0-6 — SKIP:\n- No product/website URL AND no analytics question\n- URL is to an app store, not a website\n- Success stories / bragging without asking for input\n- Hiring, pricing, funding, legal questions\n- Pure code debugging without a product site\n- Generic \"how do I market\" without any product\n\nYou will receive multiple posts in a batch. Score each one.\nRespond with a JSON array: [{\"i\":0,\"s\":N,\"r\":\"reason under 8 words\",\"u\":\"https://their-site.com or null\"}, ...]`;\n\nconst BATCH_SIZE = 15;\nconst results = [];\n\nfor (let batchStart = 0; batchStart < allPosts.length; batchStart += BATCH_SIZE) {\n  const batch = allPosts.slice(batchStart, batchStart + BATCH_SIZE);\n  const batchPrompt = batch.map((item, idx) => {\n    const p = item.json;\n    return '[' + idx + '] r/' + p.sub + ': ' + p.ttl + '\\npostUrl: ' + (p.postUrl || '(none)') + '\\n' + (p.fullTxt || p.txt || '(no body)');\n  }).join('\\n---\\n');\n\n  try {\n    const response = await httpsPost('https://api.anthropic.com/v1/messages', {\n      'x-api-key': ANTHROPIC_KEY,\n      'anthropic-version': '2023-06-01',\n      'Content-Type': 'application/json'\n    }, {\n      model: 'claude-haiku-4-5-20251001',\n      max_tokens: 8192,\n      thinking: { type: 'enabled', budget_tokens: 4096 },\n      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],\n      messages: [{ role: 'user', content: batchPrompt }]\n    });\n\n    // Extract text content (skip thinking blocks)\n    const textBlock = (response?.content || []).find(b => b.type === 'text');\n    const aiText = textBlock?.text || '';\n    const arrMatch = aiText.match(/\\[.*\\]/s);\n    let scores = [];\n    if (arrMatch) {\n      try { scores = JSON.parse(arrMatch[0]); } catch(e) {\n        const objMatches = aiText.matchAll(/\\{[^}]+\\}/g);\n        for (const m of objMatches) {\n          try { scores.push(JSON.parse(m[0])); } catch(e2) {}\n        }\n      }\n    }\n\n    for (let idx = 0; idx < batch.length; idx++) {\n      const scoreObj = scores.find(s => s.i === idx) || {};\n      const score = parseInt(scoreObj.s || scoreObj.score) || 0;\n      const reason = String(scoreObj.r || scoreObj.reason || '').substring(0, 100);\n      const siteUrl = scoreObj.u || null;\n      results.push({ json: { ...batch[idx].json, score, reason, siteUrl } });\n    }\n  } catch(e) {\n    console.log('Batch API error:', e.message);\n    for (const item of batch) {\n      results.push({ json: { ...item.json, score: 0, reason: 'API error', siteUrl: null } });\n    }\n  }\n}\n\nconsole.log('Scored', results.length, 'posts in', Math.ceil(allPosts.length / BATCH_SIZE), 'API calls');\nreturn results;"
+      },
+      "id": "aiScore",
+      "name": "AI Score (Haiku Thinking)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const https = require('https');\nconst url = require('url');\nfunction httpsPost(rawUrl, headers, body) {\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const postData = JSON.stringify(body);\n    const req = https.request({ method: 'POST', hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: { ...headers, 'Content-Length': Buffer.byteLength(postData) } }, (res) => {\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { resolve(data); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(30000, () => { req.destroy(); reject(new Error('timeout')); });\n    req.write(postData);\n    req.end();\n  });\n}\n\nconst SUPABASE_URL = $env.SUPABASE_URL;\nconst SUPABASE_KEY = $env.SUPABASE_SERVICE_KEY;\n\nconst MAX_PER_CYCLE = 20;\n\nconst allPosts = $input.all().filter(i => !i.json._noResults);\nconst scored7 = allPosts.filter(r => (r.json.score || 0) >= 7)\n  .sort((a, b) => (b.json.score || 0) - (a.json.score || 0));\n\n// Deduplicate by siteUrl: keep highest-scored post per URL\nconst seenUrls = new Set();\nconst deduped = [];\nfor (const item of scored7) {\n  const u = item.json.siteUrl;\n  if (u && u !== 'null') {\n    if (seenUrls.has(u)) { console.log('Skipping duplicate URL:', u, 'r/' + item.json.sub); continue; }\n    seenUrls.add(u);\n  }\n  deduped.push(item);\n}\nconst qualified = deduped.slice(0, MAX_PER_CYCLE);\n\nconsole.log('Total:', allPosts.length, '| Scored 7+:', scored7.length, '| After URL dedup:', deduped.length, '| Taking top', qualified.length);\n\n// Save ALL scored posts to dedup immediately\nconst forDedup = allPosts.filter(i => i.json.postId);\nif (forDedup.length > 0) {\n  try {\n    const records = forDedup.map(p => ({ post_id: p.json.postId, subreddit: p.json.sub, title: p.json.ttl?.substring(0, 200) }));\n    await httpsPost(SUPABASE_URL + '/rest/v1/reddit_sent_posts', {\n      'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY,\n      'Content-Type': 'application/json', 'Prefer': 'resolution=ignore-duplicates'\n    }, records);\n    console.log('Saved to dedup:', records.length);\n  } catch(e) { console.log('Dedup save error:', e.message); }\n}\n\nif (qualified.length === 0) return [{ json: { _noResults: true } }];\nreturn qualified;"
+      },
+      "id": "filterSave",
+      "name": "Filter & Save",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 0]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929"
+        },
+        "options": {}
+      },
+      "id": "anthropicModel",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1500, 250],
+      "credentials": {
+        "anthropicApi": {
+          "id": "",
+          "name": "Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "run_loupe_audit",
+        "description": "Run a Loupe website audit on a URL. Pass the full site URL (e.g. https://example.com) as input. Returns detailed findings about the landing page including issues, impact levels, and suggestions. Takes about 60-90 seconds to complete. Only use this when the post includes a site URL and the person would welcome page feedback.",
+        "jsCode": "const https = require('https');\nconst http = require('http');\nconst url = require('url');\n\nfunction httpsPost(rawUrl, headers, body) {\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const postData = JSON.stringify(body);\n    const req = https.request({ method: 'POST', hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: { ...headers, 'Content-Length': Buffer.byteLength(postData) } }, (res) => {\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { resolve(data); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(60000, () => { req.destroy(); reject(new Error('timeout')); });\n    req.write(postData);\n    req.end();\n  });\n}\n\nfunction httpsGet(rawUrl, headers, _depth) {\n  _depth = _depth || 0;\n  if (_depth > 5) return Promise.reject(new Error('too many redirects'));\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const mod = parsed.protocol === 'http:' ? http : https;\n    const req = mod.get({ hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: headers || {} }, (res) => {\n      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {\n        res.resume();\n        let loc = res.headers.location;\n        if (loc.startsWith('/')) loc = parsed.protocol + '//' + parsed.hostname + loc;\n        return resolve(httpsGet(loc, headers, _depth + 1));\n      }\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(new Error('JSON parse: ' + data.substring(0,200))); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(30000, () => { req.destroy(); reject(new Error('timeout')); });\n  });\n}\n\nconst siteUrl = query.trim();\n\n// Start audit\nconst resp = await httpsPost('https://getloupe.io/api/analyze', {\n  'Content-Type': 'application/json',\n  'x-api-key': $env.LOUPE_API_KEY\n}, { url: siteUrl });\n\nif (!resp || !resp.id) return 'Audit failed: no analysis ID returned. Response: ' + JSON.stringify(resp).substring(0, 200);\n\nconst analysisId = resp.id;\nconst analysisUrl = 'https://getloupe.io/analysis/' + analysisId;\n\n// Poll until complete (max ~2 min)\nfor (let i = 0; i < 12; i++) {\n  await new Promise(r => setTimeout(r, 10000));\n  try {\n    const r = await httpsGet('https://getloupe.io/api/analysis/' + analysisId, {});\n    if (r && r.status === 'complete') {\n      const so = r.structured_output || {};\n      const findings = so.findings || [];\n      const verdict = so.verdict || '';\n      let result = 'AUDIT COMPLETE\\nAnalysis URL: ' + analysisUrl + '\\nVerdict: ' + verdict + '\\n\\nFindings:\\n';\n      findings.slice(0, 5).forEach(function(f, idx) {\n        result += (idx + 1) + '. ' + (f.title || 'Finding') + ' (' + (f.impact || 'medium') + ') - ' + (f.currentValue || f.assumption || '') + '. Suggestion: ' + (f.suggestion || '') + '\\n';\n      });\n      return result;\n    }\n    if (r && (r.status === 'failed' || r.status === 'error')) return 'Audit failed for ' + siteUrl;\n  } catch(e) { /* keep polling */ }\n}\nreturn 'Audit timed out for ' + siteUrl + '. Analysis URL (may complete later): ' + analysisUrl;"
+      },
+      "id": "toolAudit",
+      "name": "Run Loupe Audit",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [1600, 250]
+    },
+    {
+      "parameters": {
+        "name": "search_web",
+        "description": "Search the web for current information. Use this when answering analytics, conversion tracking, or technical questions to provide accurate and up-to-date advice. Pass a search query as input.",
+        "jsCode": "const https = require('https');\nconst url = require('url');\n\nfunction httpsPost(rawUrl, headers, body) {\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const postData = JSON.stringify(body);\n    const req = https.request({ method: 'POST', hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: { ...headers, 'Content-Length': Buffer.byteLength(postData) } }, (res) => {\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { resolve(data); } });\n    });\n    req.on('error', reject);\n    req.setTimeout(30000, () => { req.destroy(); reject(new Error('timeout')); });\n    req.write(postData);\n    req.end();\n  });\n}\n\nconst searchQuery = query.trim();\n\nconst response = await httpsPost('https://api.tavily.com/search', {\n  'Content-Type': 'application/json'\n}, {\n  api_key: $env.TAVILY_API_KEY,\n  query: searchQuery,\n  search_depth: 'basic',\n  max_results: 3,\n  include_answer: true\n});\n\nif (response.answer) return response.answer;\nif (response.results && response.results.length) {\n  return response.results.slice(0, 3).map(function(r) { return r.content; }).join('\\n\\n').substring(0, 1500);\n}\nreturn 'No relevant search results found.';"
+      },
+      "id": "toolSearch",
+      "name": "Search Web",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [1700, 250]
+    },
+    {
+      "parameters": {
+        "name": "send_to_discord",
+        "description": "Send a result to Discord. Pass a JSON string with these fields: comment (the Reddit comment text), sub (subreddit name), score (relevance score), reason (why scored high), title (post title), author (Reddit username), link (Reddit post URL), ageMin (post age in minutes), siteUrl (site URL or null), analysisUrl (Loupe analysis URL or null), verdict (audit verdict or null), action (audit or expert).",
+        "jsCode": "const https = require('https');\nconst url = require('url');\n\nfunction httpsPost(rawUrl, headers, body) {\n  return new Promise((resolve, reject) => {\n    const parsed = new url.URL(rawUrl);\n    const postData = JSON.stringify(body);\n    const req = https.request({ method: 'POST', hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: { ...headers, 'Content-Length': Buffer.byteLength(postData) } }, (res) => {\n      let data = '';\n      res.on('data', c => data += c);\n      res.on('end', () => resolve(data));\n    });\n    req.on('error', reject);\n    req.setTimeout(30000, () => { req.destroy(); reject(new Error('timeout')); });\n    req.write(postData);\n    req.end();\n  });\n}\n\nconst DISCORD_WEBHOOK = $env.DISCORD_WEBHOOK_URL;\n\nlet data;\ntry { data = JSON.parse(query); } catch(e) { return 'Failed to parse input JSON: ' + e.message; }\n\nconst { comment, sub, score, reason, title, author, link, ageMin, siteUrl, analysisUrl, verdict, action } = data;\n\nconst ageLabel = ageMin < 60 ? ageMin + 'm ago' : Math.round(ageMin / 60) + 'h ago';\nconst tag = action === 'audit' ? '\\uD83D\\uDD0D Audit' : '\\uD83D\\uDCA1 Expert';\n\nlet desc = '**' + title + '**\\n\\n';\nif (siteUrl) desc += '**Site:** ' + siteUrl + '\\n\\n';\ndesc += '**Suggested Comment:**\\n```' + comment.substring(0, 800) + '```';\n\nconst fields = [\n  { name: 'Type', value: tag, inline: true },\n  { name: 'Why', value: reason || '-', inline: true },\n  { name: 'By', value: 'u/' + author, inline: true },\n  { name: 'Posted', value: ageLabel, inline: true }\n];\n\nif (analysisUrl) fields.push({ name: 'Analysis', value: analysisUrl, inline: false });\nif (verdict) fields.push({ name: 'Verdict', value: String(verdict).substring(0, 100), inline: false });\n\nconst embed = {\n  title: 'r/' + sub + ' (' + score + '/10)',\n  description: desc.substring(0, 1500),\n  url: link,\n  color: action === 'audit' ? 5763719 : 3447003,\n  fields: fields\n};\n\nawait httpsPost(DISCORD_WEBHOOK, { 'Content-Type': 'application/json' }, { embeds: [embed] });\nreturn 'Sent to Discord successfully.';"
+      },
+      "id": "toolDiscord",
+      "name": "Send to Discord",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [1800, 250]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ `Subreddit: r/${$json.sub}\nRelevance score: ${$json.score}/10 (${$json.reason})\nTitle: ${$json.ttl}\nBody: ${$json.fullTxt || $json.txt || '(link post)'}\nSite URL: ${$json.siteUrl || 'none'}\nReddit post link: ${$json.link}\nAuthor: u/${$json.auth}\nPost age: ${$json.ageMin} minutes\n\nDecide your approach, use tools as needed, generate a comment, and send to Discord.` }}",
+        "options": {
+          "systemMessage": "You are a founder who builds and ships software. You made getloupe.io, which audits websites and connects changes to metrics. You help other founders on Reddit with genuine, specific advice.\n\nFor each Reddit post you receive, decide your approach:\n\n1. IF the post includes a site URL and the person wants feedback on their site:\n   - Use the run_loupe_audit tool with their URL\n   - Write a comment using the REAL findings from the audit\n   - Include the analysis link naturally\n   - Then send to Discord with action \"audit\"\n\n2. IF the post is about analytics, conversion, tracking, or \"why did my metrics change\":\n   - Use the search_web tool if you need current or specific info\n   - Write a helpful expert comment\n   - Mention getloupe.io ONLY if genuinely relevant (most times it won't be)\n   - Then send to Discord with action \"expert\"\n\n3. IF the post is a general founder question where you can genuinely help:\n   - Just write a helpful comment based on your expertise\n   - Don't force getloupe.io into the conversation\n   - Then send to Discord with action \"expert\"\n\nAfter generating the comment, ALWAYS use the send_to_discord tool with a JSON string containing:\n- comment: your Reddit comment text\n- sub: the subreddit name from the input\n- score: the relevance score from the input\n- reason: the score reason from the input\n- title: the post title from the input\n- author: the post author from the input\n- link: the Reddit post link from the input\n- ageMin: the post age in minutes from the input\n- siteUrl: the site URL from the input (or null)\n- analysisUrl: the Loupe analysis URL if you ran an audit (or null)\n- verdict: the audit verdict if you ran an audit (or null)\n- action: \"audit\" or \"expert\"\n\nVOICE RULES:\n- Direct and real. You want them to succeed, which means telling them what actually matters.\n- Lead with whatever stands out most about their page, good or bad. If the headline is great, say so. If the page title is a default, say that.\n- Peer energy. You're a founder who ships too, not a consultant.\n- If the page is early or bare, say so honestly. Don't pretend it's further along than it is.\n\nCASING RULES:\n- Capitalize first word of every sentence and people's names.\n- Everything else lowercase: \"getloupe.io\", \"posthog\", \"google analytics\", \"lovable\".\n\nFOR AUDIT COMMENTS:\n- Lead with whatever the audit data says matters most. Could be a strength, could be a problem.\n- If there's nothing genuinely impressive, don't manufacture a compliment.\n- Reference actual elements on THEIR page.\n- Structure: lead with the biggest finding explained. Then tease one more finding without explaining it to create curiosity about the full breakdown.\n- Natural mention: \"I ran it through getloupe.io, here's the full breakdown: {analysisUrl}\" followed by a tease like \"the [specific thing from audit] is worth looking at too.\"\n- NEVER mention mobile experience or responsive design. The audit is desktop-only.\n- You can only see the page visually. You cannot click, scroll, or test functionality. Do not comment on how the app \"works\" or \"runs smoothly.\" Only comment on what is visible on the page.\n- ONLY reference findings from the audit data. Do not make up observations.\n- MAX 80 WORDS.\n\nFOR EXPERT COMMENTS:\n- Answer their actual question with real knowledge.\n- If search context was found, use it for accuracy but don't cite source URLs.\n- Only mention getloupe.io if the person would genuinely benefit from site monitoring.\n- MAX 70 WORDS.\n\nNEVER:\n- Make up founder stories or personal anecdotes\n- Say \"Pro tip:\" or \"This.\"\n- Use emojis\n- Use em dashes, colons, semicolons, or parentheses. Only periods and commas.\n- Give generic advice like \"add social proof\" without referencing their specific situation."
+        }
+      },
+      "id": "agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1650, 0]
+    },
+    {
+      "parameters": {},
+      "id": "done",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1900, 0]
+    }
+  ],
+  "connections": {
+    "Every 30 Min": {
+      "main": [[{ "node": "Subreddits", "type": "main", "index": 0 }]]
+    },
+    "Subreddits": {
+      "main": [[{ "node": "Tokyo Time Check", "type": "main", "index": 0 }]]
+    },
+    "Tokyo Time Check": {
+      "main": [[{ "node": "Fetch Reddit", "type": "main", "index": 0 }]]
+    },
+    "Fetch Reddit": {
+      "main": [[{ "node": "Parse Posts", "type": "main", "index": 0 }]]
+    },
+    "Parse Posts": {
+      "main": [[{ "node": "Deduplicate", "type": "main", "index": 0 }]]
+    },
+    "Deduplicate": {
+      "main": [[{ "node": "AI Score (Haiku Thinking)", "type": "main", "index": 0 }]]
+    },
+    "AI Score (Haiku Thinking)": {
+      "main": [[{ "node": "Filter & Save", "type": "main", "index": 0 }]]
+    },
+    "Filter & Save": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Run Loupe Audit": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Search Web": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Send to Discord": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "AI Agent": {
+      "main": [[{ "node": "Done", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

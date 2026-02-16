@@ -347,7 +347,7 @@ export function DossierSidebar({
                   : "This page will change."}
               </p>
               <p className="dossier-sidebar-claim-sub">
-                Your next deploy could change that number.
+                Loupe re-scans after every deploy and tells you if it worked.
               </p>
               <form onSubmit={claimCTA.onSubmit} className="dossier-sidebar-claim-form">
                 <input
@@ -364,14 +364,14 @@ export function DossierSidebar({
                   disabled={claimCTA.loading}
                   className="btn-primary w-full text-sm py-2"
                 >
-                  {claimCTA.loading ? "..." : "Track this page \u2014 free"}
+                  {claimCTA.loading ? "..." : "Start watching \u2014 free"}
                 </button>
               </form>
               {claimCTA.error && (
                 <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>{claimCTA.error}</p>
               )}
               <p className="dossier-sidebar-claim-trust">
-                14-day Pro: daily scans + deploy alerts.
+                Free for one page. We scan daily during your 14-day trial.
                 <br />
                 <strong>No credit card.</strong>
               </p>

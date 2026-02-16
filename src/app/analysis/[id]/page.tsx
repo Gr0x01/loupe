@@ -652,7 +652,7 @@ function StickyClaimBar({
             disabled={loading}
             className="btn-primary"
           >
-            {loading ? "..." : "Claim this page"}
+            {loading ? "..." : "Start watching"}
           </button>
         </form>
       </div>
@@ -1685,22 +1685,22 @@ export default function AnalysisPage() {
               <div className="claim-bottom-grid">
                 {/* Left: headline + subhead */}
                 <div>
-                  <p className="claim-bottom-label">Your next move</p>
+                  <p className="claim-bottom-label">This audit is a snapshot.</p>
                   <h2
                     className="claim-bottom-headline"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {s.findings && s.findings.length > 0
-                      ? <>Next time &ldquo;{s.findings[0].title}&rdquo; breaks, will you&nbsp;know?</>
-                      : "These findings expire the moment something changes."}
+                      ? <>You&apos;re about to fix &ldquo;{s.findings[0].title}&rdquo;. Will you know if it&nbsp;worked?</>
+                      : "Something on this page will change. You should know when it does."}
                   </h2>
                   <p className="claim-bottom-sub">
-                    Claim this page and we&apos;ll track every change — then show you what it did to your metrics. Free to start, no credit card.
+                    Loupe watches your page after you make changes. A week later, you&apos;ll see whether it helped or hurt your numbers. No more guessing.
                   </p>
                   <div className="claim-bottom-badges">
-                    <span className="claim-bottom-badge claim-bottom-badge-blue">Daily scans</span>
-                    <span className="claim-bottom-badge claim-bottom-badge-emerald">Deploy alerts</span>
-                    <span className="claim-bottom-badge claim-bottom-badge-violet">14-day Pro trial</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-blue">Before/after on every change</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-emerald">See what helped your numbers</span>
+                    <span className="claim-bottom-badge claim-bottom-badge-violet">Free for one page</span>
                   </div>
                 </div>
 
@@ -1720,7 +1720,7 @@ export default function AnalysisPage() {
                       disabled={claimLoading}
                       className="btn-primary w-full"
                     >
-                      {claimLoading ? "Sending..." : "Claim this page"}
+                      {claimLoading ? "Sending..." : "Start watching"}
                     </button>
                   </form>
 
@@ -1730,7 +1730,7 @@ export default function AnalysisPage() {
 
                   {!claimError && (
                     <p className="claim-bottom-trust">
-                      Free forever on one page · No credit card
+                      Free for one page · No credit card
                     </p>
                   )}
                 </div>
