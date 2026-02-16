@@ -36,35 +36,13 @@ export async function GET(req: NextRequest) {
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
 
-    // Check if Inngest already ran today's daily scans
-    const { count: existingCount } = await supabase
-      .from("analyses")
-      .select("id", { count: "exact", head: true })
-      .eq("trigger_type", "daily")
-      .gte("created_at", todayStart.toISOString());
-
-    if (existingCount && existingCount > 0) {
-      // Inngest did its job — just re-sync to prevent future drift
-      await resyncInngest();
-      Sentry.captureCheckIn({ checkInId, monitorSlug: "daily-scans-cron", status: "ok" });
-      await Sentry.flush(2000);
-      return NextResponse.json({
-        status: "ok",
-        message: `Inngest ran normally — ${existingCount} daily scans already exist`,
-        selfHealed: false,
-      });
-    }
-
-    // Inngest missed today's scans — self-heal
-    Sentry.captureMessage("Daily scan cron missed by Inngest — Vercel backup self-healing", {
-      level: "warning",
-      tags: { function: "vercel-cron-daily-scans" },
-    });
+    // Always run full logic — per-page idempotency handles deduplication.
+    // This prevents partial failures where Inngest scanned some users but not all.
 
     // Get all non-manual pages (same as Inngest cron — enforce tier at runtime)
     const { data: allPages, error } = await supabase
       .from("pages")
-      .select("id, user_id, url, last_scan_id, created_at")
+      .select("id, user_id, url, last_scan_id, created_at, scan_frequency")
       .neq("scan_frequency", "manual");
 
     if (error) {
@@ -119,13 +97,13 @@ export async function GET(req: NextRequest) {
       console.warn(`Daily cron: ${missingProfileUsers.length} user(s) have pages but no profile row — skipping their scans`);
     }
 
-    // Filter to daily-frequency users only + enforce page limits
+    // Filter to daily-frequency pages: tier must allow daily AND page not set to weekly
     const userPageCounts = new Map<string, number>();
     const pages = allPages
       .filter((page) => {
         const tier = tierMap.get(page.user_id);
         if (!tier) return false;
-        return getAllowedScanFrequency(tier) === "daily";
+        return getAllowedScanFrequency(tier) === "daily" && page.scan_frequency !== "weekly";
       })
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       .filter((page) => {
@@ -137,8 +115,9 @@ export async function GET(req: NextRequest) {
         return true;
       });
 
-    // Create analyses and trigger Inngest events
+    // Create analyses and trigger Inngest events (per-page idempotency)
     const triggered: { id: string; url: string }[] = [];
+    let alreadyExisted = 0;
 
     for (const page of pages) {
       // Idempotency: skip if already exists for this URL + user + today
@@ -150,7 +129,10 @@ export async function GET(req: NextRequest) {
         .eq("trigger_type", "daily")
         .gte("created_at", todayStart.toISOString());
 
-      if (count && count > 0) continue;
+      if (count && count > 0) {
+        alreadyExisted++;
+        continue;
+      }
 
       const { data: newAnalysis } = await supabase
         .from("analyses")
@@ -177,6 +159,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Report self-healing to Sentry if we had to backfill any scans
+    const selfHealed = triggered.length > 0;
+    if (selfHealed) {
+      Sentry.captureMessage("Daily scan cron: Vercel backup self-healed missing scans", {
+        level: "warning",
+        tags: { function: "vercel-cron-daily-scans" },
+        extra: { backfilled: triggered.length, alreadyExisted },
+      });
+    }
+
     // Re-sync Inngest to prevent future drift
     await resyncInngest();
 
@@ -184,9 +176,11 @@ export async function GET(req: NextRequest) {
     await Sentry.flush(2000);
 
     return NextResponse.json({
-      status: "self-healed",
-      message: `Inngest missed daily scans — triggered ${triggered.length} scans`,
-      selfHealed: true,
+      status: selfHealed ? "self-healed" : "ok",
+      message: selfHealed
+        ? `Backfilled ${triggered.length} scans (${alreadyExisted} already existed)`
+        : `All ${alreadyExisted} daily scans already existed`,
+      selfHealed,
       triggered,
     });
   } catch (err) {

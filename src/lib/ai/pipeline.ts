@@ -946,7 +946,7 @@ function formatChangeHypotheses(hypotheses: Array<{ element: string; hypothesis:
  * Extract JSON from an LLM response that may contain markdown code blocks or text preamble.
  * Falls back to brace-matching when regex fails (e.g., truncated responses missing closing ```).
  */
-function extractJson(text: string): string {
+export function extractJson(text: string): string {
   // 1. Try markdown code block extraction
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch?.[1]) {
@@ -977,7 +977,7 @@ function extractJson(text: string): string {
  * Extract substring from startIdx to the matching closing brace,
  * handling strings and escapes. Falls back to slice-to-end if no match.
  */
-function extractMatchingBraces(text: string, startIdx: number): string {
+export function extractMatchingBraces(text: string, startIdx: number): string {
   let depth = 0;
   let inString = false;
   let escaped = false;
@@ -1005,7 +1005,7 @@ function extractMatchingBraces(text: string, startIdx: number): string {
  * Attempt to close truncated JSON by counting unmatched braces/brackets.
  * Strips the last incomplete value, then appends closing tokens.
  */
-function closeJson(json: string): string {
+export function closeJson(json: string): string {
   // Strip trailing incomplete string (e.g., "some truncated valu)
   let trimmed = json.replace(/,\s*"[^"]*$/, "");  // trailing incomplete key
   trimmed = trimmed.replace(/,\s*$/, "");           // trailing comma

@@ -1215,10 +1215,10 @@ async function runScheduledScans(
   try {
     const supabase = createServiceClient();
 
-    // Get all non-manual pages (we enforce frequency by tier, not stored column)
+    // Get all non-manual pages
     const { data: allPages, error } = await supabase
       .from("pages")
-      .select("id, user_id, url, last_scan_id, created_at")
+      .select("id, user_id, url, last_scan_id, created_at, scan_frequency")
       .neq("scan_frequency", "manual");
 
     if (error) {
@@ -1265,11 +1265,18 @@ async function runScheduledScans(
       console.warn(`${frequency} cron: ${missingProfileUsers.length} user(s) have pages but no profile row — skipping their scans`);
     }
 
-    // Filter pages: only include users whose allowed frequency matches this cron
+    // Filter pages: tier frequency + page-level frequency must both agree
     const frequencyFiltered = allPages.filter((page) => {
       const tier = tierMap.get(page.user_id);
       if (!tier) return false;
-      return getAllowedScanFrequency(tier) === frequency;
+      const allowedFreq = getAllowedScanFrequency(tier);
+
+      if (frequency === "daily") {
+        // Daily cron: tier must allow daily AND page must not be set to weekly
+        return allowedFreq === "daily" && page.scan_frequency !== "weekly";
+      }
+      // Weekly cron: tier forces weekly, OR paid user explicitly set page to weekly
+      return allowedFreq === "weekly" || page.scan_frequency === "weekly";
     });
 
     // Enforce page limits per user: sort by created_at asc, take first N

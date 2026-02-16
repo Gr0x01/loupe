@@ -17,105 +17,124 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const checkInId = Sentry.captureCheckIn({
+    monitorSlug: "checkpoints-cron",
+    status: "in_progress",
+  });
+
   const supabase = createServiceClient();
   const now = new Date();
 
-  // Fetch non-reverted changes that are at least 7 days old
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  try {
+    // Fetch non-reverted changes that are at least 7 days old
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const { data: candidates, error: candidatesError } = await supabase
-    .from("detected_changes")
-    .select("id, first_detected_at")
-    .in("status", ["watching", "validated", "regressed", "inconclusive"])
-    .lte("first_detected_at", sevenDaysAgo.toISOString());
+    const { data: candidates, error: candidatesError } = await supabase
+      .from("detected_changes")
+      .select("id, first_detected_at")
+      .in("status", ["watching", "validated", "regressed", "inconclusive"])
+      .lte("first_detected_at", sevenDaysAgo.toISOString());
 
-  if (candidatesError) {
-    Sentry.captureException(candidatesError, {
-      tags: { function: "vercel-cron-checkpoints" },
-      extra: { step: "fetch-candidates" },
-    });
-    await Sentry.flush(2000);
-    return NextResponse.json(
-      { error: "Failed to fetch checkpoint candidates" },
-      { status: 500 }
-    );
-  }
-
-  if (!candidates?.length) {
-    await resyncInngest();
-    return NextResponse.json({
-      status: "ok",
-      message: "No eligible changes for checkpoints",
-      selfHealed: false,
-    });
-  }
-
-  // Check which candidates actually have due horizons (missing checkpoints)
-  const candidateIds = candidates.map((c) => c.id);
-  const existingByChange = new Map<string, number[]>();
-
-  // Batch checkpoint lookups (Supabase IN has practical limits)
-  for (let i = 0; i < candidateIds.length; i += 300) {
-    const batch = candidateIds.slice(i, i + 300);
-    const { data: existingCps, error: existingError } = await supabase
-      .from("change_checkpoints")
-      .select("change_id, horizon_days")
-      .in("change_id", batch);
-
-    if (existingError) {
-      Sentry.captureException(existingError, {
+    if (candidatesError) {
+      Sentry.captureException(candidatesError, {
         tags: { function: "vercel-cron-checkpoints" },
-        extra: { step: "fetch-existing-checkpoints", batchSize: batch.length },
+        extra: { step: "fetch-candidates" },
       });
+      Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "error" });
       await Sentry.flush(2000);
       return NextResponse.json(
-        { error: "Failed to fetch existing checkpoints" },
+        { error: "Failed to fetch checkpoint candidates" },
         { status: 500 }
       );
     }
 
-    for (const cp of existingCps || []) {
-      const arr = existingByChange.get(cp.change_id) || [];
-      arr.push(cp.horizon_days);
-      existingByChange.set(cp.change_id, arr);
+    if (!candidates?.length) {
+      await resyncInngest();
+      Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "ok" });
+      await Sentry.flush(2000);
+      return NextResponse.json({
+        status: "ok",
+        message: "No eligible changes for checkpoints",
+        selfHealed: false,
+      });
     }
-  }
 
-  let dueCount = 0;
-  for (const c of candidates) {
-    const existing = existingByChange.get(c.id) || [];
-    const due = getEligibleHorizons(new Date(c.first_detected_at), now, existing);
-    if (due.length > 0) dueCount++;
-  }
+    // Check which candidates actually have due horizons (missing checkpoints)
+    const candidateIds = candidates.map((c) => c.id);
+    const existingByChange = new Map<string, number[]>();
 
-  if (dueCount === 0) {
-    // All eligible changes have their due horizons computed
-    await resyncInngest();
-    return NextResponse.json({
-      status: "ok",
-      message: `No horizons due (${candidates.length} changes checked, all up to date)`,
-      selfHealed: false,
+    // Batch checkpoint lookups (Supabase IN has practical limits)
+    for (let i = 0; i < candidateIds.length; i += 300) {
+      const batch = candidateIds.slice(i, i + 300);
+      const { data: existingCps, error: existingError } = await supabase
+        .from("change_checkpoints")
+        .select("change_id, horizon_days")
+        .in("change_id", batch);
+
+      if (existingError) {
+        Sentry.captureException(existingError, {
+          tags: { function: "vercel-cron-checkpoints" },
+          extra: { step: "fetch-existing-checkpoints", batchSize: batch.length },
+        });
+        Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "error" });
+        await Sentry.flush(2000);
+        return NextResponse.json(
+          { error: "Failed to fetch existing checkpoints" },
+          { status: 500 }
+        );
+      }
+
+      for (const cp of existingCps || []) {
+        const arr = existingByChange.get(cp.change_id) || [];
+        arr.push(cp.horizon_days);
+        existingByChange.set(cp.change_id, arr);
+      }
+    }
+
+    let dueCount = 0;
+    for (const c of candidates) {
+      const existing = existingByChange.get(c.id) || [];
+      const due = getEligibleHorizons(new Date(c.first_detected_at), now, existing);
+      if (due.length > 0) dueCount++;
+    }
+
+    if (dueCount === 0) {
+      // All eligible changes have their due horizons computed
+      await resyncInngest();
+      Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "ok" });
+      await Sentry.flush(2000);
+      return NextResponse.json({
+        status: "ok",
+        message: `No horizons due (${candidates.length} changes checked, all up to date)`,
+        selfHealed: false,
+      });
+    }
+
+    // Due horizons remain — self-heal
+    Sentry.captureMessage("Checkpoint cron: due horizons remain — Vercel backup self-healing", {
+      level: "warning",
+      tags: { function: "vercel-cron-checkpoints" },
+      extra: { dueCount, candidatesChecked: candidates.length },
     });
+
+    await inngest.send({ name: "checkpoints/run" });
+
+    await resyncInngest();
+    Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "ok" });
+    await Sentry.flush(2000);
+
+    return NextResponse.json({
+      status: "self-healed",
+      message: `Triggered checkpoint run (${dueCount} changes with due horizons)`,
+      selfHealed: true,
+    });
+  } catch (err) {
+    Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "error" });
+    Sentry.captureException(err, { tags: { function: "vercel-cron-checkpoints" } });
+    await Sentry.flush(2000);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
-
-  // Due horizons remain — self-heal
-  Sentry.captureMessage("Checkpoint cron: due horizons remain — Vercel backup self-healing", {
-    level: "warning",
-    tags: { function: "vercel-cron-checkpoints" },
-    extra: { dueCount, candidatesChecked: candidates.length },
-  });
-
-  await inngest.send({ name: "checkpoints/run" });
-
-  await resyncInngest();
-  await Sentry.flush(2000);
-
-  return NextResponse.json({
-    status: "self-healed",
-    message: `Triggered checkpoint run (${dueCount} changes with due horizons)`,
-    selfHealed: true,
-  });
 }
 
 async function resyncInngest() {
