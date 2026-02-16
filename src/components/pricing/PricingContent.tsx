@@ -301,31 +301,17 @@ function PricingContent() {
                         : "border-line-subtle border-dashed shadow-none order-last sm:order-none"
                   }`}
                 >
-                  {/* Badge area */}
-                  <div className="h-5 mb-2 flex items-center">
-                    {isCurrent && (
-                      <span className="text-[11px] font-semibold text-emerald uppercase tracking-wider">
-                        Current plan
-                      </span>
-                    )}
-                    {!isCurrent && isPro && (
-                      <span className="text-[11px] font-semibold text-signal uppercase tracking-wider">
-                        Most popular
-                      </span>
-                    )}
-                    {!isCurrent && isScale && (
-                      <span className="text-[11px] font-semibold text-emerald uppercase tracking-wider">
-                        90-day impact follow-up
-                      </span>
-                    )}
-                  </div>
-
                   {/* Name + tagline */}
                   <h3
                     className="text-lg font-bold text-ink-900"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {info.name}
+                    {isCurrent && (
+                      <span className="text-[11px] font-normal text-emerald uppercase tracking-wider ml-2">
+                        Current plan
+                      </span>
+                    )}
                   </h3>
                   <p className="text-sm text-ink-500 mt-0.5">
                     {TIER_TAGLINE[tier]}
