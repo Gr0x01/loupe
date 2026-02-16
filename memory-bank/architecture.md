@@ -220,14 +220,33 @@ change_checkpoints (
   window_before_end timestamptz NOT NULL,
   window_after_start timestamptz NOT NULL,
   window_after_end timestamptz NOT NULL,
-  metrics_json jsonb NOT NULL DEFAULT '{}',  -- Same shape as CorrelationMetrics.metrics
+  metrics_json jsonb NOT NULL DEFAULT '{}',  -- Structured evidence (metrics array + overall assessment)
   assessment text NOT NULL,               -- improved | regressed | neutral | inconclusive
-  provider text NOT NULL DEFAULT 'none',  -- posthog | ga4 | supabase | none
+  confidence numeric NOT NULL DEFAULT 0,  -- 0.0-1.0, from LLM assessment (Phase 4)
+  reasoning text,                         -- LLM explanation of assessment (Phase 4)
+  data_sources text[] NOT NULL DEFAULT '{}', -- providers consulted: ['posthog', 'supabase'] (Phase 4)
+  provider text NOT NULL DEFAULT 'none',  -- primary provider: posthog | ga4 | supabase | none
   computed_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(change_id, horizon_days)
 )
 -- Indexes: change_id, computed_at, horizon_days
 -- Immutable: one row per change per horizon, computed once
+-- Phase 4 added: confidence, reasoning, data_sources for LLM-as-analyst assessment
+
+outcome_feedback (
+  id uuid PK default gen_random_uuid(),
+  checkpoint_id uuid NOT NULL FK change_checkpoints ON DELETE CASCADE,
+  change_id uuid NOT NULL FK detected_changes ON DELETE CASCADE,
+  user_id uuid NOT NULL,
+  feedback_type text NOT NULL,            -- 'accurate' | 'inaccurate'
+  feedback_text text CHECK (char_length(feedback_text) <= 500),  -- free-form correction
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(checkpoint_id, user_id)          -- one feedback per checkpoint per user
+)
+-- Trigger: check_outcome_feedback_integrity() enforces checkpoint belongs to change (DB-level)
+-- RLS: SELECT only (user_id = auth.uid()). No INSERT/UPDATE/DELETE policy — writes via service client only
+-- Phase 5: user feedback on resolved outcomes for LLM calibration
 
 tracked_suggestions (
   id uuid PK default gen_random_uuid(),
@@ -356,6 +375,9 @@ Output:
 - `formatChangeHypotheses(hypotheses)` — Formats change hypotheses for LLM context (with prompt injection protection)
 - `formatWatchingCandidates(candidates)` — Formats active watching changes for LLM linkage proposals (with `<watching_candidates_data>` boundary tags, prompt injection protection, max 20 candidates)
 - `validateMatchProposal(change, candidateIds, candidateScopes)` — Deterministic 3-gate validation of LLM-proposed change matches: (1) candidate set membership, (2) confidence >= 0.70, (3) scope compatibility. Returns `MatchProposal` with `accepted` boolean and optional `rejection_reason`.
+- `formatCheckpointTimeline(checkpoints)` — Compresses multi-horizon checkpoint evidence into prompt context for strategy LLM (Phase 3)
+- `runStrategyNarrative(context)` — Lightweight text-only LLM call for narrative generation. Runs inline in checkpoint job, non-fatal with deterministic `formatCheckpointObservation()` fallback (Phase 3)
+- `runCheckpointAssessment(context)` — LLM acts as product analyst for checkpoint evaluation. Receives change details, metric data, prior checkpoints, hypothesis, page focus, user feedback. Returns assessment + confidence + reasoning + evidence summary. Gemini 3 Pro, 3 attempts with backoff (Phase 4)
 
 Model: `gemini-3-pro-preview` (will update ID when it exits preview).
 
@@ -806,10 +828,12 @@ Inngest cron registrations go stale after Vercel deploys, causing cron functions
 **Config:** `vercel.json` — `GET /api/cron/daily-scans` at `15 9 * * *`
 **Auth:** `CRON_SECRET` env var (Vercel sends `Authorization: Bearer <CRON_SECRET>`)
 **Behavior:**
-1. Checks if any daily analyses exist for today
-2. If yes → re-syncs Inngest (`PUT /api/inngest`) and returns
-3. If no → fires Sentry warning, creates analyses, triggers Inngest events, re-syncs
-4. Per-page idempotency guard prevents duplicates
+1. Always runs full per-page logic (no early exit — catches partial Inngest failures)
+2. Per-page idempotency guard skips pages already scanned today
+3. Respects both tier frequency AND page-level `scan_frequency` (daily cron skips pages set to "weekly")
+4. Reports backfill count vs already-existed count; Sentry warning only when self-healing
+5. Re-syncs Inngest (`PUT /api/inngest`) on every run
+6. Sentry cron monitor: `daily-scans-cron` (in_progress → ok/error lifecycle)
 
 ### Functions
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts), concurrency: 4 (prevents screenshot service 429s when daily scans fire simultaneously). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
@@ -817,7 +841,7 @@ Inngest cron registrations go stale after Vercel deploys, causing cron functions
 - `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. Backed up by Vercel Cron at 9:15 UTC. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
 - `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), fetches watching candidates for fingerprint matching, runs quick Haiku diff against stable baseline with candidates. If stale/missing baseline → full analysis. If changes detected → fingerprint-aware upsert (matched changes update existing rows, unmatched create new rows with proposal metadata), sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
-- `check-correlations` — cron (every 6h), finds watching changes with 7+ days data, queries analytics with absolute date windows, updates status to validated/regressed/inconclusive, sends correlationUnlockedEmail if improved
+- `run-checkpoints` — daily cron (10:30 UTC), replaces `check-correlations`. Evaluates watching changes at 5 horizons (D+7/14/30/60/90). Gathers all connected data (PostHog, GA4, Supabase), runs LLM assessment pass per checkpoint, writes immutable `change_checkpoints` rows, applies status transitions via `resolveStatusTransition()`, writes lifecycle events, recomposes affected read models + strategy narrative. Batched queries (500 changes/batch, 300 IDs per `.in()`). Provider init try/catch (analytics failure doesn't abort run). Vercel Cron backup at `/api/cron/checkpoints` (10:45 UTC) with dual event trigger.
 - `screenshot-health-check` — cron (every 30 min), pings screenshot service, reports to Sentry if unreachable. Sentry alert rule "Screenshot Service Down" (ID: 16691420) triggers on `service:screenshot` tag.
 
 ## File Structure
@@ -851,6 +875,8 @@ src/
 │   │   │   └── posthog/            # PostHog connect/disconnect
 │   │   ├── webhooks/github/route.ts # GitHub push webhook receiver
 │   │   ├── cron/daily-scans/route.ts  # Vercel Cron backup for daily scans (9:15 UTC)
+│   │   ├── cron/checkpoints/route.ts # Vercel Cron backup for checkpoint engine (10:45 UTC)
+│   │   ├── feedback/outcome/route.ts # POST: outcome feedback on resolved changes
 │   │   ├── sentry-tunnel/route.ts    # Sentry envelope proxy (ad blocker bypass)
 │   │   ├── dev/email-preview/route.ts # Dev-only email template preview
 │   │   └── inngest/route.ts        # Inngest serve
@@ -881,7 +907,16 @@ src/
 │   │   ├── resend.ts               # Resend client wrapper
 │   │   └── templates.ts            # HTML email templates
 │   ├── ai/
-│   │   └── pipeline.ts             # LLM analysis (Gemini 3 Pro vision)
+│   │   └── pipeline.ts             # LLM analysis (Gemini 3 Pro vision) + checkpoint assessment + strategy narrative
+│   ├── analysis/
+│   │   ├── baseline.ts             # getStableBaseline (3-tier fallback)
+│   │   └── progress.ts             # composeProgressFromCanonicalState, getLastCanonicalProgress, formatMetricFriendlyText
+│   ├── analytics/
+│   │   ├── checkpoints.ts          # getEligibleHorizons, computeWindows, assessCheckpoint (fallback), resolveStatusTransition
+│   │   └── __tests__/checkpoints.test.ts  # 33 unit tests
+│   ├── utils/
+│   │   ├── attribution.ts          # formatOutcomeText() — confidence-banded attribution (returns string|null)
+│   │   └── __tests__/attribution.test.ts  # 15 attribution tests
 │   └── inngest/
 │       ├── client.ts               # Inngest client
 │       └── functions.ts            # analysis/created handler + email notifications
@@ -1026,7 +1061,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 |----------|---------|---------|
 | `deploy-detected` | `deploy/detected` event | Lightweight Haiku diff, creates detected_changes |
 | `analyze-url` | `analysis/created` event | Full analysis, sets stable_baseline_id for daily/weekly |
-| `check-correlations` | Cron every 6h | Queries analytics for 7+ day old watching changes |
+| `run-checkpoints` | Cron 10:30 UTC | Multi-horizon checkpoint evaluation (replaces check-correlations) |
 | `daily-scan-digest` | Cron 11am UTC | Consolidated email for daily/weekly scans |
 
 ### Edge Cases Handled
@@ -1312,26 +1347,71 @@ STRIPE_PRICE_SCALE_ANNUAL=price_...
 
 ## Canonical Change Intelligence (RFC-0001)
 
-Multi-horizon checkpoint system that replaces the single 7-day correlation model. Changes are evaluated at 7/14/30/60/90 day horizons with deterministic state transitions.
+Multi-horizon checkpoint system that replaces the single 7-day correlation model. Changes are evaluated at D+7/14/30/60/90 horizons with LLM-as-analyst assessment, deterministic guardrails, and user feedback calibration.
 
-### Schema (Phase 2 — Data Contracts)
+**Full RFC:** `memory-bank/projects/loupe-canonical-change-intelligence-rfc.md`
 
-Three new tables + provenance fields on `detected_changes`:
+### Architecture (4 Components)
 
-1. **`change_checkpoints`** — Immutable per-change horizon outcomes. One row per change per horizon day. Stores before/after window boundaries, metrics JSON, and assessment. Idempotent via `UNIQUE(change_id, horizon_days)`.
+1. **Detection LLM** — Normalized change candidates (what changed, where, confidence)
+2. **State Orchestrator** (deterministic) — Canonical upserts, status transitions, idempotency
+3. **Assessment LLM** — Checkpoint evaluation at D+7/14/30/60/90. Receives all connected data (PostHog, GA4, Supabase, prior checkpoints, hypothesis, page focus, user feedback). Returns assessment + confidence + reasoning + evidence.
+4. **Strategy LLM** — Narrative outputs (summary, observations, next actions). Runs after assessment.
 
-2. **`tracked_suggestions`** — Persistent suggestions that survive across scans. Tracks `times_suggested` (incremented when LLM resurfaces same suggestion), status lifecycle (open → addressed/dismissed). RLS enabled.
+### Source-of-Truth Contract
 
-3. **`change_lifecycle_events`** — Immutable audit log of every status transition on `detected_changes`. Links to checkpoint evidence. System-only (no RLS).
+- Canonical lifecycle state lives in `detected_changes`
+- Checkpoint evidence lives in `change_checkpoints` (LLM assessment + reasoning + confidence + data sources)
+- `changes_summary.progress` is derived from canonical DB counts (via `composeProgressFromCanonicalState()`)
+- LLM writes both assessments and narrative; code enforces guardrails; user feedback calibrates
 
-4. **Provenance fields on `detected_changes`** — `matched_change_id`, `match_confidence`, `match_rationale`, `fingerprint_version`. Used in Phase 3 for LLM-based change identity matching.
+### Schema
+
+New tables (see schema section above for full column definitions):
+1. **`change_checkpoints`** — Immutable per-change horizon outcomes. `UNIQUE(change_id, horizon_days)`. Stores LLM assessment, confidence, reasoning, data sources, metric evidence, before/after windows.
+2. **`tracked_suggestions`** — Persistent suggestions that survive across scans. `times_suggested` counter, status lifecycle (open → addressed/dismissed). RLS enabled.
+3. **`change_lifecycle_events`** — Immutable audit log of status transitions. Links to checkpoint evidence. System-only.
+4. **`outcome_feedback`** — User thumbs up/down on resolved outcomes. Trigger-enforced checkpoint↔change integrity. API-only writes.
+
+### Checkpoint Transition Policy
+
+- **Before D+7**: Status remains `watching`. No assessment.
+- **D+7, D+14**: LLM assessment pass. CAN resolve if evidence is strong and clear.
+- **D+30**: Primary decision horizon. Most changes resolve here.
+- **D+60, D+90**: Confirmation or reversal. LLM sees full trajectory.
+- **Code guardrails**: `reverted` is terminal. Changes < 7 days can't resolve. Idempotent writes.
+- **Tier gating**: Pro gets D+7/14/30, Scale gets D+7/14/30/60/90 (`maxHorizonDays` in permissions)
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/analysis/progress.ts` | `composeProgressFromCanonicalState()`, `getLastCanonicalProgress()`, `formatMetricFriendlyText()` |
+| `src/lib/analytics/checkpoints.ts` | `getEligibleHorizons()`, `computeWindows()`, `assessCheckpoint()` (deterministic fallback), `resolveStatusTransition()` |
+| `src/lib/ai/pipeline.ts` | `formatCheckpointTimeline()`, `runStrategyNarrative()`, `runCheckpointAssessment()` |
+| `src/lib/analytics/correlation.ts` | `correlateChange()`, `gatherSupabaseMetrics()` |
+| `src/lib/inngest/functions.ts` | `runCheckpoints` cron (10:30 UTC), checkpoint timeline in `analyzeUrl` |
+| `src/app/api/cron/checkpoints/route.ts` | Vercel Cron backup (10:45 UTC) |
+| `src/app/api/feedback/outcome/route.ts` | Outcome feedback endpoint (3-hop ownership chain) |
+| `src/components/chronicle/UnifiedTimelineCard.tsx` | Checkpoint chips, evidence panel, outcome feedback UI |
+| `src/lib/types/analysis.ts` | `HorizonDays`, `CheckpointAssessment`, `ChangeCheckpoint`, `ChangeCheckpointSummary`, `OutcomeFeedback`, `PageContext.feedback_map`/`checkpoint_map` |
 
 ### Types
-- `src/lib/types/analysis.ts` — `ChangeCheckpoint`, `CheckpointMetrics`, `TrackedSuggestion`, `ChangeLifecycleEvent`, `HorizonDays`, `CheckpointAssessment`
+- `HorizonDays` (7|14|30|60|90), `CheckpointAssessment` (improved|regressed|neutral|inconclusive)
+- `ChangeCheckpoint` + `ChangeCheckpointSummary` (with reasoning, confidence, data_sources, metrics_json)
+- `CheckpointAssessmentResult` (LLM output shape)
+- `ValidatedItem.status`/`checkpoints`, `WatchingItem.checkpoints`
+- `ChangesSummary.strategy_narrative`
+- `OutcomeFeedback`, `PageContext.feedback_map` (keyed by checkpoint_id), `PageContext.checkpoint_map`
 
-### Phase Plan
-- Phase 2: Data contracts + migrations — schema only, no behavior changes — **DONE**
-- Phase 3: Detection + Orchestrator — fingerprint matching, prompt changes — **DONE**
-- Phase 4: Checkpoint engine — multi-horizon evaluation logic
-- Phase 5: Read model composer — unified view across horizons
-- Phase 6: UI — Chronicle updates, dashboard integration
+### Phase Status
+
+| Phase | Status | Key Deliverables |
+|-------|--------|-----------------|
+| 1: Canonical Progress Composer | **Done** | `composeProgressFromCanonicalState()`, fail-closed integration, parity monitor, polarity-aware UI |
+| 2: Checkpoint Outcome Engine | **Done** | `change_checkpoints` table, `runCheckpoints` daily cron, lifecycle events, `resolveStatusTransition()`. Replaces `checkCorrelations`. |
+| 3: Strategy Integration | **Done** | `formatCheckpointTimeline()`, `runStrategyNarrative()`, strategy_narrative field, POST_ANALYSIS_PROMPT trimmed |
+| 4: LLM-as-Analyst Migration | **Done** | `runCheckpointAssessment()`, `gatherSupabaseMetrics()`, LLM replaces deterministic threshold, all data sources supported |
+| 5: Outcome Feedback Loop | **Done** | `outcome_feedback` table, feedback API + UI, calibration in assessment prompts |
+| 6: Suggestions as Persistent State | **Done** | `tracked_suggestions` endpoints + composer integration, SuggestionCard with credibility badge, NextMoveSection three-state rendering |
+| 7: Reliability | **Done** | 74 unit tests (Vitest), Sentry cron monitors, `formatOutcomeText()` attribution utility, launch gate queries. Daily-scans backup always runs per-page idempotency. Scan frequency respects page-level settings. |

@@ -34,9 +34,11 @@ No other tool does this. The closest analogy is Facebook Ad suggestions — "thi
 ### Signed in → Ongoing: The Value Loop
 9. Daily/weekly scans detect changes
 10. Smart LLM analyzes: What changed? What should they do next? Any correlations?
-11. If metrics connected: "Your headline change correlated with -8% bounce rate. Looks like it helped."
-12. If not enough data: "Watching metrics. We'll update when we know more."
-13. Always suggestions: "Here's what to do next based on current state."
+11. **Multi-horizon evaluation**: Changes tracked at D+7, D+14, D+30, D+60, D+90
+12. If metrics connected: confidence-banded attribution via `formatOutcomeText()` — "Your change helped — signups up 21%" (high confidence), "Since your change, signups up 21%. Likely connected." (medium), hedged language (low). Never says "caused."
+13. If not enough data: "Watching metrics. We'll update when we know more." (checkpoint chips show upcoming horizons)
+14. Always suggestions: "Here's what to do next based on current state."
+15. **Outcome feedback**: User thumbs up/down on resolved outcomes → calibrates future assessments
 
 ### Intent Capture (Compounding Intelligence)
 14. **Metric focus** — User tells Loupe what matters ("signups", "bounce rate") during onboarding or later
@@ -111,6 +113,9 @@ Two-panel layout: sticky left sidebar + scrollable right intelligence feed.
 - Verdict (Space Grotesk, color-coded by tone: positive/concerning/neutral)
 - MetricStrip: horizontal badges from correlation.metrics[] (emerald/coral/gray)
 - Outcome groups: "Paid off" (wins) → "Backfired" (regressions) → "Still measuring" (watching) → "Other changes"
+- **Checkpoint chips** on each change card: `7d/14d/30d/60d/90d` — resolved cards show color-coded by assessment (emerald/coral/gray); watching cards show future horizons as dashed chips
+- **Evidence panel** on resolved outcomes: LLM reasoning, metric deltas (before→after±%), data sources consulted, confidence level, computed date, preview text
+- **Outcome feedback** (thumbs up/down) on resolved changes — calibrates future LLM assessments. Thumbs down prompts optional "What did we get wrong?" input.
 - ObservationCard: LLM observations with violet accent bars
 - NextMoveSection: prioritized suggestions
 - Deploy context footer (conditional)

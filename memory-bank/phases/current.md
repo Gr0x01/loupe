@@ -27,50 +27,73 @@ Inngest Cloud cron functions intermittently don't fire. Event-triggered function
 
 ---
 
-## RFC-0001 Phase 3 — Detection + Orchestrator (DONE)
+## RFC-0001 — Canonical Change Intelligence (ALL PHASES DONE)
 
-Fingerprint matching: LLM proposes whether a detected change matches an existing watching change, and a deterministic orchestrator validates before linking or creating. Both deploy scans and scheduled scans now produce canonical `detected_changes` rows.
+Multi-horizon checkpoint system replacing the single 7-day correlation model. Full RFC: `memory-bank/projects/loupe-canonical-change-intelligence-rfc.md`.
 
-### Summary
+### Phase Summary
 
-| Step | What | Status |
-|------|------|--------|
-| 1 | Type updates (fingerprint fields on `Change` + `QuickDiffChange`) | **DONE** |
-| 2 | `formatWatchingCandidates()` formatter | **DONE** |
-| 3 | `validateMatchProposal()` with 3 deterministic gates | **DONE** |
-| 4 | Prompt updates (Change Linkage in QUICK_DIFF_PROMPT + POST_ANALYSIS_PROMPT) | **DONE** |
-| 5 | `runQuickDiff` accepts + injects watching candidates | **DONE** |
-| 6 | `runPostAnalysisPipeline` injects watching candidates | **DONE** |
-| 7 | Deploy path: fingerprint-aware upsert | **DONE** |
-| 8 | Scheduled path: row creation for N+1 scans | **DONE** |
-| 9 | Code review fixes | **DONE** |
+| Phase | What | Status |
+|-------|------|--------|
+| 1: Canonical Progress Composer | DB-derived progress, fail-closed composer, parity monitor | **DONE** |
+| 2: Checkpoint Outcome Engine | `change_checkpoints` table, `runCheckpoints` cron, lifecycle events | **DONE** |
+| 3: Strategy Integration | `formatCheckpointTimeline()`, `runStrategyNarrative()`, narrative-only LLM | **DONE** |
+| 4: LLM-as-Analyst | `runCheckpointAssessment()`, all data sources, stored reasoning | **DONE** |
+| 5: Outcome Feedback Loop | `outcome_feedback` table, thumbs up/down UI, calibration prompts | **DONE** |
+| 6: Suggestions as Persistent State | `tracked_suggestions` endpoints + composer integration | **DONE** |
+| 7: Reliability | Vitest tests, Sentry cron monitors, attribution language, launch gates | **DONE** |
 
-### Key Changes
+### Key Deliverables (Phases 1-5)
 
-**Types (`src/lib/types/analysis.ts`):**
-- `Change` + `QuickDiffChange` gained `matched_change_id`, `match_confidence`, `match_rationale`
+**Phase 1 — Canonical Progress Composer:**
+- `composeProgressFromCanonicalState()` in `src/lib/analysis/progress.ts`
+- Fail-closed: canonical → fallback → never LLM progress
+- Parity monitor via Sentry (`progress-parity` tag)
+- Polarity-aware UI (ValidatedItem.status for win/regression classification)
+- Prompt aligned to 30-day decision horizon (was 7-day)
 
-**Pipeline (`src/lib/ai/pipeline.ts`):**
-- `formatWatchingCandidates(candidates)` — Formats up to 20 watching changes as LLM candidates, with `<watching_candidates_data>` boundary tags + prompt injection protection
-- `validateMatchProposal(change, candidateIds, candidateScopes)` — 3 deterministic gates: (1) proposed ID in candidate set, (2) confidence >= 0.70, (3) scope compatibility. Returns `MatchProposal` with `accepted` + optional `rejection_reason`
-- `QUICK_DIFF_PROMPT` + `POST_ANALYSIS_PROMPT` — Added "Change Linkage" section + fingerprint fields in output schema
-- `runQuickDiff` — New 5th param `watchingCandidates?`, prepended to prompt text
-- `runPostAnalysisPipeline` — Injects `formatWatchingCandidates(pendingChanges)` alongside existing `formatPendingChanges`
+**Phase 2 — Checkpoint Outcome Engine:**
+- `change_checkpoints` + `change_lifecycle_events` tables
+- `runCheckpoints` daily cron (10:30 UTC) with Vercel Cron backup (10:45 UTC)
+- `resolveStatusTransition()` in `src/lib/analytics/checkpoints.ts`
+- Fully replaced and deleted `checkCorrelations`
+- Idempotent upserts via `ON CONFLICT DO NOTHING`
+- Paginated queries (500/batch), batched `.in()` (300/batch)
 
-**Inngest (`src/lib/inngest/functions.ts`):**
-- **Deploy path**: Fetches watching candidates before `runQuickDiff`, passes as 5th arg. Insert loop replaced with `validateMatchProposal`-based upsert (accepted → update existing row, rejected → insert new with metadata)
-- **Scheduled path**: New block after observation storage creates `detected_changes` rows from `changesSummary.changes` for N+1 scans (guarded by `parentAnalysisId`). Same fingerprint matching logic.
+**Phase 3 — Strategy Integration:**
+- LLM writes narrative only — progress output removed from POST_ANALYSIS_PROMPT
+- `formatCheckpointTimeline()` compresses multi-horizon evidence into prompt context
+- `runStrategyNarrative()` non-fatal with deterministic `formatCheckpointObservation()` fallback
+- `strategy_narrative` field on `ChangesSummary`
+- `GET /api/changes` returns checkpoint data per change
 
-### Code Review Fixes Applied
-- `match_confidence: 0` preserved via `??` instead of `||` (prevents `0` → `null` coercion)
-- `.eq("status", "watching")` added to all update queries (TOCTOU guard)
-- `<watching_candidates_data>` boundary tags + injection warning (consistent with other formatters)
-- Tightened `validateMatchProposal` scope type to `"element" | "section" | "page"` union
+**Phase 4 — LLM-as-Analyst:**
+- `runCheckpointAssessment()` replaces deterministic `abs() > 5%` threshold
+- `gatherSupabaseMetrics()` queries historical snapshots + current table counts
+- Every resolved status has LLM reasoning stored (confidence, data_sources, reasoning)
+- Deterministic `assessCheckpoint()` kept as fallback
 
-### Design Decisions
-- Scope gate intentionally permissive: page matches anything, element/section cross-compatible. MVP behavior.
-- Deploy path has no `first_detected_analysis_id` (no analysis row exists for quick-diff path)
-- Upsert logic intentionally duplicated between deploy/scheduled paths (different field sets: `deploy_id` vs `first_detected_analysis_id`)
+**Phase 5 — Outcome Feedback Loop:**
+- `outcome_feedback` table (trigger-enforced integrity, API-only writes)
+- `POST /api/feedback/outcome` with 3-hop ownership chain + resolved-only guard
+- `OutcomeFeedbackUI` in `UnifiedTimelineCard.tsx` (idle → thumbs → optional text → submitted)
+- `feedback_map` + `checkpoint_map` in page context via 2-round parallel queries
+- `priorFeedback` injected into assessment prompts with calibration instructions
+
+### UI Changes (Workstream F)
+- **Checkpoint chips** on timeline cards: watching cards show future dashed chips; resolved cards color-coded by assessment
+- **Evidence panel** on resolved outcomes: LLM reasoning, metric deltas, data sources, confidence
+- **Outcome feedback** (thumbs up/down) on validated/regressed cards
+
+### Phase 7 — Reliability (Final):
+- 74 unit tests (Vitest): checkpoint engine (33), pipeline extraction (18), progress utilities (8), attribution (15)
+- Sentry cron monitors on `daily-scans-cron` and `checkpoints-cron`
+- `formatOutcomeText()` confidence-banded attribution (high/medium/low/null) on Chronicle, dashboard, email
+- Status-aligned metric selection (prevents contradictory attribution on regressed/validated cards)
+- Daily-scans backup: always runs per-page idempotency (catches partial Inngest failures)
+- Scan frequency respects page-level `scan_frequency` alongside tier enforcement
+- Launch gate SQL validation queries in `memory-bank/projects/rfc-0001-launch-gates.md`
+- Long-window proof (D+30+) time-gated — earliest March 18
 
 ---
 

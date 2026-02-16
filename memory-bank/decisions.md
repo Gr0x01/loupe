@@ -610,29 +610,66 @@ Cost: ~$3-5/page/month for daily scans. Checkpoint engine adds ~$0.10/change lif
 
 ## D36: Canonical Change Intelligence — Multi-horizon checkpoints (Feb 16, 2026)
 
-**Decision**: Replace single 7-day correlation model with multi-horizon checkpoint system (7/14/30/60/90 days). Phase 2 creates schema only — no behavior changes, 100% backward compatible.
+**Decision**: Replace single 7-day correlation model with multi-horizon checkpoint system (7/14/30/60/90 days). Full RFC: `memory-bank/projects/loupe-canonical-change-intelligence-rfc.md`.
+
+**Status**: All 7 phases shipped. RFC-0001 complete.
 
 **Why**:
 - Single 7-day window is too short for many changes (especially for low-traffic sites)
 - Changes need multiple evaluation points to determine true impact
 - Deterministic state transitions (via lifecycle events) make the system auditable and debuggable
-- Persistent suggestions with `times_suggested` counter shows the LLM consistently identifies the same issue (credibility signal)
-- Fingerprint matching (provenance fields) enables the LLM to link related changes across deploys
+- LLM-as-analyst (Phase 4) unlocks Supabase-only users who were stuck on "inconclusive"
+- User feedback loop (Phase 5) provides calibration without over-constraining the model
 
-**What we built (Phase 2)**:
-1. `change_checkpoints` — Immutable horizon outcomes, UNIQUE per (change_id, horizon_days)
-2. `tracked_suggestions` — Persistent suggestions with status lifecycle, RLS enabled
-3. `change_lifecycle_events` — Audit log for status transitions, system-only
-4. Provenance fields on `detected_changes` — `matched_change_id`, `match_confidence`, `match_rationale`, `fingerprint_version`
-5. TypeScript interfaces for all new tables
+**What we built**:
+1. **Canonical Progress Composer** (Phase 1) — `composeProgressFromCanonicalState()` replaces LLM-authored progress. Fail-closed: canonical → fallback → never LLM. Parity monitor via Sentry.
+2. **Checkpoint Outcome Engine** (Phase 2) — `change_checkpoints` table + `runCheckpoints` daily cron (10:30 UTC). Fully replaced `checkCorrelations`. Lifecycle events audit trail. Idempotent upserts.
+3. **Strategy Integration** (Phase 3) — LLM writes narrative only, not progress. `formatCheckpointTimeline()` compresses evidence. `runStrategyNarrative()` is non-fatal with deterministic fallback.
+4. **LLM-as-Analyst** (Phase 4) — `runCheckpointAssessment()` replaces deterministic threshold. All data sources (PostHog, GA4, Supabase). Full reasoning stored per checkpoint.
+5. **Outcome Feedback Loop** (Phase 5) — `outcome_feedback` table, thumbs up/down UI, calibration in assessment prompts. Trigger-enforced integrity.
 
-**What existing `checkCorrelations` cron does**: Continues running untouched. It evaluates 7-day watching changes via analytics APIs. The new checkpoint system will eventually subsume it (Phase 4) but for now they coexist safely — different tables, no conflicts.
+**Key architectural principles**:
+- **Integrity surface** (code): timing rules, impossible transitions, schema constraints, audit logging
+- **Intelligence surface** (LLM): outcome assessment, narrative, evidence reasoning
+- **Calibration surface** (user): feedback stored per checkpoint, fed into future prompts
+- **Audit surface**: every checkpoint stores reasoning, data sources, confidence; lifecycle events log transitions
 
 **Trade-offs**:
-- `metrics_json` uses same shape as existing `CorrelationMetrics.metrics` — reuses proven structure
-- Lifecycle events are append-only (no updates/deletes) — storage grows but provides full audit trail
-- Provenance fields are nullable and unused until Phase 3 — no dead code, just schema readiness
-- `tracked_suggestions` RLS uses `auth.uid() = user_id` pattern — service role needed for LLM writes
+- LLM assessment may be inconsistent across runs — mitigated by write-once checkpoints, stored reasoning, user feedback
+- `checkCorrelations` fully deleted — checkpoint engine is sole evaluation path
+- Fingerprint matching deferred post-MVP — current element-name matching sufficient for single-domain accounts
+
+## D38: LLM-as-analyst for checkpoint assessment (Feb 2026)
+
+**Decision**: Replace deterministic `abs() > 5%` threshold in checkpoint assessment with LLM-as-analyst pass. The LLM sees all data sources and makes the judgment call. User feedback is the calibration mechanism.
+
+**Why**:
+- Deterministic threshold left Supabase-only users with zero outcome resolution (no standard metric names to threshold against)
+- 5% threshold was arbitrary — a 4.9% change on a high-traffic site may be more meaningful than a 20% change on a 10-visitor site
+- LLM can weigh multiple signals: metric volume, confidence, seasonal patterns, prior checkpoints, user hypothesis
+- Write-once checkpoints mean the LLM can't flip-flop — first assessment sticks
+
+**What changed**:
+- `runCheckpointAssessment()` in `pipeline.ts` — Gemini 3 Pro, 3 attempts with backoff
+- `gatherSupabaseMetrics()` in `correlation.ts` — queries historical snapshots + current table counts
+- Deterministic `assessCheckpoint()` kept as fallback (sees all metrics including Supabase now)
+- Checkpoint rows store `reasoning`, `confidence`, `data_sources` (schema migration)
+
+## D39: Outcome feedback for LLM calibration (Feb 2026)
+
+**Decision**: Extend finding feedback pattern to change outcomes. Users thumbs up/down resolved outcomes, with optional "What did we get wrong?" text on thumbs down. Feedback stored per checkpoint, injected into future assessment prompts.
+
+**Why**:
+- LLM is now the product analyst making judgment calls — needs a correction mechanism
+- Deterministic code gates (the old approach) over-constrained the model and left data gaps
+- Per-user, per-page feedback is contextual — not global model tuning
+- Extends proven `finding_feedback` pattern (same UX, same prompt injection protection)
+
+**Security**:
+- 3-hop ownership chain: user → change → checkpoint (prevents cross-tenant poisoning)
+- Resolved-only guard (can't feedback on watching/inconclusive)
+- Inngest reads scoped by `user_id` (not global)
+- DB trigger enforces checkpoint belongs to change
 
 ## D35: Fix false mobile findings from broken screenshots (Feb 16, 2026)
 
@@ -688,3 +725,36 @@ Cost: ~$3-5/page/month for daily scans. Checkpoint engine adds ~$0.10/change lif
 - Upsert logic duplicated between paths (different field sets make extraction awkward) — tech debt, not a bug
 - TOCTOU race between candidate fetch and update mitigated by `.eq("status", "watching")` filter
 - `match_confidence: 0` preserved via `??` (not `||`) — important for rejected proposals that carry proposal metadata
+
+## D40: Attribution language — confidence bands with null fallthrough (Feb 2026)
+
+**Decision**: `formatOutcomeText()` returns `string | null` — not a "No analytics connected" string. Callers use `attributionText || observation_text` fallback pattern. Top metric selection filters by status alignment before picking by absolute delta.
+
+**Why**:
+- Returning a non-null string ("No analytics connected...") for missing data overrode valid `observation_text` from the LLM
+- Status-unaligned metric selection caused contradictions (e.g., "helped — bounce_rate down 12%" on a regressed card where other metrics drove the regression)
+- `null` return lets callers naturally fall through to LLM-generated observation text, which is always more contextual
+
+**Confidence bands**:
+- High (≥0.8): "Your change helped/hurt — {metric} {direction} {X}%"
+- Medium (0.5-0.79): "Since your change, {metric} is {direction} {X}%. Likely connected."
+- Low (<0.5): "We're seeing {metric} movement, but can't tie it clearly to your change yet."
+- No data: `null` (caller decides fallback)
+
+## D41: Daily backup cron — always run, never early-exit (Feb 2026)
+
+**Decision**: Vercel Cron daily-scans backup always runs full per-page logic with idempotency checks. No early exit when "any" daily scan exists.
+
+**Why**:
+- Previous early exit checked if ANY daily analysis existed today and returned "ok". If Inngest scanned 2 of 10 users and then failed, the backup thought everything was fine.
+- Per-page idempotency (check if `(url, user_id, trigger_type, today)` exists before inserting) naturally deduplicates without missing partial failures.
+- Reports `alreadyExisted` vs `backfilled` counts for observability. Sentry warning only fires when self-healing actually occurred.
+
+## D42: Respect page-level scan frequency alongside tier (Feb 2026)
+
+**Decision**: Scheduled scans respect both tier frequency AND `page.scan_frequency`. Daily cron skips pages explicitly set to "weekly" even if the user's tier allows daily. Weekly cron picks up pages set to "weekly" regardless of tier.
+
+**Why**:
+- Previous code ignored `page.scan_frequency` entirely (only used tier to determine frequency). A Pro user who set a page to weekly still got daily scans.
+- Respecting user intent: if someone deliberately set a page to weekly, they don't want daily scans for it.
+- Both `runScheduledScans()` in Inngest and the Vercel Cron backup use the same logic.
