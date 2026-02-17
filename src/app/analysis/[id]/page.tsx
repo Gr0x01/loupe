@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { ChronicleSkeleton } from "@/components/chronicle";
-import { track } from "@/lib/analytics/track";
+import { track, identify } from "@/lib/analytics/track";
 import { useAnalysis } from "@/lib/hooks/use-data";
 import type {
   PageContext,
@@ -1165,6 +1165,7 @@ export default function AnalysisPage() {
     setSubmittedClaimAnalysisId(analysis.id);
     setClaimLoading(true);
     setClaimError("");
+    track("page_claim_attempted", { domain: getDomain(analysis.url), url: analysis.url });
     try {
       const res = await fetch("/api/auth/claim-link", {
         method: "POST",
@@ -1176,7 +1177,9 @@ export default function AnalysisPage() {
       });
       if (res.ok) {
         setClaimEmailSent(true);
-        track("page_claim_attempted", { domain: getDomain(analysis.url), url: analysis.url });
+        // Link anonymous PostHog identity to authenticated user
+        const data = await res.json();
+        if (data.userId) identify(data.userId, { email: claimEmail.trim() });
       } else {
         const data = await res.json();
         console.error("Claim link error:", data.error);
@@ -1211,12 +1214,18 @@ export default function AnalysisPage() {
       !hasTrackedCompletion.current
     ) {
       hasTrackedCompletion.current = true;
-      track("audit_completed", {
-        domain: getDomain(analysis.url),
-        url: analysis.url,
-        findings_count: analysis.structured_output.findingsCount ?? 0,
-        impact_range: analysis.structured_output.projectedImpactRange ?? "0%",
-      });
+
+      // Dedup audit_completed per analysis per session (prevents inflation from re-visits)
+      const dedupKey = `loupe_audit_tracked_${analysis.id}`;
+      if (!sessionStorage.getItem(dedupKey)) {
+        sessionStorage.setItem(dedupKey, "1");
+        track("audit_completed", {
+          domain: getDomain(analysis.url),
+          url: analysis.url,
+          findings_count: analysis.structured_output.findingsCount ?? 0,
+          impact_range: analysis.structured_output.projectedImpactRange ?? "0%",
+        });
+      }
 
       // Auto-handle email typed during loading screen
       const email = claimEmail.trim();
@@ -1224,6 +1233,7 @@ export default function AnalysisPage() {
         const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         if (isValid) {
           // Valid email — auto-submit claim link
+          track("page_claim_attempted", { domain: getDomain(analysis.url), url: analysis.url });
           fetch("/api/auth/claim-link", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1232,7 +1242,8 @@ export default function AnalysisPage() {
             if (res.ok) {
               setClaimEmailSent(true);
               setSubmittedClaimAnalysisId(analysis.id);
-              track("page_claim_attempted", { domain: getDomain(analysis.url), url: analysis.url });
+              // Link anonymous PostHog identity to authenticated user
+              return res.json();
             } else {
               // Claim failed — save as lead so email isn't lost
               return fetch("/api/leads", {
@@ -1246,6 +1257,8 @@ export default function AnalysisPage() {
                 }),
               });
             }
+          }).then((data) => {
+            if (data?.userId) identify(data.userId, { email });
           }).catch(() => {});
         } else if (email.includes("@")) {
           // Partial email with @ — save as lead for follow-up

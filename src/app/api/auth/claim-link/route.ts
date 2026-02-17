@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
     if (linkError || !linkData?.properties?.action_link) {
       // Page is claimed even if email fails — user can sign in from /login
       console.error("Failed to generate magic link:", linkError?.message);
-      return NextResponse.json({ success: true, emailSent: false });
+      return NextResponse.json({ success: true, emailSent: false, userId });
     }
 
     const magicLink = linkData.properties.action_link;
@@ -249,10 +249,10 @@ export async function POST(req: NextRequest) {
 
     if (emailError) {
       console.error("Failed to send claim email:", emailError);
-      return NextResponse.json({ success: true, emailSent: false });
+      return NextResponse.json({ success: true, emailSent: false, userId });
     }
 
-    return NextResponse.json({ success: true, emailSent: true });
+    return NextResponse.json({ success: true, emailSent: true, userId });
   } catch (err) {
     console.error("Claim link route error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
