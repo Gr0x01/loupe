@@ -189,7 +189,7 @@ export function DossierSidebar({
                 document.getElementById("claim-cta")?.scrollIntoView({ behavior: "smooth" });
               }}
             >
-              Claim this page
+              Track this page
             </a>
           </div>
         )}
@@ -343,11 +343,11 @@ export function DossierSidebar({
             <>
               <p className="dossier-sidebar-claim-headline">
                 {findingsCounts
-                  ? `${findingsCounts.high + findingsCounts.medium + findingsCounts.low} findings on this page.`
+                  ? `${findingsCounts.high + findingsCounts.medium + findingsCounts.low} predictions to verify.`
                   : "This page will change."}
               </p>
               <p className="dossier-sidebar-claim-sub">
-                Loupe re-scans after every deploy and tells you if it worked.
+                Track this page to see which ones hold up.
               </p>
               <form onSubmit={claimCTA.onSubmit} className="dossier-sidebar-claim-form">
                 <input
@@ -371,9 +371,8 @@ export function DossierSidebar({
                 <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>{claimCTA.error}</p>
               )}
               <p className="dossier-sidebar-claim-trust">
-                Free for one page. We scan daily during your 14-day trial.
-                <br />
-                <strong>No credit card.</strong>
+                Free for one page. We scan daily during your 14-day trial.{" "}
+                <span className="dossier-sidebar-claim-trust-note">No credit card required.</span>
               </p>
             </>
           )}

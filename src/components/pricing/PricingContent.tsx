@@ -145,6 +145,12 @@ function PricingContent() {
   async function handleSelect(tier: SubscriptionTier) {
     if (tier === "free") return;
 
+    // Not logged in — send to login first, then back to pricing to complete checkout
+    if (!isLoggedIn) {
+      window.location.href = `/login?redirect=/pricing`;
+      return;
+    }
+
     setLoading(tier);
     try {
       const res = await fetch("/api/billing/checkout", {

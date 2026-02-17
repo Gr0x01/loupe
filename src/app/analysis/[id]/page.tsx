@@ -66,13 +66,13 @@ const ANALYSIS_STAGES = [
   { id: "writing", label: "Writing your audit" },
 ];
 
-// Examples of what Loupe catches - the stuff they CAN'T track themselves
-const DRIFT_EXAMPLES = [
-  "Cursor updated your pricing page — your 'Cancel anytime' guarantee is gone",
-  "Your checkout button moved below the fold after yesterday's deploy",
-  "Your hero still says 'Coming Soon' — it's been 47 days",
-  "Conversions dropped 23% the same week your social proof disappeared",
-  "Your CTA says 'Submit' instead of 'Get My Plan' — changed 3 deploys ago",
+// Examples showing change → outcome connection (not just change detection)
+const OUTCOME_EXAMPLES = [
+  "Your headline changed Jan 28. Signups are up 23% since then.",
+  "Pricing layout rebuilt by your AI tool. Checkouts dropped 8% over 14 days.",
+  "CTA copy changed 3 deploys ago. We\u2019re still measuring \u2014 7-day checkpoint Tuesday.",
+  "Social proof section disappeared. Bounce rate up 12% in the same window.",
+  "You moved the CTA above the fold. Time to first click improved by 30%.",
 ];
 
 // Impact badge class helper for new findings
@@ -216,6 +216,7 @@ function CollapsedFindingCard({
           <span className="finding-collapsed-lift-range">+{finding.prediction.range}</span>
           <span className="finding-collapsed-lift-text">{finding.prediction.friendlyText}</span>
         </div>
+
       </div>
     </div>
   );
@@ -632,9 +633,9 @@ function StickyClaimBar({
         <div className="claim-sticky-info">
           <div className="claim-sticky-dot" />
           <p className="claim-sticky-text">
-            {findingsCount} opportunit{findingsCount !== 1 ? "ies" : "y"} found
+            {findingsCount} prediction{findingsCount !== 1 ? "s" : ""} to verify
             <span>·</span>
-            +{impactRange} potential
+            +{impactRange} projected
           </p>
         </div>
         <form onSubmit={onSubmit} className="claim-sticky-form">
@@ -661,7 +662,7 @@ function StickyClaimBar({
 }
 
 // Findings Section for new format - 2-column grid layout
-function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]; analysisId: string; domain: string }) {
+function FindingsSection({ findings, analysisId, domain, showCheckpointPreview }: { findings: Finding[]; analysisId: string; domain: string; showCheckpointPreview?: boolean }) {
   const [expandedId, setExpandedId] = useState<string | null>(findings[0]?.id ?? null);
   const [feedbackMap, setFeedbackMap] = useState<Record<string, FindingFeedbackType>>({});
 
@@ -677,17 +678,28 @@ function FindingsSection({ findings, analysisId, domain }: { findings: Finding[]
 
   return (
     <section className="result-section">
-      <div className="section-header">
-        <div>
+      <div className="section-header findings-section-header">
+        <div className="findings-section-copy">
           <h2
             className="text-4xl font-bold text-text-primary"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            What to fix
+            What to change
           </h2>
           <p className="text-sm text-text-muted mt-1">
-            Ranked by likely conversion lift. Start at the top. Fix any of these and we&apos;ll re-scan to show the delta.
+            Ranked by expected impact. Change any of these and we&apos;ll measure what happens.
           </p>
+          {showCheckpointPreview && (
+            <p className="findings-horizon-inline" aria-label="Tracking checkpoints at 1, 7, 14, and 30 days">
+              <span className="findings-horizon-label-inline">Tracking checkpoints:</span>
+              <span className="findings-horizon-chips" aria-hidden="true">
+                <span className="findings-horizon-chip findings-horizon-chip-now">1d</span>
+                <span className="findings-horizon-chip">7d</span>
+                <span className="findings-horizon-chip">14d</span>
+                <span className="findings-horizon-chip">30d</span>
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -1270,7 +1282,7 @@ export default function AnalysisPage() {
 
       // Examples rotate independently (5s each, with crossfade)
       const exampleTimer = setInterval(() => {
-        setExampleIndex((s) => (s + 1) % DRIFT_EXAMPLES.length);
+        setExampleIndex((s) => (s + 1) % OUTCOME_EXAMPLES.length);
       }, 5000);
 
       return () => {
@@ -1375,7 +1387,7 @@ export default function AnalysisPage() {
                 </p>
                 {/* Crossfade between examples */}
                 <div className="relative h-10 overflow-hidden">
-                  {DRIFT_EXAMPLES.map((example, i) => (
+                  {OUTCOME_EXAMPLES.map((example, i) => (
                     <p
                       key={i}
                       className="absolute inset-0 text-sm text-text-primary font-medium leading-snug transition-opacity duration-500"
@@ -1614,12 +1626,110 @@ export default function AnalysisPage() {
               {s.findings && s.findings.length > 0 && (
                 <>
                   <hr className="section-divider" />
-                  <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} />
+                  <FindingsSection findings={s.findings} analysisId={analysis.id} domain={getDomain(analysis.url)} showCheckpointPreview={showClaimCTAs} />
                 </>
               )}
 
-              {/* Bottom Line */}
-              {s.summary && (
+              {/* Post-signup preview — replaces bottom line for unclaimed pages */}
+              {showClaimCTAs && s.findings && s.findings.length > 0 ? (
+                <>
+                  <hr className="section-divider" />
+                  <section className="next-proof-section">
+                    <div className="next-proof-header">
+                      <span
+                        className="next-proof-badge"
+                        style={{ background: 'var(--blue-subtle)', color: 'var(--blue)' }}
+                      >
+                        What you get after signup
+                      </span>
+                    </div>
+
+                    <h2
+                      className="next-proof-headline"
+                      style={{ fontFamily: 'var(--font-display)' }}
+                    >
+                      Turn {s.findingsCount} prediction{s.findingsCount !== 1 ? 's' : ''} into evidence.
+                    </h2>
+
+                    <p className="next-proof-sub">
+                      Ship a change, then Loupe re-scans and checks your metrics so you can see what actually&nbsp;moved.
+                    </p>
+
+                    <div className="next-proof-grid">
+                      <div className="next-proof-panel">
+                        <p className="next-proof-panel-label">Verification timeline</p>
+                        <div className="whats-next-timeline">
+                          <div className="whats-next-timeline-track">
+                            <div className="whats-next-marker whats-next-marker-today">
+                              <div className="whats-next-marker-dot whats-next-marker-dot-active" />
+                              <span className="whats-next-marker-label">Today</span>
+                              <span className="whats-next-marker-desc">Audit complete</span>
+                            </div>
+                            {[
+                              { day: 7, label: 'D+7', desc: 'First signal' },
+                              { day: 14, label: 'D+14', desc: 'Pattern' },
+                              { day: 30, label: 'D+30', desc: 'Verdict' },
+                            ].map((h) => (
+                              <div key={h.day} className="whats-next-marker whats-next-marker-future">
+                                <div className="whats-next-marker-dot" />
+                                <span className="whats-next-marker-label">{h.label}</span>
+                                <span className="whats-next-marker-desc">{h.desc}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="whats-next-timeline-line" />
+                        </div>
+                        <p className="next-proof-panel-copy">
+                          Day 7 gives early direction, day 14 shows trend, day 30 gives a stronger read.
+                        </p>
+                      </div>
+
+                      <div className="next-proof-panel">
+                        <p className="next-proof-panel-label">Example tracked outcome</p>
+                        <div className="outcome-preview-card outcome-preview-card-embedded">
+                          <div className="outcome-preview-accent" />
+                          <div className="outcome-preview-body">
+                            <div className="outcome-preview-header">
+                              <span className="outcome-preview-element">
+                                {s.findings[0]?.element ?? 'Headline'}
+                              </span>
+                              <div className="outcome-preview-chips">
+                                <span className="dossier-chip dossier-chip-emerald">7d</span>
+                                <span className="dossier-chip dossier-chip-emerald">14d</span>
+                                <span className="dossier-chip dossier-chip-emerald">30d</span>
+                              </div>
+                            </div>
+
+                            <div className="outcome-preview-diff">
+                              <span className="outcome-preview-before">
+                                &ldquo;{(s.findings[0]?.currentValue ?? '').length > 60
+                                  ? s.findings[0].currentValue.slice(0, 60).trim() + '...'
+                                  : s.findings[0]?.currentValue}&rdquo;
+                              </span>
+                              <span className="outcome-preview-arrow">&rarr;</span>
+                              <span className="outcome-preview-after">
+                                &ldquo;{(s.findings[0]?.suggestion ?? '').length > 60
+                                  ? s.findings[0].suggestion.slice(0, 60).trim() + '...'
+                                  : s.findings[0]?.suggestion}&rdquo;
+                              </span>
+                            </div>
+
+                            <div className="outcome-preview-evidence">
+                              <span className="outcome-preview-evidence-label">View evidence</span>
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="next-proof-panel-copy">
+                          Preview using your top finding. Actual outcomes use your real metrics.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                </>
+              ) : s.summary ? (
                 <>
                   <hr className="section-divider" />
                   <section className="bottom-line-section">
@@ -1630,7 +1740,7 @@ export default function AnalysisPage() {
                     </blockquote>
                   </section>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -1685,7 +1795,7 @@ export default function AnalysisPage() {
               <div className="claim-bottom-grid">
                 {/* Left: headline + subhead */}
                 <div>
-                  <p className="claim-bottom-label">This audit is a snapshot.</p>
+                  <p className="claim-bottom-label">Track your predictions</p>
                   <h2
                     className="claim-bottom-headline"
                     style={{ fontFamily: "var(--font-display)" }}
@@ -1695,7 +1805,7 @@ export default function AnalysisPage() {
                       : "Something on this page will change. You should know when it does."}
                   </h2>
                   <p className="claim-bottom-sub">
-                    Loupe re-scans after every deploy and connects changes to your metrics.
+                    Loupe re-scans after every deploy and checks your metrics at 7, 14, and 30 days.
                   </p>
                   <div className="claim-bottom-badges">
                     <span className="claim-bottom-badge claim-bottom-badge-blue">Change detection</span>

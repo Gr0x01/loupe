@@ -430,6 +430,12 @@
   line-height: 1.5;
 }
 
+.dossier-sidebar-claim-trust-note {
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
 .dossier-sidebar-claim-sent {
   display: flex;
   align-items: center;
