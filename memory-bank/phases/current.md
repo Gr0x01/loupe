@@ -31,6 +31,20 @@ Product is in beta. Beta badge in nav, 50% off pricing locked for life.
 
 Pricing buttons go directly to Stripe — no login required. Webhook creates user account from Stripe-collected email, sends welcome magic link. See `architecture.md` Billing section.
 
+### Instant Page Claim + Activation System (D46, Feb 17, 2026)
+
+6/6 external signups churned — empty dashboards because magic link was prerequisite for page creation.
+
+**Instant claim** (`POST /api/auth/claim-link`): Creates user + claims page + sets trial on email submit. No magic link required. Email is now "sign in to your dashboard". `handleClaim` in auth callback simplified to redirect-only.
+
+**Auto-claim at auth** (`handleEmailAutoClaim` in callback): 0-page users with matching unclaimed analysis get page auto-created on sign-in. Covers OAuth + separate magic link flows.
+
+**Nudge email** (`onboardingNudge` cron, 1pm UTC): Users 4–48h old with no pages get nudge. Idempotency: `profiles.onboarding_nudge_sent_at`.
+
+**PostHog tracking fixes**: `ServerEvent` type union, `is_internal` person property, `page_claim_attempted` (client) vs `page_claimed` (server), `filterTestAccounts: true` on all dashboard insights.
+
+Key files: `src/app/api/auth/claim-link/route.ts`, `src/app/auth/callback/route.ts`, `src/lib/posthog-server.ts`, `src/lib/analytics/track.ts`, `src/lib/inngest/functions/scheduled.ts`.
+
 ---
 
 ## Architecture Reference
@@ -44,6 +58,7 @@ Inngest crons go stale after Vercel deploys. All critical crons have Vercel Cron
 | Daily scans | 9:00 UTC | 9:15 UTC (`/api/cron/daily-scans`) | Screenshot + full analysis |
 | Checkpoints | 10:30 UTC | 10:45 UTC (`/api/cron/checkpoints`) | Multi-horizon outcome assessment |
 | Daily digest | 11:00 UTC | — | Consolidated email (Inngest only, retries: 1) |
+| Onboarding nudge | 13:00 UTC | — | Nudge users with no pages (Inngest only, retries: 0) |
 | Screenshot health | */30 * * * * | — | Pings screenshot service (Inngest only) |
 
 Backups: `CRON_SECRET` auth, self-healing (creates missing scans), re-syncs Inngest, per-page idempotency.
@@ -65,6 +80,12 @@ Multi-horizon checkpoint system. Full RFC: `memory-bank/projects/loupe-canonical
 | Launch gates | SQL validation queries in `memory-bank/projects/rfc-0001-launch-gates.md` |
 
 UI: Checkpoint chips on timeline cards, evidence panel on resolved outcomes, outcome feedback (thumbs up/down).
+
+### Login Page Activation Bridge (D45, Feb 17, 2026)
+
+Login page redesigned from generic "Sign in to Loupe" to contextual activation bridge. Two-column split: left has contextual headline (`?from=audit/pricing/track`) + numbered steps (claim → screenshots → outcome tracking); right has auth card. Domain pill when URL context available. `loupe_pending_domain` persisted to localStorage → dashboard claim suggestions. Pending audit TTL 30min→24h. Pricing links pass `&from=pricing`.
+
+Key files: `src/app/login/page.tsx`, `src/app/dashboard/page.tsx`, `src/components/pricing/PricingContent.tsx`.
 
 ### Audit-to-Tracking Education Bridge (D43, Feb 17, 2026)
 

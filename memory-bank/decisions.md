@@ -54,6 +54,34 @@ Pricing page buttons required login before payment — broken UX. Now: click but
 
 Users mentally file Loupe as "another site audit tool" — get findings, feel done, bounce. Reframed audit page from "finished report" to "open predictions" using Chronicle visual patterns in empty/future state. Empty checkpoint chips (7d/14d/30d), "Claim→Track" language, outcome-connection loading examples. Category Loupe should own: "Did that change work?" Key principle: the audit should feel like chapter one, not the whole book.
 
+### D45: Login page as activation bridge (Feb 17, 2026)
+
+Users create accounts but never claim pages. Login page was a momentum killer — generic "Sign in to Loupe" with no continuity from the prior step.
+
+**Redesign**: Two-column split layout. Left panel has contextual headline (via `?from=` param) + numbered steps explaining what happens after sign-in (claim a page → daily screenshots → outcome tracking at day 7/14/30). Right panel is the auth card. Domain pill shown when URL context is available (from query params or localStorage).
+
+**Contextual copy**: `?from=audit` (audit findings headline), `?from=pricing` (trial headline), `?from=track` (domain-specific headline). Default: "See what changed. Know if it worked."
+
+**Domain persistence**: `loupe_pending_domain` in localStorage, read by dashboard on mount, added to claim suggestions ("From your signup"). Pending audit TTL extended from 30min to 24h.
+
+**Pricing links**: Both `/login` links in `PricingContent.tsx` now pass `&from=pricing`.
+
+Key files: `src/app/login/page.tsx`, `src/app/dashboard/page.tsx`, `src/components/pricing/PricingContent.tsx`.
+
+### D46: Instant page claim + activation nudge (Feb 17, 2026)
+
+**Problem**: 6/6 external signups saw empty dashboards and churned. Magic link was a prerequisite for page creation — if link opened in different browser, localStorage context lost, user lands on blank dashboard.
+
+**Fix 1 — Instant claim** (`POST /api/auth/claim-link`): Creates user via `admin.createUser()` + claims page + sets trial immediately on email submit. No magic link click required. Email becomes "sign in to your dashboard" (not "click to claim"). Same pattern as D44 unauthenticated Stripe checkout. PostHog events: `signup_completed` (method: `instant_claim`), `page_claimed`, `page_tracked`.
+
+**Fix 2 — Auto-claim at auth** (`handleEmailAutoClaim` in auth callback): If user has 0 pages and unclaimed analysis matches their email, creates page on sign-in. Covers Google OAuth / separate magic link signups.
+
+**Fix 3 — Nudge email** (`onboardingNudge` Inngest cron, 1pm UTC): Users 4–48h old with no pages get `activationNudgeEmail` or `genericSetupEmail`. Idempotency: `profiles.onboarding_nudge_sent_at`.
+
+**Auth callback simplified**: `handleClaim()` is now redirect-only (looks up existing page, redirects to `/pages/:id`). Page creation removed since it happens in claim-link route.
+
+**PostHog fixes**: `user_signed_up` → `signup_completed`, `is_internal` person property for test filtering, `ServerEvent` type union for compile-time safety, `page_claimed` split into client `page_claim_attempted` + server `page_claimed`.
+
 ---
 
 ## Implemented & Documented Elsewhere
