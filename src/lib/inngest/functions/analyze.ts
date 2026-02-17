@@ -7,7 +7,6 @@ import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import {
   changeDetectedEmail,
-  allQuietEmail,
   correlationUnlockedEmail,
 } from "@/lib/email/templates";
 import type { ChangesSummary, ChronicleSuggestion, CorrelationMetrics, DetectedChange, CommitData, ValidatedItem, WatchingItem, OpenItem } from "@/lib/types/analysis";
@@ -1054,30 +1053,11 @@ export const analyzeUrl = inngest.createFunction(
               }
             }
 
-            // Get last change date for "all quiet" emails
-            let lastChangeDate: string | null = null;
-            if (!hasChanges && parentAnalysisId) {
-              const { data: parentAnalysis } = await supabase
-                .from("analyses")
-                .select("changes_summary, created_at")
-                .eq("id", parentAnalysisId)
-                .single();
-              const parentChanges = parentAnalysis?.changes_summary as ChangesSummary | null;
-              if (parentChanges?.changes?.length && parentAnalysis) {
-                // Use parent's change date
-                lastChangeDate = new Date(parentAnalysis.created_at).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                });
-              }
-            }
-
             // Extract top suggestion from changes_summary or structured_output
             const topSuggestion = extractTopSuggestion(changesSummary, structuredOutput);
 
-            // Only send email if we have changes_summary (always true for scheduled/deploy scans)
-            if (changesSummary) {
-              if (hasChanges) {
+            // Deploy emails: only notify when changes are actually detected
+            if (changesSummary && hasChanges) {
                 // Get first watching change ID for hypothesis link
                 let hypothesisChangeId: string | undefined;
                 if (updatedPage?.id) {
@@ -1128,23 +1108,6 @@ export const analyzeUrl = inngest.createFunction(
                   hypothesisChangeId,
                 });
                 sendEmail({ to: profile.email, subject, html }).catch(console.error);
-              } else {
-                // No changes — send allQuietEmail
-                const { subject, html } = allQuietEmail({
-                  pageUrl: url,
-                  analysisId,
-                  lastChangeDate,
-                  topSuggestion: topSuggestion
-                    ? {
-                        title: topSuggestion.title || topSuggestion.element,
-                        element: topSuggestion.element,
-                        friendlyText: topSuggestion.friendlyText,
-                        range: topSuggestion.range,
-                      }
-                    : undefined,
-                });
-                sendEmail({ to: profile.email, subject, html }).catch(console.error);
-              }
             }
           }
         }
