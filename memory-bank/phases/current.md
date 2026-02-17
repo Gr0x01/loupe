@@ -27,6 +27,12 @@ Product is in beta. Beta badge in nav, 50% off pricing locked for life.
 
 ---
 
+### Unauthenticated Stripe Checkout (D44, Feb 17, 2026)
+
+Pricing buttons go directly to Stripe — no login required. Webhook creates user account from Stripe-collected email, sends welcome magic link. See `architecture.md` Billing section.
+
+---
+
 ## Architecture Reference
 
 ### Cron & Reliability
@@ -59,6 +65,23 @@ Multi-horizon checkpoint system. Full RFC: `memory-bank/projects/loupe-canonical
 | Launch gates | SQL validation queries in `memory-bank/projects/rfc-0001-launch-gates.md` |
 
 UI: Checkpoint chips on timeline cards, evidence panel on resolved outcomes, outcome feedback (thumbs up/down).
+
+### Audit-to-Tracking Education Bridge (D43, Feb 17, 2026)
+
+Category problem: users filed Loupe as "site audit tool" → got findings → bounced. Reframed audit page from finished report to open predictions using Chronicle patterns in empty/future state.
+
+| Element | What |
+|---------|------|
+| Checkpoint chips on findings | Empty 7d/14d/30d pips below each prediction line |
+| "What you get after signup" | Two-panel: verification timeline + example tracked outcome card |
+| Outcome preview card | Real finding data in Chronicle validated card style, no fake metrics |
+| Language shift | "Claim" → "Track", "What to fix" → "What to change", "opportunities" → "predictions" |
+| Loading screen | `OUTCOME_EXAMPLES` — change→outcome pairs, not change-detection alerts |
+| Findings section header | Inline horizon chips (Now · 7d · 14d · 30d) next to "What to change" |
+
+Key files: `src/app/analysis/[id]/page.tsx` (JSX), `src/app/analysis.css` (new CSS sections: `finding-checkpoint-*`, `next-proof-*`, `whats-next-*`, `outcome-preview-*`)
+
+Brand guardian updated with pre-PMF stage context (`.claude/agents/brand-guardian.md`).
 
 ---
 

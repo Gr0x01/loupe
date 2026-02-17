@@ -796,6 +796,7 @@ When correlating changes with database metrics, be specific:
    - Stable pages shown as compact one-liners
    - Only sent if at least 1 page changed; all-quiet = no email
 5. **Claim page** (`claimPageEmail`) — Sent when unclaimed audit results are linked to a new account
+6. **Welcome subscriber** (`welcomeSubscriberEmail`) — Sent after unauthenticated Stripe checkout, contains magic link to sign in
 Manual re-scans do NOT trigger emails.
 
 ### Email Selection Logic
@@ -864,6 +865,7 @@ src/
 │   │   ├── signout/route.ts        # Sign out
 │   │   └── error/page.tsx          # Auth error page
 │   ├── analysis/[id]/page.tsx      # Results page (with page context + nav)
+│   ├── checkout/success/page.tsx   # Post-checkout "check your email" (unauthenticated)
 │   ├── settings/
 │   │   └── integrations/page.tsx   # GitHub + PostHog + email preferences
 │   ├── api/
@@ -1266,6 +1268,7 @@ Sensitive metadata is NOT exposed in API responses:
   - `/api/share-credit` — 5/hour
   - `/api/leads` — 10/hour
   - Magic link — 5/hour
+  - `/api/billing/checkout` (unauthed) — 10/hour
 - **Note:** In-memory limiter is per-instance; not persistent across serverless cold starts
 
 ### Prompt Injection Protection
@@ -1323,11 +1326,26 @@ trial_ends_at timestamptz  -- 14-day Pro trial expiry
 - `getAllowedScanFrequency(tier)` — Returns allowed frequencies for tier
 - `TRIAL_DURATION_DAYS = 14`
 
+### Checkout Flow (D44)
+
+Pricing page buttons go directly to Stripe — no login required.
+
+**Authenticated user**: Email pre-filled, success → `/settings/billing?success=true`
+**Unauthenticated user**: Stripe collects email, success → `/checkout/success` ("check your email")
+
+Webhook `checkout.session.completed` handles both paths:
+- With `user_id` in metadata → update profile (existing flow)
+- Without `user_id` → find user by email in profiles, or create via `admin.createUser()` → set trial → patch Stripe subscription metadata with `user_id` → send welcome magic link via Resend
+
+Fallback: `handleSubscriptionUpdated`/`handleSubscriptionDeleted` look up by `stripe_subscription_id` if `user_id` metadata is missing (matches `handlePaymentFailed` pattern).
+
+Rate limit: 10 checkout sessions/hour per IP (unauthenticated only).
+
 ### API Routes
 
 | Route | Method | Purpose |
 |-------|--------|---------|
-| `/api/billing/checkout` | POST | Create Stripe Checkout session (pro/scale) |
+| `/api/billing/checkout` | POST | Create Stripe Checkout session (authed or unauthed) |
 | `/api/billing/portal` | POST | Create Customer Portal session |
 | `/api/billing/webhook` | POST | Handle Stripe webhook events |
 
@@ -1335,10 +1353,10 @@ trial_ends_at timestamptz  -- 14-day Pro trial expiry
 
 | Event | Action |
 |-------|--------|
-| `checkout.session.completed` | Set tier, customer_id, subscription_id, status=active |
-| `customer.subscription.updated` | Update tier/status if plan changed |
-| `customer.subscription.deleted` | Downgrade to free, clear subscription_id |
-| `invoice.payment_failed` | Set status to past_due |
+| `checkout.session.completed` | Find/create user, set tier, customer_id, subscription_id, status=active, send welcome email |
+| `customer.subscription.updated` | Update tier/status if plan changed (fallback: lookup by subscription_id) |
+| `customer.subscription.deleted` | Downgrade to free, clear subscription_id (fallback: lookup by subscription_id) |
+| `invoice.payment_failed` | Set status to past_due (lookup by subscription_id) |
 
 ### Env Vars
 ```
@@ -1351,11 +1369,13 @@ STRIPE_PRICE_SCALE_ANNUAL=price_...
 ```
 
 ### Key Files
-- `src/lib/stripe.ts` — Stripe client, price ID mapping, checkout/portal helpers
+- `src/lib/stripe.ts` — Stripe client, price ID mapping, checkout/portal helpers (userId/email optional)
 - `src/lib/permissions.ts` — Tier limits, trial logic, permission checks
-- `src/app/api/billing/` — Checkout, portal, webhook routes
+- `src/app/api/billing/` — Checkout (dual-path), portal, webhook (find-or-create user) routes
+- `src/app/checkout/success/page.tsx` — Post-checkout "check your email" page (unauthenticated)
 - `src/app/pricing/page.tsx` — Public pricing comparison
 - `src/app/settings/billing/page.tsx` — Subscription management
+- `src/components/pricing/PricingContent.tsx` — Pricing cards, buttons go directly to Stripe
 - `src/components/UpgradePrompt.tsx` — Reusable upgrade CTA
 - `src/components/MobileUpgradeGate.tsx` — Viewport-based tier gate
 

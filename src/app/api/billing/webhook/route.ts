@@ -3,6 +3,11 @@ import Stripe from "stripe";
 import { getStripe, getTierFromPriceId, VALID_PAID_TIERS } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureEvent, identifyUser, flushEvents } from "@/lib/posthog-server";
+import { welcomeSubscriberEmail } from "@/lib/email/templates";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const TRIAL_DURATION_DAYS = 14;
 
 /**
  * POST /api/billing/webhook
@@ -75,26 +80,45 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Handle successful checkout - set tier, customer ID, subscription ID
+ * Handle successful checkout - set tier, customer ID, subscription ID.
+ * Supports both authenticated (user_id in metadata) and unauthenticated checkouts.
  */
 async function handleCheckoutCompleted(
   supabase: ReturnType<typeof createServiceClient>,
   session: Stripe.Checkout.Session
 ) {
-  const userId = session.metadata?.user_id;
+  let userId = session.metadata?.user_id;
   const tier = session.metadata?.tier;
   const period = session.metadata?.period;
 
-  // Validate required metadata
-  if (!userId || !tier) {
-    console.error("Missing metadata in checkout session:", session.id);
-    return; // Return without throwing - this is a permanent failure, don't retry
+  // Validate tier
+  if (!tier || !VALID_PAID_TIERS.includes(tier as typeof VALID_PAID_TIERS[number])) {
+    console.error("Missing/invalid tier in checkout metadata:", tier, session.id);
+    return;
   }
 
-  // Validate tier is one of the allowed values (prevents metadata tampering)
-  if (!VALID_PAID_TIERS.includes(tier as typeof VALID_PAID_TIERS[number])) {
-    console.error("Invalid tier in checkout metadata:", tier, session.id);
-    return; // Return without throwing - permanent failure
+  // Unauthenticated checkout: find or create user from Stripe email
+  if (!userId) {
+    const email = session.customer_details?.email?.toLowerCase();
+    if (!email) {
+      console.error("No user_id or email in checkout session:", session.id);
+      return;
+    }
+
+    userId = await findOrCreateUser(supabase, email, tier as "pro" | "scale");
+    if (!userId) return; // logged inside findOrCreateUser
+
+    // Patch Stripe subscription metadata so future webhook events can find the user
+    if (session.subscription) {
+      try {
+        await getStripe().subscriptions.update(session.subscription as string, {
+          metadata: { user_id: userId, tier, period: period || "monthly" },
+        });
+      } catch (err) {
+        // Non-fatal — handlers fall back to stripe_subscription_id lookup
+        console.error("Failed to patch subscription metadata:", err);
+      }
+    }
   }
 
   const { error } = await supabase
@@ -130,17 +154,135 @@ async function handleCheckoutCompleted(
 }
 
 /**
+ * Find existing user by email, or create a new one.
+ * Sends a welcome magic link email to new/existing users from unauthenticated checkout.
+ */
+async function findOrCreateUser(
+  supabase: ReturnType<typeof createServiceClient>,
+  email: string,
+  tier: "pro" | "scale",
+): Promise<string | undefined> {
+  // Check for existing user by email
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  let userId: string;
+  let isNewUser = false;
+
+  if (existingProfile) {
+    userId = existingProfile.id;
+  } else {
+    // Create new Supabase auth user
+    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+      email,
+      email_confirm: true,
+    });
+
+    if (createError) {
+      // User may exist in auth.users but not profiles (retry after partial failure)
+      if (createError.message?.includes("already been registered")) {
+        const { data: { users } } = await supabase.auth.admin.listUsers();
+        const existing = users?.find(u => u.email === email);
+        if (existing) {
+          userId = existing.id;
+        } else {
+          console.error("User reportedly exists but not found:", email);
+          return undefined;
+        }
+      } else {
+        console.error("Failed to create user for unauthenticated checkout:", createError);
+        throw createError; // Retry-able
+      }
+    } else {
+      userId = newUser.user!.id;
+      isNewUser = true;
+
+      // Set trial_ends_at for new user
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + TRIAL_DURATION_DAYS);
+      await supabase
+        .from("profiles")
+        .update({ trial_ends_at: trialEnd.toISOString() })
+        .eq("id", userId);
+    }
+  }
+
+  // Send welcome magic link email
+  await sendWelcomeMagicLink(supabase, email, tier);
+
+  console.log(`${isNewUser ? "Created" : "Found"} user ${userId} for unauthenticated checkout (${email})`);
+  return userId;
+}
+
+/**
+ * Generate a magic link and send a branded welcome email.
+ * Non-fatal — user can always sign in from /login.
+ */
+async function sendWelcomeMagicLink(
+  supabase: ReturnType<typeof createServiceClient>,
+  email: string,
+  tier: "pro" | "scale",
+) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    console.error("NEXT_PUBLIC_APP_URL not configured, skipping welcome email");
+    return;
+  }
+
+  try {
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo: `${appUrl}/auth/callback?next=/dashboard` },
+    });
+
+    if (linkError || !linkData?.properties?.action_link) {
+      console.error("Failed to generate welcome magic link:", linkError?.message);
+      return;
+    }
+
+    const { subject, html } = welcomeSubscriberEmail({
+      tier,
+      magicLink: linkData.properties.action_link,
+    });
+
+    await resend.emails.send({
+      from: "Loupe <notifications@getloupe.io>",
+      to: email,
+      subject,
+      html,
+    });
+  } catch (err) {
+    // Non-fatal — user can sign in via /login
+    console.error("Failed to send welcome email:", err);
+  }
+}
+
+/**
  * Handle subscription updates - plan changes, status changes
  */
 async function handleSubscriptionUpdated(
   supabase: ReturnType<typeof createServiceClient>,
   subscription: Stripe.Subscription
 ) {
-  const userId = subscription.metadata?.user_id;
+  let userId = subscription.metadata?.user_id;
 
+  // Fallback: look up by stripe_subscription_id (unauthenticated checkout where metadata patch failed)
   if (!userId) {
-    console.error("Missing user_id in subscription metadata:", subscription.id);
-    return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("stripe_subscription_id", subscription.id)
+      .maybeSingle();
+
+    if (!profile) {
+      console.error("Cannot find user for subscription update:", subscription.id);
+      return;
+    }
+    userId = profile.id;
   }
 
   // Get the current price to determine tier
@@ -200,11 +342,21 @@ async function handleSubscriptionDeleted(
   supabase: ReturnType<typeof createServiceClient>,
   subscription: Stripe.Subscription
 ) {
-  const userId = subscription.metadata?.user_id;
+  let userId = subscription.metadata?.user_id;
 
+  // Fallback: look up by stripe_subscription_id (unauthenticated checkout where metadata patch failed)
   if (!userId) {
-    console.error("Missing user_id in subscription metadata:", subscription.id);
-    return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("stripe_subscription_id", subscription.id)
+      .maybeSingle();
+
+    if (!profile) {
+      console.error("Cannot find user for subscription deletion:", subscription.id);
+      return;
+    }
+    userId = profile.id;
   }
 
   const { error } = await supabase

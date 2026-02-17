@@ -46,6 +46,10 @@ Cool gray SaaS palette with multi-color accents. Paper: `#F8FAFC`, Ink: `#0F172A
 
 Supersedes D6 ($19/mo) and D16. Three tiers — see `current.md` for full table. Key rationale: original $12/$29 was 2-3x underpriced for unique value (visual monitoring + metric correlation + AI analysis). Killed Starter tier (decision paralysis). $99 Scale anchors $39 Pro via Goldilocks effect. Impact follow-up horizon (30 vs 90 days) is the natural Pro/Scale differentiator. Margins: 62-92% depending on tier and page count. Trial economics: ~$5/non-converting user, break-even at ~18% conversion.
 
+### D44: Unauthenticated Stripe checkout (Feb 17, 2026)
+
+Pricing page buttons required login before payment — broken UX. Now: click button → Stripe Checkout directly (no account needed). Stripe collects the email. Webhook creates Supabase user via `admin.createUser()`, sends branded magic link to sign in. Dual-path: authenticated users get email pre-filled + redirect to billing settings; unauthenticated users get Stripe-collected email + redirect to `/checkout/success`. Subscription metadata patched with `user_id` after user creation; `handleSubscriptionUpdated`/`handleSubscriptionDeleted` fall back to `stripe_subscription_id` lookup if metadata patch failed. Rate limited by IP (10/hr).
+
 ### D43: Audit-to-tracking education bridge (Feb 17, 2026)
 
 Users mentally file Loupe as "another site audit tool" — get findings, feel done, bounce. Reframed audit page from "finished report" to "open predictions" using Chronicle visual patterns in empty/future state. Empty checkpoint chips (7d/14d/30d), "Claim→Track" language, outcome-connection loading examples. Category Loupe should own: "Did that change work?" Key principle: the audit should feel like chapter one, not the whole book.

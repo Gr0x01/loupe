@@ -83,8 +83,8 @@ export async function createCheckoutSession({
   successUrl,
   cancelUrl,
 }: {
-  userId: string;
-  email: string;
+  userId?: string;
+  email?: string;
   tier: "pro" | "scale";
   period: BillingPeriod;
   successUrl: string;
@@ -95,9 +95,9 @@ export async function createCheckoutSession({
   return getStripe().checkout.sessions.create({
     mode: "subscription",
     payment_method_types: ["card"],
-    customer_email: email,
+    ...(email ? { customer_email: email } : {}),
     metadata: {
-      user_id: userId,
+      ...(userId ? { user_id: userId } : {}),
       tier,
       period,
     },
@@ -112,7 +112,7 @@ export async function createCheckoutSession({
     cancel_url: cancelUrl,
     subscription_data: {
       metadata: {
-        user_id: userId,
+        ...(userId ? { user_id: userId } : {}),
         tier,
         period,
       },

@@ -107,4 +107,6 @@ export const RATE_LIMITS = {
   leads: { windowMs: 60 * 60 * 1000, maxRequests: 10 },
   // Magic link: 5 per hour per IP (prevent email spam)
   magicLink: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
+  // Checkout: 10 per hour per IP (unauthenticated Stripe sessions)
+  checkout: { windowMs: 60 * 60 * 1000, maxRequests: 10 },
 } as const;

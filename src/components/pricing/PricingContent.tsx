@@ -145,12 +145,6 @@ function PricingContent() {
   async function handleSelect(tier: SubscriptionTier) {
     if (tier === "free") return;
 
-    // Not logged in — send to login first, then back to pricing to complete checkout
-    if (!isLoggedIn) {
-      window.location.href = `/login?redirect=/pricing`;
-      return;
-    }
-
     setLoading(tier);
     try {
       const res = await fetch("/api/billing/checkout", {
@@ -166,8 +160,6 @@ function PricingContent() {
 
       if (data.url) {
         window.location.href = data.url;
-      } else if (data.error === "Unauthorized") {
-        window.location.href = `/login?redirect=/pricing`;
       } else {
         alert(data.error || "Failed to start checkout");
       }
@@ -211,7 +203,7 @@ function PricingContent() {
             </div>
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <Link
-                href={isLoggedIn ? "/dashboard" : "/login?redirect=/dashboard"}
+                href={isLoggedIn ? "/dashboard" : "/login?redirect=/dashboard&from=pricing"}
                 className="btn-secondary text-center w-full"
               >
                 Keep using Free
@@ -364,7 +356,7 @@ function PricingContent() {
                         )
                       ) : (
                         <Link
-                          href="/#hero-form"
+                          href="/login?redirect=/dashboard&from=pricing"
                           className="btn-secondary w-full h-12 inline-flex items-center justify-center text-sm"
                         >
                           {TIER_CTA[tier]}
@@ -517,10 +509,9 @@ function PricingContent() {
                 How does the 14-day trial work?
               </h3>
               <p className="text-ink-700">
-                When you sign up, you get 14 days of Pro features — 5 pages,
-                daily scans, mobile screenshots, and 30-day impact follow-up.
-                No credit card required. After 14 days, you keep your free page
-                and can upgrade anytime.
+                Subscribe to Pro or Scale and get 14 days free before
+                your first charge. If it&apos;s not for you, cancel anytime —
+                you&apos;ll keep your free page forever.
               </p>
             </div>
 

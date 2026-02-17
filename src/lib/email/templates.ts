@@ -701,3 +701,50 @@ export function claimPageEmail({
   return { subject, html: emailWrapper(content) };
 }
 
+// ============================================
+// Welcome subscriber email (unauthenticated checkout)
+// ============================================
+
+interface WelcomeSubscriberEmailParams {
+  tier: "pro" | "scale";
+  magicLink: string;
+}
+
+/**
+ * Welcome email sent after unauthenticated Stripe checkout.
+ * Contains a magic link so the new subscriber can sign in.
+ */
+export function welcomeSubscriberEmail({
+  tier,
+  magicLink,
+}: WelcomeSubscriberEmailParams): { subject: string; html: string } {
+  const tierName = tier === "pro" ? "Pro" : "Scale";
+  const subject = `Welcome to Loupe ${tierName}`;
+
+  const content = `
+    <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 28px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
+      Your subscription is&nbsp;active.
+    </h1>
+    <p style="margin: 0 0 28px 0; font-size: 17px; color: ${colors.textSecondary}; line-height: 1.6;">
+      Sign in to start tracking your&nbsp;pages.
+    </p>
+
+    <!-- CTA Button -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+      <tr>
+        <td>
+          <a class="cta-button" href="${escapeHtml(magicLink)}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 24px; border-radius: 10px;">
+            Go to your dashboard
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin: 0; font-size: 13px; color: ${colors.textMuted}; line-height: 1.5;">
+      This link expires in 1&nbsp;hour. If you didn't subscribe, contact <a href="mailto:team@getloupe.io" style="color: ${colors.textMuted}; text-decoration: underline;">team@getloupe.io</a>.
+    </p>
+  `;
+
+  return { subject, html: emailWrapper(content) };
+}
+
