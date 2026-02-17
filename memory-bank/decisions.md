@@ -1,760 +1,97 @@
 # Loupe — Decisions
 
-## D1: Standalone project, not a Boost feature (Feb 2, 2026)
+> **Purpose**: Capture the "why" behind key choices. Implementation details live in `architecture.md`.
 
-**Decision**: Build Loupe as a separate product/repo, not inside Boost.
+---
 
-**Why**:
-- Different buyer moment — Boost is "tell me what to do," Loupe is "did what I did work?"
-- Different workflow — Loupe is developer-tool-adjacent (GitHub integration), Boost is marketer-adjacent
-- Can share LLM analysis engine later if both gain traction
-- Keeps both codebases focused and simple
+## Active Decisions
 
-## D2: Name — Loupe (Feb 2, 2026, updated)
+### D1: Standalone project, not a Boost feature (Feb 2, 2026)
 
-**Decision**: Product name is Loupe. Domain: getloupe.io. A loupe is a small magnifying lens used to inspect detail — fits the product's role of looking closely at your pages to spot what changed. Broader than the original "Driftwatch" name, which was too narrowly tied to "drift" as a concept. Loupe covers monitoring, analysis, and A/B testing without needing to stretch the metaphor.
+Loupe is a separate product/repo from Boost. Different buyer moment ("did what I did work?" vs "tell me what to do"), different workflow (developer-tool-adjacent vs marketer-adjacent). Can share LLM engine later if both gain traction.
 
-**Previous**: Originally named "Driftwatch" — renamed because the scope grew beyond drift detection.
+### D2: Name — Loupe (Feb 2, 2026)
 
-## D3: Reuse Boost's tech patterns (Feb 2, 2026)
+Domain: getloupe.io. A loupe is a small magnifying lens for inspecting detail — fits the product's role of looking closely at pages to spot what changed. Broader than the original "Driftwatch" name, which was too narrowly tied to drift detection. Supabase project name (`drift`) left as-is (internal resource ID).
 
-**Decision**: Same stack (Next.js, Supabase, Inngest, Stripe) and same dev patterns (agents, skills, memory bank). Reduces context-switching between projects.
+### D7: Event-triggered conversion, not time-limited trial (Feb 2, 2026)
 
-## D4: Core product is the GitHub + PostHog + Loupe loop (Feb 3, 2026, updated)
+Convert free→paid via contextual upgrade prompts at moments of curiosity, not trial expiration. The "aha moment" depends on a meaningful change happening, not calendar days. Free weekly emails build habit; upgrade prompt at "your site just changed, see what it did to metrics" is higher-intent. 14-day trial exists as a secondary path.
 
-**Decision**: Loupe connects three data sources: GitHub (what changed), PostHog (what happened to metrics), and Loupe screenshots/audits (what the page looks like). The product tells you which change caused which metric movement. Free audit is the lead magnet; the paid product is the full loop.
+### D8: Page audit as lead magnet (Feb 2, 2026)
 
-**Previous (Feb 2)**: "MVP is monitoring + audits, deploy tracking is v2." Revised because weekly monitoring is too slow for activation. Re-scan with structured tracking delivers value in minutes, and the GitHub + PostHog integration is the actual product, not a power-up.
+Free instant page audit is the entry point — zero friction (no signup), demonstrates core value (LLM page analysis), proven model (HubSpot Website Grader, Woorank). Cost: ~$0.05-0.10 per audit. Natural upsell: "Track this page automatically."
 
-**Why**:
-- Solo devs make dozens of changes and never know what moved the needle
-- Weekly monitoring emails are a bad activation mechanic — users forget in a week
-- Re-scan after making a change gives immediate value (minutes, not days)
-- GitHub webhook + PostHog API are both free — no cost barrier for the target audience
-- "Like Facebook Ad suggestions for your landing page" is a stronger pitch than "we'll email you when something changes"
+### D9: Color palette — Dark Tech + Electric Cyan (Feb 2, 2026)
 
-## D5: Vercel AI SDK for model-agnostic LLM calls (Feb 2, 2026)
+Dark UI with electric cyan (#00D4FF) accent on near-black (#0F1117). Previous coral/warm-white was too close to Boost (aboo.st). Dark background communicates tech-forward energy; cyan is distinctive without falling into blue-SaaS territory. Score colors (green/amber/red) read clearly against dark. Typography: Instrument Serif + DM Sans.
 
-**Decision**: Use Vercel AI SDK to abstract LLM provider. Tier models by task: cheap models (Haiku/Gemini Flash) for detection, better models (Sonnet/Opus) for suggestions.
+### D13: Methodology grounding in audit prompt (Feb 3, 2026)
 
-**Why**:
-- Swap providers without code changes
-- Optimize cost per task (detection is cheap, suggestions are expensive)
-- Can evaluate Gemini and other models as they improve
-- Avoid vendor lock-in
+Each audit category grounded in specific frameworks (PAS, Fogg Behavior Model, Cialdini, Gestalt, Gutenberg/F-pattern, search intent matching). Makes re-scan comparison more precise ("Does this element now satisfy the PAS framework?"), findings more credible, and `element` field enables matching findings across scans.
 
-## D6: Pricing — $19/mo Pro, generous free tier (Feb 2, 2026)
+### D21: Vision pivot — Predictions not grades (Feb 2026)
 
-**Decision**: Two tiers. Free (1 page, weekly, basic alerts) and Pro $19/mo (multiple pages, analytics, suggestions). No Team tier at launch.
+Repositioned from "website grader with scores" to "correlation layer with predictions." Scores are vanity metrics — users want "did my change help?" Every finding predicts impact; Chronicle tracks what actually happened. Differentiates from competitors (Hotjar, VisualPing) who don't correlate. Removed scores, leaderboard, and grading from all UI.
 
-**Why**:
-- Target audience (solo founders) spends $0-100/mo total on analytics tools
-- $29-49 is at the upper limit of willingness to pay for this audience
-- $19 is below the pain threshold — needs to clearly save time, doesn't need to be a "must have"
-- Design Team tier later based on what Pro users actually ask for
+### D25: Positioning — Celebration + Curiosity + Compounding (Feb 2026)
 
-## D7: Event-triggered conversion, not time-limited trial (Feb 2, 2026)
+Three layers: (1) Celebration + curiosity for acquisition ("You made the change. See what it did."), (2) Supportive for activation ("Your next change is coming. This time, you'll know."), (3) Compounding intelligence for retention (scan counts, prediction accuracy). Category: Change Intelligence. Tone: supportive partner, not judgmental auditor. Avoid fear-based framing, gambling metaphors, or punching down at founders.
 
-**Decision**: Convert free→paid via contextual upgrade prompts at moments of curiosity, not a 7/14-day trial expiration.
+### D28: Refined Brutalism design system (Feb 2026)
 
-**Why**:
-- Free weekly emails build habit and stickiness
-- Upgrade prompt at "your site just changed, see what it did to metrics" is higher-intent than an arbitrary trial ending
-- The "aha moment" for this product depends on a meaningful change happening, not calendar days
-- Optional "try Pro for 14 days" button always available as a secondary path
+Cool gray SaaS palette with multi-color accents. Paper: `#F8FAFC`, Ink: `#0F172A`, Line: `#9AAABD`, Signal (primary CTA): coral `#FF6B4A`. Surfaces: white bg, 2px solid border, 10px radius, `2px 2px 0` offset shadow. No blur effects, no gradients on surfaces. Previous warm paper (#F7F4EC) felt dated.
 
-## D8: Page audit as lead magnet / launch feature (Feb 2, 2026)
+### D29: Pricing — Free/Pro($39)/Scale($99) (Feb 2026)
 
-**Decision**: Ship the free instant page audit first. It's the entry point to the product.
+Supersedes D6 ($19/mo) and D16. Three tiers — see `current.md` for full table. Key rationale: original $12/$29 was 2-3x underpriced for unique value (visual monitoring + metric correlation + AI analysis). Killed Starter tier (decision paralysis). $99 Scale anchors $39 Pro via Goldilocks effect. Impact follow-up horizon (30 vs 90 days) is the natural Pro/Scale differentiator. Margins: 62-92% depending on tier and page count. Trial economics: ~$5/non-converting user, break-even at ~18% conversion.
 
-**Why**:
-- Already built and proven in Boost — minimal new work
-- Zero friction (no signup for first audit)
-- Directly demonstrates Loupe's core value (LLM page analysis)
-- Proven lead magnet model (HubSpot Website Grader, Woorank, etc.)
-- Shareable audit cards drive viral distribution
-- Cost is trivial (~$0.05-0.10 per audit)
-- Natural upsell: "Track this page automatically"
+### D43: Audit-to-tracking education bridge (Feb 17, 2026)
 
-## D9: Color palette — Dark Tech + Electric Cyan (Feb 2, 2026)
+Users mentally file Loupe as "another site audit tool" — get findings, feel done, bounce. Reframed audit page from "finished report" to "open predictions" using Chronicle visual patterns in empty/future state. Empty checkpoint chips (7d/14d/30d), "Claim→Track" language, outcome-connection loading examples. Category Loupe should own: "Did that change work?" Key principle: the audit should feel like chapter one, not the whole book.
 
-**Decision**: Dark UI with electric cyan (#00D4FF) accent on near-black (#0F1117) background.
+---
 
-**Why**:
-- Original coral/warm-white palette was too close to Boost (aboo.st) which already owns that color space
-- Dark background communicates tech-forward, developer-tool energy
-- Electric cyan accent is distinctive and attention-grabbing without falling into blue-SaaS territory
-- Dark card surfaces (#1C1F2E) float naturally on near-black with depth shadows
-- Score colors (green/amber/red) read clearly against dark background
-- Typography (Instrument Serif + DM Sans) unchanged — the editorial personality carries forward
-- Overall feel: bold, confident, precise — fits a tool that inspects your pages closely
+## Implemented & Documented Elsewhere
 
-## D10: Decodo residential proxy for screenshots (Feb 2, 2026)
+Decisions below are fully implemented. See `architecture.md` for details.
 
-**Decision**: Use Decodo (formerly Smartproxy) residential proxy at $4/mo (2GB plan) to bypass bot protection on screenshots. Proxy-first approach — all screenshots go through residential proxy by default.
+| ID | Summary | See |
+|----|---------|-----|
+| D3 | Same stack as Boost (Next.js, Supabase, Inngest, Stripe) | `README.md` |
+| D4 | Core product = GitHub + Analytics + Loupe correlation loop | `README.md` |
+| D5 | Vercel AI SDK for model-agnostic LLM calls | `architecture.md` LLM Layer |
+| D10 | Decodo residential proxy for screenshots ($4/mo) | `architecture.md` Screenshot Service |
+| D11 | Single LLM call for analysis (swappable pipeline interface) | `architecture.md` Pipeline |
+| D12 | Gemini Flash for comparison, Pro for main audit | `architecture.md` Pipeline |
+| D17 | PostHog integration — pull & store at scan time | `architecture.md` PostHog |
+| D18 | Domain claiming — first-come-first-served | Coexists with D34 |
+| D19 | GitHub webhook security (path validation, dedup, token handling) | `architecture.md` Security |
+| D20 | Unified post-analysis pipeline (comparison + correlation in one call) | `architecture.md` LLM Layer |
+| D22 | Context-aware email templates (4 types based on scan results) | `architecture.md` Email |
+| D23 | Supabase direct integration for vibe coders | `architecture.md` Supabase Integration |
+| D24 | Finding feedback for LLM calibration | `architecture.md` Finding Feedback |
+| D27 | Homepage 4-section "Your" structure | `current.md` Homepage |
+| D30 | `extractJson()` 3-tier fallback + cron idempotency | `architecture.md` LLM JSON Parsing |
+| D31 | Anti-hallucination guardrails (temporal + prompt + enforcement) | `architecture.md` Anti-Hallucination |
+| D32 | Cap screenshot height to 7500px before vision API | `architecture.md` Screenshot Service |
+| D33 | Intent capture — metric focus, hypotheses, observations | `architecture.md` LLM Layer |
+| D34 | Single domain per account (`profiles.account_domain`) | `architecture.md` Schema |
+| D35 | Multi-layer fix for false mobile findings | `architecture.md` Screenshot Service |
+| D36 | RFC-0001: Multi-horizon checkpoints (all 7 phases shipped) | `architecture.md` RFC-0001 |
+| D37 | Fingerprint matching — LLM-proposed, deterministically validated | `architecture.md` Deploy Scanning |
+| D38 | LLM-as-analyst for checkpoint assessment | `architecture.md` RFC-0001 |
+| D39 | Outcome feedback for LLM calibration | `architecture.md` RFC-0001 |
+| D40 | Attribution language — confidence bands with null fallthrough | `current.md` RFC-0001 |
+| D41 | Daily backup cron — always run per-page, never early-exit | `current.md` Cron & Reliability |
+| D42 | Respect page-level scan frequency alongside tier | `current.md` Cron & Reliability |
 
-**Why**:
-- Vultr datacenter IP gets blocked by Vercel Security Checkpoint and Cloudflare
-- puppeteer-extra stealth plugin alone wasn't enough for Vercel's bot detection
-- Residential proxy ($4/mo for 2GB) is cheaper than a managed screenshot API ($17+/mo)
-- 2GB is ~20,000+ screenshots at 100KB each — more than enough for MVP
-- Proxy-first avoids the 15-20s penalty of trying direct first, detecting block, then retrying
-- Can pass `?proxy=false` to skip proxy for known-safe sites if needed
+---
 
-## D11: Single Sonnet call for Phase 1A analysis (Feb 2, 2026)
+## Removed
 
-**Decision**: Start with a single Claude Sonnet call doing the full analysis (marketing + design + suggestions) instead of multi-agent pipeline. Pipeline interface is swappable.
-
-**Why**:
-- Simpler to ship and debug
-- One call is faster and cheaper than 3 calls + orchestrator
-- Sonnet's vision is strong enough for a combined analysis
-- The pipeline interface (`runAnalysisPipeline`) abstracts the implementation — can swap to multi-agent later without changing API routes
-- Step 4b will evaluate multi-agent vs single-call quality + cost tradeoffs
-
-## D12: Gemini Flash for comparison pipeline (Feb 3, 2026)
-
-**Decision**: Use Gemini 2.0 Flash (text-only) for the Pass 2 comparison between scans. Main audit stays on Gemini 3 Pro (vision).
-
-**Why**:
-- Comparison is text-only (structured JSON in, structured JSON out) — no vision needed
-- ~$0.002 per comparison vs ~$0.03 for the main audit
-- Total re-scan cost: ~$0.035 (main audit + comparison)
-- Fast enough that comparison adds negligible latency
-
-## D13: Methodology grounding in audit prompt (Feb 3, 2026)
-
-**Decision**: Ground each audit category in specific marketing/design frameworks (PAS, Fogg Behavior Model, Cialdini, Gestalt, Gutenberg/F-pattern, search intent matching). Add `methodology` and `element` fields to each finding.
-
-**Why**:
-- Makes re-scan comparison more precise: "Does this element now satisfy the PAS framework?"
-- `element` field enables matching findings across scans: "the hero headline" can be tracked
-- Methodology references make findings more credible and educational for the user
-- Backward compatible — existing analyses without these fields still render fine
-
-## D14: Rename from Driftwatch to Loupe (Feb 2, 2026)
-
-> Note: Originally numbered D12 before D12-D13 were added above.
-
-**Decision**: Rename product from "Driftwatch" to "Loupe" (domain: getloupe.io).
-
-**Why**:
-- "Driftwatch" was too narrowly focused on the "drift" concept — product scope includes monitoring, analysis, auditing, and eventually A/B testing
-- "Loupe" (a small magnifying lens for inspecting detail) better represents the core value: looking closely at your pages
-- Shorter, more memorable, works as both noun and verb ("loupe your pages")
-- Supabase project name (`drift`) left as-is — it's an internal resource ID, not user-facing
-- Inngest client ID updated to `loupe`
-
-## D15: Launch strategy — Founding 50, skip billing (Feb 3, 2026) — DEPRECATED
-
-> **Deprecated (Feb 14, 2026):** Founding 50 system, share-to-unlock, and waitlist fully removed from codebase and database. Replaced by Stripe billing tiers (Free/Pro/Scale). See D29. All DB artifacts dropped: `waitlist` table, `claim_founding_50` RPC, `increment_bonus_pages` RPC, `profiles.bonus_pages`, `profiles.is_founding_50`.
-
-**Decision**: Skip Stripe/billing for launch. Ship free for first 50 users ("Founding 50"), then waitlist. Use constraints to force conversations and learn pricing.
-
-**Founding 50 get**:
-- 1 page to monitor
-- Daily scans (the good stuff)
-- Share to unlock +1 page (instant credit, honor system)
-
-**After 50**:
-- Waitlist
-- Or weekly scans if we open it up later
-
-**Free audit stays open** — no signup required, acquisition engine keeps running even when Founding 50 is full.
-
-**Why**:
-- Ship faster — billing has edge cases that delay launch
-- Remove friction — no credit card = more signups = more learning
-- Customer development — ask 50 real users "what would you pay?" beats guessing
-- Funnel reality: 50 signups → 25 try it → 10 come back → 5 rely on it. Those 5 are the signal.
-- Daily scans for Founding 50 makes them feel special without manual upgrades
-- 1 page forces the core habit; asking for more = upgrade signal
-
-**Cost analysis**:
-- Gemini Pro: ~$0.01/scan
-- Daily scans for 50 users × 1 page: ~$15/mo
-- LLM cost is a rounding error — Vultr box is more expensive than AI
-
-**When to add billing**: When we have users begging for more and evidence of what they'd pay.
-
-## D16: Supersede D6 pricing for now (Feb 3, 2026)
-
-**Decision**: D6 ($19/mo Pro tier) is deferred. D15 launch strategy takes precedence. Pricing will be determined after talking to early users.
-
-**Candidates**: $9, $15, $19, or $30/mo — will learn from first 50 users which segment we're actually serving.
-
-## D17: PostHog integration — Pull & Store (Feb 3, 2026)
-
-**Decision**: Option A — Pull metrics at scan time, store in `analyses.metrics_snapshot`. Display alongside audit results.
-
-**What we built**:
-- User connects PostHog via API key + Project ID in `/settings/integrations`
-- Credentials validated via HogQL test query before storing
-- Each scan fetches pageviews, unique visitors, bounce rate (last 7 days)
-- Metrics displayed in analysis results header
-- No LLM correlation for MVP — just display the data
-
-**Why Option A over B/C**:
-- Simpler to ship — no LLM tool calling complexity
-- Rate limit safe — one query per scan, not multiple per LLM turn
-- Users see value immediately ("here are your metrics") without waiting for AI interpretation
-- LLM correlation can be added later as a post-analysis pass if users want it
-
-**Security considerations**:
-- API keys stored in `integrations.access_token` (same as GitHub)
-- HogQL queries sanitized to prevent injection (domain escaped)
-- Host whitelist prevents SSRF (only us.i.posthog.com, eu.i.posthog.com, app.posthog.com)
-- 15s request timeout prevents hanging
-
-## D18: Domain claiming — First-come-first-served for now (Feb 4, 2026)
-
-**Decision**: One account owns a domain. If User A claims `example.com`, User B cannot claim it. Show "already being monitored" message.
-
-**Why**:
-- Simple to implement and reason about
-- Creates ownership feeling ("my page")
-- Prevents confusing duplicate monitoring states
-
-**Future considerations**:
-- Track claiming patterns by email domain (are most claimers `*@theirdomain.com`?)
-- If pattern holds → enforce email-domain matching (only `*@example.com` can claim `example.com`)
-- If we hit ~5000 users and squatting becomes a problem → add domain verification (DNS TXT or meta tag)
-- For now, observe and ship simple
-
-**Not building yet**: The blocking logic. Currently anyone can claim any domain. Will implement the check when we have evidence it's needed or when abuse appears.
-
-## D19: GitHub Integration Security (Feb 4, 2026)
-
-**Decision**: Implemented targeted security fixes for GitHub webhook/repo connection.
-
-**What we fixed**:
-1. **Path manipulation** (Critical): Validate `fullName` format with regex (`^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$`) before using in GitHub API URLs
-2. **Token revocation handling** (Medium): Detect 401 responses and return clear "token expired, please reconnect" message
-3. **Duplicate webhooks** (Medium): Unique constraint on `deploys(repo_id, commit_sha)` + graceful handling (return 200, log, ignore)
-
-**What we accepted for MVP**:
-- **Signature verification after DB lookup**: Per-repo secrets provide isolation; global secret would break existing webhooks; DB query is fast (indexed)
-- **Plain text token storage**: Common OAuth practice; DB connection encrypted; key management adds complexity
-- **Pages not linked to repos**: Known limitation documented in current.md
-
-**Why these tradeoffs**:
-- Solo dev MVP — security fixes should address real attack vectors, not theoretical enterprise concerns
-- Per-repo webhook secrets already provide good isolation (attacker needs both repo access AND webhook secret)
-- Token encryption adds complexity without meaningfully improving security (attacker with DB access has bigger problems)
-
-## D20: Unified post-analysis pipeline (Feb 4, 2026)
-
-**Decision**: Merge comparison and analytics correlation into a single Gemini 3 Pro call with LLM tools, instead of separate passes.
-
-**Why**:
-- Comparison needs full context to evaluate change quality ("did the fix actually help?")
-- Flash can do yes/no but Pro can assess nuance ("words shuffled but message unclear")
-- Single smart call is simpler than orchestrating multiple passes
-- Tools are optional — pipeline runs without analytics, adds tools when credentials exist
-
-## D21: Vision pivot — Predictions not grades (Feb 2026)
-
-**Decision**: Reposition from "website grader with scores" to "correlation layer with predictions." Remove scores entirely from UI. Every finding predicts impact, Chronicle tracks what actually happened.
-
-**Why**:
-- Scores are vanity metrics — users want to know "did my change help?"
-- Predictions are actionable — "expected +8-15% conversion" beats "score: 72"
-- Chronicle format (N+1 scans) creates ongoing value vs one-time audit
-- Differentiates from competitors (Hotjar, VisualPing) who don't correlate
-
-**What changed**:
-- Removed score display from all UI (dashboard, results, emails)
-- Deleted leaderboard feature (no scores = no ranking)
-- New types: Finding with Prediction, ChangesSummary with Correlation
-- Brand voice: "observant analyst" with emotional register (Ouch/Aha/Huh)
-
-## D22: Context-aware email templates (Feb 2026)
-
-**Decision**: Replace generic "scan complete" emails with context-aware templates based on what the scan found. Four templates: changeDetected, allQuiet, correlationUnlocked, weeklyDigest.
-
-**Why**:
-- Generic "your scan is ready" wastes user attention
-- Subject line should convey the finding: "Your headline change helped" vs "Scan complete"
-- All-quiet emails reduce anxiety ("nothing broke")
-- Correlation unlock is a celebration moment worth a dedicated email
-- Weekly digest for power users (3+ pages) reduces email fatigue
-
-**What we removed**:
-- `scanCompleteEmail` and `deployScanCompleteEmail` — no fallback needed
-- Scheduled/deploy scans always have `changes_summary` from post-analysis pipeline
-
-**Email selection**:
-1. Skip if manual trigger
-2. Skip if email_notifications disabled
-3. Changes detected → changeDetectedEmail (dynamic subject based on correlation)
-4. No changes → allQuietEmail
-
-## D23: Supabase direct integration for vibe coders (Feb 2026)
-
-**Decision**: Add Supabase as an analytics integration, enabling correlation between page changes and actual business outcomes (signups, orders) rather than proxy metrics (bounce rate).
-
-**Why**:
-- Every Lovable/Bolt project has Supabase by default — 100% coverage for vibe coder ICP
-- Zero "go set up analytics" friction
-- Differentiator: page→database correlation (nobody else does this)
-- Real outcomes (signups, orders) beat proxy metrics (bounce rate)
-
-**Connection approach**: Two-key flow
-1. User pastes Project URL + Anon Key (familiar — same key they use in their app)
-2. Try to introspect schema
-3. If tables visible → done
-4. If no tables (RLS blocking) → prompt to upgrade to Service Role Key
-
-**Why this works**:
-- Anon key is what vibe coders already copy/paste into Lovable/Bolt
-- Low friction start, escalate only when needed
-- Most vibe coder MVPs have minimal RLS anyway
-
-**Security**:
-- Anon key is safe by design (RLS-limited)
-- Service role key stored encrypted, only SELECT queries
-- Table name validation prevents injection
-- Clear messaging about what we access
-
-**What LLM sees**: Separate tools from PostHog/GA4
-- `discover_tables` — find available tables and row counts
-- `get_table_count` — check specific table counts
-- `identify_conversion_tables` — auto-detect signups/orders/waitlist
-- `compare_table_counts` — measure growth between snapshots
-
-Prompt explicitly tells LLM: "Supabase provides REAL business outcomes, not proxy metrics."
-
-## D24: Finding feedback for LLM calibration (Feb 2026)
-
-**Decision**: Add feedback buttons ("Accurate" / "Not quite") to expanded finding cards. Store feedback with finding snapshot and inject into future scans for the same page.
-
-**Why**:
-- LLM makes mistakes — users know when a finding is wrong
-- Feedback creates a calibration loop: user corrects → LLM learns for this page
-- Per-page context (not global) keeps feedback relevant and manageable
-- Semantic matching via finding snapshot lets LLM correlate across scans even when element text changes
-
-**What we built**:
-- Accuracy-based feedback (not intent-based like "I'll fix this")
-- "Not quite" requires explanation (max 500 chars) — data for calibration
-- Feedback stored with finding snapshot for semantic matching
-- Relevance filtering: 90 days, matching elementTypes, max 10 per scan
-- Prompt injection protection: XML tags, sanitization, explicit "treat as data" instruction
-
-**What we didn't build**:
-- Global feedback aggregation (too noisy, different pages have different contexts)
-- "I'll fix this" tracking (doesn't help calibration — we need to know if we were RIGHT, not if user will act)
-- Feedback on collapsed cards (requires engagement to provide feedback)
-
-## D25: Positioning shift — Celebration + Curiosity + Compounding (Feb 2026)
-
-**Decision**: Reposition from fear/opportunity-cost messaging to a supportive, celebratory tone. We have their back.
-
-**The insight**: Solo founders ship fast — that's the hard part. The missing piece is knowing what worked. Loupe closes that loop with curiosity, not fear.
-
-**Three positioning layers**:
-1. **Celebration + curiosity (acquisition):** "You made the change. See what it did." Celebrate their velocity, invite them to see results. Supportive, not judgmental.
-2. **Supportive (activation):** "Your next change is coming. This time, you'll know." Future-focused, helpful — not guilt-tripping.
-3. **Compounding intelligence (retention):** Show accumulating value. Scan counts, prediction accuracy, calibration. Every scan makes Loupe sharper for their page.
-
-**Category**: Change Intelligence — Loupe connects what you ship to what happens next. Not a category to evangelize aggressively, but a frame to use consistently.
-
-**Reframe**: From detective (reactive, "what happened") to supportive partner (proactive, "here's what it did, here's what to try next").
-
-**What we avoid**:
-- "Coin flip" / gambling metaphors — feels negative
-- Fear-based framing ("you're losing money", "costing you signups")
-- Punching down at founders for not tracking changes
-- Making the reader feel bad about their current workflow
-
-**Why the shift**:
-- Original opportunity-cost framing felt punishing, not supportive
-- Our ICP is already doing the hard work (shipping) — we're here to help them see results
-- Celebration + curiosity converts better than fear for builders who are proud of their velocity
-- Tone should match the product experience: helpful advisor, not judgmental auditor
-
-## D26: Hide founding count until 10+ users (Feb 2026) — DEPRECATED
-
-> **Deprecated (Feb 14, 2026):** Founding counter removed along with all Founding 50 code. See D15 deprecation note.
-
-**Decision**: Don't display the "X of 50 spots claimed" counter until at least 10 users have signed up. Counter auto-appears once threshold is crossed.
-
-**Why**:
-- "2/50 claimed" looks empty, not exclusive
-- Low numbers hurt social proof instead of creating urgency
-- At 10+, the counter actually works ("38 remaining" feels real)
-- Simple threshold check — no messaging changes needed
-
-**Where hidden**:
-- Homepage hero progress bar
-- Homepage closing section ("X remaining")
-- Analysis page claim modals (founding dots)
-
-**What still works**: Waitlist logic (triggers at `isFull`), founding member benefits, page limits — all independent of display threshold.
-
-## D27: Homepage redesign — 4-section "Your" structure (Feb 2026)
-
-**Decision**: Complete homepage rebuild with 4 sections, each framed around "your" — Hero, YourPage, YourResults, UrgencyCloser.
-
-**Structure**:
-1. **Hero**: "You made the change. See what it did." + SitePreviewCard animation (headline change → notification → +23%)
-2. **YourPage**: Audit preview showing what Loupe sees (headline, findings, predictions)
-3. **YourResults**: Feature grid (timeline, verdicts, metrics, compounding history)
-4. **UrgencyCloser**: "Your next change is coming. This time, you'll know."
-
-**New components** (`src/components/landing/`):
-- `SitePreviewCard.tsx` — Animated hero visual
-- `YourPage.tsx` — Two-column audit preview
-- `YourResults.tsx` — Feature grid with ChangeTimeline, VerdictCard, MetricsCard, HistoryCard
-- `UrgencyCloser.tsx` — Final CTA with trust badges
-
-**Why**:
-- Previous homepage explained Loupe's process; new homepage shows outcomes
-- "Your page, through Loupe" vs "How it works" — outcome-focused, not mechanism-focused
-- Every section uses "your" framing to make examples feel personal
-- SitePreviewCard animation demonstrates the value loop in 3 seconds
-- Removed old pattern of showing "other people's scenarios" (via Lovable, via Bolt)
-
-**What was removed**:
-- Old HowItWorks sections (mechanism-focused)
-- ScenarioShowcase (third-party examples)
-- Gap section (alone vs with Loupe)
-- Hero orbs/decorative elements
-
-See `homepage-story.md` for copy rules and language guidelines.
-
-## D28: Refined Brutalism design system (Feb 2026)
-
-**Decision**: Visual overhaul from "Luminous Glass + Editorial Punch" to "Refined Brutalism" — cool gray SaaS feel with multi-color accent palette.
-
-**Color palette**:
-- Paper: `#F8FAFC` (cool gray background)
-- Ink: `#0F172A` (text)
-- Line: `#9AAABD` (borders)
-- Multi-color accents: coral, blue, violet, emerald, amber
-- Signal (primary CTA): coral (`#FF6B4A`)
-
-**Surface treatment**:
-- `.glass-card`: White bg, 2px solid border, 10px radius, `2px 2px 0` offset shadow
-- No blur effects (`backdrop-filter: blur()` removed)
-- No gradients on surfaces
-- Section colors via accent badges (blue for "Your page", violet for "Your results")
-
-**Why**:
-- Previous warm paper (#F7F4EC) felt dated; cool gray is cleaner SaaS
-- Multi-color accents allow visual variety without competing with content
-- Solid borders (not blurred) are easier to parse and more "honest"
-- Offset shadows add depth without complexity
-- Clean, confident, precise — matches the tool's personality
-
-**Key files updated**:
-- `src/app/globals.css` (all CSS variables and component classes)
-- `src/app/hero-bg.css` (removed orbs)
-- `.claude/agents/*.md` (ui-designer, frontend-developer, brand-guardian)
-- `.claude/skills/frontend-design/SKILL.md`
-
-## D29: Pricing tiers — restructured to Free/Pro/Scale (Feb 2026)
-
-**Decision**: Three pricing tiers. Supersedes D6 and D16. Restructured Feb 16 from Free/Starter($12)/Pro($29) to Free/Pro($39)/Scale($99).
-
-**Tiers**:
-
-| | **Free** | **Pro** | **Scale** |
-|---|:---:|:---:|:---:|
-| **Price** | $0 | $39/mo ($390/yr) | $99/mo ($990/yr) |
-| **Pages** | 1 | 5 | 15 |
-| **Scans** | Weekly | Daily + Deploy | Daily + Deploy |
-| **Integrations** | — | All | All |
-| **Mobile** | — | ✓ | ✓ |
-| **Impact follow-up** | — | 30 days | 90 days |
-
-**14-day Pro trial**: All new signups get Pro features for 14 days, no credit card required. `trial_ends_at` set on profiles at signup. `getEffectiveTier()` returns "pro" during active trial.
-
-**Why restructured**:
-- Original $12/$29 was underpriced 2-3x vs market for change intelligence (unique value: visual monitoring + metric correlation + AI impact analysis)
-- Killed Starter tier — too similar to Pro, created decision paralysis
-- $99 Scale serves as price anchor (Goldilocks/compromise effect) making $39 Pro feel reasonable
-- Impact follow-up horizon (30 vs 90 days) is the natural differentiator between Pro and Scale
-
-**Margin analysis** (updated):
-
-| Tier | Price | Est. Monthly Cost/page | Margin (5 pages) |
-|------|-------|----------------------|-------------------|
-| Pro | $39 | ~$3-5 | ~62-85% |
-| Scale | $99 | ~$3-5 | ~75-92% |
-
-Cost: ~$3-5/page/month for daily scans. Checkpoint engine adds ~$0.10/change lifetime (negligible).
-
-**Trial economics**: ~$5/non-converting trial user (14 days × 5 pages × daily scans). Break-even at ~18% conversion with 50 signups/month. Conservative estimate: 10% conversion early on.
-
-**Implemented (Feb 16, 2026)**:
-- Stripe integration with checkout, portal, webhooks
-- Annual discount: ~17% ("2 months free") — $390/yr Pro, $990/yr Scale
-- 14-day Pro trial on signup (no credit card)
-- Mobile access on all paid tiers
-- Impact follow-up gated by `maxHorizonDays` in permissions
-- ~~Founding 50 system~~ fully removed (Feb 14, 2026)
-
-## D30: Robust LLM JSON extraction + cron idempotency (Feb 12, 2026)
-
-**Decision**: Replace naive regex JSON extraction with `extractJson()` helper across all 3 LLM parse sites. Set cron orchestrator retries to 0 with date-based idempotency guard.
-
-**Problem**: Daily scans broke Feb 10-11. Two independent issues:
-1. Gemini prepends text preamble before JSON code blocks. When `maxOutputTokens: 3000` caused truncation, the closing ``` was missing, regex failed, and the full text (with preamble) hit `JSON.parse()`.
-2. Cron function retries re-executed the "create analyses" step, producing duplicate scans (4 instead of 2 per day).
-
-**JSON extraction fix**:
-- `extractJson(text)` — 3-tier fallback: regex code block → find first `{` → `closeJson()` (balance braces/brackets on truncated output)
-- Applied to `runAnalysisPipeline`, `runPostAnalysisPipeline`, and `runQuickDiff`
-- Increased post-analysis `maxOutputTokens` from 3000 → 4096
-- `closeJson()` logs a warning when invoked (truncated data may be incomplete)
-
-**Duplicate scan fix**:
-- `retries: 0` on `scheduledScan` and `scheduledScanDaily` (cron orchestrators only — `analyzeUrl` keeps `retries: 2`)
-- Date-based idempotency: before creating an analysis, check if one already exists for same `(url, user_id, trigger_type, today_utc)`
-- Cron retries are dangerous when steps have side effects (insert + event send)
-
-**Also fixed**:
-- Removed `_error_detail` from `changes_summary` (was leaking raw error messages to client)
-- Removed debug `console.log`s from `runQuickDiff`
-
-**Why these tradeoffs**:
-- `closeJson()` can produce incomplete data, but defaults fill missing fields — better than a hard crash that leaves `changes_summary` empty
-- TOCTOU race on idempotency check is theoretical with `retries: 0` — acceptable for MVP
-- N+1 idempotency queries (one per page) are fine at current scale (<50 pages)
-
-## D31: Anti-hallucination guardrails for post-analysis correlation (Feb 12, 2026)
-
-**Decision**: Add temporal context, hardened prompt rules, and server-side enforcement to prevent LLM from fabricating correlation data in `changes_summary`.
-
-**Problem**: Same-day changes (baseline created + change detected in one day) were getting "validated" status with fabricated metric percentages (e.g., "-39% bounce rate"). The LLM was filling in correlation data when it had no tools, no real metrics, and changes that were 0 days old.
-
-**Root cause**: The `POST_ANALYSIS_PROMPT` schema asked for `correlation` metrics and `validatedItems` with percentages, but never told the LLM: (a) how old the changes are, (b) whether analytics tools were actually called, or (c) a hard rule that no tools = no validation.
-
-**Note**: The *real* correlation system (`checkCorrelations` cron) is correct — it only runs on 7+ day old changes with real analytics APIs. The problem was the LLM's parallel attempt at correlation in the post-analysis pipeline.
-
-**Fix (3 layers)**:
-1. **Temporal context injection** — Compute and inject `days_since_detected` for each pending change into the prompt. LLM sees "Hero Subheadline: 0 days" and knows it can't validate.
-2. **Hardened prompt rules** — "validated" now requires 3 explicit conditions: (1) tools called in this session, (2) tools returned real data, (3) change 7+ days old. Added "Correlation Rules" subsection: no tools = null, < 7 days = no validation, never fabricate numbers.
-3. **Server-side enforcement** — After parsing LLM output: if `toolCallsMade.length === 0`, force `correlation = null` and demote all `validatedItems` → `watchingItems`. Also enforce 7-day minimum even with tools.
-
-**Why 3 layers**:
-- Prompt rules alone are unreliable (LLMs ignore instructions)
-- Temporal context helps the LLM make better decisions (reduces hallucination at source)
-- Server-side enforcement is the safety net (catches anything that slips through)
-
-**Files changed**:
-- `src/lib/ai/pipeline.ts` — `previousScanDate` on interface, temporal context block, hardened prompt rules, enforcement block
-- `src/lib/inngest/functions.ts` — Pass `previousScanDate` from parent analysis `created_at`
-
-## D33: Intent Capture — metric focus, hypotheses, observations (Feb 14, 2026)
-
-**Decision**: Add three user-facing intelligence layers to compound knowledge across scans: metric focus (what the user cares about), change hypotheses (why they made a change), and LLM-generated observations (what Loupe learned when correlations resolve).
-
-**Why**:
-- The correlation engine already compounds knowledge internally, but the user-facing experience doesn't show it
-- Metric focus lets the LLM evaluate changes through the right lens ("signups" vs "bounce rate")
-- Hypotheses give correlations context ("Testing outcome-focused language" vs just "headline changed")
-- Observations prove paid tier value: "Look at what Loupe has learned about your page"
-- Prepares data layer for Phase 2 (Page Record view) where observations populate a sidebar
-
-**Design choices**:
-- All text fields, no enums — LLM output is unpredictable, stay flexible
-- Metric focus: 4 guided options + custom free-form (max 200 chars)
-- Hypothesis: captured via email deep link or in-app prompt (max 500 chars)
-- Observations: dual-path generation — LLM writes nuanced ones during post-analysis, correlation cron writes basic fallback one-liners
-- Prompt injection defense: `sanitizeUserInput()` + XML data tags + UNTRUSTED warnings (same pattern as finding feedback)
-- Observation changeIds validated against sent IDs set (prevents LLM hallucinating IDs for other pages)
-
-**Key files**: `pipeline.ts` (formatPageFocus, formatChangeHypotheses, observations prompt), `functions.ts` (data feeding, storage), `EmptyOnboardingState.tsx` (2-step flow), `HypothesisPrompt.tsx` (capture UI), `changes/[id]/hypothesis/route.ts` (API)
-
-## D32: Cap screenshot height before Haiku vision API (Feb 12, 2026)
-
-**Decision**: Resize all screenshots to max 7500px height using `sharp` before sending to Anthropic Haiku.
-
-**Why**:
-- Anthropic's vision API rejects images exceeding 8000px in any dimension
-- Full-page screenshots (via Puppeteer auto-scroll) regularly exceed this — getloupe.io homepage was ~9222px
-- Deploy scans were silently failing with "image dimensions exceed max allowed size: 8000 pixels"
-- Using 7500px (not 8000px) gives a safety margin
-
-**Trade-offs**:
-- Bottom-of-page content may be lost in very tall pages — acceptable since the most impactful changes are typically above-the-fold
-- `sharp` is a transitive dep from Next.js (used for image optimization), not explicitly in package.json — works but fragile if Next.js drops it
-- Baseline images are now fetched and resized (was: passed as URL to API) — adds latency but ensures both images are within limits
-
-## D34: Single domain per account (Feb 14, 2026)
-
-**Decision**: Lock each account to one domain. First page creation auto-sets `account_domain` on the profile. Subsequent pages must match. Domain stored www-normalized.
-
-**Why**:
-- Integrations (PostHog, GA4, Supabase) are stored at user level but pages could be on any domain — analytics only apply to one domain
-- Eliminates redundant domain display everywhere — shown once in StatsBar subtitle
-- Simplifies AddPageModal for returning users: domain prefix + path-only input
-- Aligns with the typical user: solo founder tracking pages on their own site
-
-**Implementation**:
-- `profiles.account_domain` column (nullable, set on first page)
-- `POST /api/pages` enforces domain match with www normalization (`www.` stripped)
-- First-write-wins pattern (`.is("account_domain", null)`) prevents race on concurrent first-page creation
-- Dashboard shows paths (`getPath()`) instead of full domains in PageRow
-- DossierSidebar identity shows path; chrome bar keeps domain
-- No domain management UI or domain switching — if needed, can be added later gated behind deleting all pages
-
-**Supersedes D18** (domain claiming): D18 was about preventing multiple users from claiming the same domain. D34 is about preventing one user from claiming multiple domains. Both can coexist.
-
-**What we didn't build**:
-- Domain reset/change UI (would need to delete all pages first)
-- Subdomain support (e.g., `app.example.com` vs `example.com` treated as different domains)
-- Client-side enforcement (server is the source of truth)
-
-## D36: Canonical Change Intelligence — Multi-horizon checkpoints (Feb 16, 2026)
-
-**Decision**: Replace single 7-day correlation model with multi-horizon checkpoint system (7/14/30/60/90 days). Full RFC: `memory-bank/projects/loupe-canonical-change-intelligence-rfc.md`.
-
-**Status**: All 7 phases shipped. RFC-0001 complete.
-
-**Why**:
-- Single 7-day window is too short for many changes (especially for low-traffic sites)
-- Changes need multiple evaluation points to determine true impact
-- Deterministic state transitions (via lifecycle events) make the system auditable and debuggable
-- LLM-as-analyst (Phase 4) unlocks Supabase-only users who were stuck on "inconclusive"
-- User feedback loop (Phase 5) provides calibration without over-constraining the model
-
-**What we built**:
-1. **Canonical Progress Composer** (Phase 1) — `composeProgressFromCanonicalState()` replaces LLM-authored progress. Fail-closed: canonical → fallback → never LLM. Parity monitor via Sentry.
-2. **Checkpoint Outcome Engine** (Phase 2) — `change_checkpoints` table + `runCheckpoints` daily cron (10:30 UTC). Fully replaced `checkCorrelations`. Lifecycle events audit trail. Idempotent upserts.
-3. **Strategy Integration** (Phase 3) — LLM writes narrative only, not progress. `formatCheckpointTimeline()` compresses evidence. `runStrategyNarrative()` is non-fatal with deterministic fallback.
-4. **LLM-as-Analyst** (Phase 4) — `runCheckpointAssessment()` replaces deterministic threshold. All data sources (PostHog, GA4, Supabase). Full reasoning stored per checkpoint.
-5. **Outcome Feedback Loop** (Phase 5) — `outcome_feedback` table, thumbs up/down UI, calibration in assessment prompts. Trigger-enforced integrity.
-
-**Key architectural principles**:
-- **Integrity surface** (code): timing rules, impossible transitions, schema constraints, audit logging
-- **Intelligence surface** (LLM): outcome assessment, narrative, evidence reasoning
-- **Calibration surface** (user): feedback stored per checkpoint, fed into future prompts
-- **Audit surface**: every checkpoint stores reasoning, data sources, confidence; lifecycle events log transitions
-
-**Trade-offs**:
-- LLM assessment may be inconsistent across runs — mitigated by write-once checkpoints, stored reasoning, user feedback
-- `checkCorrelations` fully deleted — checkpoint engine is sole evaluation path
-- Fingerprint matching deferred post-MVP — current element-name matching sufficient for single-domain accounts
-
-## D38: LLM-as-analyst for checkpoint assessment (Feb 2026)
-
-**Decision**: Replace deterministic `abs() > 5%` threshold in checkpoint assessment with LLM-as-analyst pass. The LLM sees all data sources and makes the judgment call. User feedback is the calibration mechanism.
-
-**Why**:
-- Deterministic threshold left Supabase-only users with zero outcome resolution (no standard metric names to threshold against)
-- 5% threshold was arbitrary — a 4.9% change on a high-traffic site may be more meaningful than a 20% change on a 10-visitor site
-- LLM can weigh multiple signals: metric volume, confidence, seasonal patterns, prior checkpoints, user hypothesis
-- Write-once checkpoints mean the LLM can't flip-flop — first assessment sticks
-
-**What changed**:
-- `runCheckpointAssessment()` in `pipeline.ts` — Gemini 3 Pro, 3 attempts with backoff
-- `gatherSupabaseMetrics()` in `correlation.ts` — queries historical snapshots + current table counts
-- Deterministic `assessCheckpoint()` kept as fallback (sees all metrics including Supabase now)
-- Checkpoint rows store `reasoning`, `confidence`, `data_sources` (schema migration)
-
-## D39: Outcome feedback for LLM calibration (Feb 2026)
-
-**Decision**: Extend finding feedback pattern to change outcomes. Users thumbs up/down resolved outcomes, with optional "What did we get wrong?" text on thumbs down. Feedback stored per checkpoint, injected into future assessment prompts.
-
-**Why**:
-- LLM is now the product analyst making judgment calls — needs a correction mechanism
-- Deterministic code gates (the old approach) over-constrained the model and left data gaps
-- Per-user, per-page feedback is contextual — not global model tuning
-- Extends proven `finding_feedback` pattern (same UX, same prompt injection protection)
-
-**Security**:
-- 3-hop ownership chain: user → change → checkpoint (prevents cross-tenant poisoning)
-- Resolved-only guard (can't feedback on watching/inconclusive)
-- Inngest reads scoped by `user_id` (not global)
-- DB trigger enforces checkpoint belongs to change
-
-## D35: Fix false mobile findings from broken screenshots (Feb 16, 2026)
-
-**Decision**: Multi-layered fix for mobile screenshots producing incomplete captures that the LLM then flags as real mobile UX issues.
-
-**Problem**: Mobile screenshots (390px viewport) frequently captured cookie consent banners covering content and lazy-loaded sections as blank voids. The LLM confidently reported these as real issues (e.g., "Your mobile site is a blue void"), damaging user trust.
-
-**Root causes**: (1) No cookie banner dismissal, (2) desktop Chrome UA sent for mobile viewports, (3) no mobile device flags in viewport config, (4) `domcontentloaded` didn't wait for page resources.
-
-**Fixes (screenshot service on Vultr)**:
-1. **Cookie banner dismissal** — `dismissCookieBanners(page)` runs after settle, before scroll. Text matching ("Accept All", "Agree", etc.) + CSS selector fallback for common CMPs.
-2. **Mobile device emulation** — Mobile UA (iPhone Safari), `isMobile: true`, `hasTouch: true` when viewport ≤480px. Sites now serve actual mobile-optimized content.
-3. **`networkidle2`** — Replaced `domcontentloaded` + 2.5s blind wait with `networkidle2` + 1s settle. Waits for actual network idle (≤2 connections for 500ms), more reliable for JS-heavy sites.
-4. **`deviceScaleFactor: 1`** — Reduced from 2 for all viewports. LLM vision doesn't need retina resolution. Desktop screenshots dropped from 4.2MB to 1.8MB.
-5. **JPEG quality 70** — Down from 80. Adequate for LLM analysis. Further reduces file size.
-
-**Fixes (LLM prompts in pipeline.ts)**:
-6. **SYSTEM_PROMPT** — "CRITICAL: Mobile Screenshot Artifacts" section after Mobile Experience. If desktop shows content but mobile shows blanks, it's a rendering failure — don't flag it.
-7. **POST_ANALYSIS_PROMPT** — Same artifact warning before FriendlyText table.
-8. **QUICK_DIFF_PROMPT** — Extended "Ignore Screenshot Artifacts" with mobile blank areas + cookie banner rules.
-
-**What we didn't build**:
-- `@duckduckgo/autoconsent` library integration — Our hand-rolled cookie dismissal covers ~80% of cases. The library handles hundreds of CMPs but adds a dependency. Revisit if cookie banner failures persist.
-- Content verification after scroll — Could check that viewport height increased or images loaded, but adds complexity. Current approach (networkidle2 + scroll + settle) is sufficient.
-
-**Trade-offs**:
-- `networkidle2` adds ~0-3s latency vs `domcontentloaded` for sites with persistent background connections, but timeout increased to 25s to compensate
-- `deviceScaleFactor: 1` means LLM sees 1280px-wide (not 2560px) desktop images — fine for layout/copy analysis, might miss fine visual details
-- Prompt guardrails are a safety net, not a fix — they tell the LLM to ignore artifacts but can't guarantee it will
-
-## D37: Fingerprint matching — LLM-proposed, deterministically validated (Feb 16, 2026)
-
-**Decision**: LLM proposes change matches (which newly detected change corresponds to an existing watching change), but a deterministic orchestrator validates proposals before accepting. Both deploy scans and scheduled scans now create `detected_changes` rows.
-
-**Why**:
-- Deploy scans previously created separate `detected_changes` rows every time — dedup was only temporal (same-day unique index). Same headline change detected across multiple scans created separate rows, fragmenting the canonical timeline.
-- Scheduled scans previously never created `detected_changes` rows, leaving changes first detected by daily/weekly scans invisible to the correlation engine.
-- Pure LLM matching is unreliable (can hallucinate IDs, claim high confidence on wrong matches). Deterministic gates catch these.
-
-**Architecture: LLM proposes, orchestrator decides**:
-1. `formatWatchingCandidates()` sends up to 20 active watching changes to LLM as candidates
-2. LLM outputs `matched_change_id`, `match_confidence` (0.0-1.0), `match_rationale` per change
-3. `validateMatchProposal()` applies 3 gates:
-   - **Gate 1**: Proposed ID must exist in candidate set (blocks hallucinated IDs)
-   - **Gate 2**: Confidence must be >= 0.70 (rejects low-confidence guesses)
-   - **Gate 3**: Scope compatibility — page matches anything; element/section cross-compatible
-4. Accepted → update existing row. Rejected → insert new row with proposal metadata.
-
-**Both paths unified**: Deploy path (quick diff) and scheduled path (post-analysis) use the same `validateMatchProposal()` function and upsert pattern. Deploy path uses `deploy_id`, scheduled path uses `first_detected_analysis_id`.
-
-**Trade-offs**:
-- Scope gate is permissive (all combinations pass) — acceptable for MVP, can tighten later if false matches emerge
-- Upsert logic duplicated between paths (different field sets make extraction awkward) — tech debt, not a bug
-- TOCTOU race between candidate fetch and update mitigated by `.eq("status", "watching")` filter
-- `match_confidence: 0` preserved via `??` (not `||`) — important for rejected proposals that carry proposal metadata
-
-## D40: Attribution language — confidence bands with null fallthrough (Feb 2026)
-
-**Decision**: `formatOutcomeText()` returns `string | null` — not a "No analytics connected" string. Callers use `attributionText || observation_text` fallback pattern. Top metric selection filters by status alignment before picking by absolute delta.
-
-**Why**:
-- Returning a non-null string ("No analytics connected...") for missing data overrode valid `observation_text` from the LLM
-- Status-unaligned metric selection caused contradictions (e.g., "helped — bounce_rate down 12%" on a regressed card where other metrics drove the regression)
-- `null` return lets callers naturally fall through to LLM-generated observation text, which is always more contextual
-
-**Confidence bands**:
-- High (≥0.8): "Your change helped/hurt — {metric} {direction} {X}%"
-- Medium (0.5-0.79): "Since your change, {metric} is {direction} {X}%. Likely connected."
-- Low (<0.5): "We're seeing {metric} movement, but can't tie it clearly to your change yet."
-- No data: `null` (caller decides fallback)
-
-## D41: Daily backup cron — always run, never early-exit (Feb 2026)
-
-**Decision**: Vercel Cron daily-scans backup always runs full per-page logic with idempotency checks. No early exit when "any" daily scan exists.
-
-**Why**:
-- Previous early exit checked if ANY daily analysis existed today and returned "ok". If Inngest scanned 2 of 10 users and then failed, the backup thought everything was fine.
-- Per-page idempotency (check if `(url, user_id, trigger_type, today)` exists before inserting) naturally deduplicates without missing partial failures.
-- Reports `alreadyExisted` vs `backfilled` counts for observability. Sentry warning only fires when self-healing actually occurred.
-
-## D42: Respect page-level scan frequency alongside tier (Feb 2026)
-
-**Decision**: Scheduled scans respect both tier frequency AND `page.scan_frequency`. Daily cron skips pages explicitly set to "weekly" even if the user's tier allows daily. Weekly cron picks up pages set to "weekly" regardless of tier.
-
-**Why**:
-- Previous code ignored `page.scan_frequency` entirely (only used tier to determine frequency). A Pro user who set a page to weekly still got daily scans.
-- Respecting user intent: if someone deliberately set a page to weekly, they don't want daily scans for it.
-- Both `runScheduledScans()` in Inngest and the Vercel Cron backup use the same logic.
+| ID | What | Why removed |
+|----|------|-------------|
+| D15 | Founding 50 launch strategy | Fully removed from codebase (Feb 14, 2026). Replaced by Stripe billing. |
+| D16 | Defer D6 pricing for Founding 50 | Superseded by D29. |
+| D26 | Hide founding count until 10+ users | Removed with Founding 50 code. |
