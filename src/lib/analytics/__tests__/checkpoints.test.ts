@@ -112,6 +112,11 @@ describe("resolveStatusTransition", () => {
     expect(result).toBeNull();
   });
 
+  it("returns null for superseded status (terminal)", () => {
+    const result = resolveStatusTransition("superseded", 30, "improved", []);
+    expect(result).toBeNull();
+  });
+
   it("returns null for D+7 (early horizon)", () => {
     const result = resolveStatusTransition("watching", 7, "improved", []);
     expect(result).toBeNull();

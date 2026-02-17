@@ -143,7 +143,9 @@ detected_changes (
   first_detected_at timestamptz NOT NULL DEFAULT now(),
   first_detected_date date GENERATED ALWAYS AS ((first_detected_at AT TIME ZONE 'UTC')::date) STORED,
   first_detected_analysis_id uuid FK analyses ON DELETE SET NULL,
-  status text NOT NULL DEFAULT 'watching',  -- watching | validated | regressed | inconclusive | reverted
+  status text NOT NULL DEFAULT 'watching',  -- watching | validated | regressed | inconclusive | reverted | superseded
+  magnitude text,                   -- 'incremental' | 'overhaul' (from reconciliation)
+  superseded_by uuid FK detected_changes,  -- aggregate that absorbed this record
   hypothesis text,                -- user's hypothesis for why they made this change
   hypothesis_at timestamptz,      -- when hypothesis was set
   observation_text text,          -- LLM-generated observation when correlation resolves
@@ -375,7 +377,7 @@ Split into focused modules, each owning one LLM conversation pattern. `pipeline.
 | `post-analysis.ts` | `runPostAnalysisPipeline()` — change tracking + correlation with tool use | `gemini-3-pro-preview` |
 | `checkpoint-assessment.ts` | `runCheckpointAssessment()` (maxOutputTokens: 1024) + `runStrategyNarrative()` (maxOutputTokens: 2048) | `gemini-3-pro-preview` |
 | `quick-diff.ts` | `runQuickDiff()` — lightweight visual change detection | `claude-haiku-4-5-20251001` |
-| `pipeline-utils.ts` | Shared: `extractJson`, `sanitizeUserInput`, `formatCheckpointTimeline`, `validateMatchProposal`, prompt formatters, types | None (pure) |
+| `pipeline-utils.ts` | Shared: `extractJson`, `sanitizeUserInput`, `formatCheckpointTimeline`, `validateMatchProposal`, `reconcileChanges`, prompt formatters, types | `claude-haiku-4-5-20251001` (reconciliation only) |
 
 **Key functions:**
 - `runAnalysisPipeline(screenshotBase64, url, metadata?, mobileScreenshotBase64?)` — Main audit with vision (maxOutputTokens: 4000). Sends both desktop and mobile images when available.
@@ -847,7 +849,7 @@ Inngest cron registrations go stale after Vercel deploys, causing cron functions
 - `analyze-url` — triggered by `analysis/created` event, retries: 2 (3 total attempts), concurrency: 4 (prevents screenshot service 429s when daily scans fire simultaneously). Captures desktop + mobile screenshots in parallel (mobile failure non-fatal). Sends both to LLM. Persists `mobile_screenshot_url`. Updates `pages.last_scan_id` + `stable_baseline_id` (for daily/weekly). Reconciles detected_changes (marks reverted). Sends per-page email only for deploy scans.
 - `scheduled-scan` — weekly cron (Monday 9am UTC), retries: 0, scans all pages with `scan_frequency='weekly'`. Date-based idempotency guard prevents duplicate scans.
 - `scheduled-scan-daily` — daily cron (9am UTC), retries: 0, scans all pages with `scan_frequency='daily'`. Updates stable_baseline_id. Date-based idempotency guard prevents duplicate scans. Backed up by Vercel Cron at 9:15 UTC. (Cron orchestrators use retries: 0 because retries cause duplicate analysis creation; individual `analyze-url` still retries: 2.)
-- `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), fetches watching candidates for fingerprint matching, runs quick Haiku diff against stable baseline with candidates. If stale/missing baseline → full analysis. If changes detected → fingerprint-aware upsert (matched changes update existing rows, unmatched create new rows with proposal metadata), sends "watching" email. Cost: ~$0.01/page vs ~$0.06 for full analysis.
+- `deploy-detected` — triggered by GitHub webhook push. Filters pages by `changed_files` via `couldAffectPage()` (skips non-visual files, matches route-scoped files). Lightweight detection: waits 45s, captures desktop + mobile in parallel (mobile only when baseline has it), fetches watching candidates for fingerprint matching, runs quick Haiku diff against stable baseline with candidates. If stale/missing baseline → full analysis. If changes detected → reconciliation pass via `reconcileChanges()` (classifies magnitude, consolidates overhauls, supersedes old records). Overhaul triggers full analysis fallback. Falls back to legacy fingerprint upsert if reconciliation returns null. Sends "watching" email using reconciled changes when available. Cost: ~$0.01/page + ~$0.001 reconciliation vs ~$0.06 for full analysis.
 - `daily-scan-digest` — daily cron (11am UTC), retries: 1, sends consolidated digest email per user for daily/weekly scans (skips if all pages stable)
 - `run-checkpoints` — daily cron (10:30 UTC), replaces `check-correlations`. Evaluates watching changes at 5 horizons (D+7/14/30/60/90). Gathers all connected data (PostHog, GA4, Supabase), runs LLM assessment pass per checkpoint, writes immutable `change_checkpoints` rows, applies status transitions via `resolveStatusTransition()`, writes lifecycle events, recomposes affected read models + strategy narrative. Batched queries (500 changes/batch, 300 IDs per `.in()`). Provider init try/catch (analytics failure doesn't abort run). Vercel Cron backup at `/api/cron/checkpoints` (10:45 UTC) with dual event trigger.
 - `screenshot-health-check` — cron (every 30 min), pings screenshot service, reports to Sentry if unreachable. Sentry alert rule "Screenshot Service Down" (ID: 16691420) triggers on `service:screenshot` tag.
@@ -1047,7 +1049,7 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 
 **Detected Changes (`detected_changes` table):**
 - Persistent registry with `first_detected_at` timestamps (correlation anchor)
-- Status state machine: `watching` → `validated` | `regressed` | `inconclusive` | `reverted`
+- Status state machine: `watching` → `validated` | `regressed` | `inconclusive` | `reverted` | `superseded`
 - Dedup via unique index on `(page_id, element, first_detected_date)`
 - `correlation_metrics` stores analytics comparison results when correlation completes
 - Fingerprint matching: LLM proposes `matched_change_id` → `validateMatchProposal()` validates with 3 gates → accepted matches update existing row, rejected create new row with proposal metadata
@@ -1096,6 +1098,9 @@ For user with 3 pages deploying 5x/day: $0.15/day vs $0.90/day.
 | Quick diff parse failure | Returns `{ hasChanges: false }` (safe false negative) |
 | Multiple rapid deploys | Each runs independently (45s wait each) |
 | Reverted change | LLM detects, marks as `status: "reverted"` |
+| Page overhaul (5+ changes) | Reconciliation consolidates into 1-2 aggregate records, supersedes originals |
+| Deploy overhaul | Triggers full analysis; skip guard prevents double-reconciliation |
+| Reconciliation failure | Non-fatal, falls back to legacy fingerprint upsert |
 
 ### Key Files
 
@@ -1452,4 +1457,4 @@ New tables (see schema section above for full column definitions):
 | 4: LLM-as-Analyst Migration | **Done** | `runCheckpointAssessment()`, `gatherSupabaseMetrics()`, LLM replaces deterministic threshold, all data sources supported |
 | 5: Outcome Feedback Loop | **Done** | `outcome_feedback` table, feedback API + UI, calibration in assessment prompts |
 | 6: Suggestions as Persistent State | **Done** | `tracked_suggestions` endpoints + composer integration, SuggestionCard with credibility badge, NextMoveSection three-state rendering |
-| 7: Reliability | **Done** | 74 unit tests (Vitest), Sentry cron monitors, `formatOutcomeText()` attribution utility, launch gate queries. Daily-scans backup always runs per-page idempotency. Scan frequency respects page-level settings. |
+| 7: Reliability | **Done** | 98 unit tests (Vitest), Sentry cron monitors, `formatOutcomeText()` attribution utility, launch gate queries. Daily-scans backup always runs per-page idempotency. Scan frequency respects page-level settings. |

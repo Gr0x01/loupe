@@ -2,7 +2,8 @@ import * as Sentry from "@sentry/nextjs";
 import { inngest } from "../client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
-import { runQuickDiff, validateMatchProposal } from "@/lib/ai/pipeline";
+import { runQuickDiff, validateMatchProposal, reconcileChanges } from "@/lib/ai/pipeline";
+import type { PendingChange } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import { changeDetectedEmail } from "@/lib/email/templates";
 import { couldAffectPage } from "@/lib/utils/deploy-filter";
@@ -187,7 +188,8 @@ export const deployDetected = inngest.createFunction(
             .select("id, element, before_value, after_value, scope, first_detected_at")
             .eq("page_id", page.id)
             .eq("status", "watching")
-            .limit(20);
+            .order("first_detected_at", { ascending: false })
+            .limit(50);
 
           // 5. Quick Haiku diff against baseline (with mobile if both exist)
           const diffResult = await runQuickDiff(
@@ -195,7 +197,7 @@ export const deployDetected = inngest.createFunction(
             currentScreenshot,
             baseline.mobile_screenshot_url,
             currentMobileScreenshot,
-            watchingForPage as import("@/lib/ai/pipeline").PendingChange[] | null
+            watchingForPage as PendingChange[] | null
           );
 
           if (!diffResult.hasChanges || diffResult.changes.length === 0) {
@@ -204,50 +206,199 @@ export const deployDetected = inngest.createFunction(
             continue;
           }
 
-          // 6. Record detected changes with fingerprint-aware upsert
-          const candidateIds = new Set((watchingForPage ?? []).map((c) => c.id));
-          const candidateScopes = new Map((watchingForPage ?? []).map((c) => [c.id, c.scope as "element" | "section" | "page"]));
+          // 6. Reconcile and record detected changes
+          const watchingAsPending: PendingChange[] = (watchingForPage ?? []).map((c) => ({
+            id: c.id,
+            element: c.element,
+            before_value: c.before_value,
+            after_value: c.after_value,
+            scope: c.scope as "element" | "section" | "page",
+            first_detected_at: c.first_detected_at,
+          }));
 
-          for (const change of diffResult.changes) {
-            try {
-              const proposal = validateMatchProposal(change, candidateIds, candidateScopes);
+          const reconciled = await reconcileChanges(diffResult.changes, watchingAsPending, page.url);
+          let isOverhaul = false;
+          // Track reconciled changes for email (falls back to raw diff if reconciliation failed)
+          let emailChanges: Array<{ element: string; before: string; after: string }> = diffResult.changes;
 
-              if (proposal.accepted && proposal.matched_change_id) {
-                // Update existing watching row
-                await supabase
+          if (reconciled) {
+            isOverhaul = reconciled.magnitude === "overhaul";
+            emailChanges = reconciled.finalChanges.map((fc) => ({ element: fc.element, before: fc.before, after: fc.after }));
+            const candidateIds = new Set(watchingAsPending.map((c) => c.id));
+            const refToId = new Map<string, string>();
+
+            for (const fc of reconciled.finalChanges) {
+              try {
+                if (fc.action === "match" && fc.matched_change_id && candidateIds.has(fc.matched_change_id)) {
+                  const { error: matchError } = await supabase
+                    .from("detected_changes")
+                    .update({
+                      after_value: fc.after,
+                      description: fc.description || null,
+                      magnitude: reconciled.magnitude,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", fc.matched_change_id)
+                    .eq("user_id", userId)
+                    .eq("status", "watching");
+                  if (matchError) {
+                    console.error("[reconcile] Match update failed:", matchError.message);
+                    Sentry.captureMessage("Reconciled match update failed", {
+                      level: "warning",
+                      tags: { pipeline: "reconciliation", pageId: page.id },
+                      extra: { error: matchError.message, matchedId: fc.matched_change_id },
+                    });
+                  }
+                  refToId.set(fc.final_ref, fc.matched_change_id);
+                } else {
+                  const { data: inserted, error: insertError } = await supabase.from("detected_changes").insert({
+                    page_id: page.id,
+                    user_id: userId,
+                    element: fc.element,
+                    scope: fc.scope || "element",
+                    before_value: fc.before,
+                    after_value: fc.after,
+                    description: fc.description || null,
+                    deploy_id: deployId,
+                    first_detected_analysis_id: page.last_scan_id || null,
+                    status: "watching",
+                    magnitude: reconciled.magnitude,
+                    first_detected_at: new Date().toISOString(),
+                  }).select("id").single();
+                  if (insertError) {
+                    console.error("[reconcile] Insert failed:", insertError.message);
+                    Sentry.captureMessage("Reconciled insert failed", {
+                      level: "warning",
+                      tags: { pipeline: "reconciliation", pageId: page.id },
+                      extra: { error: insertError.message, element: fc.element },
+                    });
+                  }
+                  if (inserted) refToId.set(fc.final_ref, inserted.id);
+                }
+              } catch (insertErr) {
+                if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
+                  console.error("Failed to upsert reconciled detected_change:", insertErr);
+                }
+              }
+            }
+
+            // Apply supersessions
+            for (const sup of reconciled.supersessions) {
+              const aggregateId = refToId.get(sup.final_ref);
+              if (!aggregateId) continue;
+              const oldRecord = watchingAsPending.find((c) => c.id === sup.old_id);
+              if (oldRecord) {
+                const { error: tsError } = await supabase
                   .from("detected_changes")
-                  .update({
-                    after_value: change.after,
-                    description: change.description || null,
-                    match_confidence: proposal.match_confidence,
-                    match_rationale: proposal.match_rationale,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", proposal.matched_change_id)
-                  .eq("user_id", userId)
-                  .eq("status", "watching");
-              } else {
-                // Insert new row with proposal metadata
-                await supabase.from("detected_changes").insert({
-                  page_id: page.id,
-                  user_id: userId,
-                  element: change.element,
-                  scope: change.scope,
-                  before_value: change.before,
-                  after_value: change.after,
-                  description: change.description || null,
-                  deploy_id: deployId,
-                  status: "watching",
-                  first_detected_at: new Date().toISOString(),
-                  match_confidence: proposal.match_confidence ?? null,
-                  match_rationale: proposal.match_rationale || null,
+                  .update({ first_detected_at: oldRecord.first_detected_at })
+                  .eq("id", aggregateId)
+                  .gt("first_detected_at", oldRecord.first_detected_at);
+                if (tsError) {
+                  console.error("[reconcile] Timestamp preservation failed:", tsError.message);
+                  Sentry.captureMessage("Reconciled timestamp preservation failed", {
+                    level: "warning",
+                    tags: { pipeline: "reconciliation", pageId: page.id },
+                    extra: { error: tsError.message, aggregateId, oldId: sup.old_id },
+                  });
+                }
+              }
+              const { error: supersedeError } = await supabase
+                .from("detected_changes")
+                .update({
+                  status: "superseded",
+                  superseded_by: aggregateId,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", sup.old_id)
+                .eq("user_id", userId)
+                .in("status", ["watching"]);
+              if (supersedeError) {
+                console.error("[reconcile] Supersede failed:", supersedeError.message);
+                Sentry.captureMessage("Reconciled supersede failed", {
+                  level: "warning",
+                  tags: { pipeline: "reconciliation" },
+                  extra: { error: supersedeError.message, oldId: sup.old_id, aggregateId },
                 });
               }
-            } catch (insertErr) {
-              // Unique constraint violation = already recorded today, skip
-              if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
-                console.error("Failed to upsert detected_change:", insertErr);
+            }
+          } else {
+            // Fallback: legacy fingerprint-based upsert
+            const candidateIds = new Set((watchingForPage ?? []).map((c) => c.id));
+            const candidateScopes = new Map((watchingForPage ?? []).map((c) => [c.id, c.scope as "element" | "section" | "page"]));
+
+            for (const change of diffResult.changes) {
+              try {
+                const proposal = validateMatchProposal(change, candidateIds, candidateScopes);
+
+                if (proposal.accepted && proposal.matched_change_id) {
+                  const { error: legacyUpdateError } = await supabase
+                    .from("detected_changes")
+                    .update({
+                      after_value: change.after,
+                      description: change.description || null,
+                      match_confidence: proposal.match_confidence,
+                      match_rationale: proposal.match_rationale,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", proposal.matched_change_id)
+                    .eq("user_id", userId)
+                    .eq("status", "watching");
+                  if (legacyUpdateError) {
+                    console.error("[legacy] Match update failed:", legacyUpdateError.message);
+                    Sentry.captureMessage("Legacy match update failed", {
+                      level: "warning",
+                      tags: { pipeline: "legacy-upsert", pageId: page.id },
+                      extra: { error: legacyUpdateError.message, matchedId: proposal.matched_change_id },
+                    });
+                  }
+                } else {
+                  await supabase.from("detected_changes").insert({
+                    page_id: page.id,
+                    user_id: userId,
+                    element: change.element,
+                    scope: change.scope,
+                    before_value: change.before,
+                    after_value: change.after,
+                    description: change.description || null,
+                    deploy_id: deployId,
+                    status: "watching",
+                    first_detected_at: new Date().toISOString(),
+                    match_confidence: proposal.match_confidence ?? null,
+                    match_rationale: proposal.match_rationale || null,
+                  });
+                }
+              } catch (insertErr) {
+                if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
+                  console.error("Failed to upsert detected_change:", insertErr);
+                }
               }
+            }
+          }
+
+          // Overhaul detected via deploy → trigger full analysis for baseline rotation
+          if (isOverhaul) {
+            const { data: newAnalysis } = await supabase
+              .from("analyses")
+              .insert({
+                url: page.url,
+                user_id: userId,
+                parent_analysis_id: page.last_scan_id,
+                deploy_id: deployId,
+                trigger_type: "deploy",
+                status: "pending",
+              })
+              .select("id")
+              .single();
+
+            if (newAnalysis) {
+              await inngest.send({
+                name: "analysis/created",
+                data: {
+                  analysisId: newAnalysis.id,
+                  url: page.url,
+                  parentAnalysisId: page.last_scan_id || undefined,
+                },
+              });
             }
           }
 
@@ -273,8 +424,8 @@ export const deployDetected = inngest.createFunction(
               firstChangeId = recentChange?.id;
             }
 
-            // Send a lightweight "watching" email
-            const primaryChange = diffResult.changes[0];
+            // Send a lightweight "watching" email (use reconciled changes when available)
+            const primaryChange = emailChanges[0];
             const { subject, html } = changeDetectedEmail({
               pageUrl: page.url,
               analysisId: baseline.id, // Link to baseline for context
@@ -284,7 +435,7 @@ export const deployDetected = inngest.createFunction(
                 before: primaryChange.before,
                 after: primaryChange.after,
               },
-              additionalChangesCount: diffResult.changes.length - 1,
+              additionalChangesCount: emailChanges.length - 1,
               correlation: {
                 hasEnoughData: false, // Always watching for deploy
               },

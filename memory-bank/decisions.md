@@ -82,6 +82,21 @@ Key files: `src/app/login/page.tsx`, `src/app/dashboard/page.tsx`, `src/componen
 
 **PostHog fixes**: `user_signed_up` → `signup_completed`, `is_internal` person property for test filtering, `ServerEvent` type union for compile-time safety, `page_claimed` split into client `page_claim_attempted` + server `page_claimed`.
 
+### D47: Change magnitude classification & reconciliation (Feb 17, 2026)
+
+**Problem**: Over-granular change detection — a single pricing page redesign generated 47 "watching" `detected_changes` records. Noise drowns signal, breaks the value loop ("47 things changed" vs "your pricing page got an overhaul").
+
+**Solution**: LLM reconciliation pass (Haiku 4.5, ~$0.001/call) classifies changes as incremental (1-4) or overhaul (5+). Overhauls consolidate into 1-2 aggregate records with `scope: "page"`, superseding fine-grained originals via `status: "superseded"` + `superseded_by` FK. Both analyze.ts and deploy.ts run reconciliation when raw changes + watching changes exist.
+
+**Key design choices**:
+- `superseded` is terminal (like `reverted`) — checkpoints skip it
+- Non-fatal: reconciliation failure falls back to legacy fingerprint upsert
+- Skip guard: deploy-overhaul → full analysis → checks for existing overhaul records before re-reconciling
+- All LLM-proposed IDs validated against sent candidate set (hallucination guard)
+- Supabase `{ error }` checked on all write paths with Sentry reporting
+
+See `current.md` Reconciliation section for details.
+
 ---
 
 ## Implemented & Documented Elsewhere

@@ -82,7 +82,7 @@ Multi-horizon checkpoint system. Full RFC: `memory-bank/projects/loupe-canonical
 | Outcome feedback | `outcome_feedback` table, thumbs up/down calibrates future assessments |
 | Suggestions | `tracked_suggestions` endpoints + composer integration |
 | Attribution | `formatOutcomeText()` — confidence-banded language (high/medium/low/null) |
-| Tests | 74 unit tests (Vitest): checkpoint (33), pipeline (18), progress (8), attribution (15) |
+| Tests | 98 unit tests (Vitest): checkpoint (34), pipeline (26), progress (8), attribution (15), recovery (9), attribution (6) |
 | Launch gates | SQL validation queries in `memory-bank/projects/rfc-0001-launch-gates.md` |
 
 UI: Checkpoint chips on timeline cards, evidence panel on resolved outcomes, outcome feedback (thumbs up/down).
@@ -140,6 +140,30 @@ Deploy detection silently broke when webhook creation failed during GitHub setup
 - **Transparency**: Settings UI shows "Webhook missing" on repos with `webhook_active === false`. Warning banner on partial setup failure.
 
 Key files: `src/lib/github/app.ts` (`findExistingWebhook()`), `src/lib/inngest/functions/scheduled.ts` (healing step), `src/components/settings/GitHubSection.tsx` (UI warning).
+
+### Change Magnitude Classification & Reconciliation (Feb 17, 2026)
+
+Over-granular change detection (e.g., 47 "watching" records for one pricing page redesign) creates noise and breaks the value loop. Reconciliation classifies changes as **incremental** (1-4 independent changes) or **overhaul** (5+ coordinated changes), consolidates overhauls into 1-2 aggregate records, and supersedes the fine-grained originals.
+
+**How it works:**
+1. Detection LLM (Haiku quick-diff or Gemini post-analysis) detects raw changes
+2. If raw changes exist AND watching changes exist → `reconcileChanges()` (Haiku 4.5, ~$0.001/call)
+3. LLM returns `magnitude`, `finalChanges[]` (with `action: match|insert`), and `supersessions[]`
+4. Code validates all IDs against sent candidates (LLM hallucination guard), demotes invalid matches
+5. Inserts/updates DB records, marks superseded records with `status: "superseded"` + `superseded_by` FK
+6. Falls back to legacy fingerprint-based upsert if reconciliation returns null (non-fatal)
+
+**Skip guard:** Deploy-overhaul triggers full analysis. If full analysis finds existing overhaul records (`magnitude = "overhaul"`, `status = "watching"`), it skips re-reconciliation and normalizes `changes_summary.changes` from DB.
+
+**Key types:** `ReconciliationResult`, `ReconciliationFinalChange`, `ReconciliationSupersession` in `pipeline-utils.ts`
+
+**DB changes:** `detected_changes` gains `superseded_by uuid FK self`, `magnitude text` (`incremental`|`overhaul`), `superseded` added to status constraint. Migration: `supabase/migrations/20260217_add_reconciliation_fields.sql`.
+
+**Tests:** 8 reconciliation tests + 1 checkpoint terminal test in `pipeline.test.ts` (98 total tests).
+
+Key files: `src/lib/ai/pipeline-utils.ts` (`reconcileChanges()`), `src/lib/inngest/functions/analyze.ts`, `src/lib/inngest/functions/deploy.ts`.
+
+---
 
 ### Deploy Scanning Architecture
 

@@ -1,5 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { extractJson, extractMatchingBraces, closeJson } from "../pipeline-utils";
+
+// Mock external dependencies for reconcileChanges tests
+vi.mock("ai", () => ({
+  generateText: vi.fn(),
+}));
+vi.mock("@ai-sdk/anthropic", () => ({
+  anthropic: vi.fn(() => "mock-model"),
+}));
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+}));
 
 describe("extractJson", () => {
   it("extracts JSON from markdown code block", () => {
@@ -112,5 +124,166 @@ describe("closeJson", () => {
   it("passes through already valid JSON", () => {
     const json = '{"key": "value"}';
     expect(closeJson(json)).toBe(json);
+  });
+});
+
+// Import after mocks are set up
+import { reconcileChanges } from "../pipeline-utils";
+import { generateText } from "ai";
+import type { PendingChange } from "../pipeline-utils";
+
+const mockGenerateText = vi.mocked(generateText);
+
+function makeRawChanges(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    element: `Element ${i + 1}`,
+    before: `before-${i}`,
+    after: `after-${i}`,
+    scope: "element" as const,
+  }));
+}
+
+function makeWatching(count: number): PendingChange[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `watch-${i + 1}`,
+    element: `Watching Element ${i + 1}`,
+    before_value: `old-${i}`,
+    after_value: `current-${i}`,
+    scope: "element" as const,
+    first_detected_at: new Date(Date.now() - 86400000 * (i + 5)).toISOString(),
+  }));
+}
+
+describe("reconcileChanges", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns null for empty raw changes", async () => {
+    const result = await reconcileChanges([], [], "https://example.com");
+    expect(result).toBeNull();
+    expect(mockGenerateText).not.toHaveBeenCalled();
+  });
+
+  it("returns overhaul with aggregate and supersessions", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        magnitude: "overhaul",
+        finalChanges: [
+          { element: "Page Redesign", description: "Complete overhaul", before: "Old layout", after: "New layout", scope: "page", final_ref: "agg_1", action: "insert" },
+        ],
+        supersessions: [
+          { old_id: "watch-1", final_ref: "agg_1" },
+          { old_id: "watch-2", final_ref: "agg_1" },
+          { old_id: "watch-3", final_ref: "agg_1" },
+        ],
+      }),
+    } as never);
+
+    const result = await reconcileChanges(makeRawChanges(6), makeWatching(3), "https://example.com/pricing");
+
+    expect(result).not.toBeNull();
+    expect(result!.magnitude).toBe("overhaul");
+    expect(result!.finalChanges).toHaveLength(1);
+    expect(result!.finalChanges[0].scope).toBe("page");
+    expect(result!.supersessions).toHaveLength(3);
+  });
+
+  it("returns incremental with match and insert", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        magnitude: "incremental",
+        finalChanges: [
+          { element: "Headline", description: "Updated", before: "Old", after: "New", scope: "element", final_ref: "match_1", action: "match", matched_change_id: "watch-1" },
+          { element: "CTA", description: "New button", before: "Start", after: "Get Started", scope: "element", final_ref: "inc_1", action: "insert" },
+        ],
+        supersessions: [],
+      }),
+    } as never);
+
+    const result = await reconcileChanges(makeRawChanges(2), makeWatching(2), "https://example.com");
+
+    expect(result).not.toBeNull();
+    expect(result!.magnitude).toBe("incremental");
+    expect(result!.finalChanges).toHaveLength(2);
+    expect(result!.finalChanges[0].action).toBe("match");
+    expect(result!.finalChanges[0].matched_change_id).toBe("watch-1");
+    expect(result!.finalChanges[1].action).toBe("insert");
+    expect(result!.supersessions).toHaveLength(0);
+  });
+
+  it("returns null on LLM failure (non-fatal)", async () => {
+    mockGenerateText.mockRejectedValueOnce(new Error("LLM timeout"));
+
+    const result = await reconcileChanges(makeRawChanges(3), makeWatching(1), "https://example.com");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when LLM returns empty finalChanges", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        magnitude: "overhaul",
+        finalChanges: [],
+        supersessions: [],
+      }),
+    } as never);
+
+    const result = await reconcileChanges(makeRawChanges(6), makeWatching(3), "https://example.com");
+
+    expect(result).toBeNull();
+  });
+
+  it("filters out supersessions with unknown old_id", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        magnitude: "overhaul",
+        finalChanges: [
+          { element: "Redesign", description: "All new", before: "Old", after: "New", scope: "page", final_ref: "agg_1", action: "insert" },
+        ],
+        supersessions: [
+          { old_id: "watch-1", final_ref: "agg_1" },
+          { old_id: "hallucinated-id", final_ref: "agg_1" }, // doesn't exist
+        ],
+      }),
+    } as never);
+
+    const result = await reconcileChanges(makeRawChanges(6), makeWatching(1), "https://example.com");
+
+    expect(result).not.toBeNull();
+    expect(result!.supersessions).toHaveLength(1);
+    expect(result!.supersessions[0].old_id).toBe("watch-1");
+  });
+
+  it("demotes match to insert when matched_change_id is unknown", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        magnitude: "incremental",
+        finalChanges: [
+          { element: "Headline", description: "Updated", before: "Old", after: "New", scope: "element", final_ref: "match_1", action: "match", matched_change_id: "nonexistent-id" },
+        ],
+        supersessions: [],
+      }),
+    } as never);
+
+    const result = await reconcileChanges(makeRawChanges(1), makeWatching(1), "https://example.com");
+
+    expect(result).not.toBeNull();
+    expect(result!.finalChanges[0].action).toBe("insert");
+    expect(result!.finalChanges[0].matched_change_id).toBeUndefined();
+  });
+
+  it("returns null for invalid magnitude", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        magnitude: "massive",
+        finalChanges: [{ element: "X", description: "", before: "", after: "", scope: "page", final_ref: "agg_1", action: "insert" }],
+        supersessions: [],
+      }),
+    } as never);
+
+    const result = await reconcileChanges(makeRawChanges(1), [], "https://example.com");
+
+    expect(result).toBeNull();
   });
 });

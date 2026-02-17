@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import { inngest } from "../client";
 import { createServiceClient } from "@/lib/supabase/server";
 import { captureScreenshot, uploadScreenshot } from "@/lib/screenshot";
-import { runAnalysisPipeline, runPostAnalysisPipeline, formatCheckpointTimeline, validateMatchProposal } from "@/lib/ai/pipeline";
+import { runAnalysisPipeline, runPostAnalysisPipeline, formatCheckpointTimeline, validateMatchProposal, reconcileChanges } from "@/lib/ai/pipeline";
 import type { DeployContext } from "@/lib/ai/pipeline";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -396,7 +396,8 @@ export const analyzeUrl = inngest.createFunction(
             .select("id, element, before_value, after_value, scope, first_detected_at, hypothesis")
             .eq("page_id", pageForFeedback.id)
             .eq("status", "watching")
-            .limit(20); // Cap to prevent prompt bloat
+            .order("first_detected_at", { ascending: false })
+            .limit(50); // Raised from 20 to support reconciliation
 
           watchingChanges = data;
 
@@ -462,6 +463,10 @@ export const analyzeUrl = inngest.createFunction(
           }
         }
 
+        // Track reconciliation magnitude for baseline rotation (set inside try, used in section 6a)
+        let reconciledMagnitude: "incremental" | "overhaul" | null = null;
+        const reconciliationRefToId = new Map<string, string>(); // final_ref → inserted UUID
+
         // Run post-analysis if we have previous findings OR analytics OR database OR deploy context OR user feedback OR pending changes
         if (previousFindings || analyticsCredentials || databaseCredentials || deployContext || userFeedback?.length || pendingChanges?.length) {
           try {
@@ -495,6 +500,176 @@ export const analyzeUrl = inngest.createFunction(
                 databaseCredentials,
               }
             );
+
+            // Reconcile changes: classify magnitude, dedup, consolidate overhauls
+            // Skip if deploy path already reconciled (overhaul→full analysis trigger)
+            let skipReconciliation = false;
+            if (analysis.deploy_id && pageForFeedback?.id) {
+              const { data: existingOverhaul } = await supabase
+                .from("detected_changes")
+                .select("id")
+                .eq("page_id", pageForFeedback.id)
+                .eq("deploy_id", analysis.deploy_id)
+                .eq("magnitude", "overhaul")
+                .eq("status", "watching")
+                .limit(1)
+                .maybeSingle();
+              if (existingOverhaul) {
+                skipReconciliation = true;
+                reconciledMagnitude = "overhaul"; // Preserve for baseline rotation
+
+                // Normalize changesSummary.changes from DB state so persisted JSON matches
+                const { data: overhaulRecords } = await supabase
+                  .from("detected_changes")
+                  .select("element, description, before_value, after_value, scope, first_detected_at")
+                  .eq("page_id", pageForFeedback.id)
+                  .eq("deploy_id", analysis.deploy_id)
+                  .eq("magnitude", "overhaul")
+                  .eq("status", "watching");
+
+                if (overhaulRecords?.length) {
+                  changesSummary.changes = overhaulRecords.map((r) => ({
+                    element: r.element,
+                    description: r.description || "",
+                    before: r.before_value,
+                    after: r.after_value,
+                    detectedAt: r.first_detected_at,
+                    scope: (r.scope as "element" | "section" | "page") || "page",
+                  }));
+                }
+              }
+            }
+
+            if (!skipReconciliation && parentAnalysisId && changesSummary.changes?.length > 0 && pageForFeedback?.id) {
+              const reconciled = await reconcileChanges(
+                changesSummary.changes,
+                pendingChanges ?? [],
+                url
+              );
+
+              if (reconciled) {
+                reconciledMagnitude = reconciled.magnitude;
+
+                // Overwrite changesSummary.changes with reconciled output (UI/email match DB)
+                changesSummary.changes = reconciled.finalChanges.map((fc) => ({
+                  element: fc.element,
+                  description: fc.description,
+                  before: fc.before,
+                  after: fc.after,
+                  detectedAt: new Date().toISOString(),
+                  scope: fc.scope,
+                  matched_change_id: fc.matched_change_id ?? null,
+                }));
+
+                // DB upserts from reconciled finalChanges
+                const candidateIds = new Set((pendingChanges ?? []).map((c) => c.id));
+                for (const fc of reconciled.finalChanges) {
+                  try {
+                    if (fc.action === "match" && fc.matched_change_id && candidateIds.has(fc.matched_change_id)) {
+                      // Update existing watching row
+                      const { error: matchError } = await supabase
+                        .from("detected_changes")
+                        .update({
+                          after_value: fc.after,
+                          description: fc.description || null,
+                          magnitude: reconciled.magnitude,
+                          updated_at: new Date().toISOString(),
+                        })
+                        .eq("id", fc.matched_change_id)
+                        .eq("user_id", analysis.user_id)
+                        .eq("status", "watching");
+                      if (matchError) {
+                        console.error("[reconcile] Match update failed:", matchError.message);
+                        Sentry.captureMessage("Reconciled match update failed", {
+                          level: "warning",
+                          tags: { pipeline: "reconciliation", pageId: pageForFeedback.id },
+                          extra: { error: matchError.message, matchedId: fc.matched_change_id },
+                        });
+                      }
+                      reconciliationRefToId.set(fc.final_ref, fc.matched_change_id);
+                    } else {
+                      // Insert new row
+                      const { data: inserted, error: insertError } = await supabase.from("detected_changes").insert({
+                        page_id: pageForFeedback.id,
+                        user_id: analysis.user_id,
+                        element: fc.element,
+                        scope: fc.scope || "element",
+                        before_value: fc.before,
+                        after_value: fc.after,
+                        description: fc.description || null,
+                        first_detected_analysis_id: analysisId,
+                        status: "watching",
+                        magnitude: reconciled.magnitude,
+                        first_detected_at: new Date().toISOString(),
+                      }).select("id").single();
+                      if (insertError) {
+                        console.error("[reconcile] Insert failed:", insertError.message);
+                        Sentry.captureMessage("Reconciled insert failed", {
+                          level: "warning",
+                          tags: { pipeline: "reconciliation", pageId: pageForFeedback.id },
+                          extra: { error: insertError.message, element: fc.element },
+                        });
+                      }
+                      if (inserted) {
+                        reconciliationRefToId.set(fc.final_ref, inserted.id);
+                      }
+                    }
+                  } catch (insertErr) {
+                    if (!(insertErr instanceof Error && insertErr.message.includes("duplicate"))) {
+                      console.error("Failed to upsert reconciled detected_change:", insertErr);
+                    }
+                  }
+                }
+
+                // Apply supersessions: resolve final_ref → inserted UUID, mark old records superseded
+                for (const sup of reconciled.supersessions) {
+                  const aggregateId = reconciliationRefToId.get(sup.final_ref);
+                  if (!aggregateId) {
+                    console.warn(`[reconcile] Could not resolve final_ref ${sup.final_ref} for supersession of ${sup.old_id}`);
+                    continue;
+                  }
+                  // Preserve earliest first_detected_at on the aggregate
+                  const oldRecord = (pendingChanges ?? []).find((c) => c.id === sup.old_id);
+                  if (oldRecord) {
+                    const { error: tsError } = await supabase
+                      .from("detected_changes")
+                      .update({ first_detected_at: oldRecord.first_detected_at })
+                      .eq("id", aggregateId)
+                      .gt("first_detected_at", oldRecord.first_detected_at);
+                    if (tsError) {
+                      console.error("[reconcile] Timestamp preservation failed:", tsError.message);
+                      Sentry.captureMessage("Reconciled timestamp preservation failed", {
+                        level: "warning",
+                        tags: { pipeline: "reconciliation", pageId: pageForFeedback.id },
+                        extra: { error: tsError.message, aggregateId, oldId: sup.old_id },
+                      });
+                    }
+                  }
+                  // Mark old record as superseded
+                  const { error: supersedeError } = await supabase
+                    .from("detected_changes")
+                    .update({
+                      status: "superseded",
+                      superseded_by: aggregateId,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", sup.old_id)
+                    .eq("user_id", analysis.user_id)
+                    .in("status", ["watching"]); // Only supersede watching records
+                  if (supersedeError) {
+                    console.error("[reconcile] Supersede failed:", supersedeError.message);
+                    Sentry.captureMessage("Reconciled supersede failed", {
+                      level: "warning",
+                      tags: { pipeline: "reconciliation" },
+                      extra: { error: supersedeError.message, oldId: sup.old_id, aggregateId },
+                    });
+                  }
+                }
+              } else {
+                // Reconciliation failed — fall through to legacy upsert below
+                reconciledMagnitude = null;
+              }
+            }
 
             // Canonical progress composer: fail-closed — never persist LLM progress
             let canonicalSucceeded = false;
@@ -729,8 +904,8 @@ export const analyzeUrl = inngest.createFunction(
               }
             }
 
-            // Create detected_changes rows from scheduled scan changes (N+1 scans only)
-            if (parentAnalysisId && changesSummary.changes?.length > 0 && pageForFeedback?.id) {
+            // Legacy detected_changes upsert — only when reconciliation didn't handle it
+            if (!reconciledMagnitude && parentAnalysisId && changesSummary.changes?.length > 0 && pageForFeedback?.id) {
               const candidateIds = new Set((pendingChanges ?? []).map((c) => c.id));
               const candidateScopes = new Map((pendingChanges ?? []).map((c) => [c.id, c.scope]));
 
@@ -740,7 +915,7 @@ export const analyzeUrl = inngest.createFunction(
 
                   if (proposal.accepted && proposal.matched_change_id) {
                     // Update existing watching row
-                    await supabase
+                    const { error: legacyUpdateError } = await supabase
                       .from("detected_changes")
                       .update({
                         after_value: change.after,
@@ -752,6 +927,14 @@ export const analyzeUrl = inngest.createFunction(
                       .eq("id", proposal.matched_change_id)
                       .eq("user_id", analysis.user_id)
                       .eq("status", "watching");
+                    if (legacyUpdateError) {
+                      console.error("[legacy] Match update failed:", legacyUpdateError.message);
+                      Sentry.captureMessage("Legacy match update failed", {
+                        level: "warning",
+                        tags: { pipeline: "legacy-upsert", pageId: pageForFeedback.id },
+                        extra: { error: legacyUpdateError.message, matchedId: proposal.matched_change_id },
+                      });
+                    }
                   } else {
                     // Insert new row
                     await supabase.from("detected_changes").insert({
@@ -922,8 +1105,9 @@ export const analyzeUrl = inngest.createFunction(
         const isScheduledScan = fullAnalysis?.trigger_type === "daily" || fullAnalysis?.trigger_type === "weekly";
         const isDeployFallback = fullAnalysis?.trigger_type === "deploy";
 
-        if (isScheduledScan) {
+        if (isScheduledScan || reconciledMagnitude === "overhaul") {
           // Scheduled scans always update the baseline
+          // Overhauls also rotate baseline — future diffs compare against post-overhaul state
           pageUpdate.stable_baseline_id = analysisId;
         } else if (isDeployFallback) {
           // Deploy fallback: check if page has no baseline, set one to prevent infinite fallback loop

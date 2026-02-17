@@ -143,7 +143,8 @@ export type DetectedChangeStatus =
   | "validated"     // Metrics improved after change
   | "regressed"     // Metrics worsened after change
   | "inconclusive"  // Not enough data or neutral result
-  | "reverted";     // Change was undone in subsequent deploy
+  | "reverted"      // Change was undone in subsequent deploy
+  | "superseded";   // Absorbed into an aggregate (overhaul) record
 
 export interface DetectedChange {
   id: string;
@@ -168,6 +169,10 @@ export interface DetectedChange {
   status: DetectedChangeStatus;
   correlation_metrics?: CorrelationMetrics;
   correlation_unlocked_at?: string;
+
+  // Magnitude classification
+  magnitude?: "incremental" | "overhaul";
+  superseded_by?: string; // ID of aggregate record that absorbed this one
 
   // Source context
   deploy_id?: string;

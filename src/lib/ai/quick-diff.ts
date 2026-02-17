@@ -34,6 +34,11 @@ Look at both screenshots and identify any visible changes. Focus on:
 - Set scope: "page"
 - Example: { element: "Page Redesign", description: "Complete visual overhaul", before: "Old design with gradients", after: "New brutalist design", scope: "page" }
 
+**Magnitude Rule:**
+- 1-4 independent changes = "incremental". Track each individually.
+- 5+ coordinated changes in the same area = "overhaul". Output 1-2 aggregate records with scope "page".
+- **Hard cap: Maximum 5 changes per scan.** If you detect more than 5, you MUST aggregate into fewer records.
+
 ## Change Linkage
 You may receive Active Watching Changes — existing tracked changes. For each change you detect:
 1. If it matches an existing watching change (same element/area, same modification), set matched_change_id to its ID with confidence 0.7-1.0

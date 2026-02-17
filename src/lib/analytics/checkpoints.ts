@@ -116,8 +116,8 @@ export function resolveStatusTransition(
   // Reserved for future: trend-over-time logic (e.g., require 2+ consecutive disagreements to reverse)
   _existingCheckpoints: Array<{ horizon_days: number; assessment: CheckpointAssessment }>
 ): StatusTransition | null {
-  // Terminal status — no more transitions
-  if (currentStatus === "reverted") return null;
+  // Terminal statuses — no more transitions
+  if (currentStatus === "reverted" || currentStatus === "superseded") return null;
 
   // Early horizons — signal only, no status change.
   // NOTE: RFC revision (Feb 2026) allows D+7/D+14 resolution with strong evidence,

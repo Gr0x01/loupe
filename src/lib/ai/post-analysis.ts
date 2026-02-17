@@ -78,6 +78,11 @@ Compare current vs. previous audit. Your goal is **honest, useful tracking** —
 - When aggregated, before/after should describe the overall state change, not itemize each sub-change
 - Key specific changes can be noted in the "description" field
 
+**Magnitude Rule:**
+- 1-4 independent changes = "incremental". Track each individually.
+- 5+ coordinated changes in the same area = "overhaul". Output 1-2 aggregate records with scope "page".
+- **Hard cap: Maximum 5 changes per scan.** If you detect more than 5, you MUST aggregate into fewer records.
+
 ## Change Linkage
 You may receive Active Watching Changes — existing tracked changes. For each change you detect:
 1. If it matches an existing watching change (same element/area, same modification), set matched_change_id to its ID with confidence 0.7-1.0
