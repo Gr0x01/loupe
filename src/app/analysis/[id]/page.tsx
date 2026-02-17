@@ -1540,6 +1540,7 @@ export default function AnalysisPage() {
             trackedSuggestions={trackedSuggestions ?? undefined}
             onSuggestionAddress={(id) => handleSuggestionAction(id, "addressed")}
             onSuggestionDismiss={(id) => handleSuggestionAction(id, "dismissed")}
+            maxHorizonDays={pageCtx?.max_horizon_days}
           />
         ) : (
           /* Scan 1 (claimed or unclaimed) — dossier layout */

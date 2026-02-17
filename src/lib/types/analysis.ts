@@ -287,6 +287,8 @@ export interface PageContext {
   feedback_map?: Record<string, { feedback_type: string; checkpoint_id: string }>;
   /** Map of detected_change ID → latest checkpoint info (for feedback UI) */
   checkpoint_map?: Record<string, { checkpoint_id: string; horizon_days: number }>;
+  /** Max checkpoint horizon visible for this user's tier (30 for Free/Pro, 90 for Scale) */
+  max_horizon_days?: number;
 }
 
 /**

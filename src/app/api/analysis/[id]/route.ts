@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { getEffectiveTier, getMaxHorizonDays } from "@/lib/permissions";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -129,8 +130,8 @@ export async function GET(
         .single();
 
       if (page) {
-        // Round 1: analysis context + changes (independent)
-        const [ctxResult, changeResult] = await Promise.all([
+        // Round 1: analysis context + changes + profile (independent)
+        const [ctxResult, changeResult, profileResult] = await Promise.all([
           supabase.rpc("get_analysis_context", {
             p_user_id: data.user_id,
             p_url: data.url,
@@ -140,6 +141,11 @@ export async function GET(
             .from("detected_changes")
             .select("id, hypothesis, status")
             .eq("page_id", page.id),
+          supabase
+            .from("profiles")
+            .select("subscription_tier, subscription_status, trial_ends_at")
+            .eq("id", currentUserId!)
+            .single(),
         ]);
         const ctx = ctxResult.data as {
           scan_number: number;
@@ -229,6 +235,11 @@ export async function GET(
           if (Object.keys(checkpoint_map).length === 0) checkpoint_map = undefined;
         }
 
+        const profile = profileResult.data;
+        const effectiveTier = profile
+          ? getEffectiveTier(profile.subscription_tier, profile.subscription_status, profile.trial_ends_at)
+          : "free";
+
         page_context = {
           page_id: page.id,
           page_name: page.name,
@@ -240,6 +251,7 @@ export async function GET(
           hypothesis_map,
           feedback_map,
           checkpoint_map,
+          max_horizon_days: getMaxHorizonDays(effectiveTier),
         };
       }
     }

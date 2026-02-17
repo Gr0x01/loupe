@@ -36,6 +36,7 @@ interface ChronicleLayoutProps {
   trackedSuggestions?: TrackedSuggestion[];
   onSuggestionAddress?: (id: string) => Promise<void>;
   onSuggestionDismiss?: (id: string) => Promise<void>;
+  maxHorizonDays?: number;
 }
 
 /* ---- Win detection helpers ---- */
@@ -112,6 +113,7 @@ export function ChronicleLayout({
   trackedSuggestions,
   onSuggestionAddress,
   onSuggestionDismiss,
+  maxHorizonDays,
 }: ChronicleLayoutProps) {
   const validatedItems = changesSummary.progress.validatedItems || [];
   const watchingItems = changesSummary.progress.watchingItems || [];
@@ -242,6 +244,7 @@ export function ChronicleLayout({
                       checkpointId={checkpointMap?.[item.id]?.checkpoint_id}
                       horizonDays={checkpointMap?.[item.id]?.horizon_days}
                       existingFeedback={checkpointMap?.[item.id]?.checkpoint_id ? feedbackMap?.[checkpointMap[item.id].checkpoint_id] : null}
+                      maxHorizonDays={maxHorizonDays}
                     />
                   ))}
                 </div>
@@ -271,6 +274,7 @@ export function ChronicleLayout({
                       checkpointId={checkpointMap?.[item.id]?.checkpoint_id}
                       horizonDays={checkpointMap?.[item.id]?.horizon_days}
                       existingFeedback={checkpointMap?.[item.id]?.checkpoint_id ? feedbackMap?.[checkpointMap[item.id].checkpoint_id] : null}
+                      maxHorizonDays={maxHorizonDays}
                     />
                   ))}
                 </div>
@@ -299,6 +303,7 @@ export function ChronicleLayout({
                         hypothesis={hypothesisMap?.[item.id]}
                         changeId={item.id}
                         checkpoints={item.checkpoints}
+                        maxHorizonDays={maxHorizonDays}
                       />
                     );
                   })}

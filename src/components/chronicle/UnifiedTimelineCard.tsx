@@ -31,6 +31,8 @@ interface UnifiedTimelineCardProps {
   horizonDays?: number;
   /** Existing feedback if already submitted */
   existingFeedback?: { feedback_type: string } | null;
+  /** Max horizon visible for user's tier (filters checkpoint chips) */
+  maxHorizonDays?: number;
 }
 
 function formatDate(dateStr?: string): string {
@@ -268,15 +270,20 @@ function getChipClass(assessment: string): string {
 function CheckpointChips({
   checkpoints,
   compact = false,
+  maxHorizonDays,
 }: {
   checkpoints: ChangeCheckpointSummary[];
   compact?: boolean;
+  maxHorizonDays?: number;
 }) {
   const byHorizon = new Map(checkpoints.map((cp) => [cp.horizon_days, cp]));
+  const visibleHorizons = maxHorizonDays
+    ? ALL_HORIZONS.filter((h) => h <= maxHorizonDays)
+    : ALL_HORIZONS;
 
   return (
     <div className={`dossier-checkpoint-chips ${compact ? "dossier-checkpoint-chips-compact" : ""}`}>
-      {ALL_HORIZONS.map((h) => {
+      {visibleHorizons.map((h) => {
         const cp = byHorizon.get(h);
         if (!cp) {
           return (
@@ -434,6 +441,7 @@ export function UnifiedTimelineCard({
   checkpointId,
   horizonDays,
   existingFeedback,
+  maxHorizonDays,
 }: UnifiedTimelineCardProps) {
   const [localHypothesis, setLocalHypothesis] = useState(hypothesis);
   const formattedDate = formatDate(detectedAt);
@@ -475,7 +483,7 @@ export function UnifiedTimelineCard({
             {type === "change" && formattedDate ? (
               <span className="unified-timeline-card-date">{formattedDate}</span>
             ) : (
-              <CheckpointChips checkpoints={checkpoints || []} compact />
+              <CheckpointChips checkpoints={checkpoints || []} compact maxHorizonDays={maxHorizonDays} />
             )}
           </div>
         ) : null}

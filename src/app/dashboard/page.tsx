@@ -393,10 +393,12 @@ function ProofBanner({
   changes,
   cumulativeImprovement,
   highlightId,
+  maxHorizonDays,
 }: {
   changes: (DetectedChange & { domain?: string })[];
   cumulativeImprovement: number;
   highlightId?: string;
+  maxHorizonDays?: number;
 }) {
   if (changes.length === 0) return null;
 
@@ -436,6 +438,7 @@ function ProofBanner({
             key={change.id}
             change={change}
             highlight={change.id === highlightId}
+            maxHorizonDays={maxHorizonDays}
           />
         ))}
       </div>
@@ -454,15 +457,20 @@ const V2_ALL_HORIZONS = [7, 14, 30, 60, 90] as const;
 function V2CheckpointChips({
   checkpoints,
   compact = false,
+  maxHorizonDays,
 }: {
   checkpoints: ChangeCheckpointSummary[];
   compact?: boolean;
+  maxHorizonDays?: number;
 }) {
-  const sortedCheckpoints = [...checkpoints].sort(
-    (a, b) => a.horizon_days - b.horizon_days
-  );
+  const visibleHorizons = maxHorizonDays
+    ? V2_ALL_HORIZONS.filter((h) => h <= maxHorizonDays)
+    : V2_ALL_HORIZONS;
+  const sortedCheckpoints = [...checkpoints]
+    .filter((cp) => !maxHorizonDays || cp.horizon_days <= maxHorizonDays)
+    .sort((a, b) => a.horizon_days - b.horizon_days);
   const completedHorizons = new Set(sortedCheckpoints.map((cp) => cp.horizon_days));
-  const upcomingCount = V2_ALL_HORIZONS.filter((h) => !completedHorizons.has(h)).length;
+  const upcomingCount = visibleHorizons.filter((h) => !completedHorizons.has(h)).length;
   return (
     <div className={`v2-checkpoint-chips-wrap ${compact ? "v2-checkpoint-chips-wrap-compact" : ""}`}>
       <div className="v2-checkpoint-chips">
@@ -494,9 +502,11 @@ function V2CheckpointChips({
 function WinCard({
   change,
   highlight,
+  maxHorizonDays,
 }: {
   change: DetectedChange & { domain?: string; checkpoints?: ChangeCheckpointSummary[] };
   highlight?: boolean;
+  maxHorizonDays?: number;
 }) {
   const metric = getPrimaryMetric(change);
   const linkHref = change.first_detected_analysis_id
@@ -532,7 +542,7 @@ function WinCard({
           {change.element}
         </p>
         {change.checkpoints && change.checkpoints.length > 0 && (
-          <V2CheckpointChips checkpoints={change.checkpoints} compact />
+          <V2CheckpointChips checkpoints={change.checkpoints} compact maxHorizonDays={maxHorizonDays} />
         )}
       </div>
 
@@ -923,6 +933,7 @@ function DashboardContent() {
     current: 0,
     max: 1,
   });
+  const [maxHorizonDays, setMaxHorizonDays] = useState<number>(90);
   const highlightWinId = searchParams.get("win") || undefined;
   const suggestedDomainParam = searchParams.get("suggest_domain");
   const suggestedUrlParam = searchParams.get("suggest_url");
@@ -1057,6 +1068,7 @@ function DashboardContent() {
           profile.trial_ends_at
         );
         setUserLimits((prev) => ({ ...prev, max: TIER_LIMITS[tier].pages }));
+        setMaxHorizonDays(TIER_LIMITS[tier].maxHorizonDays || 90);
         if (profile.email) setProfileEmail(profile.email);
         if (profile.account_domain) setAccountDomain(profile.account_domain);
       })
@@ -1243,6 +1255,7 @@ function DashboardContent() {
               changes={results}
               cumulativeImprovement={resultsStats.cumulativeImprovement}
               highlightId={highlightWinId}
+              maxHorizonDays={maxHorizonDays}
             />
 
             {/* Page list */}
