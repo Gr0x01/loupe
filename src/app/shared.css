@@ -395,18 +395,19 @@ body.modal-open .site-nav {
 
 /* ===== SITE FOOTER ===== */
 .site-footer {
-  background: var(--bg-inset);
-  border-top: 1px solid var(--border-subtle);
-  padding: 32px 0;
+  background: var(--ink-900);
+  color: var(--paper-200);
+  padding: 40px 0 32px;
   margin-top: auto;
 }
 
 .site-footer a {
+  color: var(--ink-300);
   transition: color 150ms ease;
 }
 
 .site-footer a:hover {
-  color: var(--accent);
+  color: #FFFFFF;
 }
 
 /* Footer divider with loupe icon */
@@ -427,14 +428,14 @@ body.modal-open .site-nav {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(0, 0, 0, 0.08) 100%
+    rgba(255, 255, 255, 0.15) 100%
   );
 }
 
 .footer-divider::after {
   background: linear-gradient(
     90deg,
-    rgba(0, 0, 0, 0.08) 0%,
+    rgba(255, 255, 255, 0.15) 0%,
     transparent 100%
   );
 }
