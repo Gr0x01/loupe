@@ -916,6 +916,7 @@ function DashboardContent() {
   const [accountDomain, setAccountDomain] = useState<string | null>(null);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [pendingAuditUrl, setPendingAuditUrl] = useState<string | null>(null);
+  const [pendingDomainUrl, setPendingDomainUrl] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [userLimits, setUserLimits] = useState<UserLimits>({
@@ -956,6 +957,14 @@ function DashboardContent() {
       );
     }
 
+    if (pendingDomainUrl) {
+      addSuggestion(
+        pendingDomainUrl,
+        "From your signup",
+        "The site you entered when you signed up"
+      );
+    }
+
     if (suggestedUrlParam) {
       addSuggestion(
         suggestedUrlParam,
@@ -984,7 +993,19 @@ function DashboardContent() {
     }
 
     return suggestions.slice(0, 4);
-  }, [pendingAuditUrl, profileEmail, suggestedDomainParam, suggestedUrlParam]);
+  }, [pendingAuditUrl, pendingDomainUrl, profileEmail, suggestedDomainParam, suggestedUrlParam]);
+
+  // Read pending domain from login page
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("loupe_pending_domain");
+      if (!raw) return;
+      localStorage.removeItem("loupe_pending_domain");
+      setPendingDomainUrl(raw);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // Auto-link a pending anonymous audit from localStorage
   useEffect(() => {
@@ -1004,7 +1025,7 @@ function DashboardContent() {
         url: string;
         ts?: number;
       };
-      if (!url || (ts && Date.now() - ts > 30 * 60 * 1000)) {
+      if (!url || (ts && Date.now() - ts > 24 * 60 * 60 * 1000)) {
         localStorage.removeItem("loupe_pending_audit");
         setPendingAuditUrl(null);
         return;
