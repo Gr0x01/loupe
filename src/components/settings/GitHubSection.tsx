@@ -108,19 +108,13 @@ export function GitHubSection({
 
             {/* Connected repos */}
             <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
-                  {github.repos.length === 0 ? "No repos connected" : `Watching ${github.repos.length}/1 repo`}
-                </h3>
-                {github.repos.length < 1 && (
-                  <button
-                    onClick={onAddRepo}
-                    className="text-sm text-accent font-medium hover:text-accent-hover transition-colors"
-                  >
-                    + Add repo
-                  </button>
-                )}
-              </div>
+              {github.repos.length > 0 && (
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
+                    Connected repo
+                  </h3>
+                </div>
+              )}
 
               {github.repos.length === 0 ? (
                 <div className="glass-card p-6 text-center">
