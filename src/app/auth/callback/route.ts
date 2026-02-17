@@ -275,14 +275,29 @@ async function handleEmailAutoClaim(
     .is("user_id", null);
 
   // Set account domain (first-write-wins)
+  let domain = "";
   try {
-    const domain = new URL(analysis.url).hostname.replace(/^www\./, "");
+    domain = new URL(analysis.url).hostname.replace(/^www\./, "");
     await supabase
       .from("profiles")
       .update({ account_domain: domain })
       .eq("id", userId)
       .is("account_domain", null);
   } catch { /* URL parse failure — non-fatal */ }
+
+  // PostHog tracking — auto-claim should fire the same events as manual claim
+  captureEvent(userId, "page_claimed", {
+    domain,
+    url: analysis.url,
+    tier,
+    page_number: 1,
+    method: "auto_claim",
+  });
+  captureEvent(userId, "page_tracked", {
+    domain,
+    is_first_page: true,
+  });
+  await flushEvents();
 
   redirectTo.pathname = `/pages/${newPage.id}`;
   return true;

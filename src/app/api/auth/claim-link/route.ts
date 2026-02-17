@@ -218,6 +218,7 @@ export async function POST(req: NextRequest) {
         email: cleanEmail,
         subscription_tier: tier,
         pages_count: (pageCount ?? 0) + 1,
+        is_internal: false,
       });
     }
 
