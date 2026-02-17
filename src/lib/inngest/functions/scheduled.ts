@@ -5,7 +5,7 @@ import { pingScreenshotService } from "@/lib/screenshot";
 import { createRepoWebhook, deleteRepoWebhook, findExistingWebhook } from "@/lib/github/app";
 import { safeDecrypt } from "@/lib/crypto";
 import { sendEmail } from "@/lib/email/resend";
-import { dailyDigestEmail } from "@/lib/email/templates";
+import { dailyDigestEmail, activationNudgeEmail, genericSetupEmail } from "@/lib/email/templates";
 import type { ChangesSummary } from "@/lib/types/analysis";
 import { getEffectiveTier, getAllowedScanFrequency, getPageLimit, type SubscriptionTier, type SubscriptionStatus } from "@/lib/permissions";
 
@@ -434,5 +434,120 @@ export const screenshotHealthCheck = inngest.createFunction(
   async () => {
     const healthy = await pingScreenshotService();
     return { healthy };
+  }
+);
+
+/**
+ * Onboarding nudge — sends a single email to users who signed up
+ * but never added a page. Runs daily at 1pm UTC.
+ *
+ * Window: created_at between 4h and 48h ago.
+ * Idempotency: profiles.onboarding_nudge_sent_at — only send once.
+ */
+export const onboardingNudge = inngest.createFunction(
+  { id: "onboarding-nudge", retries: 0 },
+  { cron: "0 13 * * *" },
+  async ({ step }) => {
+    const supabase = createServiceClient();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) return { sent: 0, error: "NEXT_PUBLIC_APP_URL not set" };
+
+    const candidates = await step.run("find-nudge-candidates", async () => {
+      const now = new Date();
+      const windowStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+      const windowEnd = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .gte("created_at", windowStart.toISOString())
+        .lte("created_at", windowEnd.toISOString())
+        .is("onboarding_nudge_sent_at", null)
+        .eq("email_notifications", true);
+
+      if (error) throw error;
+      if (!data?.length) return [];
+
+      // Filter to users with 0 pages
+      const userIds = data.map((p) => p.id);
+      const { data: pagesData } = await supabase
+        .from("pages")
+        .select("user_id")
+        .in("user_id", userIds);
+
+      const usersWithPages = new Set((pagesData || []).map((p) => p.user_id));
+      return data.filter((p) => !usersWithPages.has(p.id));
+    });
+
+    if (!candidates.length) return { sent: 0 };
+
+    const sent = await step.run("send-nudge-emails", async () => {
+      let count = 0;
+
+      for (const profile of candidates) {
+        try {
+          if (!profile.email) continue;
+
+          // Check for a matching unclaimed analysis
+          const { data: matchingAnalysis } = await supabase
+            .from("analyses")
+            .select("id, url")
+            .eq("email", profile.email)
+            .is("user_id", null)
+            .eq("status", "complete")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          let magicLinkRedirect: string;
+          if (matchingAnalysis) {
+            magicLinkRedirect = `${appUrl}/auth/callback?claim=${matchingAnalysis.id}`;
+          } else {
+            magicLinkRedirect = `${appUrl}/auth/callback?next=/dashboard`;
+          }
+
+          const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+            type: "magiclink",
+            email: profile.email,
+            options: { redirectTo: magicLinkRedirect },
+          });
+
+          if (linkError || !linkData?.properties?.action_link) {
+            console.error(`Nudge: failed to generate magic link for ${profile.email}:`, linkError?.message);
+            continue;
+          }
+
+          const magicLink = linkData.properties.action_link;
+
+          const { subject, html } = matchingAnalysis
+            ? activationNudgeEmail({
+                domain: new URL(matchingAnalysis.url).hostname.replace(/^www\./, ""),
+                analysisId: matchingAnalysis.id,
+                magicLink,
+              })
+            : genericSetupEmail({ magicLink });
+
+          await sendEmail({ to: profile.email, subject, html });
+          count++;
+        } catch (err) {
+          Sentry.withScope((scope) => {
+            scope.setUser({ id: profile.id });
+            scope.setTag("function", "onboardingNudge");
+            Sentry.captureException(err);
+          });
+          console.error(`Nudge failed for user ${profile.id}:`, err);
+        } finally {
+          // Mark as attempted regardless to avoid infinite retries
+          await supabase
+            .from("profiles")
+            .update({ onboarding_nudge_sent_at: new Date().toISOString() })
+            .eq("id", profile.id);
+        }
+      }
+
+      return count;
+    });
+
+    return { sent };
   }
 );
