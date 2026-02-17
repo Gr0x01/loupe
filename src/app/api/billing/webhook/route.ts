@@ -256,7 +256,7 @@ async function sendWelcomeMagicLink(
     });
 
     await resend.emails.send({
-      from: "Loupe <notifications@getloupe.io>",
+      from: "Loupe <team@getloupe.io>",
       to: email,
       subject,
       html,

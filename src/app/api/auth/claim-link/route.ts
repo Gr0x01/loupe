@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
     const magicLink = linkData.properties.action_link;
     const { subject, html } = claimPageEmail({ domain, magicLink });
     const { error: emailError } = await resend.emails.send({
-      from: "Loupe <notifications@getloupe.io>",
+      from: "Loupe <team@getloupe.io>",
       to: cleanEmail,
       subject,
       html,

@@ -95,6 +95,7 @@ npm run build        # production build
 | `product.md` | Building user-facing features |
 | `architecture.md` | Building backend/infra |
 | `decisions.md` | You need to understand "why" |
+| `emails.md` | Working on email templates, triggers, or delivery |
 | `icp.md` | Writing copy, designing UI, or marketing work |
 | `vision.md` | Understanding the full product direction |
 | `phases/vision-pivot.md` | Implementation details for the pivot |

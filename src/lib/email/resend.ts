@@ -15,7 +15,7 @@ interface SendEmailParams {
 export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> {
   try {
     await resend.emails.send({
-      from: "Loupe <notifications@getloupe.io>",
+      from: "Loupe <team@getloupe.io>",
       to,
       subject,
       html,
