@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
+import { resyncInngest } from "@/lib/inngest/resync";
 import { getEligibleHorizons } from "@/lib/analytics/checkpoints";
 
 /**
@@ -21,6 +22,9 @@ export async function GET(req: NextRequest) {
     monitorSlug: "checkpoints-cron",
     status: "in_progress",
   });
+
+  // Re-sync Inngest FIRST — fix stale registrations before we try to send events
+  await resyncInngest();
 
   const supabase = createServiceClient();
   const now = new Date();
@@ -50,7 +54,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (!candidates?.length) {
-      await resyncInngest();
       Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "ok" });
       await Sentry.flush(2000);
       return NextResponse.json({
@@ -100,8 +103,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (dueCount === 0) {
-      // All eligible changes have their due horizons computed
-      await resyncInngest();
       Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "ok" });
       await Sentry.flush(2000);
       return NextResponse.json({
@@ -120,7 +121,6 @@ export async function GET(req: NextRequest) {
 
     await inngest.send({ name: "checkpoints/run" });
 
-    await resyncInngest();
     Sentry.captureCheckIn({ checkInId, monitorSlug: "checkpoints-cron", status: "ok" });
     await Sentry.flush(2000);
 
@@ -134,20 +134,5 @@ export async function GET(req: NextRequest) {
     Sentry.captureException(err, { tags: { function: "vercel-cron-checkpoints" } });
     await Sentry.flush(2000);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
-  }
-}
-
-async function resyncInngest() {
-  try {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_SITE_URL || "https://getloupe.io";
-
-    await fetch(`${baseUrl}/api/inngest`, {
-      method: "PUT",
-      signal: AbortSignal.timeout(10000),
-    });
-  } catch (err) {
-    console.error("Inngest re-sync failed:", err);
   }
 }

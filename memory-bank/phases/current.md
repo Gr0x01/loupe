@@ -51,17 +51,23 @@ Key files: `src/app/api/auth/claim-link/route.ts`, `src/app/auth/callback/route.
 
 ### Cron & Reliability
 
-Inngest crons go stale after Vercel deploys. All critical crons have Vercel Cron backups.
+Inngest crons go stale after Vercel deploys. Critical crons have Vercel Cron backups + watchdog.
 
-| Cron | Inngest | Vercel Backup | Purpose |
-|------|---------|---------------|---------|
-| Daily scans | 9:00 UTC | 9:15 UTC (`/api/cron/daily-scans`) | Screenshot + full analysis |
-| Checkpoints | 10:30 UTC | 10:45 UTC (`/api/cron/checkpoints`) | Multi-horizon outcome assessment |
+| Cron | Inngest | Vercel Cron | Purpose |
+|------|---------|-------------|---------|
+| Daily scans | 9:00 UTC | 9:15 UTC + **12:00 UTC watchdog** | Screenshot + full analysis |
+| Checkpoints | 10:30 UTC | 10:45 UTC | Multi-horizon outcome assessment |
 | Daily digest | 11:00 UTC | — | Consolidated email (Inngest only, retries: 1) |
 | Onboarding nudge | 13:00 UTC | — | Nudge users with no pages (Inngest only, retries: 0) |
 | Screenshot health | */30 * * * * | — | Pings screenshot service (Inngest only) |
 
-Backups: `CRON_SECRET` auth, self-healing (creates missing scans), re-syncs Inngest, per-page idempotency.
+**Resync**: `resyncInngest()` in `src/lib/inngest/resync.ts` — shared by both cron routes. Uses `NEXT_PUBLIC_APP_URL` (NOT `VERCEL_URL` which is a deployment-specific preview URL). Called at the TOP of cron handlers, before sending events. Checks `res.ok` and reports non-2xx to Sentry.
+
+**Recovery**: `recoverStaleScans()` in daily-scans route finds `pending` analyses 2–48h old and re-sends their Inngest events. Catches cross-midnight orphans.
+
+**Error isolation**: Per-page try/catch around `inngest.send()` — one failure can't kill the batch.
+
+Backups: `CRON_SECRET` auth, self-healing, per-page idempotency, Sentry logging on all failure paths.
 
 ### RFC-0001: Canonical Change Intelligence
 

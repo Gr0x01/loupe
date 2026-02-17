@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
+import { resyncInngest } from "@/lib/inngest/resync";
 import {
   getEffectiveTier,
   getAllowedScanFrequency,
@@ -11,12 +12,12 @@ import {
 } from "@/lib/permissions";
 
 /**
- * Vercel Cron backup for daily scans — runs at 9:15 UTC, 15 min after Inngest cron.
+ * Vercel Cron for daily scans — runs at 9:15 UTC (backup) and 12:00 UTC (watchdog).
  *
- * 1. Checks if Inngest already created today's daily scans
- * 2. If not, creates them and triggers Inngest events (self-healing)
- * 3. Reports to Sentry when self-healing kicks in (so we know Inngest failed)
- * 4. Re-syncs Inngest app registration to prevent future drift
+ * 1. Re-syncs Inngest FIRST to fix stale registrations from deploys
+ * 2. Creates missing daily scans with per-page idempotency
+ * 3. Recovers orphaned pending analyses from earlier failed runs
+ * 4. Reports to Sentry when self-healing kicks in
  */
 export async function GET(req: NextRequest) {
   // Vercel Cron sends this header
@@ -30,14 +31,14 @@ export async function GET(req: NextRequest) {
     status: "in_progress",
   });
 
+  // Re-sync Inngest FIRST — fix stale registrations before we try to send events
+  await resyncInngest();
+
   const supabase = createServiceClient();
 
   try {
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
-
-    // Always run full logic — per-page idempotency handles deduplication.
-    // This prevents partial failures where Inngest scanned some users but not all.
 
     // Get all non-manual pages (same as Inngest cron — enforce tier at runtime)
     const { data: allPages, error } = await supabase
@@ -117,6 +118,7 @@ export async function GET(req: NextRequest) {
 
     // Create analyses and trigger Inngest events (per-page idempotency)
     const triggered: { id: string; url: string }[] = [];
+    const sendFailed: { id: string; url: string }[] = [];
     let alreadyExisted = 0;
 
     for (const page of pages) {
@@ -147,30 +149,38 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (newAnalysis) {
-        await inngest.send({
-          name: "analysis/created",
-          data: {
-            analysisId: newAnalysis.id,
-            url: page.url,
-            parentAnalysisId: page.last_scan_id || undefined,
-          },
-        });
-        triggered.push({ id: newAnalysis.id, url: page.url });
+        try {
+          await inngest.send({
+            name: "analysis/created",
+            data: {
+              analysisId: newAnalysis.id,
+              url: page.url,
+              parentAnalysisId: page.last_scan_id || undefined,
+            },
+          });
+          triggered.push({ id: newAnalysis.id, url: page.url });
+        } catch (sendErr) {
+          sendFailed.push({ id: newAnalysis.id, url: page.url });
+          Sentry.captureException(sendErr, {
+            tags: { function: "vercel-cron-daily-scans", step: "inngest-send" },
+            extra: { analysisId: newAnalysis.id, url: page.url },
+          });
+        }
       }
     }
 
-    // Report self-healing to Sentry if we had to backfill any scans
-    const selfHealed = triggered.length > 0;
-    if (selfHealed) {
-      Sentry.captureMessage("Daily scan cron: Vercel backup self-healed missing scans", {
+    // Recover orphaned pending analyses from earlier failed runs (>2h old)
+    const recovered = await recoverStaleScans(supabase);
+
+    // Report self-healing to Sentry
+    const selfHealed = triggered.length > 0 || recovered > 0;
+    if (selfHealed || sendFailed.length > 0) {
+      Sentry.captureMessage("Daily scan cron: Vercel backup self-healed", {
         level: "warning",
         tags: { function: "vercel-cron-daily-scans" },
-        extra: { backfilled: triggered.length, alreadyExisted },
+        extra: { backfilled: triggered.length, alreadyExisted, sendFailed: sendFailed.length, recovered },
       });
     }
-
-    // Re-sync Inngest to prevent future drift
-    await resyncInngest();
 
     Sentry.captureCheckIn({ checkInId, monitorSlug: "daily-scans-cron", status: "ok" });
     await Sentry.flush(2000);
@@ -178,10 +188,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       status: selfHealed ? "self-healed" : "ok",
       message: selfHealed
-        ? `Backfilled ${triggered.length} scans (${alreadyExisted} already existed)`
+        ? `Backfilled ${triggered.length} scans (${alreadyExisted} existed, ${recovered} recovered, ${sendFailed.length} send failures)`
         : `All ${alreadyExisted} daily scans already existed`,
       selfHealed,
       triggered,
+      sendFailed,
+      recovered,
     });
   } catch (err) {
     Sentry.captureCheckIn({ checkInId, monitorSlug: "daily-scans-cron", status: "error" });
@@ -192,21 +204,61 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * PUT to the Inngest serve endpoint to re-register functions.
- * Prevents cron registrations from going stale after deploys.
+ * Compute the recovery window for stale pending analyses.
+ * Lookback: 48h (catches cross-midnight failures). Staleness: >2h old (not still processing).
  */
-async function resyncInngest() {
-  try {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_SITE_URL || "https://getloupe.io";
+export function getRecoveryWindow(now: Date = new Date()): { lookbackStart: Date; staleThreshold: Date } {
+  return {
+    lookbackStart: new Date(now.getTime() - 48 * 60 * 60 * 1000),
+    staleThreshold: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+  };
+}
 
-    await fetch(`${baseUrl}/api/inngest`, {
-      method: "PUT",
-      signal: AbortSignal.timeout(10000),
-    });
+/**
+ * Recover orphaned pending analyses — created by a previous cron run but never
+ * picked up by Inngest (e.g. inngest.send() failed or Inngest was stale).
+ * Re-sends their Inngest events so they get processed.
+ */
+async function recoverStaleScans(supabase: ReturnType<typeof createServiceClient>): Promise<number> {
+  try {
+    const { lookbackStart, staleThreshold: twoHoursAgo } = getRecoveryWindow();
+
+    const { data: stale } = await supabase
+      .from("analyses")
+      .select("id, url, parent_analysis_id")
+      .eq("status", "pending")
+      .in("trigger_type", ["daily", "weekly"])
+      .gte("created_at", lookbackStart.toISOString())
+      .lte("created_at", twoHoursAgo.toISOString());
+
+    if (!stale?.length) return 0;
+
+    let recovered = 0;
+    for (const analysis of stale) {
+      try {
+        await inngest.send({
+          name: "analysis/created",
+          data: {
+            analysisId: analysis.id,
+            url: analysis.url,
+            parentAnalysisId: analysis.parent_analysis_id || undefined,
+          },
+        });
+        recovered++;
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { function: "recoverStaleScans", step: "inngest-send" },
+          extra: { analysisId: analysis.id, url: analysis.url },
+        });
+      }
+    }
+
+    return recovered;
   } catch (err) {
-    // Non-fatal — log but don't fail the cron
-    console.error("Inngest re-sync failed:", err);
+    Sentry.captureException(err, {
+      tags: { function: "recoverStaleScans", step: "query" },
+    });
+    return 0;
   }
 }
+
