@@ -1689,6 +1689,40 @@
   flex: 1;
 }
 
+/* Strategy advice block — light alternative to dark fix-block */
+.suggestion-advice-block {
+  background: rgba(248, 250, 252, 1);
+  border: 1.5px solid rgba(100, 116, 139, 0.22);
+  border-radius: 8px;
+  max-width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0.85rem;
+}
+
+.suggestion-advice-label {
+  font-family: var(--font-geist-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--violet);
+  margin-bottom: 0.45rem;
+}
+
+.suggestion-advice-text {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--ink-700);
+  flex: 1;
+}
+
+/* Light-bg action buttons variant */
+.suggestion-card-actions-light {
+  border-top-color: rgba(100, 116, 139, 0.15);
+}
+
 /* Times suggested credibility badge */
 .suggestion-card-times-badge {
   font-size: 0.6875rem;

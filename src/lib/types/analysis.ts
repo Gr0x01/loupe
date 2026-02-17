@@ -108,7 +108,8 @@ export interface ChronicleSuggestion {
   element: string;
   observation: string; // What we noticed
   prediction: Prediction;
-  suggestedFix: string; // Copy-paste ready
+  suggestedFix: string; // Copy-paste ready or strategic advice
+  fixType?: "copy" | "strategy"; // "copy" = verbatim text, "strategy" = actionable advice
   impact: "high" | "medium" | "low";
 }
 
@@ -478,6 +479,7 @@ export interface TrackedSuggestion {
   title: string;
   element: string;
   suggested_fix: string;
+  fix_type?: "copy" | "strategy";
   impact: "high" | "medium" | "low";
   status: SuggestionStatus;
   times_suggested: number;

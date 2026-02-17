@@ -100,7 +100,7 @@ For each change detected, output to the "changes" array:
 Based on the current state, what should they focus on next? Output to "suggestions" array.
 - Prioritize by impact
 - Include predictions using FriendlyText
-- Make suggestions copy-paste ready
+- Set fixType: "copy" when suggestedFix is actual text/code the user can paste verbatim (e.g. a new headline, CTA button text, meta description). Set fixType: "strategy" when it's a general recommendation or action to take (e.g. "Add social proof above the fold", "Gate the audit behind an email capture")
 
 ## Evaluation Quality Standards
 When judging if something was "fixed":
@@ -161,7 +161,8 @@ Return JSON matching this schema:
         "range": "<X-Y%>",
         "friendlyText": "<human-friendly phrase>"
       },
-      "suggestedFix": "<copy-paste ready>",
+      "suggestedFix": "<copy-paste ready text OR strategic advice>",
+      "fixType": "copy" | "strategy",
       "impact": "high" | "medium" | "low"
     }
   ],
@@ -663,6 +664,11 @@ export async function runPostAnalysisPipeline(
   }
   if (!parsed.suggestions) {
     parsed.suggestions = [];
+  }
+  for (const suggestion of parsed.suggestions) {
+    if (!suggestion.fixType) {
+      suggestion.fixType = "strategy";
+    }
   }
   // Progress no longer expected from LLM — set empty defaults for canonical overwrite
   parsed.progress = {

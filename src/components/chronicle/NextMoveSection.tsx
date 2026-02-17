@@ -89,6 +89,7 @@ export function NextMoveSection({
                 observation: "",
                 prediction: { metric: "conversion_rate", direction: "up", range: "", friendlyText: "" },
                 suggestedFix: tracked.suggested_fix,
+                fixType: tracked.fix_type || "strategy",
                 impact: tracked.impact,
               }}
               suggestionId={tracked.id}

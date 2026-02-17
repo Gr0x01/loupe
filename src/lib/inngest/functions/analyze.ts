@@ -819,6 +819,7 @@ export const analyzeUrl = inngest.createFunction(
                         status: "open",
                         times_suggested: match.times_suggested + 1,
                         suggested_fix: suggestion.suggestedFix.trim().slice(0, 2000),
+                        fix_type: suggestion.fixType || "strategy",
                         impact: suggestion.impact,
                         updated_at: now,
                       })
@@ -831,6 +832,7 @@ export const analyzeUrl = inngest.createFunction(
                       title: suggestion.title.trim().slice(0, 500),
                       element: suggestion.element.trim().slice(0, 200),
                       suggested_fix: suggestion.suggestedFix.trim().slice(0, 2000),
+                      fix_type: suggestion.fixType || "strategy",
                       impact: suggestion.impact,
                       status: "open",
                       times_suggested: 1,

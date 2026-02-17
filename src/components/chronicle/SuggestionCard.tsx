@@ -22,6 +22,9 @@ export function SuggestionCard({
   const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
+  const fixType = suggestion.fixType ?? "strategy";
+  const isCopy = fixType === "copy";
+
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -78,48 +81,55 @@ export function SuggestionCard({
         </div>
 
         <div className="suggestion-card-fix">
-          <div className="fix-block">
-            <div className="fix-block-header">
-              <span className="fix-block-label">The fix</span>
-              <button
-                onClick={handleCopy}
-                className="fix-block-copy"
-                title={copied ? "Copied!" : "Copy"}
-              >
-                {copied ? (
-                  <svg
-                    className="w-4 h-4 text-score-high"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                    <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
-                  </svg>
-                )}
-              </button>
+          {isCopy ? (
+            <div className="fix-block">
+              <div className="fix-block-header">
+                <span className="fix-block-label">The fix</span>
+                <button
+                  onClick={handleCopy}
+                  className="fix-block-copy"
+                  title={copied ? "Copied!" : "Copy"}
+                >
+                  {copied ? (
+                    <svg
+                      className="w-4 h-4 text-score-high"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-4 h-4"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                      <path d="M10.5 5.5V3.5a1.5 1.5 0 00-1.5-1.5H3.5A1.5 1.5 0 002 3.5V9a1.5 1.5 0 001.5 1.5h2" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <p className="fix-block-text">{suggestion.suggestedFix}</p>
             </div>
-            <p className="fix-block-text">{suggestion.suggestedFix}</p>
-          </div>
+          ) : (
+            <div className="suggestion-advice-block">
+              <span className="suggestion-advice-label">The play</span>
+              <p className="suggestion-advice-text">{suggestion.suggestedFix}</p>
+            </div>
+          )}
 
           {/* Action buttons — only when tracked (has ID + callbacks) */}
           {suggestionId && (onAddress || onDismiss) && (
-            <div className="suggestion-card-actions">
+            <div className={`suggestion-card-actions ${isCopy ? "" : "suggestion-card-actions-light"}`}>
               {onAddress && (
                 <button
                   onClick={async () => {
