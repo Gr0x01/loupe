@@ -24,12 +24,25 @@ function getClient(): PostHog | null {
   return client;
 }
 
+// Server-side event names — keep in sync with PostHog dashboard funnels
+type ServerEvent =
+  | "signup_completed"
+  | "user_logged_in"
+  | "page_claimed"
+  | "page_tracked"
+  | "audit_started_server"
+  | "audit_completed_server"
+  | "subscription_started"
+  | "subscription_updated"
+  | "subscription_canceled"
+  | "payment_failed";
+
 /**
  * Capture a server-side event in PostHog.
  */
 export function captureEvent(
   userId: string,
-  event: string,
+  event: ServerEvent,
   properties?: Record<string, unknown>
 ): void {
   try {

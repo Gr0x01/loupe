@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import {
-  getPageLimit,
-  getEffectiveTier,
   TRIAL_DURATION_DAYS,
+  getEffectiveTier,
+  getPageLimit,
   type SubscriptionTier,
   type SubscriptionStatus,
 } from "@/lib/permissions";
@@ -131,6 +131,11 @@ async function handleRescan(
   return redirectTo;
 }
 
+/**
+ * Handle ?claim= redirect after magic link click.
+ * Page creation now happens in /api/auth/claim-link — this just redirects
+ * to the existing page, or falls back to dashboard.
+ */
 async function handleClaim(
   redirectTo: URL,
   analysisId: string,
@@ -140,12 +145,11 @@ async function handleClaim(
 
   const supabase = createServiceClient();
 
-  // Get the analysis to find the URL
+  // Find the analysis to get its URL
   const { data: analysis } = await supabase
     .from("analyses")
-    .select("id, url, status")
+    .select("id, url")
     .eq("id", analysisId)
-    .eq("status", "complete")
     .single();
 
   if (!analysis) {
@@ -153,36 +157,75 @@ async function handleClaim(
     return redirectTo;
   }
 
-  // Check if this URL is already claimed by ANY user (first-come-first-served)
-  const { data: alreadyClaimed } = await supabase
+  // Look up the page (should already exist from claim-link route)
+  const { data: page } = await supabase
     .from("pages")
     .select("id, user_id")
     .eq("url", analysis.url)
+    .maybeSingle();
+
+  if (page && page.user_id === userId) {
+    redirectTo.pathname = `/pages/${page.id}`;
+  } else if (page) {
+    // Claimed by someone else
+    redirectTo.pathname = `/analysis/${analysisId}`;
+    redirectTo.searchParams.set("already_claimed", "true");
+  } else {
+    // Page wasn't created yet (edge case) — send to dashboard
+    redirectTo.pathname = "/dashboard";
+  }
+
+  return redirectTo;
+}
+
+/**
+ * If user has 0 pages and there's an unclaimed analysis matching their email,
+ * auto-claim the most recent one. Creates the page directly.
+ * Handles Google OAuth / separate magic link signups where no ?claim= param is present.
+ */
+async function handleEmailAutoClaim(
+  redirectTo: URL,
+  userId: string,
+  email: string | undefined
+): Promise<boolean> {
+  if (!email) return false;
+
+  const supabase = createServiceClient();
+
+  // Only for users with no pages yet
+  const { count: pageCount } = await supabase
+    .from("pages")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if ((pageCount ?? 0) > 0) return false;
+
+  // Find most recent unclaimed analysis matching this email
+  const { data: analysis } = await supabase
+    .from("analyses")
+    .select("id, url")
+    .eq("email", email.toLowerCase())
+    .is("user_id", null)
+    .eq("status", "complete")
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (alreadyClaimed && alreadyClaimed.user_id !== userId) {
-    // Domain already claimed by someone else
-    redirectTo.pathname = `/analysis/${analysisId}`;
-    redirectTo.searchParams.set("already_claimed", "true");
-    return redirectTo;
-  }
+  if (!analysis) return false;
 
-  // Check if this URL is already registered by this user
+  // Check URL isn't already claimed by someone else
   const { data: existingPage } = await supabase
     .from("pages")
-    .select("id")
-    .eq("user_id", userId)
+    .select("id, user_id")
     .eq("url", analysis.url)
     .maybeSingle();
 
   if (existingPage) {
-    // Already claimed — go to the page timeline
-    redirectTo.pathname = `/pages/${existingPage.id}`;
-    return redirectTo;
+    // Already claimed — don't interfere
+    return false;
   }
 
-  // Check page limit using tier-based limits
+  // Check page limit
   const { data: profile } = await supabase
     .from("profiles")
     .select("subscription_tier, subscription_status, trial_ends_at")
@@ -193,52 +236,56 @@ async function handleClaim(
   const status = profile?.subscription_status as SubscriptionStatus | null;
   const tier = getEffectiveTier(rawTier, status, profile?.trial_ends_at);
 
-  const { count: pageCount } = await supabase
-    .from("pages")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId);
+  if ((pageCount ?? 0) >= getPageLimit(tier)) return false;
 
-  const maxPages = getPageLimit(tier);
-  if ((pageCount ?? 0) >= maxPages) {
-    // At page limit — send to pricing
-    redirectTo.pathname = "/pricing";
-    return redirectTo;
-  }
-
-  // Register the page
+  // Create the page
   const { data: newPage, error: insertError } = await supabase
     .from("pages")
     .insert({
       user_id: userId,
       url: analysis.url,
-      last_scan_id: analysisId,
+      last_scan_id: analysis.id,
       scan_frequency: "daily",
     })
     .select("id")
     .single();
 
-  // Handle race condition: if page was just created by another request
   if (insertError?.code === "23505") {
-    const { data: justCreatedPage } = await supabase
+    // Race condition — page was just created
+    const { data: racePage } = await supabase
       .from("pages")
       .select("id")
-      .eq("user_id", userId)
       .eq("url", analysis.url)
-      .single();
-
-    if (justCreatedPage) {
-      redirectTo.pathname = `/pages/${justCreatedPage.id}`;
-      return redirectTo;
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (racePage) {
+      redirectTo.pathname = `/pages/${racePage.id}`;
+      return true;
     }
+    return false;
   }
 
-  if (newPage) {
-    redirectTo.pathname = `/pages/${newPage.id}`;
-  } else {
-    redirectTo.pathname = "/dashboard";
-  }
+  if (!newPage) return false;
 
-  return redirectTo;
+  // Claim the analysis
+  await supabase
+    .from("analyses")
+    .update({ user_id: userId })
+    .eq("id", analysis.id)
+    .is("user_id", null);
+
+  // Set account domain (first-write-wins)
+  try {
+    const domain = new URL(analysis.url).hostname.replace(/^www\./, "");
+    await supabase
+      .from("profiles")
+      .update({ account_domain: domain })
+      .eq("id", userId)
+      .is("account_domain", null);
+  } catch { /* URL parse failure — non-fatal */ }
+
+  redirectTo.pathname = `/pages/${newPage.id}`;
+  return true;
 }
 
 export async function GET(request: NextRequest) {
@@ -260,6 +307,9 @@ export async function GET(request: NextRequest) {
   redirectTo.searchParams.delete("next");
 
   const supabase = await createClient();
+
+  // Internal emails for PostHog test account filtering
+  const INTERNAL_EMAILS = new Set(["rbaten@gmail.com", "gr0x01@pm.me", "team@getloupe.io", "team@aboo.st"]);
 
   // Helper: identify user in PostHog after successful auth
   async function identifyAuthenticatedUser(user: { id: string; email?: string; created_at: string }) {
@@ -287,10 +337,11 @@ export async function GET(request: NextRequest) {
       email: user.email,
       subscription_tier: profile?.subscription_tier || "free",
       subscription_status: profile?.subscription_status || null,
+      is_internal: user.email ? INTERNAL_EMAILS.has(user.email) : false,
     });
 
     if (isNewUser) {
-      captureEvent(user.id, "user_signed_up", {
+      captureEvent(user.id, "signup_completed", {
         method: code ? "google" : "magic_link",
       });
     } else {
@@ -322,6 +373,11 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(dest);
         }
 
+        // Auto-claim: match unclaimed analysis by email
+        if (await handleEmailAutoClaim(redirectTo, user.id, user.email)) {
+          return NextResponse.redirect(redirectTo);
+        }
+
         // Default: return to requested path, otherwise dashboard.
         applyDefaultRedirect(redirectTo, nextPath, user.email);
       }
@@ -348,6 +404,11 @@ export async function GET(request: NextRequest) {
         if (rescanId) {
           const dest = await handleRescan(redirectTo, rescanId, user.id);
           return NextResponse.redirect(dest);
+        }
+
+        // Auto-claim: match unclaimed analysis by email
+        if (await handleEmailAutoClaim(redirectTo, user.id, user.email)) {
+          return NextResponse.redirect(redirectTo);
         }
 
         // Default: return to requested path, otherwise dashboard.

@@ -9,21 +9,21 @@
 import posthog from "posthog-js";
 
 // Event definitions with typed properties
+// NOTE: signup_completed, page_claimed, page_tracked fire SERVER-SIDE only
+// (see posthog-server.ts usages in auth/callback and api/pages)
 type TrackEvents = {
   // Acquisition — visitor → audit
   audit_started: { source: "homepage" | "dashboard" | "page_detail" | "pricing"; url: string; domain: string };
   audit_completed: { domain: string; url: string; findings_count: number; impact_range: string };
+
   audit_viewed: { domain: string; url: string; is_owner: boolean };
 
-  // Activation — audit → signup → claim
-  page_claimed: { domain: string; url: string };
+  // Activation — audit → claim intent
+  page_claim_attempted: { domain: string; url: string };
   login_started: { method: "magic_link" | "google" };
-  signup_completed: { method: "magic_link" | "google" };
-  page_tracked: { domain: string; is_first_page: boolean };
 
   // Retention / Engagement
   rescan_triggered: { domain: string };
-  correlation_viewed: { domain: string; status: "validated" | "regressed" };
   suggestion_copied: { element_type: string; domain: string };
   finding_feedback_submitted: { feedback_type: "accurate" | "inaccurate"; domain: string };
   outcome_feedback_submitted: { feedback_type: "accurate" | "inaccurate"; horizon_days: number };

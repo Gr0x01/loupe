@@ -184,10 +184,16 @@ async function findOrCreateUser(
     if (createError) {
       // User may exist in auth.users but not profiles (retry after partial failure)
       if (createError.message?.includes("already been registered")) {
-        const { data: { users } } = await supabase.auth.admin.listUsers();
-        const existing = users?.find(u => u.email === email);
-        if (existing) {
-          userId = existing.id;
+        // Paginate through listUsers to find by email (SDK has no getUserByEmail)
+        let found: string | null = null;
+        for (let page = 1; page <= 10; page++) {
+          const { data: { users } } = await supabase.auth.admin.listUsers({ page, perPage: 50 });
+          const match = users?.find(u => u.email === email);
+          if (match) { found = match.id; break; }
+          if (!users || users.length < 50) break;
+        }
+        if (found) {
+          userId = found;
         } else {
           console.error("User reportedly exists but not found:", email);
           return undefined;

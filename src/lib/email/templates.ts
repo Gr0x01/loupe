@@ -659,14 +659,14 @@ export function claimPageEmail({
   domain,
   magicLink,
 }: ClaimPageEmailParams): { subject: string; html: string } {
-  const subject = `Claim ${domain}`;
+  const subject = `Your page is being tracked`;
 
   const content = `
     <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 28px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
-      Your audit is ready.
+      We&rsquo;re tracking ${escapeHtml(domain)}.
     </h1>
     <p style="margin: 0 0 28px 0; font-size: 17px; color: ${colors.textSecondary}; line-height: 1.6;">
-      Claim <strong style="color: ${colors.textPrimary};">${escapeHtml(domain)}</strong> to track what changes&nbsp;next.
+      We&rsquo;ll re-scan daily and notify you when something changes &mdash; so you know if updates help or&nbsp;hurt.
     </p>
 
     <!-- CTA Button -->
@@ -674,21 +674,8 @@ export function claimPageEmail({
       <tr>
         <td>
           <a class="cta-button" href="${escapeHtml(magicLink)}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 24px; border-radius: 10px;">
-            Claim ${escapeHtml(domain)}
+            Go to your dashboard
           </a>
-        </td>
-      </tr>
-    </table>
-
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
-      <tr>
-        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
-          <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
-            What happens next
-          </p>
-          <p style="margin: 0; font-size: 15px; color: ${colors.textPrimary}; line-height: 1.6;">
-            We'll re-scan your page daily and notify you when something changes — so you know if updates help or&nbsp;hurt.
-          </p>
         </td>
       </tr>
     </table>
@@ -714,6 +701,116 @@ interface WelcomeSubscriberEmailParams {
  * Welcome email sent after unauthenticated Stripe checkout.
  * Contains a magic link so the new subscriber can sign in.
  */
+// ============================================
+// Activation nudge emails (empty accounts)
+// ============================================
+
+interface ActivationNudgeEmailParams {
+  domain: string;
+  analysisId: string;
+  magicLink: string;
+}
+
+/**
+ * Activation nudge — sent to users who ran an audit but never claimed it.
+ * Magic link auto-claims the page on click.
+ */
+export function activationNudgeEmail({
+  domain,
+  analysisId,
+  magicLink,
+}: ActivationNudgeEmailParams): { subject: string; html: string } {
+  const subject = `Your ${domain} audit is waiting`;
+  const fallbackUrl = `https://getloupe.io/analysis/${analysisId}`;
+
+  const content = `
+    <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 28px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
+      Your audit results are sitting&nbsp;unclaimed.
+    </h1>
+    <p style="margin: 0 0 28px 0; font-size: 17px; color: ${colors.textSecondary}; line-height: 1.6;">
+      You ran an audit on <strong style="color: ${colors.textPrimary};">${escapeHtml(domain)}</strong> and we found things worth changing.
+      But nothing's tracked yet&nbsp;&mdash; so you won't know if your next change helped or&nbsp;hurt.
+    </p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+      <tr>
+        <td style="padding: 20px; background-color: ${colors.background}; border-radius: 10px;">
+          <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: ${colors.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
+            What happens when you claim it
+          </p>
+          <p style="margin: 0; font-size: 15px; color: ${colors.textPrimary}; line-height: 1.6;">
+            Loupe starts watching ${escapeHtml(domain)} daily. When you change something,
+            you'll see whether it moved the needle&nbsp;&mdash; a week later, a month&nbsp;later.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Primary CTA — magic link auto-claims -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
+      <tr>
+        <td>
+          <a class="cta-button" href="${escapeHtml(magicLink)}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 24px; border-radius: 10px;">
+            Claim ${escapeHtml(domain)} and start tracking
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin: 0 0 28px 0; font-size: 14px; color: ${colors.textSecondary}; line-height: 1.5;">
+      Want to re-read the findings first?
+      <a href="${fallbackUrl}" style="color: ${colors.accent}; text-decoration: none; font-weight: 500;">View your audit &rarr;</a>
+    </p>
+
+    <p style="margin: 0; font-size: 13px; color: ${colors.textMuted}; line-height: 1.5;">
+      This link signs you in automatically and expires in 1&nbsp;hour.
+    </p>
+  `;
+
+  return { subject, html: emailWrapper(content) };
+}
+
+interface GenericSetupEmailParams {
+  magicLink: string;
+}
+
+/**
+ * Generic setup nudge — sent to users who signed up but have no pages
+ * and no matching audit to reclaim.
+ */
+export function genericSetupEmail({
+  magicLink,
+}: GenericSetupEmailParams): { subject: string; html: string } {
+  const subject = "One step left to start tracking";
+
+  const content = `
+    <h1 style="margin: 0 0 8px 0; font-family: ${fonts.headline}; font-size: 28px; font-weight: 400; color: ${colors.textPrimary}; line-height: 1.2; letter-spacing: -0.5px;">
+      One step&nbsp;left.
+    </h1>
+    <p style="margin: 0 0 28px 0; font-size: 17px; color: ${colors.textSecondary}; line-height: 1.6;">
+      Your account is set up. Add a page and Loupe starts watching it daily&nbsp;&mdash;
+      so when your metrics move, you'll know what&nbsp;changed.
+    </p>
+
+    <!-- CTA -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 28px;">
+      <tr>
+        <td>
+          <a class="cta-button" href="${escapeHtml(magicLink)}" style="display: inline-block; background-color: ${colors.accent}; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 24px; border-radius: 10px;">
+            Go to your dashboard
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin: 0; font-size: 13px; color: ${colors.textMuted}; line-height: 1.5;">
+      This link signs you in automatically and expires in 1&nbsp;hour.
+    </p>
+  `;
+
+  return { subject, html: emailWrapper(content) };
+}
+
 export function welcomeSubscriberEmail({
   tier,
   magicLink,

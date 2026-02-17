@@ -1176,12 +1176,17 @@ export default function AnalysisPage() {
       });
       if (res.ok) {
         setClaimEmailSent(true);
-        // Track page claim attempt (activation moment)
-        track("page_claimed", { domain: getDomain(analysis.url), url: analysis.url });
+        track("page_claim_attempted", { domain: getDomain(analysis.url), url: analysis.url });
       } else {
         const data = await res.json();
         console.error("Claim link error:", data.error);
-        setClaimError("Failed to send link. Try again.");
+        if (res.status === 409) {
+          setClaimError("This page is already being tracked by another account.");
+        } else if (data.upgrade) {
+          setClaimError("Page limit reached. Upgrade to track more pages.");
+        } else {
+          setClaimError("Something went wrong. Try again.");
+        }
         setSubmittedClaimAnalysisId(null);
       }
     } catch {
@@ -1227,7 +1232,7 @@ export default function AnalysisPage() {
             if (res.ok) {
               setClaimEmailSent(true);
               setSubmittedClaimAnalysisId(analysis.id);
-              track("page_claimed", { domain: getDomain(analysis.url), url: analysis.url });
+              track("page_claim_attempted", { domain: getDomain(analysis.url), url: analysis.url });
             } else {
               // Claim failed — save as lead so email isn't lost
               return fetch("/api/leads", {
@@ -1407,9 +1412,9 @@ export default function AnalysisPage() {
                   <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
                   </svg>
-                  <span className="font-medium text-text-primary">Check your inbox</span>
+                  <span className="font-medium text-text-primary">You&apos;re tracking this page</span>
                 </div>
-                <p className="text-sm text-text-muted">We&apos;re watching. You&apos;ll know when it drifts.</p>
+                <p className="text-sm text-text-muted">Check your email to sign in to your dashboard.</p>
               </div>
             ) : (
               <>
@@ -1787,7 +1792,7 @@ export default function AnalysisPage() {
                   You&apos;re tracking this page
                 </p>
                 <p className="text-base text-ink-500 mt-2">
-                  Check your inbox for the magic link. Make your changes, then we&apos;ll show you what moved.
+                  We&apos;ll email you when something changes. Check your inbox to sign in to your dashboard.
                 </p>
               </div>
             ) : (

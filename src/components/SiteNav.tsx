@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { identify, reset, track, setPersonProperties } from "@/lib/analytics/track";
+import { identify, reset, setPersonProperties } from "@/lib/analytics/track";
 
 export default function SiteNav() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -30,6 +30,7 @@ export default function SiteNav() {
 
   useEffect(() => {
     // Identify user in PostHog with full profile properties
+    // NOTE: is_internal is set server-side in auth callback (not exposed in client bundle)
     const identifyWithProfile = async (userId: string, email?: string) => {
       // Identify immediately with email so events are attributed
       identify(userId, { email });
@@ -66,13 +67,7 @@ export default function SiteNav() {
 
       if (event === "SIGNED_IN" && session?.user) {
         identifyWithProfile(session.user.id, session.user.email);
-        // Track signup completion only for new accounts (created in last 60 seconds)
-        const createdAt = new Date(session.user.created_at).getTime();
-        const isNewUser = Date.now() - createdAt < 60000;
-        if (isNewUser) {
-          const method = session.user.app_metadata?.provider === "google" ? "google" : "magic_link";
-          track("signup_completed", { method });
-        }
+        // signup_completed is tracked server-side in auth callback (more reliable)
       } else if (event === "SIGNED_OUT") {
         reset();
       }
