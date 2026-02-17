@@ -313,8 +313,6 @@ export async function GET(request: NextRequest) {
 
   // Helper: identify user in PostHog after successful auth
   async function identifyAuthenticatedUser(user: { id: string; email?: string; created_at: string }) {
-    const isNewUser = Date.now() - new Date(user.created_at).getTime() < 60000;
-
     // Fetch profile for tier info
     const serviceClient = createServiceClient();
     const { data: profile } = await serviceClient
@@ -323,8 +321,11 @@ export async function GET(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
+    // New user = never had a trial set (claim-link sets it on creation, callback sets it here)
+    const isNewUser = profile ? !profile.trial_ends_at : false;
+
     // Set 14-day Pro trial for new users
-    if (isNewUser && profile && !profile.trial_ends_at) {
+    if (profile && !profile.trial_ends_at) {
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + TRIAL_DURATION_DAYS);
       await serviceClient
@@ -342,7 +343,7 @@ export async function GET(request: NextRequest) {
 
     if (isNewUser) {
       captureEvent(user.id, "signup_completed", {
-        method: code ? "google" : "magic_link",
+        method: claimId ? "instant_claim" : (code ? "google" : "magic_link"),
       });
     } else {
       captureEvent(user.id, "user_logged_in", {

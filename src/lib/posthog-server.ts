@@ -17,7 +17,7 @@ function getClient(): PostHog | null {
 
   client = new PostHog(apiKey, {
     host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
-    flushAt: 1, // Flush immediately in serverless (Vercel)
+    flushAt: 30, // Batch events; explicit flushEvents() sends them before function exits
     flushInterval: 0,
   });
 
