@@ -160,9 +160,9 @@ function formatMetadataForPrompt(metadata: PageMetadata): string {
   );
 
   lines.push("\n### Heading Structure");
-  lines.push(`- H1: ${metadata.headings.h1.join(" | ") || "(none)"}`);
-  lines.push(`- H2: ${metadata.headings.h2.join(" | ") || "(none)"}`);
-  lines.push(`- H3: ${metadata.headings.h3.join(" | ") || "(none)"}`);
+  lines.push(`- H1: ${metadata.headings?.h1?.join(" | ") || "(none)"}`);
+  lines.push(`- H2: ${metadata.headings?.h2?.join(" | ") || "(none)"}`);
+  lines.push(`- H3: ${metadata.headings?.h3?.join(" | ") || "(none)"}`);
 
   lines.push("\n### CTAs & Buttons");
   if (metadata.buttons.length === 0) {
