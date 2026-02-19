@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { jsonrepair } from "jsonrepair";
 
 // Re-export types from canonical source
 export type {
@@ -119,33 +120,70 @@ export function validateMatchProposal(
 }
 
 /**
+ * Try to repair malformed JSON using jsonrepair library.
+ * Returns repaired string if it parses, otherwise null.
+ */
+function tryRepair(text: string): string | null {
+  try {
+    const repaired = jsonrepair(text);
+    JSON.parse(repaired); // validate
+    return repaired;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Extract JSON from an LLM response that may contain markdown code blocks or text preamble.
- * Falls back to brace-matching when regex fails (e.g., truncated responses missing closing ```).
+ * 4-tier fallback: code block → brace matching → closeJson → jsonrepair.
  */
 export function extractJson(text: string): string {
-  // 1. Try markdown code block extraction
+  // Tier 1: Try markdown code block extraction
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch?.[1]) {
-    return codeBlockMatch[1].trim();
+    const content = codeBlockMatch[1].trim();
+    // Validate before returning — if invalid, fall through to other tiers
+    try {
+      JSON.parse(content);
+      return content;
+    } catch {
+      // Code block content is malformed — try repair on it first
+      Sentry.addBreadcrumb({ category: "json-extraction", message: "Tier 1 code block invalid, attempting repair", level: "warning" });
+      const repaired = tryRepair(content);
+      if (repaired) return repaired;
+      // Fall through to brace-matching tiers using full text
+    }
   }
 
-  // 2. Fallback: find the first { and extract the matching JSON object
+  // Tier 2: Find the first { and extract the matching JSON object
   const firstBrace = text.indexOf("{");
   if (firstBrace === -1) {
     return text.trim();
   }
 
-  // Find the matching closing brace (handles text after JSON)
   const jsonCandidate = extractMatchingBraces(text, firstBrace);
 
-  // Try parsing as-is first (complete JSON)
+  // Try parsing as-is (complete JSON)
   try {
     JSON.parse(jsonCandidate);
     return jsonCandidate;
   } catch {
-    // 3. Truncated JSON — try to close it by balancing braces/brackets
+    // Tier 3: Truncated JSON — try to close it by balancing braces/brackets
     console.warn("LLM response truncated — attempting to close JSON. Data may be incomplete.");
-    return closeJson(jsonCandidate);
+    Sentry.addBreadcrumb({ category: "json-extraction", message: "Tier 3: closeJson fallback", level: "warning" });
+    const closed = closeJson(jsonCandidate);
+    try {
+      JSON.parse(closed);
+      return closed;
+    } catch {
+      // Tier 4: jsonrepair as last resort
+      console.warn("closeJson insufficient — attempting jsonrepair.");
+      Sentry.addBreadcrumb({ category: "json-extraction", message: "Tier 4: jsonrepair fallback", level: "warning" });
+      const repaired = tryRepair(jsonCandidate);
+      if (repaired) return repaired;
+      // Nothing worked — return closeJson result (best effort)
+      return closed;
+    }
   }
 }
 
@@ -178,17 +216,16 @@ export function extractMatchingBraces(text: string, startIdx: number): string {
 }
 
 /**
- * Attempt to close truncated JSON by counting unmatched braces/brackets.
- * Strips the last incomplete value, then appends closing tokens.
+ * Attempt to close truncated JSON by tracking a stack of openers.
+ * Strips the last incomplete value, then appends closing tokens in correct LIFO order.
  */
 export function closeJson(json: string): string {
   // Strip trailing incomplete string (e.g., "some truncated valu)
   let trimmed = json.replace(/,\s*"[^"]*$/, "");  // trailing incomplete key
   trimmed = trimmed.replace(/,\s*$/, "");           // trailing comma
 
-  // Count unmatched openers
-  let braces = 0;
-  let brackets = 0;
+  // Track openers on a stack for correct LIFO closing order
+  const stack: string[] = [];
   let inString = false;
   let escaped = false;
 
@@ -197,16 +234,17 @@ export function closeJson(json: string): string {
     if (ch === "\\") { escaped = true; continue; }
     if (ch === '"') { inString = !inString; continue; }
     if (inString) continue;
-    if (ch === "{") braces++;
-    if (ch === "}") braces--;
-    if (ch === "[") brackets++;
-    if (ch === "]") brackets--;
+    if (ch === "{" || ch === "[") stack.push(ch);
+    if (ch === "}") { if (stack.length > 0) stack.pop(); }
+    if (ch === "]") { if (stack.length > 0) stack.pop(); }
   }
 
-  // Close any unclosed strings, then brackets/braces
+  // Close any unclosed strings, then close stack in reverse order
   if (inString) trimmed += '"';
-  while (brackets > 0) { trimmed += "]"; brackets--; }
-  while (braces > 0) { trimmed += "}"; braces--; }
+  while (stack.length > 0) {
+    const opener = stack.pop();
+    trimmed += opener === "[" ? "]" : "}";
+  }
 
   return trimmed;
 }

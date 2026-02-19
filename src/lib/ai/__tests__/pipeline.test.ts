@@ -11,6 +11,7 @@ vi.mock("@ai-sdk/anthropic", () => ({
 vi.mock("@sentry/nextjs", () => ({
   captureException: vi.fn(),
   captureMessage: vi.fn(),
+  addBreadcrumb: vi.fn(),
 }));
 
 describe("extractJson", () => {
@@ -57,6 +58,26 @@ describe("extractJson", () => {
     expect(() => JSON.parse(result)).not.toThrow();
     const parsed = JSON.parse(result);
     expect(parsed.verdict).toBe("Test");
+  });
+
+  it("repairs code block with malformed content (Bug 3 — Tier 1 bypass)", () => {
+    // Code block regex matches but content has unescaped quote
+    const text = '```json\n{"title": "She said "hello" today"}\n```';
+    const result = extractJson(text);
+    expect(() => JSON.parse(result)).not.toThrow();
+    // Should recover the title in some form
+    const parsed = JSON.parse(result);
+    expect(parsed.title).toBeDefined();
+  });
+
+  it("repairs mid-stream missing comma (Bug 2 — jsonrepair tier)", () => {
+    // Missing comma between object properties
+    const text = '{"verdict": "Good" "changes": []}';
+    const result = extractJson(text);
+    expect(() => JSON.parse(result)).not.toThrow();
+    const parsed = JSON.parse(result);
+    expect(parsed.verdict).toBe("Good");
+    expect(parsed.changes).toEqual([]);
   });
 });
 
@@ -124,6 +145,15 @@ describe("closeJson", () => {
   it("passes through already valid JSON", () => {
     const json = '{"key": "value"}';
     expect(closeJson(json)).toBe(json);
+  });
+
+  it("closes mixed brace+bracket nesting in correct LIFO order", () => {
+    // {"findings": [{"title": "test"  →  should close "}]}" not "]}}"
+    const json = '{"findings": [{"title": "test"';
+    const result = closeJson(json);
+    expect(() => JSON.parse(result)).not.toThrow();
+    const parsed = JSON.parse(result);
+    expect(parsed.findings[0].title).toBe("test");
   });
 });
 

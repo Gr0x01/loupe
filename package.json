@@ -23,6 +23,7 @@
     "ai": "^6.0.67",
     "inngest": "^3.50.0",
     "jose": "^6.1.3",
+    "jsonrepair": "^3.13.2",
     "next": "16.1.6",
     "posthog-js": "^1.336.4",
     "posthog-node": "^5.24.15",
