@@ -195,7 +195,7 @@ export const scheduledScan = inngest.createFunction(
     id: "scheduled-scan",
     retries: 0,
   },
-  { cron: "0 9 * * 1" }, // Monday 9am UTC
+  { event: "sunset.disabled" }, // disabled 2026-04-28 — was: cron "0 9 * * 1"
   async ({ step }) => {
     return runScheduledScans(step, "weekly");
   }
@@ -210,7 +210,7 @@ export const scheduledScanDaily = inngest.createFunction(
     id: "scheduled-scan-daily",
     retries: 0,
   },
-  { cron: "0 9 * * *" }, // Daily 9am UTC
+  { event: "sunset.disabled" }, // disabled 2026-04-28 — was: cron "0 9 * * *"
   async ({ step }) => {
     const scanResult = await runScheduledScans(step, "daily");
 
@@ -304,7 +304,7 @@ export const dailyScanDigest = inngest.createFunction(
     id: "daily-scan-digest",
     retries: 1,
   },
-  { cron: "0 11 * * *" }, // Daily 11am UTC (2h after scans start at 9am)
+  { event: "sunset.disabled" }, // disabled 2026-04-28 — was: cron "0 11 * * *"
   async ({ step }) => {
     const supabase = createServiceClient();
 
@@ -430,7 +430,7 @@ export const screenshotHealthCheck = inngest.createFunction(
     id: "screenshot-health-check",
     retries: 0,
   },
-  { cron: "*/30 * * * *" },
+  { event: "sunset.disabled" }, // disabled 2026-04-28 — was: cron "*/30 * * * *"
   async () => {
     const healthy = await pingScreenshotService();
     return { healthy };
@@ -446,7 +446,7 @@ export const screenshotHealthCheck = inngest.createFunction(
  */
 export const onboardingNudge = inngest.createFunction(
   { id: "onboarding-nudge", retries: 0 },
-  { cron: "0 13 * * *" },
+  { event: "sunset.disabled" }, // disabled 2026-04-28 — was: cron "0 13 * * *"
   async ({ step }) => {
     const supabase = createServiceClient();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;

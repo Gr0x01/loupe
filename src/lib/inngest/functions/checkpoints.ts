@@ -34,8 +34,8 @@ export const runCheckpoints = inngest.createFunction(
     retries: 0, // Cron pattern: no retries to prevent duplicate full runs
   },
   [
-    { cron: "30 10 * * *" }, // Daily 10:30 UTC — after daily scans, before digest
-    { event: "checkpoints/run" }, // Backup trigger from Vercel Cron self-heal
+    // cron "30 10 * * *" disabled 2026-04-28 (sunset)
+    { event: "checkpoints/run" }, // event trigger retained but no longer fired (Vercel cron removed)
   ],
   async ({ step }) => {
     const supabase = createServiceClient();
