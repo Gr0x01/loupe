@@ -62,7 +62,9 @@ If revisiting any change-intelligence direction, replay this corpus against new 
 - [x] Stripe: confirmed 0 active subs / trials
 - [x] pg_dump → `~/Documents/coding_projects/loupe-archive/loupe-final-2026-04-28.dump`
 - [x] Supabase project deleted (Pro tier, ~$25/mo recovered)
+- [x] Public site scrubbed (2026-04-29): `src/app/page.tsx` → static shutdown notice; `SiteNav` + `SiteFooter` removed from `layout.tsx` (killed dead links + client Supabase calls); metadata + JSON-LD replaced with shutdown copy and `robots: noindex,nofollow`
 - [ ] GitHub App: deactivate webhooks / uninstall (pending)
 - [ ] Inngest dashboard: delete Loupe app (optional, schedules already cron-less)
+- [ ] `src/app/robots.ts` still allows crawling — flip to disallow if you want belt-and-suspenders with the noindex meta
 
 Recurring monthly cost recovered: ~$45 ($20 Vultr + $25 Supabase Pro) plus Anthropic API spend from cron-driven analyses.
