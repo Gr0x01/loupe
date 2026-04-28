@@ -1,4 +1,18 @@
-# Current Phase: MVP Build — Beta Mode
+# Current Phase: SUNSET (shut down 2026-04-28)
+
+> Project shut down. WAU collapsed 188 → 15 over 8 weeks; 7 signups / 0 paying users in 90 days; the diagnosis was distribution-model, not marketing fatigue. Recurring infra cost (~$45/mo) recovered.
+>
+> **Read `memory-bank/projects/loupe-sunset-2026-04.md` for: why we shut down, what was built that's worth harvesting, what to do differently if reviving.**
+>
+> Vultr screenshot service destroyed; snapshot `798b7f81-d11a-4044-a342-0b1f87ad2d43` retained.
+> Supabase project deleted; pg_dump preserved at `~/Documents/coding_projects/loupe-archive/loupe-final-2026-04-28.dump`.
+> Vercel crons cleared, Inngest re-synced with cron-less code (functions retained but no triggers).
+>
+> Sections below are historical record from when the project was active — don't treat as current work.
+
+---
+
+# Historical: MVP Build — Beta Mode
 
 ## Beta Pricing (Active)
 
@@ -42,6 +56,13 @@ Pricing buttons go directly to Stripe — no login required. Webhook creates use
 **Nudge email** (`onboardingNudge` cron, 1pm UTC): Users 4–48h old with no pages get nudge. Idempotency: `profiles.onboarding_nudge_sent_at`.
 
 **PostHog tracking fixes**: `ServerEvent` type union, `is_internal` person property, `page_claim_attempted` (client) vs `page_claimed` (server), `filterTestAccounts: true` on all dashboard insights.
+
+**PostHog test account filters (Feb 18, 2026)**:
+- `is_internal` person property CANNOT be used in PostHog's test account filter UI (neither `= true` nor `≠ true` works — inclusive/exclusive operator semantics). Still useful for HogQL ad-hoc queries.
+- Correct filter config: Email `∌` all internal emails (comma-separated) + Host regex for localhost + IP `∌` founder IP. All operators must be exclusive (`doesn't contain` / `doesn't match regex`).
+- `handleEmailAutoClaim` now fires `page_claimed` + `page_tracked` events (was missing).
+- `claim-link` route now sets `is_internal: false` on `identifyUser`.
+- Backfill script (`scripts/backfill-posthog-is-internal.ts`) ran and deleted.
 
 Key files: `src/app/api/auth/claim-link/route.ts`, `src/app/auth/callback/route.ts`, `src/lib/posthog-server.ts`, `src/lib/analytics/track.ts`, `src/lib/inngest/functions/scheduled.ts`.
 

@@ -97,6 +97,23 @@ Key files: `src/app/login/page.tsx`, `src/app/dashboard/page.tsx`, `src/componen
 
 See `current.md` Reconciliation section for details.
 
+### D48: Sunset Loupe (April 2026)
+
+**Decision**: Shut Loupe down. Destroy infra, archive code, dump data locally, write post-mortem. Don't pause or soft-launch a turnaround attempt.
+
+**Why**:
+- 90-day data: 7 signups, 0 paying, WAU 188 → 15 (~92% drop), 3 unique users started a new audit in the last 30 days.
+- Diagnosis was distribution, not marketing fatigue. Loupe-as-built had no organic acquisition surface and no retention loop strong enough to convert evaluators. Fixing that = re-pivot, not a campaign.
+- Recurring infra cost (~$45/mo: Vultr $20 + Supabase Pro $25, plus LLM API on crons) was real for a project with zero revenue.
+- Better project opportunities elsewhere on the docket. Sunk-cost avoided — RFC-0001's 7 phases shipping does not obligate a continued push.
+
+**What was preserved**:
+- Code in this repo (archived, not deleted). Full harvest list in `projects/loupe-sunset-2026-04.md`.
+- Vultr snapshot `798b7f81-d11a-4044-a342-0b1f87ad2d43` (~$0.16/mo retention).
+- Full pg_dump at `~/Documents/coding_projects/loupe-archive/loupe-final-2026-04-28.dump` — 1,244 analyses + 117 checkpoints + 662 analytics_snapshots, the only real-world LLM-as-analyst calibration corpus that exists.
+
+**Revival rule**: if Loupe (or anything in the change-intelligence space) gets revived, do not rebuild before re-reading the post-mortem's "what I'd do differently" section.
+
 ---
 
 ## Implemented & Documented Elsewhere

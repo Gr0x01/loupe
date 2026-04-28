@@ -1,5 +1,7 @@
 # Loupe
 
+> **STATUS: SUNSET — shut down 2026-04-28.** Vultr screenshot service destroyed (snapshot retained), Supabase project deleted, Vercel crons cleared, Inngest registered with cron-less code. Full post-mortem and harvest list: `projects/loupe-sunset-2026-04.md`. The rest of this file describes the product as it existed; treat as historical reference, not the current state. Don't propose new features unless reviving.
+
 **Founder**: Rashaad
 
 ## What Loupe Does
